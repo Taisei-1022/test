@@ -137,15 +137,22 @@
         shift: Number(shift.value),
         ua: navigator.userAgent
       }));
-
+    
       try {
-        const res = await fetch(SCRIPT_URL, { method: "POST", body: form });
-        const text = await res.text();
-        console.log("[GAS]", res.status, text);
+        await fetch(SCRIPT_URL, {
+          method: "POST",
+          body: form,
+          // ★ 重要：CORS検査を回避（レスポンスは読めなくなるが送信は通る）
+          mode: "no-cors",
+          // ヘッダーは付けない（付けるとプリフライトが走ります）
+        });
+        // console.logは不要（no-corsだとstatusも読めないため）
       } catch (e) {
-        console.error("[GAS error]", e);
+        // ここに来るのはネットワーク断など本当の失敗だけ
+        console.error("[sendLog fatal]", e);
       }
     }
+
 
     const render=()=>{
       const offset=Number(shift.value);
