@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>高尾山 → 富士急 行程表（スライダー付き）</title>
+  <title>高尾山 → 富士急 行程表（連動版）</title>
   <style>
     :root { --bg:#0f172a; --card:#111827; --text:#e5e7eb; --muted:#9ca3af; --accent:#60a5fa; }
     body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; background:linear-gradient(180deg,#0b1220,#0f172a 20%,#0b1220); color:var(--text);}
@@ -11,8 +11,8 @@
     h1{font-size:clamp(22px,3vw,28px);margin:0 0 16px}
     .subtitle{color:var(--muted);margin-bottom:24px}
     .controls{background:var(--card);border:1px solid #1f2937;border-radius:14px;padding:16px;margin:18px 0;box-shadow:0 10px 25px rgba(0,0,0,.25)}
-    .row{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
-    input[type="range"]{width:320px;max-width:100%}
+    .row{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+    input[type="range"]{width:260px;max-width:100%}
     .pill{background:#0b1220;border:1px solid #1f2937;border-radius:999px;padding:.35rem .75rem;color:var(--accent); font-weight:600}
     .cards{display:grid;grid-template-columns:1fr;gap:14px}
     @media (min-width:720px){ .cards{grid-template-columns:1fr 1fr}}
@@ -23,15 +23,18 @@
     .time{min-width:86px;font-variant-numeric:tabular-nums; font-weight:700}
     .note{color:var(--muted)}
     .hint{color:var(--muted);font-size:12px;margin-top:8px}
-    .btns{display:flex;gap:8px;flex-wrap:wrap}
-    button{background:#0b1220;border:1px solid #1f2937;color:var(--text);padding:.55rem .8rem;border-radius:10px;cursor:pointer}
-    button:hover{border-color:#334155}
+    .switch{position:relative;display:inline-block;width:50px;height:26px}
+    .switch input{opacity:0;width:0;height:0}
+    .slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#4b5563;transition:.3s;border-radius:26px}
+    .slider:before{position:absolute;content:"";height:20px;width:20px;left:3px;bottom:3px;background:white;transition:.3s;border-radius:50%}
+    input:checked + .slider{background:var(--accent)}
+    input:checked + .slider:before{transform:translateX(24px)}
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>行程表：高尾山 → 富士急</h1>
-    <div class="subtitle">1日目（水曜）は下のスライダーで出発時刻をまとめて前後にシフトできます。</div>
+    <div class="subtitle">スイッチとスライダーで予定を調整できます。（後続イベントも連動）</div>
 
     <!-- コントロール -->
     <div class="controls">
@@ -39,15 +42,25 @@
         <strong>1日目の時刻シフト</strong>
         <span id="offsetLabel" class="pill">±0分</span>
       </div>
-      <div class="row" style="margin-top:10px">
+      <div class="row">
         <input id="shift" type="range" min="-240" max="240" step="5" value="0" />
-        <div class="btns">
-          <button data-preset="-120">朝寄せ（-120分）</button>
-          <button data-preset="120">夜寄せ（+120分）</button>
-          <button id="reset">リセット</button>
-        </div>
       </div>
-      <div class="hint">※ ずらせる範囲は ±240分（4時間）。日付をまたぐと「(翌日) / (前日)」表示が付きます。</div>
+
+      <div class="row">
+        <label>温泉入浴:</label>
+        <label class="switch">
+          <input type="checkbox" id="onsenToggle" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="row">
+        <label>登山/下山スピード:</label>
+        <input type="range" id="speed" min="0.5" max="2" step="0.1" value="1">
+        <span id="speedLabel" class="pill">×1.0</span>
+      </div>
+
+      <div class="hint">※ 登山/下山時間が変わると、その後の電車・到着・チェックインもまとめて前後します。</div>
     </div>
 
     <!-- 行程表示 -->
@@ -55,14 +68,14 @@
       <!-- Day 1 -->
       <section class="card" id="day1">
         <h2 class="day">1日目（水曜）高尾山 → 富士急近く泊</h2>
-        <div class="item"><div class="time" data-base="09:30"></div><div>高尾山口駅着</div></div>
-        <div class="item"><div class="time" data-base="09:45"></div><div>登山開始</div></div>
-        <div class="item"><div class="time" data-base="11:15"></div><div>山頂到着</div></div>
-        <div class="item"><div class="time" data-base="12:00"></div><div>下山開始</div></div>
-        <div class="item"><div class="time" data-base="13:00"></div><div>下山完了 → 高尾山温泉</div></div>
-        <div class="item"><div class="time" data-base="14:30"></div><div>高尾山口 → 八王子 → 大月 → 富士急行線へ</div></div>
-        <div class="item"><div class="time" data-base="17:30"></div><div>富士急ハイランド駅 or 河口湖駅 着</div></div>
-        <div class="item"><div class="time" data-base="18:00"></div><div>ホテルチェックイン</div></div>
+        <div class="item"><div class="time" data-base="09:30" data-key="start"></div><div>高尾山口駅着</div></div>
+        <div class="item"><div class="time" data-base="09:45" data-key="climbStart"></div><div>登山開始</div></div>
+        <div class="item"><div class="time" data-base="11:15" data-key="summit"></div><div>山頂到着</div></div>
+        <div class="item"><div class="time" data-base="12:00" data-key="descentStart"></div><div>下山開始</div></div>
+        <div class="item" id="onsenRow"><div class="time" data-base="13:00" data-key="descentEnd"></div><div>下山完了 → 高尾山温泉</div></div>
+        <div class="item"><div class="time" data-base="14:30" data-key="train"></div><div>高尾山口 → 八王子 → 大月 → 富士急行線へ</div></div>
+        <div class="item"><div class="time" data-base="17:30" data-key="fujiArrive"></div><div>富士急ハイランド駅 or 河口湖駅 着</div></div>
+        <div class="item"><div class="time" data-base="18:00" data-key="hotel"></div><div>ホテルチェックイン</div></div>
       </section>
 
       <!-- Day 2 -->
@@ -76,57 +89,78 @@
   </div>
 
   <script>
-    // 文字列 "HH:MM" → 分
-    const toMin = (hhmm) => {
-      const [h, m] = hhmm.split(":").map(Number);
-      return h * 60 + m;
-    };
-    // 分 → "HH:MM"（日付跨ぎ情報も返す）
-    const fmtTimeWithDay = (totalMin) => {
-      let dayDelta = Math.floor(totalMin / 1440);
-      let m = ((totalMin % 1440) + 1440) % 1440;
-      const h = Math.floor(m / 60);
-      const mm = String(m % 60).padStart(2, "0");
-      const hh = String(h).padStart(2, "0");
-
-      let suffix = "";
-      if (dayDelta === 1) suffix = " (翌日)";
-      else if (dayDelta === -1) suffix = " (前日)";
-      else if (dayDelta > 1) suffix = ` (+${dayDelta}日)`;
-      else if (dayDelta < -1) suffix = ` (${dayDelta}日)`;
-
+    const toMin = (hhmm) => { const [h,m]=hhmm.split(":").map(Number); return h*60+m; };
+    const fmt = (totalMin) => {
+      let dayDelta=Math.floor(totalMin/1440);
+      let m=((totalMin%1440)+1440)%1440;
+      const h=Math.floor(m/60), mm=String(m%60).padStart(2,"0"), hh=String(h).padStart(2,"0");
+      let suffix="";
+      if(dayDelta===1) suffix=" (翌日)";
+      else if(dayDelta===-1) suffix=" (前日)";
+      else if(dayDelta>1) suffix=` (+${dayDelta}日)`;
+      else if(dayDelta<-1) suffix=` (${dayDelta}日)`;
       return `${hh}:${mm}${suffix}`;
     };
 
-    // スライダーで1日目を更新
-    const shift = document.getElementById("shift");
-    const label = document.getElementById("offsetLabel");
-    const day1Times = [...document.querySelectorAll("#day1 .time")];
-    const bases = day1Times.map(el => toMin(el.dataset.base));
+    const shift=document.getElementById("shift");
+    const label=document.getElementById("offsetLabel");
+    const speed=document.getElementById("speed");
+    const speedLabel=document.getElementById("speedLabel");
+    const onsenToggle=document.getElementById("onsenToggle");
+    const onsenRow=document.getElementById("onsenRow");
 
-    const render = () => {
-      const offset = Number(shift.value);
-      label.textContent = (offset > 0 ? `+${offset}` : `${offset}`) + "分";
-      day1Times.forEach((el, i) => {
-        el.textContent = fmtTimeWithDay(bases[i] + offset);
-      });
+    // 基準時刻
+    const base={
+      start:toMin("09:30"),
+      climbStart:toMin("09:45"),
+      summit:toMin("11:15"),
+      descentStart:toMin("12:00"),
+      descentEnd:toMin("13:00"),
+      train:toMin("14:30"),
+      fujiArrive:toMin("17:30"),
+      hotel:toMin("18:00")
     };
 
-    // 初期表示
-    render();
+    const render=()=>{
+      const offset=Number(shift.value);
+      const spd=Number(speed.value);
+      label.textContent=(offset>0?`+${offset}`:`${offset}`)+"分";
+      speedLabel.textContent="×"+spd.toFixed(1);
 
-    // イベント
-    shift.addEventListener("input", render);
-    document.querySelectorAll("button[data-preset]").forEach(btn => {
-      btn.addEventListener("click", () => {
-        shift.value = btn.dataset.preset;
-        render();
-      });
-    });
-    document.getElementById("reset").addEventListener("click", () => {
-      shift.value = 0;
-      render();
-    });
+      // 登山/下山時間調整
+      const climbDur=base.summit-base.climbStart;
+      const descentDur=base.descentEnd-base.descentStart;
+      const summit=base.climbStart+Math.round(climbDur/spd);
+      const descentEnd=base.descentStart+Math.round(descentDur/spd);
+
+      // 基準との差分を計算
+      const delta=(summit-base.summit)+(descentEnd-base.descentEnd);
+
+      // 全体に適用
+      const times={
+        start:base.start,
+        climbStart:base.climbStart,
+        summit,
+        descentStart:base.descentStart,
+        descentEnd,
+        train:base.train+delta,
+        fujiArrive:base.fujiArrive+delta,
+        hotel:base.hotel+delta
+      };
+
+      for(const [k,v] of Object.entries(times)){
+        const el=document.querySelector(`.time[data-key=${k}]`);
+        if(el) el.textContent=fmt(v+offset);
+      }
+
+      onsenRow.style.display=onsenToggle.checked?"flex":"none";
+    };
+
+    shift.addEventListener("input",render);
+    speed.addEventListener("input",render);
+    onsenToggle.addEventListener("change",render);
+
+    render();
   </script>
 </body>
 </html>
