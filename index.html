@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>高尾山 → 富士急 行程表（ログ保存版）</title>
+  <title>高尾山 → 富士急 行程表 Ver1.0.2</title>
   <style>
     :root { --bg:#0f172a; --card:#111827; --text:#e5e7eb; --muted:#9ca3af; --accent:#60a5fa; }
     body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; background:linear-gradient(180deg,#0b1220,#0f172a 20%,#0b1220); color:var(--text);}
     .wrap{max-width:900px;margin:40px auto;padding:0 18px;}
-    h1{font-size:clamp(22px,3vw,28px);margin:0 0 16px}
-    .subtitle{color:var(--muted);margin-bottom:24px}
+    h1{font-size:clamp(22px,3vw,28px);margin:0 0 4px}
+    .version{color:var(--muted);margin-bottom:20px;font-size:14px}
     .controls{background:var(--card);border:1px solid #1f2937;border-radius:14px;padding:16px;margin:18px 0;box-shadow:0 10px 25px rgba(0,0,0,.25)}
     .row{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
     input[type="range"]{width:260px;max-width:100%}
@@ -34,7 +34,7 @@
 <body>
   <div class="wrap">
     <h1>行程表：高尾山 → 富士急</h1>
-    <div class="subtitle">ver.1.0.0</div>
+    <div class="version">Ver1.0.2</div>
 
     <!-- コントロール -->
     <div class="controls">
@@ -120,24 +120,30 @@
       hotel:toMin("18:00")
     };
 
-    // ▼ Google Apps Script のURLを設定
+    // ▼ GASのURLをここに
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxD-9hnyzCS106eV3OjKNt0M4XwFxtn7swh0W-sHFjbD6vy_a6URfq3Y1npmwRcneU6ZQ/exec";
 
-    // ログ送信関数
-    function sendLog() {
-      fetch(SCRIPT_URL, {
-        method: "POST",
-        body: JSON.stringify({
-          userId: localStorage.getItem("uid") || ("guest-" + Math.floor(Math.random()*100000)),
-          onsen: onsenToggle.checked,
-          speed: Number(speed.value),
-          shift: Number(shift.value)
-        }),
-        headers: { "Content-Type": "application/json" }
-      });
-      // uidを保存しておく（次回も同じユーザーIDで送れる）
-      if(!localStorage.getItem("uid")) {
-        localStorage.setItem("uid", "guest-" + Math.floor(Math.random()*100000));
+    // ▼ FormDataで送信（CORS回避）
+    async function sendLog() {
+      const form = new FormData();
+      form.append("payload", JSON.stringify({
+        userId: localStorage.getItem("uid") || (function(){
+          const id = "guest-" + Math.floor(Math.random()*100000);
+          localStorage.setItem("uid", id);
+          return id;
+        })(),
+        onsen: onsenToggle.checked,
+        speed: Number(speed.value),
+        shift: Number(shift.value),
+        ua: navigator.userAgent
+      }));
+
+      try {
+        const res = await fetch(SCRIPT_URL, { method: "POST", body: form });
+        const text = await res.text();
+        console.log("[GAS]", res.status, text);
+      } catch (e) {
+        console.error("[GAS error]", e);
       }
     }
 
@@ -147,13 +153,11 @@
       label.textContent=(offset>0?`+${offset}`:`${offset}`)+"分";
       speedLabel.textContent="×"+spd.toFixed(1);
 
-      // 登山/下山時間調整
       const climbDur=base.summit-base.climbStart;
       const descentDur=base.descentEnd-base.descentStart;
       const summit=base.climbStart+Math.round(climbDur/spd);
       const descentEnd=base.descentStart+Math.round(descentDur/spd);
 
-      // 温泉ありなら90分滞在
       const onsenTime=onsenToggle.checked?90:0;
       onsenRow.style.display=onsenToggle.checked?"flex":"none";
 
@@ -176,13 +180,12 @@
       }
     };
 
-    // イベントでログ送信も実行
-    shift.addEventListener("input", ()=>{ render(); sendLog(); });
-    speed.addEventListener("input", ()=>{ render(); sendLog(); });
+    shift.addEventListener("change", ()=>{ render(); sendLog(); });
+    speed.addEventListener("change", ()=>{ render(); sendLog(); });
     onsenToggle.addEventListener("change", ()=>{ render(); sendLog(); });
 
     render();
+    sendLog(); // 初期状態も1回送信
   </script>
 </body>
 </html>
-
