@@ -1,11 +1,132 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>My First GitHub Page</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>高尾山 → 富士急 行程表（スライダー付き）</title>
+  <style>
+    :root { --bg:#0f172a; --card:#111827; --text:#e5e7eb; --muted:#9ca3af; --accent:#60a5fa; }
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; background:linear-gradient(180deg,#0b1220,#0f172a 20%,#0b1220); color:var(--text);}
+    .wrap{max-width:900px;margin:40px auto;padding:0 18px;}
+    h1{font-size:clamp(22px,3vw,28px);margin:0 0 16px}
+    .subtitle{color:var(--muted);margin-bottom:24px}
+    .controls{background:var(--card);border:1px solid #1f2937;border-radius:14px;padding:16px;margin:18px 0;box-shadow:0 10px 25px rgba(0,0,0,.25)}
+    .row{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+    input[type="range"]{width:320px;max-width:100%}
+    .pill{background:#0b1220;border:1px solid #1f2937;border-radius:999px;padding:.35rem .75rem;color:var(--accent); font-weight:600}
+    .cards{display:grid;grid-template-columns:1fr;gap:14px}
+    @media (min-width:720px){ .cards{grid-template-columns:1fr 1fr}}
+    .card{background:var(--card);border:1px solid #1f2937;border-radius:14px;padding:16px;box-shadow:0 10px 25px rgba(0,0,0,.25)}
+    .day{font-weight:700;margin:0 0 8px}
+    .item{display:flex;gap:12px;padding:10px 0;border-top:1px dashed #1f2937}
+    .item:first-child{border-top:none}
+    .time{min-width:86px;font-variant-numeric:tabular-nums; font-weight:700}
+    .note{color:var(--muted)}
+    .hint{color:var(--muted);font-size:12px;margin-top:8px}
+    .btns{display:flex;gap:8px;flex-wrap:wrap}
+    button{background:#0b1220;border:1px solid #1f2937;color:var(--text);padding:.55rem .8rem;border-radius:10px;cursor:pointer}
+    button:hover{border-color:#334155}
+  </style>
 </head>
 <body>
-  <h1>こんにちは！</h1>
-  <p>これは GitHub Pages で公開した最初のページです 🎉</p>
+  <div class="wrap">
+    <h1>行程表：高尾山 → 富士急</h1>
+    <div class="subtitle">1日目（水曜）は下のスライダーで出発時刻をまとめて前後にシフトできます。</div>
+
+    <!-- コントロール -->
+    <div class="controls">
+      <div class="row">
+        <strong>1日目の時刻シフト</strong>
+        <span id="offsetLabel" class="pill">±0分</span>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <input id="shift" type="range" min="-240" max="240" step="5" value="0" />
+        <div class="btns">
+          <button data-preset="-120">朝寄せ（-120分）</button>
+          <button data-preset="120">夜寄せ（+120分）</button>
+          <button id="reset">リセット</button>
+        </div>
+      </div>
+      <div class="hint">※ ずらせる範囲は ±240分（4時間）。日付をまたぐと「(翌日) / (前日)」表示が付きます。</div>
+    </div>
+
+    <!-- 行程表示 -->
+    <div class="cards">
+      <!-- Day 1 -->
+      <section class="card" id="day1">
+        <h2 class="day">1日目（水曜）高尾山 → 富士急近く泊</h2>
+        <div class="item"><div class="time" data-base="09:30"></div><div>高尾山口駅着</div></div>
+        <div class="item"><div class="time" data-base="09:45"></div><div>登山開始</div></div>
+        <div class="item"><div class="time" data-base="11:15"></div><div>山頂到着</div></div>
+        <div class="item"><div class="time" data-base="12:00"></div><div>下山開始</div></div>
+        <div class="item"><div class="time" data-base="13:00"></div><div>下山完了 → 高尾山温泉</div></div>
+        <div class="item"><div class="time" data-base="14:30"></div><div>高尾山口 → 八王子 → 大月 → 富士急行線へ</div></div>
+        <div class="item"><div class="time" data-base="17:30"></div><div>富士急ハイランド駅 or 河口湖駅 着</div></div>
+        <div class="item"><div class="time" data-base="18:00"></div><div>ホテルチェックイン</div></div>
+      </section>
+
+      <!-- Day 2 -->
+      <section class="card" id="day2">
+        <h2 class="day">2日目（木曜）富士急 → 東京へ帰宅</h2>
+        <div class="item"><div class="time">08:00</div><div>ホテル朝食</div></div>
+        <div class="item"><div class="time">08:30</div><div>富士急入場</div></div>
+        <div class="item"><div class="time">19:00</div><div>富士急ハイランド発</div></div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    // 文字列 "HH:MM" → 分
+    const toMin = (hhmm) => {
+      const [h, m] = hhmm.split(":").map(Number);
+      return h * 60 + m;
+    };
+    // 分 → "HH:MM"（日付跨ぎ情報も返す）
+    const fmtTimeWithDay = (totalMin) => {
+      let dayDelta = Math.floor(totalMin / 1440);
+      let m = ((totalMin % 1440) + 1440) % 1440;
+      const h = Math.floor(m / 60);
+      const mm = String(m % 60).padStart(2, "0");
+      const hh = String(h).padStart(2, "0");
+
+      let suffix = "";
+      if (dayDelta === 1) suffix = " (翌日)";
+      else if (dayDelta === -1) suffix = " (前日)";
+      else if (dayDelta > 1) suffix = ` (+${dayDelta}日)`;
+      else if (dayDelta < -1) suffix = ` (${dayDelta}日)`;
+
+      return `${hh}:${mm}${suffix}`;
+    };
+
+    // スライダーで1日目を更新
+    const shift = document.getElementById("shift");
+    const label = document.getElementById("offsetLabel");
+    const day1Times = [...document.querySelectorAll("#day1 .time")];
+    const bases = day1Times.map(el => toMin(el.dataset.base));
+
+    const render = () => {
+      const offset = Number(shift.value);
+      label.textContent = (offset > 0 ? `+${offset}` : `${offset}`) + "分";
+      day1Times.forEach((el, i) => {
+        el.textContent = fmtTimeWithDay(bases[i] + offset);
+      });
+    };
+
+    // 初期表示
+    render();
+
+    // イベント
+    shift.addEventListener("input", render);
+    document.querySelectorAll("button[data-preset]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        shift.value = btn.dataset.preset;
+        render();
+      });
+    });
+    document.getElementById("reset").addEventListener("click", () => {
+      shift.value = 0;
+      render();
+    });
+  </script>
 </body>
 </html>
