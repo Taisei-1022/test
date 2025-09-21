@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>高尾山 → 富士急 行程表</title>
+  <title>高尾山 → 富士急 行程表（ログ保存版）</title>
   <style>
     :root { --bg:#0f172a; --card:#111827; --text:#e5e7eb; --muted:#9ca3af; --accent:#60a5fa; }
     body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; background:linear-gradient(180deg,#0b1220,#0f172a 20%,#0b1220); color:var(--text);}
@@ -34,7 +34,7 @@
 <body>
   <div class="wrap">
     <h1>行程表：高尾山 → 富士急</h1>
-    <div class="subtitle">スイッチとスライダーで予定を調整できます。</div>
+    <div class="subtitle">操作内容はスプレッドシートに自動で記録されます。</div>
 
     <!-- コントロール -->
     <div class="controls">
@@ -61,8 +61,6 @@
         <span id="speedLabel" class="pill">×1.0</span>
       </div>
       <div class="note">← ゆっくり ／ 早歩き →</div>
-
-      <div class="hint">※ 温泉なしにすると電車出発が前倒しされ、到着・チェックインも連動します。</div>
     </div>
 
     <!-- 行程表示 -->
@@ -122,6 +120,27 @@
       hotel:toMin("18:00")
     };
 
+    // ▼ Google Apps Script のURLを設定
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxD-9hnyzCS106eV3OjKNt0M4XwFxtn7swh0W-sHFjbD6vy_a6URfq3Y1npmwRcneU6ZQ/exec";
+
+    // ログ送信関数
+    function sendLog() {
+      fetch(SCRIPT_URL, {
+        method: "POST",
+        body: JSON.stringify({
+          userId: localStorage.getItem("uid") || ("guest-" + Math.floor(Math.random()*100000)),
+          onsen: onsenToggle.checked,
+          speed: Number(speed.value),
+          shift: Number(shift.value)
+        }),
+        headers: { "Content-Type": "application/json" }
+      });
+      // uidを保存しておく（次回も同じユーザーIDで送れる）
+      if(!localStorage.getItem("uid")) {
+        localStorage.setItem("uid", "guest-" + Math.floor(Math.random()*100000));
+      }
+    }
+
     const render=()=>{
       const offset=Number(shift.value);
       const spd=Number(speed.value);
@@ -134,11 +153,10 @@
       const summit=base.climbStart+Math.round(climbDur/spd);
       const descentEnd=base.descentStart+Math.round(descentDur/spd);
 
-      // 温泉の有無による調整
-      const onsenTime=onsenToggle.checked?90:0; // 温泉ありなら90分滞在
+      // 温泉ありなら90分滞在
+      const onsenTime=onsenToggle.checked?90:0;
       onsenRow.style.display=onsenToggle.checked?"flex":"none";
 
-      // 電車以降の差分（登山/下山差分＋温泉有無差分）
       const delta=(summit-base.summit)+(descentEnd-base.descentEnd)+(onsenTime-(base.train-base.descentEnd));
 
       const times={
@@ -158,12 +176,12 @@
       }
     };
 
-    shift.addEventListener("input",render);
-    speed.addEventListener("input",render);
-    onsenToggle.addEventListener("change",render);
+    // イベントでログ送信も実行
+    shift.addEventListener("input", ()=>{ render(); sendLog(); });
+    speed.addEventListener("input", ()=>{ render(); sendLog(); });
+    onsenToggle.addEventListener("change", ()=>{ render(); sendLog(); });
 
     render();
   </script>
 </body>
 </html>
-
