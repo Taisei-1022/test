@@ -2,80 +2,96 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>新幹線ポイント切り替え 〜事故を防げ〜</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<title>新幹線ポイント切り替え</title>
 <style>
-  :root{--bg:#0b1220;--panel:#111827;--line:#1f2937;--text:#e5e7eb;--muted:#9ca3af;--accent:#60a5fa;}
-  *{box-sizing:border-box}
-  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial;
-       background:radial-gradient(1200px 600px at 50% -10%,#16233f,#0b1220 60%);color:var(--text);}
-  .wrap{max-width:1000px;margin:0 auto;padding:18px 14px 40px}
-  h1{font-size:clamp(20px,3vw,26px);margin:0 0 2px}
-  .sub{color:var(--muted);font-size:13px;margin-bottom:12px}
-  .hud{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:10px 0}
-  .pill{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:.4rem .9rem;font-weight:700}
-  .pill .lbl{color:var(--muted);font-weight:500;margin-right:6px;font-size:12px}
-  button{background:var(--accent);color:#06122a;border:0;border-radius:10px;padding:.55rem 1rem;
-         font-weight:800;cursor:pointer;font-size:14px}
-  button.ghost{background:transparent;color:var(--text);border:1px solid var(--line)}
-  .stage{position:relative;margin-top:8px;border:1px solid var(--line);border-radius:16px;overflow:hidden;
-         background:linear-gradient(180deg,#0c1424,#0a1120)}
-  canvas{display:block;width:100%;height:auto;touch-action:manipulation}
-  .overlay{position:absolute;inset:0;display:flex;flex-direction:column;gap:12px;
-           align-items:center;justify-content:center;text-align:center;
-           background:rgba(5,10,20,.78);backdrop-filter:blur(2px);padding:20px}
-  .overlay h2{margin:0;font-size:clamp(22px,4vw,32px)}
-  .overlay p{margin:0;color:var(--muted);max-width:520px;line-height:1.6}
-  .hide{display:none}
-  .legend{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-top:10px;color:var(--muted);font-size:13px}
+  :root{--text:#e5e7eb;--muted:#9ca3af;--accent:#60a5fa;--line:#1f2937;--panel:#111827;}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;margin:0;overflow:hidden;background:#0a1120;
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial;color:var(--text);
+    user-select:none;-webkit-user-select:none;}
+  #stage{position:fixed;inset:0;}
+  canvas{display:block;width:100%;height:100%;touch-action:none;}
+
+  /* 画面上の最小HUD */
+  #hud{position:absolute;left:0;right:0;top:0;display:flex;gap:8px;align-items:center;
+    padding:calc(env(safe-area-inset-top) + 8px) 12px 8px;pointer-events:none;}
+  .pill{background:rgba(17,24,39,.72);border:1px solid var(--line);border-radius:999px;
+    padding:.3rem .7rem;font-weight:800;font-size:13px;backdrop-filter:blur(4px);}
+  .pill .lbl{color:var(--muted);font-weight:600;margin-right:5px;font-size:11px}
+  #gear{margin-left:auto;pointer-events:auto;width:42px;height:42px;border-radius:50%;
+    background:rgba(17,24,39,.78);border:1px solid var(--line);color:#fff;font-size:20px;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;}
+
+  /* オーバーレイ（開始 / ゲームオーバー / 設定） */
+  .overlay{position:absolute;inset:0;display:flex;flex-direction:column;gap:14px;
+    align-items:center;justify-content:center;text-align:center;padding:28px 22px;
+    background:rgba(5,10,20,.82);backdrop-filter:blur(3px);
+    padding-top:calc(env(safe-area-inset-top) + 28px);}
+  .overlay.hide{display:none}
+  .overlay h2{margin:0;font-size:clamp(22px,6vw,30px)}
+  .overlay p{margin:0;color:var(--muted);max-width:460px;line-height:1.7;font-size:14px}
+  .btn{background:var(--accent);color:#06122a;border:0;border-radius:12px;padding:.7rem 1.4rem;
+    font-weight:800;cursor:pointer;font-size:16px}
+  .btn.ghost{background:transparent;color:var(--text);border:1px solid var(--line)}
+  .btnrow{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;color:var(--muted);font-size:13px}
   .legend b{color:var(--text)}
   .dot{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:5px}
-  .help{margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;
-        color:var(--muted);font-size:13px;line-height:1.7}
-  .help b{color:var(--text)}
-  kbd{background:#0b1220;border:1px solid var(--line);border-radius:6px;padding:1px 7px;color:var(--text);font-size:12px}
+  .card{background:rgba(17,24,39,.7);border:1px solid var(--line);border-radius:14px;
+    padding:14px 16px;color:var(--muted);font-size:13px;line-height:1.8;max-width:460px;text-align:left}
+  .card b{color:var(--text)}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>🚄 新幹線ポイント切り替え</h1>
-  <div class="sub">複雑な路線で行き交う新幹線。ポイント（分岐器）を切り替えて、衝突させずに同じ色の駅へ届けよう。</div>
+<div id="stage">
+  <canvas id="game"></canvas>
 
-  <div class="hud">
-    <span class="pill"><span class="lbl">スコア</span><span id="score">0</span></span>
+  <div id="hud">
+    <span class="pill"><span class="lbl">SCORE</span><span id="score">0</span></span>
     <span class="pill"><span class="lbl">到着</span><span id="arrived">0</span></span>
     <span class="pill"><span class="lbl">ミス</span><span id="miss">0</span></span>
-    <span class="pill"><span class="lbl">経過</span><span id="time">0:00</span></span>
-    <button id="pauseBtn" class="ghost">一時停止</button>
-    <button id="restartBtn" class="ghost">リスタート</button>
+    <button id="gear" aria-label="メニュー">⚙️</button>
   </div>
 
-  <div class="stage">
-    <canvas id="game" width="960" height="600"></canvas>
-    <div id="overlay" class="overlay">
-      <h2>事故を防げ！</h2>
-      <p>新幹線が次々に入線します。各列車は <b>頭上の色</b> と <b>同じ色の駅</b> に入れると成功。
-         路線の <b>◆ポイントをタップ/クリック</b> して進路を切り替え、
-         <b>列車をタップ</b> すると停止／発車を切り替えられます。<br>
-         衝突したら一発でゲームオーバー！</p>
-      <button id="startBtn">ゲーム開始</button>
+  <!-- 開始 / ゲームオーバー -->
+  <div id="panel" class="overlay">
+    <h2 id="panelTitle">🚄 事故を防げ！</h2>
+    <p id="panelMsg">下から新幹線が入線します。<b>◆ポイント</b>をタップして進路を切り替え、
+       <b>頭上の色と同じ色の駅</b>へ届けよう。列車をタップすると🛑停止／🟢発車。
+       列車同士がぶつかると脱線でゲームオーバー！</p>
+    <div class="legend">
+      <span><span class="dot" style="background:#ef4444"></span><b>赤</b></span>
+      <span><span class="dot" style="background:#3b82f6"></span><b>青</b></span>
+      <span><span class="dot" style="background:#22c55e"></span><b>緑</b></span>
+      <span><span class="dot" style="background:#eab308"></span><b>黄</b></span>
     </div>
+    <button id="startBtn" class="btn">ゲーム開始</button>
   </div>
 
-  <div class="legend">
-    <span><span class="dot" style="background:#ef4444"></span><b>赤</b></span>
-    <span><span class="dot" style="background:#3b82f6"></span><b>青</b></span>
-    <span><span class="dot" style="background:#22c55e"></span><b>緑</b></span>
-    <span><span class="dot" style="background:#eab308"></span><b>黄</b></span>
-  </div>
-
-  <div class="help">
-    <b>遊び方</b><br>
-    ・<b>◆ポイント</b>をクリック／タップ → 進路（光っている線）が切り替わる。<br>
-    ・<b>列車</b>をクリック／タップ → 停止🛑／発車🟢。合流地点で詰まりそうな時は止めて先に通そう。<br>
-    ・列車を <b>頭上の色と同じ色の駅</b> に届けると <b>+100</b>。違う駅は <b>ミス（−50）</b>。<br>
-    ・列車同士が接触すると <b>脱線＝ゲームオーバー</b>。時間が経つほど入線が増えて難しくなる。<br>
-    キーボード: <kbd>Space</kbd> 一時停止 / <kbd>R</kbd> リスタート
+  <!-- 設定 / 説明（⚙️） -->
+  <div id="menu" class="overlay hide">
+    <h2>⚙️ メニュー</h2>
+    <div class="card">
+      <b>遊び方</b><br>
+      ・列車は <b>下から上</b> へ進みます。<br>
+      ・<b>◆ポイント</b>をタップ → 進路（光っている線）が切り替わる。<br>
+      ・<b>列車</b>をタップ → 🛑停止／🟢発車。合流で詰まりそうなら片方を止める。<br>
+      ・<b>頭上の色と同じ色の駅</b>に届けて <b>+100</b>。違う駅は <b>ミス（−50）</b>。<br>
+      ・列車同士の接触で <b>脱線＝ゲームオーバー</b>。時間が経つほど難しくなる。
+    </div>
+    <div class="legend">
+      <span><span class="dot" style="background:#ef4444"></span><b>赤駅</b></span>
+      <span><span class="dot" style="background:#3b82f6"></span><b>青駅</b></span>
+      <span><span class="dot" style="background:#22c55e"></span><b>緑駅</b></span>
+      <span><span class="dot" style="background:#eab308"></span><b>黄駅</b></span>
+    </div>
+    <div class="btnrow">
+      <button id="resumeBtn" class="btn">▶ 再開</button>
+      <button id="restartBtn" class="btn ghost">最初から</button>
+    </div>
   </div>
 </div>
 
@@ -84,343 +100,260 @@
 "use strict";
 const cv = document.getElementById("game");
 const ctx = cv.getContext("2d");
-const W = cv.width, H = cv.height;
+let W=0, H=0, U=1;            // 論理サイズ(CSSpx)とスケール係数
 
-const COLORS = {
-  red:"#ef4444", blue:"#3b82f6", green:"#22c55e", yellow:"#eab308"
+const COLORS={red:"#ef4444",blue:"#3b82f6",green:"#22c55e",yellow:"#eab308"};
+const COLOR_KEYS=["red","blue","green","yellow"];
+
+// --- ノード（下→上に流れる縦レイアウト。位置は画面比率で定義） -----------
+const FR={
+  E_left:[0.28,0.93], E_right:[0.72,0.93],     // 入口（下）
+  S1:[0.27,0.75], S2:[0.73,0.75],              // ポイント
+  J :[0.50,0.57],                              // 中央ハブ（合流＋ポイント）
+  T1:[0.30,0.37], T2:[0.70,0.37],              // ポイント
+  ST_RED:[0.15,0.12], ST_BLUE:[0.40,0.12],     // 駅（上）
+  ST_GREEN:[0.60,0.12], ST_YEL:[0.85,0.12],
 };
-const COLOR_KEYS = ["red","blue","green","yellow"];
+const STATION={ST_RED:"red",ST_BLUE:"blue",ST_GREEN:"green",ST_YEL:"yellow"};
+const LABEL={ST_RED:"赤",ST_BLUE:"青",ST_GREEN:"緑",ST_YEL:"黄"};
 
-// ---- 路線ネットワーク定義 -------------------------------------------------
-// nodes: 位置 / 種別。stations は色を持つ。switch ノードは出口を2つ持つ。
-const nodes = {
-  E_top:{x:40,  y:130},          // 入口（上）
-  E_bot:{x:40,  y:470},          // 入口（下）
-  S1:{x:250, y:130},             // ポイント
-  S2:{x:250, y:470},             // ポイント
-  J :{x:470, y:300},             // 合流＋ポイント（中央ハブ）
-  T1:{x:680, y:170},             // 合流＋ポイント
-  T2:{x:680, y:430},             // 合流＋ポイント
-  ST_RED:{x:910, y:90,  station:"red",   label:"赤駅"},
-  ST_BLUE:{x:910, y:250, station:"blue",  label:"青駅"},
-  ST_GREEN:{x:910,y:350, station:"green", label:"緑駅"},
-  ST_YEL:{x:910, y:510, station:"yellow",label:"黄駅"},
-};
+const nodes={};
+for(const id in FR){ nodes[id]={id,x:0,y:0,out:[],station:STATION[id]||null,label:LABEL[id]||""}; }
 
-// edges: from -> to （直線）。switch の出口順 [out0,out1] が状態0/1に対応。
-const edgeDefs = [
-  ["E_top","S1"],
-  ["E_bot","S2"],
-  ["S1","T1"], ["S1","J"],     // S1: 0=上へ直進, 1=中央へ
-  ["S2","T2"], ["S2","J"],     // S2: 0=下へ直進, 1=中央へ
-  ["J","T1"],  ["J","T2"],     // J : 0=上, 1=下
+const edgeDefs=[
+  ["E_left","S1"], ["E_right","S2"],
+  ["S1","T1"], ["S1","J"],     // S1: 0=直進(上), 1=中央へ
+  ["S2","T2"], ["S2","J"],     // S2: 0=直進(上), 1=中央へ
+  ["J","T1"],  ["J","T2"],     // J : 0=左上, 1=右上
   ["T1","ST_RED"], ["T1","ST_BLUE"],   // T1: 0=赤, 1=青
   ["T2","ST_GREEN"],["T2","ST_YEL"],   // T2: 0=緑, 1=黄
 ];
-
-const edges = edgeDefs.map(([a,b],i)=>{
-  const A=nodes[a], B=nodes[b];
-  const len=Math.hypot(B.x-A.x,B.y-A.y);
-  return {id:i, from:a, to:b, len};
-});
-// 各ノードの出口
-for(const id in nodes){ nodes[id].out = []; nodes[id].id=id; }
+const edges=edgeDefs.map(([a,b],i)=>({id:i,from:a,to:b,len:1}));
 edges.forEach(e=>nodes[e.from].out.push(e.id));
-// switch = 出口2つ
-const switchNodes = Object.values(nodes).filter(n=>n.out.length===2);
-switchNodes.forEach(n=>n.state=0);
+const switchNodes=Object.values(nodes).filter(n=>n.out.length===2);
 
-function edgePos(e,t){
-  const A=nodes[e.from], B=nodes[e.to];
-  return {x:A.x+(B.x-A.x)*t, y:A.y+(B.y-A.y)*t};
-}
-function nextEdgeId(nodeId){
-  const n=nodes[nodeId];
-  if(n.out.length===0) return -1;          // 駅 or 行き止まり
-  if(n.out.length===1) return n.out[0];
-  return n.out[n.state];                    // switch
-}
+const ENTRIES=["E_left","E_right"];
 
-// ---- ゲーム状態 -----------------------------------------------------------
-let trains, score, arrived, miss, elapsed, spawnTimer, spawnInterval,
-    running, paused, gameOver, lastTs, started, idSeq;
+function layout(){
+  for(const id in FR){ nodes[id].x=FR[id][0]*W; nodes[id].y=FR[id][1]*H; }
+  edges.forEach(e=>{const A=nodes[e.from],B=nodes[e.to];e.len=Math.hypot(B.x-A.x,B.y-A.y);});
+}
+function edgePos(e,t){const A=nodes[e.from],B=nodes[e.to];return {x:A.x+(B.x-A.x)*t,y:A.y+(B.y-A.y)*t};}
+function nextEdgeId(nodeId){const n=nodes[nodeId];
+  if(n.out.length===0)return -1; if(n.out.length===1)return n.out[0]; return n.out[n.state];}
+
+function resize(){
+  const dpr=Math.min(2.5,window.devicePixelRatio||1);
+  W=window.innerWidth; H=window.innerHeight;
+  cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  U=Math.max(0.7,Math.min(W/420,H/760)); // 端末に合わせたスケール
+  layout();
+  // 既存列車の表示位置を更新
+  trains&&trains.forEach(t=>t.pos=edgePos(edges[t.edge],t.t));
+  drawScene();
+}
+window.addEventListener("resize",resize);
+window.addEventListener("orientationchange",()=>setTimeout(resize,200));
+
+// --- ゲーム状態 ------------------------------------------------------------
+let trains,score,arrived,miss,elapsed,spawnTimer,spawnInterval,running,paused,idSeq;
 
 function reset(){
-  trains=[]; score=0; arrived=0; miss=0; elapsed=0;
-  spawnTimer=0; spawnInterval=2.6; idSeq=0;
-  running=false; paused=false; gameOver=false; lastTs=0;
+  trains=[];score=0;arrived=0;miss=0;elapsed=0;
+  spawnTimer=0;spawnInterval=2.6;idSeq=0;running=false;paused=false;
   switchNodes.forEach(n=>n.state=0);
   updateHUD();
 }
-
 function startGame(){
-  reset();
-  running=true; started=true;
-  overlay.classList.add("hide");
-  spawnTrain(); // 最初の1本
-  lastTs=performance.now();
-  requestAnimationFrame(loop);
+  reset();running=true;
+  panel.classList.add("hide");menu.classList.add("hide");
+  spawnTrain();lastTs=performance.now();requestAnimationFrame(loop);
 }
+function trainSpeed(){return H*0.16;}
 
-const ENTRIES=["E_top","E_bot"];
 function spawnTrain(){
-  // どちらの入口に出すか（その入口付近が空いている方を優先）
-  const free = ENTRIES.filter(en=>{
-    const ep=nodes[en];
-    return !trains.some(t=>{const p=t.pos; return Math.hypot(p.x-ep.x,p.y-ep.y)<60;});
-  });
-  const entry = free.length ? free[(Math.random()*free.length)|0]
-                            : ENTRIES[(Math.random()*ENTRIES.length)|0];
-  const edgeId = nodes[entry].out[0];
-  const target = COLOR_KEYS[(Math.random()*COLOR_KEYS.length)|0];
-  trains.push({
-    id:idSeq++, edge:edgeId, t:0, target,
-    speed: 95, stopped:false,
-    pos: edgePos(edges[edgeId],0)
-  });
+  const free=ENTRIES.filter(en=>{const ep=nodes[en];
+    return !trains.some(t=>Math.hypot(t.pos.x-ep.x,t.pos.y-ep.y)<70*U);});
+  const entry=free.length?free[(Math.random()*free.length)|0]
+                         :ENTRIES[(Math.random()*ENTRIES.length)|0];
+  const edgeId=nodes[entry].out[0];
+  const target=COLOR_KEYS[(Math.random()*COLOR_KEYS.length)|0];
+  trains.push({id:idSeq++,edge:edgeId,t:0,target,stopped:false,pos:edgePos(edges[edgeId],0)});
 }
-
-function resolveArrival(train, node){
-  // 駅に到着
-  if(node.station){
-    if(node.station===train.target){ score+=100; arrived++; }
-    else { score=Math.max(0,score-50); miss++; }
-    train.dead=true;
-    updateHUD();
-    return;
-  }
+function resolveArrival(train,node){
+  if(node.station===train.target){score+=100;arrived++;}
+  else {score=Math.max(0,score-50);miss++;}
+  train.dead=true;updateHUD();
 }
-
-function advance(train, dt){
-  if(train.stopped) return;
-  let dist = train.speed*dt;
-  let guard=0;
-  while(dist>0 && !train.dead && guard++<10){
-    const e=edges[train.edge];
-    const remain=(1-train.t)*e.len;
-    if(dist<remain){
-      train.t += dist/e.len; dist=0;
-    } else {
-      dist-=remain;
-      // ノード到達
-      const node=nodes[e.to];
-      if(node.station){ resolveArrival(train,node); return; }
-      const nid=nextEdgeId(e.to);
-      if(nid<0){ train.dead=true; return; }
-      train.edge=nid; train.t=0;
-    }
+function advance(train,dt){
+  if(train.stopped)return;
+  let dist=trainSpeed()*dt,guard=0;
+  while(dist>0&&!train.dead&&guard++<12){
+    const e=edges[train.edge],remain=(1-train.t)*e.len;
+    if(dist<remain){train.t+=dist/e.len;dist=0;}
+    else{dist-=remain;const node=nodes[e.to];
+      if(node.station){resolveArrival(train,node);return;}
+      const nid=nextEdgeId(e.to); if(nid<0){train.dead=true;return;}
+      train.edge=nid;train.t=0;}
   }
   train.pos=edgePos(edges[train.edge],train.t);
 }
-
 function checkCollisions(){
-  for(let i=0;i<trains.length;i++){
-    for(let j=i+1;j<trains.length;j++){
-      const a=trains[i], b=trains[j];
-      if(a.dead||b.dead) continue;
-      if(Math.hypot(a.pos.x-b.pos.x,a.pos.y-b.pos.y) < 22){
-        endGame(a,b);
-        return;
-      }
-    }
+  const R=22*U;
+  for(let i=0;i<trains.length;i++)for(let j=i+1;j<trains.length;j++){
+    const a=trains[i],b=trains[j]; if(a.dead||b.dead)continue;
+    if(Math.hypot(a.pos.x-b.pos.x,a.pos.y-b.pos.y)<R){a.crashed=b.crashed=true;endGame();return;}
   }
 }
-
-function endGame(a,b){
-  running=false; gameOver=true;
-  a.crashed=b.crashed=true;
-  drawScene();
-  showOverlay(`💥 脱線事故発生！`,
-    `スコア ${score} ／ 到着 ${arrived}本 ／ ミス ${miss}回<br>合流地点では片方を止めて間隔を空けよう。`,
-    "もう一度");
+function endGame(){
+  running=false;drawScene();
+  panelTitle.textContent="💥 脱線事故！";
+  panelMsg.innerHTML=`スコア <b>${score}</b> ／ 到着 ${arrived}本 ／ ミス ${miss}回<br>合流地点では片方を止めて間隔を空けよう。`;
+  startBtn.textContent="もう一度";
+  panel.classList.remove("hide");
 }
 
-// ---- ループ ---------------------------------------------------------------
+let lastTs=0;
 function loop(ts){
-  if(!running){ return; }
-  const dt=Math.min(0.05,(ts-lastTs)/1000); lastTs=ts;
+  if(!running)return;
+  const dt=Math.min(0.05,(ts-lastTs)/1000);lastTs=ts;
   if(!paused){
     elapsed+=dt;
-    // 難易度: 時間とともに入線間隔を短く
-    spawnInterval = Math.max(1.1, 2.6 - elapsed*0.012);
+    spawnInterval=Math.max(1.1,2.6-elapsed*0.012);
     spawnTimer+=dt;
-    if(spawnTimer>=spawnInterval){ spawnTimer=0; if(trains.filter(t=>!t.dead).length<9) spawnTrain(); }
-
+    if(spawnTimer>=spawnInterval){spawnTimer=0;if(trains.filter(t=>!t.dead).length<9)spawnTrain();}
     trains.forEach(t=>advance(t,dt));
     trains=trains.filter(t=>!t.dead);
     checkCollisions();
     updateHUD();
   }
   drawScene();
-  if(running) requestAnimationFrame(loop);
+  if(running)requestAnimationFrame(loop);
 }
 
-// ---- 描画 -----------------------------------------------------------------
+// --- 描画 ------------------------------------------------------------------
 function drawScene(){
   ctx.clearRect(0,0,W,H);
-  // 背景グリッド
-  ctx.strokeStyle="rgba(255,255,255,0.03)";
-  ctx.lineWidth=1;
-  for(let x=0;x<=W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
-  for(let y=0;y<=H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  // 背景
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,"#0c1526");g.addColorStop(1,"#0a1018");
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle="rgba(255,255,255,0.03)";ctx.lineWidth=1;
+  const step=44*U;
+  for(let x=0;x<=W;x+=step){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<=H;y+=step){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
 
-  // 全線路（ベース）
-  edges.forEach(e=>drawEdge(e,"#33415a",7));
-  // アクティブな進路（ポイントの選択先）を強調
-  switchNodes.forEach(n=>{
-    const e=edges[nextEdgeId(n.id)];
-    drawEdge(e,"#7dd3fc",7);
-  });
-  // 入口→分岐手前など単一出口も少し明るく
+  edges.forEach(e=>drawEdge(e,"#33415a",7*U));
+  Object.values(nodes).forEach(n=>{if(n.out.length===1)drawEdge(edges[n.out[0]],"#5b6b86",7*U);});
+  // アクティブ進路を強調（グロー付き）
+  switchNodes.forEach(n=>{const e=edges[nextEdgeId(n.id)];
+    ctx.save();ctx.shadowColor="#7dd3fc";ctx.shadowBlur=10*U;drawEdge(e,"#7dd3fc",8*U);ctx.restore();});
+
+  Object.values(nodes).forEach(n=>{if(n.station)drawStation(n);});
   Object.values(nodes).forEach(n=>{
-    if(n.out.length===1) drawEdge(edges[n.out[0]],"#5b6b86",7);
+    if(n.station)return;
+    if(n.out.length===2)drawSwitch(n);
+    else{ctx.fillStyle="#475569";circle(n.x,n.y,5*U);}
   });
 
-  // 駅
-  Object.values(nodes).forEach(n=>{ if(n.station) drawStation(n); });
+  // 入口の矢印
+  ctx.fillStyle="#94a3b8";ctx.font=`${12*U}px system-ui`;ctx.textAlign="center";
+  ENTRIES.forEach(en=>{const n=nodes[en];ctx.fillText("▲ 入線",n.x,n.y+26*U);});
 
-  // ノード（ポイント／合流）
-  Object.values(nodes).forEach(n=>{
-    if(n.station) return;
-    if(n.out.length===2) drawSwitch(n);
-    else { ctx.fillStyle="#475569"; circle(n.x,n.y,5); }
-  });
-
-  // 入口ラベル
-  ctx.fillStyle="#94a3b8"; ctx.font="12px system-ui"; ctx.textAlign="center";
-  ctx.fillText("入線 ▶", nodes.E_top.x+10, nodes.E_top.y-14);
-  ctx.fillText("入線 ▶", nodes.E_bot.x+10, nodes.E_bot.y-14);
-
-  // 列車
   trains.forEach(drawTrain);
 }
-
-function drawEdge(e,color,w){
-  if(!e) return;
-  const A=nodes[e.from], B=nodes[e.to];
-  ctx.strokeStyle=color; ctx.lineWidth=w; ctx.lineCap="round";
-  ctx.beginPath(); ctx.moveTo(A.x,A.y); ctx.lineTo(B.x,B.y); ctx.stroke();
-}
-function circle(x,y,r){ ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); }
+function drawEdge(e,color,w){if(!e)return;const A=nodes[e.from],B=nodes[e.to];
+  ctx.strokeStyle=color;ctx.lineWidth=w;ctx.lineCap="round";
+  ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);ctx.stroke();}
+function circle(x,y,r){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();}
 
 function drawSwitch(n){
-  // ◆ クリック領域
-  ctx.save();
-  ctx.translate(n.x,n.y); ctx.rotate(Math.PI/4);
-  ctx.fillStyle="#0b1220"; ctx.strokeStyle="#7dd3fc"; ctx.lineWidth=2.5;
-  ctx.fillRect(-11,-11,22,22); ctx.strokeRect(-11,-11,22,22);
+  // 大きく押しやすいタップ範囲を可視化
+  ctx.fillStyle="rgba(125,211,252,0.10)";circle(n.x,n.y,30*U);
+  ctx.strokeStyle="rgba(125,211,252,0.35)";ctx.lineWidth=1.5*U;
+  ctx.beginPath();ctx.arc(n.x,n.y,30*U,0,Math.PI*2);ctx.stroke();
+  // ◆ 本体
+  const hs=17*U;
+  ctx.save();ctx.translate(n.x,n.y);ctx.rotate(Math.PI/4);
+  ctx.fillStyle="#0b1220";ctx.strokeStyle="#7dd3fc";ctx.lineWidth=3*U;
+  ctx.beginPath();ctx.rect(-hs,-hs,hs*2,hs*2);ctx.fill();ctx.stroke();
   ctx.restore();
-  ctx.fillStyle="#7dd3fc"; ctx.font="bold 12px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle";
-  ctx.fillText("◆", n.x, n.y+0.5);
+  ctx.fillStyle="#7dd3fc";ctx.font=`bold ${20*U}px system-ui`;
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("⤢",n.x,n.y+1);
   ctx.textBaseline="alphabetic";
 }
-
 function drawStation(n){
-  const c=COLORS[n.station];
-  ctx.fillStyle=c; ctx.strokeStyle="rgba(255,255,255,.35)"; ctx.lineWidth=2;
-  roundRect(n.x-16,n.y-16,52,32,7); ctx.fill(); ctx.stroke();
-  ctx.fillStyle="rgba(0,0,0,.55)"; ctx.font="bold 12px system-ui"; ctx.textAlign="center"; ctx.textBaseline="middle";
-  ctx.fillText(n.label, n.x+10, n.y+1);
-  ctx.textBaseline="alphabetic";
+  const c=COLORS[n.station];const w=46*U,h=30*U;
+  ctx.fillStyle=c;ctx.strokeStyle="rgba(255,255,255,.4)";ctx.lineWidth=2*U;
+  roundRect(n.x-w/2,n.y-h/2,w,h,8*U);ctx.fill();ctx.stroke();
+  ctx.fillStyle="rgba(0,0,0,.6)";ctx.font=`bold ${16*U}px system-ui`;
+  ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText(n.label,n.x,n.y+1);ctx.textBaseline="alphabetic";
 }
-
 function drawTrain(t){
-  const e=edges[t.edge];
-  const A=nodes[e.from],B=nodes[e.to];
-  const ang=Math.atan2(B.y-A.y,B.x-A.x);
-  const {x,y}=t.pos;
-  ctx.save();
-  ctx.translate(x,y); ctx.rotate(ang);
-  // 車体
-  ctx.fillStyle = t.crashed ? "#fca5a5" : "#e8eef7";
-  ctx.strokeStyle="#0b1220"; ctx.lineWidth=2;
-  roundRect(-15,-8,30,16,6); ctx.fill(); ctx.stroke();
-  // 先頭の色帯
-  ctx.fillStyle=COLORS[t.target];
-  roundRect(7,-8,8,16,4); ctx.fill();
+  const e=edges[t.edge],A=nodes[e.from],B=nodes[e.to];
+  const ang=Math.atan2(B.y-A.y,B.x-A.x);const {x,y}=t.pos;
+  ctx.save();ctx.translate(x,y);ctx.rotate(ang);
+  ctx.fillStyle=t.crashed?"#fca5a5":"#e8eef7";ctx.strokeStyle="#0b1220";ctx.lineWidth=2*U;
+  roundRect(-16*U,-9*U,32*U,18*U,7*U);ctx.fill();ctx.stroke();
+  ctx.fillStyle=COLORS[t.target];roundRect(8*U,-9*U,8*U,18*U,4*U);ctx.fill();
   ctx.restore();
-  // 目的色マーカー（頭上）
-  ctx.fillStyle=COLORS[t.target];
-  circle(x, y-16, 5);
-  ctx.strokeStyle="rgba(255,255,255,.6)"; ctx.lineWidth=1.5;
-  ctx.beginPath(); ctx.arc(x,y-16,5,0,Math.PI*2); ctx.stroke();
-  // 停止表示
-  if(t.stopped){
-    ctx.fillStyle="#ef4444"; ctx.font="bold 13px system-ui"; ctx.textAlign="center";
-    ctx.fillText("🛑", x, y+24);
-  }
+  // 目的色マーカー
+  ctx.fillStyle=COLORS[t.target];circle(x,y-18*U,6*U);
+  ctx.strokeStyle="rgba(255,255,255,.7)";ctx.lineWidth=1.5*U;
+  ctx.beginPath();ctx.arc(x,y-18*U,6*U,0,Math.PI*2);ctx.stroke();
+  if(t.stopped){ctx.font=`${15*U}px system-ui`;ctx.textAlign="center";ctx.fillText("🛑",x,y+30*U);}
 }
+function roundRect(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
 
-function roundRect(x,y,w,h,r){
-  ctx.beginPath();
-  ctx.moveTo(x+r,y);
-  ctx.arcTo(x+w,y,x+w,y+h,r);
-  ctx.arcTo(x+w,y+h,x,y+h,r);
-  ctx.arcTo(x,y+h,x,y,r);
-  ctx.arcTo(x,y,x+w,y,r);
-  ctx.closePath();
-}
-
-// ---- 入力 -----------------------------------------------------------------
-function canvasPoint(ev){
+// --- 入力 ------------------------------------------------------------------
+function pointFrom(ev){
   const r=cv.getBoundingClientRect();
-  const sx=W/r.width, sy=H/r.height;
   const cx=(ev.touches?ev.touches[0].clientX:ev.clientX)-r.left;
   const cy=(ev.touches?ev.touches[0].clientY:ev.clientY)-r.top;
-  return {x:cx*sx, y:cy*sy};
+  return {x:cx*(W/r.width),y:cy*(H/r.height)};
 }
 function handlePress(p){
-  if(!running) return;
-  // まず列車（近い順）
-  let best=null, bd=20;
-  trains.forEach(t=>{ const d=Math.hypot(t.pos.x-p.x,t.pos.y-p.y); if(d<bd){bd=d;best=t;} });
-  if(best){ best.stopped=!best.stopped; return; }
-  // 次にポイント
-  let sn=null, sd=24;
-  switchNodes.forEach(n=>{ const d=Math.hypot(n.x-p.x,n.y-p.y); if(d<sd){sd=d;sn=n;} });
-  if(sn){ sn.state=sn.state?0:1; }
+  if(!running||paused)return;
+  // 先に列車（大きめ判定）
+  let best=null,bd=26*U;
+  trains.forEach(t=>{const d=Math.hypot(t.pos.x-p.x,t.pos.y-p.y);if(d<bd){bd=d;best=t;}});
+  if(best){best.stopped=!best.stopped;return;}
+  // ポイント（大きめ判定）
+  let sn=null,sd=40*U;
+  switchNodes.forEach(n=>{const d=Math.hypot(n.x-p.x,n.y-p.y);if(d<sd){sd=d;sn=n;}});
+  if(sn)sn.state=sn.state?0:1;
 }
-cv.addEventListener("mousedown", e=>{ e.preventDefault(); handlePress(canvasPoint(e)); });
-cv.addEventListener("touchstart", e=>{ e.preventDefault(); handlePress(canvasPoint(e)); }, {passive:false});
+cv.addEventListener("touchstart",e=>{e.preventDefault();handlePress(pointFrom(e));},{passive:false});
+cv.addEventListener("mousedown",e=>{handlePress(pointFrom(e));});
 
-// ---- HUD / オーバーレイ ---------------------------------------------------
-const elScore=document.getElementById("score"),
-      elArr=document.getElementById("arrived"),
+// --- HUD / メニュー --------------------------------------------------------
+const elScore=document.getElementById("score"),elArr=document.getElementById("arrived"),
       elMiss=document.getElementById("miss"),
-      elTime=document.getElementById("time"),
-      overlay=document.getElementById("overlay"),
-      startBtn=document.getElementById("startBtn"),
-      pauseBtn=document.getElementById("pauseBtn"),
-      restartBtn=document.getElementById("restartBtn");
+      panel=document.getElementById("panel"),panelTitle=document.getElementById("panelTitle"),
+      panelMsg=document.getElementById("panelMsg"),startBtn=document.getElementById("startBtn"),
+      menu=document.getElementById("menu"),gear=document.getElementById("gear"),
+      resumeBtn=document.getElementById("resumeBtn"),restartBtn=document.getElementById("restartBtn");
 
-function updateHUD(){
-  elScore.textContent=score;
-  elArr.textContent=arrived;
-  elMiss.textContent=miss;
-  const m=(elapsed/60)|0, s=(elapsed%60)|0;
-  elTime.textContent=m+":"+String(s).padStart(2,"0");
-}
-function showOverlay(title,html,btn){
-  overlay.querySelector("h2").textContent=title;
-  overlay.querySelector("p").innerHTML=html;
-  startBtn.textContent=btn;
-  overlay.classList.remove("hide");
-}
+function updateHUD(){elScore.textContent=score;elArr.textContent=arrived;elMiss.textContent=miss;}
 
-startBtn.addEventListener("click", startGame);
-restartBtn.addEventListener("click", ()=>{ startGame(); });
-pauseBtn.addEventListener("click", ()=>{
-  if(!running) return;
-  paused=!paused;
-  pauseBtn.textContent=paused?"再開":"一時停止";
+startBtn.addEventListener("click",startGame);
+restartBtn.addEventListener("click",startGame);
+resumeBtn.addEventListener("click",()=>{menu.classList.add("hide");paused=false;});
+gear.addEventListener("click",()=>{
+  if(!running){menu.classList.toggle("hide");return;} // 開始前でも説明を見られる
+  paused=true;menu.classList.remove("hide");
 });
-window.addEventListener("keydown", e=>{
-  if(e.code==="Space"){ e.preventDefault(); pauseBtn.click(); }
-  if(e.key==="r"||e.key==="R"){ startGame(); }
+window.addEventListener("keydown",e=>{
+  if(e.code==="Space"){e.preventDefault();gear.click();}
+  if(e.key==="r"||e.key==="R")startGame();
 });
 
-reset();
-drawScene();
+reset();resize();
 })();
 </script>
 </body>
