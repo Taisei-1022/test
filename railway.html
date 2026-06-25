@@ -187,10 +187,12 @@ function spawnTrain(){
   const target=COLOR_KEYS[(Math.random()*COLOR_KEYS.length)|0];
   trains.push({id:idSeq++,edge:edgeId,t:0,target,stopped:false,pos:edgePos(edges[edgeId],0)});
 }
+const MAX_MISS=3;
 function resolveArrival(train,node){
   if(node.station===train.target){score+=100;arrived++;}
   else{score=Math.max(0,score-50);miss++;}
   train.dead=true;updateHUD();
+  if(miss>=MAX_MISS)endGame("miss");
 }
 function advance(train,dt){
   if(train.stopped)return; // ← 停止機能を後で戻すための保持（現状は常に false）
@@ -212,11 +214,17 @@ function checkCollisions(){
     if(Math.hypot(a.pos.x-b.pos.x,a.pos.y-b.pos.y)<R){a.crashed=b.crashed=true;endGame();return;}
   }
 }
-function endGame(){
+function endGame(reason){
+  if(!running)return;
   running=false;drawScene();
   panelEye.textContent="運転終了";
-  panelTitle.textContent="脱線。";
-  panelMsg.innerHTML=`得点 <b>${score}</b> ／ 到着 ${arrived}本 ／ ミス ${miss}回。<br>合流地点では進路を分けて間隔をとろう。`;
+  if(reason==="miss"){
+    panelTitle.textContent="行き先ミス3回。";
+    panelMsg.innerHTML=`得点 <b>${score}</b> ／ 到着 ${arrived}本。<br>頭上の色と同じ色の駅へ届けよう。`;
+  }else{
+    panelTitle.textContent="脱線。";
+    panelMsg.innerHTML=`得点 <b>${score}</b> ／ 到着 ${arrived}本 ／ ミス ${miss}回。<br>合流地点では進路を分けて間隔をとろう。`;
+  }
   startBtn.textContent="もう一度";
   panel.classList.remove("hide");
 }
@@ -400,7 +408,7 @@ const elScore=document.getElementById("score"),elArr=document.getElementById("ar
       menuBtn=document.getElementById("menuBtn"),resumeBtn=document.getElementById("resumeBtn"),
       restartBtn=document.getElementById("restartBtn");
 
-function updateHUD(){elScore.textContent=score;elArr.textContent=arrived;elMiss.textContent=miss;}
+function updateHUD(){elScore.textContent=score;elArr.textContent=arrived;elMiss.textContent=miss+"/"+MAX_MISS;}
 startBtn.addEventListener("click",startGame);
 restartBtn.addEventListener("click",startGame);
 resumeBtn.addEventListener("click",()=>{menu.classList.add("hide");paused=false;});
