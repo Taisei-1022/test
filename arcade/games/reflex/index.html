@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<script src="../../js/arcade-sdk.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1" />
+<title>反射タップ</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;margin:0;overflow:hidden;-webkit-user-select:none;user-select:none;
+    font-family:"Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic",system-ui,sans-serif;}
+  #stage{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;color:#fff;background:#1b2530;transition:background .08s;padding:24px;}
+  #stage.wait{background:#b3392f;} #stage.go{background:#2fae5a;} #stage.done{background:#141a20;}
+  #big{font-size:clamp(30px,9vw,52px);font-weight:800;margin:0;}
+  #sub{margin:14px 0 0;font-size:15px;opacity:.92;line-height:1.7;max-width:420px;}
+  #prog{position:absolute;top:calc(env(safe-area-inset-top) + 14px);font-size:13px;letter-spacing:.1em;opacity:.85;}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="prog"></div>
+  <h1 id="big">反射タップ</h1>
+  <p id="sub">緑になった瞬間にタップ。<br>5回の平均タイムで勝負。<br><br>タップで開始</p>
+</div>
+<script>
+(function(){
+  "use strict";
+  var ROUNDS=5;
+  var stage=document.getElementById("stage"),big=document.getElementById("big"),
+      sub=document.getElementById("sub"),prog=document.getElementById("prog");
+  var phase="start", round=0, times=[], goAt=0, timer=null, paused=false;
+
+  function setBG(c){ stage.className=c||""; }
+  function showProg(){ prog.textContent = phase==="start"||phase==="done" ? "" : ("ROUND "+(round+1)+" / "+ROUNDS); }
+
+  function beginRound(){
+    phase="wait"; setBG("wait"); big.textContent="待て…"; sub.textContent="緑になるまで我慢"; showProg();
+    var delay=900+Math.random()*2100;
+    timer=setTimeout(function(){
+      phase="go"; setBG("go"); big.textContent="今！"; sub.textContent=""; goAt=performance.now();
+    }, delay);
+  }
+  function nextOrFinish(){
+    round++;
+    if(round>=ROUNDS) finish(); else beginRound();
+  }
+  function finish(){
+    phase="done"; setBG("done"); showProg();
+    var sum=times.reduce(function(a,b){return a+b;},0);
+    var avg=Math.round(sum/times.length);
+    big.textContent=avg+" ms";
+    sub.innerHTML="平均タイム。<br>"+times.map(function(t){return t+"ms";}).join(" / ")+"<br><br>タップでもう一度";
+    if(window.Arcade)Arcade.gameOver(avg);
+  }
+  function reset(){
+    if(timer){clearTimeout(timer);timer=null;}
+    phase="start"; round=0; times=[]; setBG(""); showProg();
+    big.textContent="反射タップ";
+    sub.innerHTML="緑になった瞬間にタップ。<br>5回の平均タイムで勝負。<br><br>タップで開始";
+  }
+
+  function tap(){
+    if(paused) return;
+    if(phase==="start"){ if(window.Arcade)Arcade.ready(); round=0; times=[]; beginRound(); return; }
+    if(phase==="wait"){ // お手つき
+      clearTimeout(timer);
+      times.push(600); // ペナルティ
+      big.textContent="お手つき！"; sub.textContent="+600ms";
+      setBG(""); setTimeout(nextOrFinish, 650); phase="penalty"; return;
+    }
+    if(phase==="go"){ times.push(Math.round(performance.now()-goAt)); nextOrFinish(); return; }
+    if(phase==="done"){ reset(); return; }
+  }
+  stage.addEventListener("touchstart",function(e){e.preventDefault();tap();},{passive:false});
+  stage.addEventListener("mousedown",function(){tap();});
+
+  if(window.Arcade){
+    Arcade.onRestart(function(){ reset(); });
+    Arcade.onPause(function(){ paused=true; if(phase==="wait"&&timer){clearTimeout(timer);} });
+    Arcade.onResume(function(){ paused=false; if(phase==="wait") beginRound(); });
+  }
+})();
+</script>
+</body>
+</html>

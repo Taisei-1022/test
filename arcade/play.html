@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<link rel="stylesheet" href="css/app.css" />
+<title>プレイ</title>
+</head>
+<body>
+<div class="play">
+  <div class="bar">
+    <a class="back" href="index.html" aria-label="戻る">‹</a>
+    <div class="t" id="title">…</div>
+    <div class="best"><span id="bestUnit">自己ベスト</span><b id="best">—</b></div>
+  </div>
+  <div class="frameWrap"><iframe id="frame" allow="autoplay; fullscreen" title="game"></iframe></div>
+  <div class="lb">
+    <h3 id="lbTitle">ランキング</h3>
+    <ol id="lbList"></ol>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="js/games.js"></script>
+<script src="js/store.js"></script>
+<script>
+(function () {
+  "use strict";
+  var id = new URLSearchParams(location.search).get("game");
+  var game = getGame(id);
+  if (!game) { location.replace("index.html"); return; }
+
+  var stype = game.score.type, unit = game.score.unit;
+  var player = Store.name() || "ゲスト";
+
+  document.getElementById("title").textContent = game.title;
+  document.title = game.title;
+  var frame = document.getElementById("frame");
+  frame.src = game.path;
+
+  var bestEl = document.getElementById("best");
+  var lbList = document.getElementById("lbList");
+  var toast = document.getElementById("toast");
+
+  function fmt(v) { return v + unit; }
+
+  function refresh() {
+    return Promise.all([
+      Store.myBest(game.id, stype, player),
+      Store.top(game.id, stype, 20)
+    ]).then(function (r) {
+      bestEl.textContent = (r[0] === null ? "—" : fmt(r[0]));
+      var top = r[1];
+      if (!top.length) { lbList.innerHTML = '<li class="empty">まだ記録がありません。最初の1位になろう。</li>'; return; }
+      lbList.innerHTML = top.map(function (row, i) {
+        var me = row.player === player ? " me" : "";
+        return '<li class="' + (i < 3 ? "top" : "") + me + '">' +
+          '<span class="rk">' + (i + 1) + '</span>' +
+          '<span class="pl">' + esc(row.player) + '</span>' +
+          '<span class="sc">' + fmt(row.score) + '</span></li>';
+      }).join("");
+    });
+  }
+
+  function showToast(msg) {
+    toast.textContent = msg; toast.classList.add("show");
+    setTimeout(function () { toast.classList.remove("show"); }, 1400);
+  }
+
+  // ゲーム → 殻
+  window.addEventListener("message", function (e) {
+    var d = e.data;
+    if (!d || !d.__arcade) return;
+    if (d.call === "gameOver") {
+      var score = Math.round(Number(d.payload.score) || 0);
+      Store.myBest(game.id, stype, player).then(function (prev) {
+        Store.submit(game.id, stype, player, score).then(function () {
+          var better = prev === null || (stype === "low" ? score < prev : score > prev);
+          refresh();
+          showToast(better ? "自己ベスト更新！ " + fmt(score) : "結果 " + fmt(score));
+        });
+      });
+    }
+    // ready / submitScore / event は MVP では特に処理なし
+  });
+
+  // タブが隠れたら一時停止を通知
+  document.addEventListener("visibilitychange", function () {
+    ctl(document.hidden ? "pause" : "resume");
+  });
+  function ctl(call) { try { frame.contentWindow.postMessage({ __arcadeCtl: true, call: call }, "*"); } catch (e) {} }
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  refresh();
+})();
+</script>
+</body>
+</html>

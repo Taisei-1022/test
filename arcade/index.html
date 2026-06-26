@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="ミニアーケード" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="apple-touch-icon" href="icon.svg" />
+<link rel="icon" href="icon.svg" />
+<link rel="stylesheet" href="css/app.css" />
+<title>ミニアーケード</title>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="brand">ミニアーケード<small>MINI ARCADE</small></div>
+    <label class="name">なまえ<input id="name" maxlength="16" placeholder="ゲスト" /></label>
+  </div>
+
+  <div class="section">あそぶ</div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<script src="js/games.js"></script>
+<script src="js/store.js"></script>
+<script>
+(function () {
+  "use strict";
+  var nameEl = document.getElementById("name");
+  nameEl.value = Store.name();
+  nameEl.addEventListener("change", function () { Store.setName(nameEl.value.trim()); });
+
+  var grid = document.getElementById("grid");
+  Promise.all(GAMES.map(function (g) {
+    return Promise.all([Store.plays(g.id), Store.top(g.id, g.score.type, 1)]).then(function (r) {
+      return { g: g, plays: r[0], top: r[1][0] || null };
+    });
+  })).then(function (rows) {
+    grid.innerHTML = rows.map(function (row) {
+      var g = row.g;
+      var topTxt = row.top ? (row.top.score + g.score.unit + " / " + row.top.player) : "まだ記録なし";
+      return '' +
+        '<a class="card" href="play.html?game=' + g.id + '">' +
+        '  <div class="thumb" style="background:linear-gradient(140deg,' + g.accent + ',' + shade(g.accent) + ')">' +
+        '    <b>' + esc(g.title) + '</b></div>' +
+        '  <span class="cat">' + esc(g.category) + '</span>' +
+        '  <div class="ttl">' + esc(g.title) + '</div>' +
+        '  <div class="meta">作 ' + esc(g.author) + ' ・ ' + row.plays + 'プレイ</div>' +
+        '  <div class="blurb">' + esc(g.blurb) + '</div>' +
+        '  <div class="meta" style="margin-top:6px;color:var(--gold)">1位 ' + esc(topTxt) + '</div>' +
+        '</a>';
+    }).join("");
+  });
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function shade(hex) {
+    var n = parseInt(hex.slice(1), 16), r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    r = Math.round(r * 0.55); g = Math.round(g * 0.55); b = Math.round(b * 0.55);
+    return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  }
+})();
+</script>
+</body>
+</html>

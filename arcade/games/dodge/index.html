@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<script src="../../js/arcade-sdk.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1" />
+<title>よけろ</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;margin:0;overflow:hidden;background:#0f1512;-webkit-user-select:none;user-select:none;
+    font-family:"Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic",system-ui,sans-serif;color:#eef3f0;}
+  #c{position:fixed;inset:0;width:100%;height:100%;touch-action:none;display:block;}
+  #ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;background:rgba(10,14,12,.82);padding:24px;}
+  #ov.hide{display:none;}
+  #ov h1{font-size:clamp(26px,8vw,44px);margin:0 0 10px;}
+  #ov p{margin:0;color:#9aa39e;line-height:1.7;font-size:15px;}
+  #hud{position:fixed;top:calc(env(safe-area-inset-top) + 10px);left:0;right:0;text-align:center;
+    font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;pointer-events:none;}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"></div>
+<div id="ov">
+  <h1 id="ovt">よけろ</h1>
+  <p id="ovp">落ちてくるブロックを指でよけて生き残れ。<br>長く生きるほど高スコア。<br><br>タップで開始</p>
+</div>
+<script>
+(function(){
+  "use strict";
+  var cv=document.getElementById("c"), ctx=cv.getContext("2d");
+  var ov=document.getElementById("ov"), ovt=document.getElementById("ovt"), ovp=document.getElementById("ovp"),
+      hud=document.getElementById("hud");
+  var W=0,H=0,U=1,dpr=1;
+  function resize(){
+    dpr=Math.min(2.5,window.devicePixelRatio||1);
+    W=window.innerWidth;H=window.innerHeight;
+    cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    U=Math.max(0.7,Math.min(W/420,H/760));
+  }
+  window.addEventListener("resize",resize);
+
+  var player,blocks,elapsed,spawnT,spawnGap,running,paused,lastTs,target;
+
+  function reset(){
+    player={x:W/2,y:H*0.8,r:14*U};
+    target={x:W/2,y:H*0.8};
+    blocks=[];elapsed=0;spawnT=0;spawnGap=0.8;running=false;paused=false;
+    hud.textContent="";
+  }
+  function start(){
+    resize();reset();running=true;ov.classList.add("hide");
+    lastTs=performance.now();requestAnimationFrame(loop);
+    if(window.Arcade)Arcade.ready();
+  }
+  function over(){
+    running=false;
+    var s=Math.floor(elapsed);
+    ovt.textContent=s+" 秒";
+    ovp.innerHTML="生き残った時間。<br><br>タップでもう一度";
+    ov.classList.remove("hide");
+    if(window.Arcade)Arcade.gameOver(s);
+  }
+
+  function spawn(){
+    var w=(34+Math.random()*70)*U;
+    blocks.push({x:Math.random()*(W-w),y:-40*U,w:w,h:(16+Math.random()*14)*U});
+  }
+  function loop(ts){
+    if(!running)return;
+    var dt=Math.min(0.05,(ts-lastTs)/1000);lastTs=ts;
+    if(!paused){
+      elapsed+=dt;
+      var speed=(170+elapsed*16)*U;          // 時間で加速
+      spawnGap=Math.max(0.28,0.8-elapsed*0.012);
+      spawnT+=dt; if(spawnT>=spawnGap){spawnT=0;spawn();}
+      // プレイヤーを指へ追従
+      player.x+=(target.x-player.x)*Math.min(1,dt*14);
+      player.y+=(target.y-player.y)*Math.min(1,dt*14);
+      player.x=Math.max(player.r,Math.min(W-player.r,player.x));
+      player.y=Math.max(player.r,Math.min(H-player.r,player.y));
+      for(var i=blocks.length-1;i>=0;i--){
+        var b=blocks[i]; b.y+=speed*dt;
+        if(hit(player,b)){ over(); break; }
+        if(b.y>H+50*U) blocks.splice(i,1);
+      }
+      hud.textContent=Math.floor(elapsed)+"秒";
+    }
+    draw();
+    if(running)requestAnimationFrame(loop);
+  }
+  function hit(p,b){
+    var cx=Math.max(b.x,Math.min(p.x,b.x+b.w));
+    var cy=Math.max(b.y,Math.min(p.y,b.y+b.h));
+    var dx=p.x-cx,dy=p.y-cy;
+    return dx*dx+dy*dy < p.r*p.r;
+  }
+  function draw(){
+    ctx.fillStyle="#0f1512";ctx.fillRect(0,0,W,H);
+    ctx.fillStyle="#3f4b45";
+    for(var i=0;i<blocks.length;i++){var b=blocks[i];rr(b.x,b.y,b.w,b.h,5*U);ctx.fill();}
+    // プレイヤー
+    ctx.fillStyle="#3fb950";ctx.beginPath();ctx.arc(player.x,player.y,player.r,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle="rgba(255,255,255,.8)";ctx.lineWidth=2*U;ctx.stroke();
+  }
+  function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+
+  function pt(e){
+    var t=e.touches?e.touches[0]:e;
+    target.x=t.clientX; target.y=t.clientY;
+  }
+  cv.addEventListener("touchstart",function(e){e.preventDefault();pt(e);},{passive:false});
+  cv.addEventListener("touchmove",function(e){e.preventDefault();pt(e);},{passive:false});
+  cv.addEventListener("mousemove",function(e){if(running)pt(e);});
+
+  ov.addEventListener("touchstart",function(e){e.preventDefault();start();},{passive:false});
+  ov.addEventListener("mousedown",function(){start();});
+
+  if(window.Arcade){
+    Arcade.onRestart(function(){ start(); });
+    Arcade.onPause(function(){ paused=true; });
+    Arcade.onResume(function(){ paused=false; lastTs=performance.now(); });
+  }
+  resize();reset();draw();
+})();
+</script>
+</body>
+</html>
