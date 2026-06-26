@@ -468,8 +468,11 @@
 
   /* ---------- 作る：AIチャット（会話モード＋編集） ---------- */
   var chatlog=document.getElementById("chatlog"), input=document.getElementById("chatInput"),
-      sendBtn=document.getElementById("chatSend"), chatInit=false, busy=false, convo=[];
+      sendBtn=document.getElementById("chatSend"), chipsEl=document.getElementById("chips"),
+      chatInit=false, busy=false, convo=[];
   var ACCENTS=["#e6b450","#4c8dff","#3fb950","#e5484d","#b07cf0","#39c5bb"];
+  // お題チップは最初のアイデア出し用。会話が始まったら隠す。
+  function showChips(b){ chipsEl.style.display = b ? "" : "none"; }
   function bubble(cls,text){ var d=document.createElement("div"); d.className="msg "+cls; d.textContent=text;
     chatlog.appendChild(d); chatlog.scrollTop=chatlog.scrollHeight; return d; }
   function clearOptions(){ chatlog.querySelectorAll(".optrow").forEach(function(r){ r.remove(); }); }
@@ -485,7 +488,7 @@
   }
   function resetChat(){
     chatlog.innerHTML=""; chatInit=false; busy=false; lastGen=null; convo=[];
-    pickedAssets=[]; renderAssetTray(); setAssetOpen(false);
+    pickedAssets=[]; renderAssetTray(); setAssetOpen(false); showChips(true);
     toPreviewBtn.classList.add("off"); initChat();
   }
   function initChat(){
@@ -497,7 +500,7 @@
   function editGame(id){
     Catalog.getGenerated(id).then(function(g){
       if(!g) return;
-      chatlog.innerHTML=""; chatInit=true; busy=false; convo=[];
+      chatlog.innerHTML=""; chatInit=true; busy=false; convo=[]; showChips(false);
       lastGen={ title:g.title, html:g.html, accent:g.accent||"#e6b450", description:g.description||"", thumb:g.thumb||null, editingId:g.id, category:g.category||"その他" };
       toPreviewBtn.classList.remove("off");
       bubble("bot","「"+g.title+"」を編集中。直したい所を言ってね（例：もっと速く／敵を増やして／色を青に）。\nプレビュー → 公開設定 → 保存 で上書きできます。");
@@ -508,7 +511,7 @@
     text=(text||"").trim(); if(!text||busy) return;
     clearOptions();
     var note=assetNote(), full=note+text;
-    bubble("user",full); convo.push({role:"user",content:full}); input.value=""; busy=true;
+    bubble("user",full); convo.push({role:"user",content:full}); input.value=""; busy=true; showChips(false);
     if(pickedAssets.length){ pickedAssets=[]; renderAssetTray(); if(!assetPanel.hidden) renderAssetPanel(); }
     var prev = (lastGen && lastGen.html) ? lastGen.html : "";
     var typing=bubble("bot typing", prev?"直しているよ…":"考え中…");
