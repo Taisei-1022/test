@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="ミニアーケード" />
@@ -13,15 +13,59 @@
 <title>ミニアーケード</title>
 </head>
 <body>
-<div class="app">
-  <div class="top">
-    <div class="brand">ミニアーケード<small>MINI ARCADE</small></div>
-    <label class="name">なまえ<input id="name" maxlength="16" placeholder="ゲスト" /></label>
-  </div>
+<div class="screen">
 
-  <div class="section">あそぶ</div>
-  <div class="grid" id="grid"></div>
+  <!-- 遊ぶ -->
+  <section id="view-play" class="view active">
+    <div class="app">
+      <div class="top"><div class="brand">ミニアーケード<small>あそぶ</small></div></div>
+      <div class="section">ゲーム一覧</div>
+      <div class="grid" id="grid"></div>
+    </div>
+  </section>
+
+  <!-- 作る（AIチャット モック） -->
+  <section id="view-create" class="view col">
+    <div class="top" style="padding:14px 14px 8px"><div class="brand">作る<small>AIといっしょに</small></div></div>
+    <div class="chatlog" id="chatlog"></div>
+    <div class="chips" id="chips">
+      <button>落ちてくる寿司をキャッチ</button>
+      <button>もぐらたたき</button>
+      <button>色をそろえるパズル</button>
+    </div>
+    <div class="composer">
+      <input id="chatInput" placeholder="作りたいゲームを書く…" autocomplete="off" />
+      <button id="chatSend">送信</button>
+    </div>
+  </section>
+
+  <!-- マイページ -->
+  <section id="view-mypage" class="view">
+    <div class="app">
+      <div class="top"><div class="brand">マイページ<small>あなたの記録</small></div></div>
+      <div class="section">なまえ</div>
+      <label class="name"><input id="name" maxlength="16" placeholder="ゲスト" style="width:180px" /></label>
+      <div class="section">自己ベスト</div>
+      <ul class="records" id="records"></ul>
+      <div class="section">作ったゲーム</div>
+      <p style="color:var(--dim);font-size:13px;margin:4px 2px">まだありません。「作る」タブから作成できます（近日）。</p>
+    </div>
+  </section>
 </div>
+
+<nav class="tabbar">
+  <button data-tab="play" class="on">
+    <svg viewBox="0 0 24 24"><path class="icf" d="M8 6 L18 12 L8 18 Z"/></svg>遊ぶ
+  </button>
+  <button data-tab="create">
+    <svg viewBox="0 0 24 24"><path class="ic" stroke-width="2" stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>作る
+  </button>
+  <button data-tab="mypage">
+    <svg viewBox="0 0 24 24"><circle class="ic" stroke-width="2" cx="12" cy="8" r="3.4"/><path class="ic" stroke-width="2" stroke-linecap="round" d="M5.5 19c1-3.4 4-5 6.5-5s5.5 1.6 6.5 5"/></svg>マイページ
+  </button>
+</nav>
+
+<div class="toast" id="toast"></div>
 
 <script src="js/games.js"></script>
 <script src="js/config.js"></script>
@@ -29,38 +73,108 @@
 <script>
 (function () {
   "use strict";
-  var nameEl = document.getElementById("name");
-  nameEl.value = Store.name();
-  nameEl.addEventListener("change", function () { Store.setName(nameEl.value.trim()); });
+  function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
+  function shade(hex){ var n=parseInt(hex.slice(1),16),r=(n>>16)&255,g=(n>>8)&255,b=n&255;
+    r=Math.round(r*.55);g=Math.round(g*.55);b=Math.round(b*.55);
+    return "#"+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1); }
+  function me(){ return Store.name() || "ゲスト"; }
+  var toast=document.getElementById("toast");
+  function showToast(m){ toast.textContent=m; toast.classList.add("show"); setTimeout(function(){toast.classList.remove("show");},1500); }
 
-  var grid = document.getElementById("grid");
-  Promise.all(GAMES.map(function (g) {
-    return Promise.all([Store.plays(g.id), Store.top(g.id, g.score.type, 1)]).then(function (r) {
-      return { g: g, plays: r[0], top: r[1][0] || null };
+  /* ---------- タブ切替 ---------- */
+  var tabs=document.querySelectorAll(".tabbar button");
+  function show(tab){
+    document.querySelectorAll(".view").forEach(function(v){ v.classList.toggle("active", v.id==="view-"+tab); });
+    tabs.forEach(function(b){ b.classList.toggle("on", b.dataset.tab===tab); });
+    if(tab==="play") renderFeed();
+    if(tab==="mypage") renderMypage();
+    if(tab==="create") initChat();
+    if(location.hash!=="#"+tab) history.replaceState(null,"","#"+tab);
+  }
+  tabs.forEach(function(b){ b.addEventListener("click", function(){ show(b.dataset.tab); }); });
+
+  /* ---------- 遊ぶ：フィード ---------- */
+  var grid=document.getElementById("grid");
+  function renderFeed(){
+    Promise.all(GAMES.map(function(g){
+      return Promise.all([Store.plays(g.id), Store.top(g.id,g.score.type,1)]).then(function(r){
+        return { g:g, plays:r[0], top:r[1][0]||null };
+      });
+    })).then(function(rows){
+      grid.innerHTML=rows.map(function(row){
+        var g=row.g, topTxt=row.top?(row.top.score+g.score.unit+" / "+row.top.player):"まだ記録なし";
+        return '<a class="card" href="play.html?game='+g.id+'">'+
+          '<div class="thumb" style="background:linear-gradient(140deg,'+g.accent+','+shade(g.accent)+')"><b>'+esc(g.title)+'</b></div>'+
+          '<span class="cat">'+esc(g.category)+'</span>'+
+          '<div class="ttl">'+esc(g.title)+'</div>'+
+          '<div class="meta">作 '+esc(g.author)+' ・ '+row.plays+'プレイ</div>'+
+          '<div class="blurb">'+esc(g.blurb)+'</div>'+
+          '<div class="meta" style="margin-top:6px;color:var(--gold)">1位 '+esc(topTxt)+'</div></a>';
+      }).join("");
     });
-  })).then(function (rows) {
-    grid.innerHTML = rows.map(function (row) {
-      var g = row.g;
-      var topTxt = row.top ? (row.top.score + g.score.unit + " / " + row.top.player) : "まだ記録なし";
-      return '' +
-        '<a class="card" href="play.html?game=' + g.id + '">' +
-        '  <div class="thumb" style="background:linear-gradient(140deg,' + g.accent + ',' + shade(g.accent) + ')">' +
-        '    <b>' + esc(g.title) + '</b></div>' +
-        '  <span class="cat">' + esc(g.category) + '</span>' +
-        '  <div class="ttl">' + esc(g.title) + '</div>' +
-        '  <div class="meta">作 ' + esc(g.author) + ' ・ ' + row.plays + 'プレイ</div>' +
-        '  <div class="blurb">' + esc(g.blurb) + '</div>' +
-        '  <div class="meta" style="margin-top:6px;color:var(--gold)">1位 ' + esc(topTxt) + '</div>' +
-        '</a>';
-    }).join("");
+  }
+
+  /* ---------- マイページ ---------- */
+  var nameEl=document.getElementById("name"), records=document.getElementById("records");
+  nameEl.addEventListener("change", function(){ Store.setName(nameEl.value.trim()); renderMypage(); });
+  function renderMypage(){
+    nameEl.value=Store.name();
+    Promise.all(GAMES.map(function(g){ return Store.myBest(g.id,g.score.type,me()).then(function(b){return {g:g,best:b};}); }))
+    .then(function(rows){
+      records.innerHTML=rows.map(function(r){
+        var v=r.best===null?'<span class="bs none">未プレイ</span>':'<span class="bs">'+r.best+r.g.score.unit+'</span>';
+        return '<li><span class="nm">'+esc(r.g.title)+'</span>'+v+'</li>';
+      }).join("");
+    });
+  }
+
+  /* ---------- 作る：AIチャット（モック） ---------- */
+  var chatlog=document.getElementById("chatlog"), input=document.getElementById("chatInput"),
+      sendBtn=document.getElementById("chatSend"), chatInit=false, busy=false;
+  function bubble(cls,text){ var d=document.createElement("div"); d.className="msg "+cls; d.textContent=text;
+    chatlog.appendChild(d); chatlog.scrollTop=chatlog.scrollHeight; return d; }
+  function initChat(){
+    if(chatInit) return; chatInit=true;
+    bubble("bot","どんなゲームを作る？\nひと言で教えて。例：「落ちてくる寿司をキャッチ」");
+  }
+  var ACCENTS=["#e6b450","#4c8dff","#3fb950","#e5484d","#b07cf0","#39c5bb"];
+  function sendIdea(text){
+    text=(text||"").trim(); if(!text||busy) return;
+    bubble("user",text); input.value=""; busy=true;
+    var typing=bubble("bot typing","考え中…");
+    setTimeout(function(){
+      typing.remove();
+      bubble("bot","いいね！「"+text+"」のゲームだね。\nこんなルールで組んでみる：\n・タップ／スワイプで操作\n・スコアは高いほど上位\n・だんだん難しくなる");
+      var gen=bubble("bot typing","生成中…");
+      setTimeout(function(){
+        gen.remove();
+        showGenCard(text);
+        busy=false;
+      },1400);
+    },800);
+  }
+  function showGenCard(text){
+    var accent=ACCENTS[Math.floor(Math.random()*ACCENTS.length)];
+    var title=text.length>14?text.slice(0,14)+"…":text;
+    var card=document.createElement("div"); card.className="gencard";
+    card.innerHTML='<div class="pv" style="background:linear-gradient(140deg,'+accent+','+shade(accent)+')"><b>'+esc(title)+'</b></div>'+
+      '<div class="bd"><div class="t">できあがり（プレビュー）</div>'+
+      '<div class="row"><button class="gplay">プレイ</button><button class="pri pub">フィードに公開</button></div></div>';
+    chatlog.appendChild(card); chatlog.scrollTop=chatlog.scrollHeight;
+    card.querySelector(".gplay").addEventListener("click",function(){ showToast("モックです：AI連携は次のステップ"); });
+    card.querySelector(".pub").addEventListener("click",function(){ showToast("モックです：公開は次のステップ"); });
+    bubble("bot","※ いまは見た目だけのモックだよ。実際の生成（AI連携）は次のステップで繋ぐね。");
+  }
+  sendBtn.addEventListener("click", function(){ sendIdea(input.value); });
+  input.addEventListener("keydown", function(e){ if(e.key==="Enter") sendIdea(input.value); });
+  document.getElementById("chips").addEventListener("click", function(e){
+    if(e.target.tagName==="BUTTON"){ show("create"); sendIdea(e.target.textContent); }
   });
 
-  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
-  function shade(hex) {
-    var n = parseInt(hex.slice(1), 16), r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
-    r = Math.round(r * 0.55); g = Math.round(g * 0.55); b = Math.round(b * 0.55);
-    return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
-  }
+  /* ---------- 初期表示 ---------- */
+  var start=(location.hash||"#play").slice(1);
+  if(!/^(play|create|mypage)$/.test(start)) start="play";
+  show(start);
 })();
 </script>
 </body>

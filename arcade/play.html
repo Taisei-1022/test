@@ -17,7 +17,7 @@
   </div>
   <div class="frameWrap"><iframe id="frame" allow="autoplay; fullscreen" title="game"></iframe></div>
   <div class="lb">
-    <h3 id="lbTitle">ランキング</h3>
+    <h3 id="lbTitle">ランキング<a id="lbMore" style="float:right;color:var(--gold);font-weight:700">すべて見る ›</a></h3>
     <ol id="lbList"></ol>
   </div>
 </div>
@@ -44,6 +44,7 @@
   var bestEl = document.getElementById("best");
   var lbList = document.getElementById("lbList");
   var toast = document.getElementById("toast");
+  document.getElementById("lbMore").href = "leaderboard.html?game=" + game.id;
 
   function fmt(v) { return v + unit; }
 

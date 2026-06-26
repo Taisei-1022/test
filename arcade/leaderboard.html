@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<link rel="stylesheet" href="css/app.css" />
+<title>ランキング</title>
+</head>
+<body>
+<div class="play">
+  <div class="bar">
+    <a class="back" id="back" aria-label="戻る">‹</a>
+    <div class="t" id="title">ランキング</div>
+    <div class="best"><span>あなた</span><b id="myrank">—</b></div>
+  </div>
+  <div class="lb" style="max-height:none;flex:1;border-top:0">
+    <h3 id="sub">全ランキング</h3>
+    <ol id="list"></ol>
+  </div>
+</div>
+
+<script src="js/games.js"></script>
+<script src="js/config.js"></script>
+<script src="js/store.js"></script>
+<script>
+(function () {
+  "use strict";
+  var id = new URLSearchParams(location.search).get("game");
+  var game = getGame(id);
+  if (!game) { location.replace("index.html"); return; }
+  var stype = game.score.type, unit = game.score.unit, player = Store.name() || "ゲスト";
+
+  document.getElementById("title").textContent = game.title + " のランキング";
+  document.title = game.title + " のランキング";
+  document.getElementById("back").href = "play.html?game=" + game.id;
+
+  function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
+
+  Store.top(game.id, stype, 100).then(function (rows) {
+    var list = document.getElementById("list");
+    var myRank = null;
+    if (!rows.length) { list.innerHTML = '<li class="empty">まだ記録がありません。最初の1位になろう。</li>'; return; }
+    list.innerHTML = rows.map(function (row, i) {
+      if (row.player === player && myRank === null) myRank = i + 1;
+      var meCls = row.player === player ? " me" : "";
+      return '<li class="'+meCls+'">'+
+        '<span class="rk">'+(i+1)+'</span>'+
+        '<span class="pl">'+esc(row.player)+'</span>'+
+        '<span class="sc">'+row.score+unit+'</span></li>';
+    }).join("");
+    document.getElementById("myrank").textContent = myRank ? (myRank + "位") : "—";
+    document.getElementById("sub").textContent = "全 " + rows.length + " 人";
+  });
+})();
+</script>
+</body>
+</html>
