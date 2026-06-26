@@ -9,7 +9,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon.svg" />
 <link rel="icon" href="icon.svg" />
-<link rel="stylesheet" href="css/app.css?v=11" />
+<link rel="stylesheet" href="css/app.css?v=12" />
 <title>ミニアーケード</title>
 </head>
 <body>
@@ -266,7 +266,7 @@
                        : '<div class="ic" style="background:'+grad(c.accent||"#e6b450")+'"></div>';
       var badge = (c.published===false) ? '<span class="draftbadge">下書き</span>' : '<span class="livebadge">公開中</span>';
       return '<li>'+ic+
-        '<div class="mid"><div class="nm">'+esc(c.title)+badge+'</div><div class="dt">'+fmtDate(c.created_at)+'</div></div>'+
+        '<div class="mid">'+badge+'<div class="nm">'+esc(c.title)+'</div><div class="dt">'+fmtDate(c.created_at)+'</div></div>'+
         '<div class="liacts">'+
           '<a class="go" href="play.html?game='+c.id+'">遊ぶ</a>'+
           '<button data-act="edit" data-id="'+c.id+'">編集</button>'+
