@@ -8,7 +8,8 @@ window.Ai = (function () {
 
   return {
     available: function () { return !!(cfg.supabaseUrl && cfg.supabaseKey); },
-    generate: async function (prompt) {
+    // prevHtml を渡すと「既存ゲームを指示で修正」モードになる（案A）
+    generate: async function (prompt, prevHtml) {
       var url = fnUrl();
       if (!url || !cfg.supabaseKey) throw new Error("not_configured");
       var res = await fetch(url, {
@@ -18,7 +19,7 @@ window.Ai = (function () {
           "apikey": cfg.supabaseKey,
           "Authorization": "Bearer " + cfg.supabaseKey
         },
-        body: JSON.stringify({ prompt: prompt })
+        body: JSON.stringify({ prompt: prompt, prevHtml: prevHtml || "" })
       });
       if (!res.ok) {
         var t = ""; try { t = await res.text(); } catch (e) {}

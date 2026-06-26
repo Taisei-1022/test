@@ -1,8 +1,8 @@
-// Supabase Edge Function: ゲーム生成（Claude / Anthropic Messages API）
+// Supabase Edge Function: ゲーム生成 / 編集（Claude / Anthropic Messages API）
 // - APIキーはサーバー側の環境変数 ANTHROPIC_API_KEY に置く（クライアントには出さない）
+// - { prompt }            → 新規生成
+// - { prompt, prevHtml }  → 既存ゲームを指示で修正（案A）
 // - 構造化出力で { title, html } を受け取る
-// デプロイ:  supabase functions deploy generate --no-verify-jwt
-// シークレット: supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -26,6 +26,7 @@ Hard requirements:
 - Use Canvas or DOM. Keep it light. No heavy loops that freeze the tab.
 - Make it genuinely fun and a little polished: a clear goal, simple controls, gradually increasing difficulty.
 - Japanese UI text. Dark, clean look. No emoji as UI icons.
+- When editing an existing game, keep what already works and apply ONLY the requested change; return the FULL updated HTML.
 - Do NOT include explanations or markdown fences — the "html" field is raw HTML only.`;
 
 const SCHEMA = {
@@ -49,16 +50,25 @@ Deno.serve(async (req) => {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) return json({ error: "missing_api_key" }, 500);
 
-  let prompt = "";
-  try { prompt = String((await req.json())?.prompt ?? ""); } catch { /* ignore */ }
+  let prompt = "", prevHtml = "";
+  try {
+    const b = await req.json();
+    prompt = String(b?.prompt ?? "");
+    prevHtml = String(b?.prevHtml ?? "");
+  } catch { /* ignore */ }
   prompt = prompt.slice(0, 500).trim();
+  prevHtml = prevHtml.slice(0, 80000);
   if (!prompt) return json({ error: "empty_prompt" }, 400);
+
+  const userContent = prevHtml
+    ? "次の既存ゲーム(HTML)を、下の指示に従って修正してください。修正後の完全な単一HTMLだけを返し、タイトルも内容に合わせて更新してOKです。\n\n【指示】\n" + prompt + "\n\n【既存HTML】\n" + prevHtml
+    : "作りたいゲーム: " + prompt;
 
   const body = {
     model: "claude-opus-4-8",
     max_tokens: 16000,
     system: SYSTEM,
-    messages: [{ role: "user", content: `作りたいゲーム: ${prompt}` }],
+    messages: [{ role: "user", content: userContent }],
     output_config: { format: { type: "json_schema", schema: SCHEMA } },
   };
 
