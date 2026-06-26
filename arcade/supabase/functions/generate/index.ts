@@ -170,6 +170,7 @@ async function doWork(key: string, messages: Msg[], prevHtml: string) {
   } catch (e) {
     const s = String((e as Error)?.message || e);
     if (s.indexOf("refused") >= 0) return { error: "refused" };
+    if (/credit balance is too low/i.test(s)) return { error: "insufficient_credit" };
     return { error: "generate_error", detail: s.slice(0, 200) };
   }
 }

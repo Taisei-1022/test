@@ -610,6 +610,8 @@
       var s=String(err&&err.message||err);
       var msg = /not_configured/.test(s)
         ? "AI生成が未設定です。SupabaseのEdge Functionとキーを設定してね。"
+        : /insufficient_credit/.test(s)
+        ? "AIの利用クレジットが不足しています。\nAnthropicの管理画面（Plans & Billing）でクレジットを追加すると、また作れるようになります。"
         : "うまくいかなかった…もう一度試してみて。\n("+s.slice(0,90)+")";
       bubble("bot", msg);
     });
