@@ -48,9 +48,24 @@ Hard requirements:
     window.Arcade = window.Arcade || {ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
 - Use Canvas or DOM. Keep it light. No heavy loops that freeze the tab.
 - Make it genuinely fun and polished: clear goal, responsive controls, juicy feedback, difficulty that ramps up.
-- Japanese UI text. Dark, clean look. No emoji as UI icons.
+- Japanese UI text. Dark, clean look. No emoji as UI icons (menus/buttons stay text).
 - When editing an existing game, keep what already works and apply ONLY the requested change; return the FULL updated HTML.
-- Do NOT include explanations or markdown fences — the "html" field is raw HTML only.`;
+- Do NOT include explanations or markdown fences — the "html" field is raw HTML only.
+
+Characters / sprites (IMPORTANT for looks):
+- Do NOT use plain rectangles for characters. Give them a real look using EMOJI drawn on the canvas — they render natively, need no files, and work offline.
+- Draw an emoji as a sprite like this:
+    ctx.save(); ctx.font = size + "px serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("🐱", x, y); ctx.restore();
+  (Set "size" to the sprite's pixel size; recompute on resize.)
+- You MAY use any emoji that fits the game. A reliable palette to choose from:
+  🐱 ねこ / 🐶 いぬ / 🐸 かえる / 🐤 ひよこ / 🦊 きつね / 🐙 たこ / 🐢 かめ / 🐝 はち /
+  🍣 すし / 🍎 りんご / 🍩 ドーナツ / 🍄 きのこ / ⭐ スター / 💎 ジェム / 🪙 コイン /
+  🔥 ほのお / ⚡ いなずま / 💣 ばくだん / 🚀 ロケット / ⚽ ボール
+- If the conversation says the user picked specific 素材 (emoji), use THOSE as the main characters/objects.
+
+Category:
+- Also choose ONE best-fitting "category" from: アクション / パズル / シューティング / 反射神経 / よける / タイミング / 記憶 / レース / その他.`;
 
 const PLAN_SCHEMA = {
   type: "object",
@@ -64,8 +79,15 @@ const PLAN_SCHEMA = {
 };
 const GAME_SCHEMA = {
   type: "object",
-  properties: { title: { type: "string" }, html: { type: "string" } },
-  required: ["title", "html"],
+  properties: {
+    title: { type: "string" },
+    html: { type: "string" },
+    category: {
+      type: "string",
+      enum: ["アクション", "パズル", "シューティング", "反射神経", "よける", "タイミング", "記憶", "レース", "その他"],
+    },
+  },
+  required: ["title", "html", "category"],
   additionalProperties: false,
 };
 
@@ -149,7 +171,7 @@ Deno.serve(async (req) => {
         instruction + "\n\n【既存HTML】\n" + prevHtml;
       const g = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, true);
       if (!g.html) return json({ error: "empty_html" }, 502);
-      return json({ action: "build", reply: "直したよ！", title: g.title || "無題のゲーム", html: g.html });
+      return json({ action: "build", reply: "直したよ！", title: g.title || "無題のゲーム", html: g.html, category: g.category || "その他" });
     }
 
     // --- 相談（プランナー: 軽量・質問役） ---
@@ -163,7 +185,7 @@ Deno.serve(async (req) => {
     const userContent = "次の相談で決まった内容で、ミニゲームを作ってください。完全な単一HTMLだけを返す。\n\n【相談ログ】\n" + transcript;
     const g = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, true);
     if (!g.html) return json({ error: "empty_html" }, 502);
-    return json({ action: "build", reply: plan.reply || "作ったよ！", title: g.title || "無題のゲーム", html: g.html });
+    return json({ action: "build", reply: plan.reply || "作ったよ！", title: g.title || "無題のゲーム", html: g.html, category: g.category || "その他" });
   } catch (e) {
     const s = String((e as Error)?.message || e);
     if (s.indexOf("refused") >= 0) return json({ error: "refused" }, 422);

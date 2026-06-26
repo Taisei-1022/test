@@ -27,8 +27,37 @@ window.Catalog = (function () {
   function fields(g) {
     return {
       title: g.title, author: g.author || "ゲスト", html: g.html,
-      accent: g.accent || "#e6b450", description: g.description || "", thumb: g.thumb || null
+      accent: g.accent || "#e6b450", description: g.description || "", thumb: g.thumb || null,
+      category: g.category || "その他"
     };
+  }
+  // category 列がまだ無いSupabaseでも壊れないように、列不明エラーなら category を外して送り直す
+  function schemaErr(status, text) {
+    return status === 400 && /category|column|schema cache|PGRST204/i.test(text || "");
+  }
+  async function writeRow(path, method, row) {
+    var res = await rq(path, { method: method, headers: { Prefer: "return=representation" }, body: JSON.stringify(row) });
+    if (res.ok) return res;
+    var t = ""; try { t = await res.text(); } catch (e) {}
+    if (schemaErr(res.status, t) && "category" in row) {
+      var r2 = Object.assign({}, row); delete r2.category;
+      var res2 = await rq(path, { method: method, headers: { Prefer: "return=representation" }, body: JSON.stringify(r2) });
+      if (res2.ok) return res2;
+      var t2 = ""; try { t2 = await res2.text(); } catch (e) {}
+      throw new Error("write_failed:" + res2.status + ":" + t2.slice(0, 120));
+    }
+    throw new Error("write_failed:" + res.status + ":" + t.slice(0, 120));
+  }
+  // category 列が無い場合は select から外して取得し直す
+  async function getSel(path) {
+    var res = await rq(path);
+    if (res.ok) return res;
+    var t = ""; try { t = await res.text(); } catch (e) {}
+    if (schemaErr(res.status, t) && /,category/.test(path)) {
+      var res2 = await rq(path.replace(",category", ""));
+      if (res2.ok) return res2;
+    }
+    throw new Error("read_failed:" + res.status);
   }
 
   return {
@@ -40,8 +69,7 @@ window.Catalog = (function () {
     publish: async function (g) {
       var row = fields(g); row.owner = owner();
       if (remote) {
-        var res = await rq("games", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify(row) });
-        if (!res.ok) { var t = ""; try { t = await res.text(); } catch (e) {} throw new Error("publish_failed:" + res.status + ":" + t.slice(0, 120)); }
+        var res = await writeRow("games", "POST", row);
         return (await res.json())[0];
       }
       row.id = "gen-" + Date.now() + "-" + Math.floor(Math.random() * 1000);
@@ -54,8 +82,7 @@ window.Catalog = (function () {
     update: async function (id, g) {
       var patch = fields(g);
       if (remote) {
-        var res = await rq("games?id=eq." + enc(id), { method: "PATCH", headers: { Prefer: "return=representation" }, body: JSON.stringify(patch) });
-        if (!res.ok) { var t = ""; try { t = await res.text(); } catch (e) {} throw new Error("update_failed:" + res.status + ":" + t.slice(0, 120)); }
+        var res = await writeRow("games?id=eq." + enc(id), "PATCH", patch);
         return (await res.json())[0];
       }
       var a = loadLS(); for (var i = 0; i < a.length; i++) if (a[i].id === id) { Object.assign(a[i], patch); }
@@ -75,26 +102,26 @@ window.Catalog = (function () {
     copy: async function (id) {
       var g = await this.getGenerated(id);
       if (!g) throw new Error("not_found");
-      return this.publish({ title: (g.title || "ゲーム") + " のコピー", html: g.html, accent: g.accent, description: g.description, thumb: g.thumb, author: g.author });
+      return this.publish({ title: (g.title || "ゲーム") + " のコピー", html: g.html, accent: g.accent, description: g.description, thumb: g.thumb, author: g.author, category: g.category });
     },
 
     // 一覧（HTML本体は含めない・サムネは含む）
     listGenerated: async function () {
       if (remote) {
         try {
-          var res = await rq("games?select=id,title,author,accent,description,thumb,owner,created_at&order=created_at.desc&limit=50");
+          var res = await getSel("games?select=id,title,author,accent,description,thumb,owner,created_at,category&order=created_at.desc&limit=50");
           return await res.json();
         } catch (e) { console.warn("listGenerated failed", e); return []; }
       }
       return loadLS().map(function (g) {
-        return { id: g.id, title: g.title, author: g.author, accent: g.accent, description: g.description, thumb: g.thumb, owner: g.owner, created_at: g.created_at };
+        return { id: g.id, title: g.title, author: g.author, accent: g.accent, description: g.description, thumb: g.thumb, owner: g.owner, created_at: g.created_at, category: g.category };
       });
     },
 
     getGenerated: async function (id) {
       if (remote) {
         try {
-          var res = await rq("games?id=eq." + enc(id) + "&select=id,title,author,html,accent,description,thumb,owner&limit=1");
+          var res = await getSel("games?id=eq." + enc(id) + "&select=id,title,author,html,accent,description,thumb,owner,category&limit=1");
           return (await res.json())[0] || null;
         } catch (e) { console.warn("getGenerated failed", e); return null; }
       }
@@ -104,10 +131,10 @@ window.Catalog = (function () {
     // シード or 生成、どちらの id でも統一記述子で返す
     resolve: async function (id) {
       var s = (window.getGame ? window.getGame(id) : null);
-      if (s) return { source: "seed", id: s.id, title: s.title, accent: s.accent, score: s.score, path: s.path };
+      if (s) return { source: "seed", id: s.id, title: s.title, accent: s.accent, score: s.score, path: s.path, category: s.category };
       var g = await this.getGenerated(id);
       if (!g) return null;
-      return { source: "gen", id: g.id, title: g.title, accent: g.accent, score: { type: "high", unit: "点" }, html: g.html };
+      return { source: "gen", id: g.id, title: g.title, accent: g.accent, score: { type: "high", unit: "点" }, html: g.html, category: g.category };
     }
   };
 })();

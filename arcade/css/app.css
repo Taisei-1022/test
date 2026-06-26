@@ -159,6 +159,51 @@ textarea.field{resize:vertical;line-height:1.5;}
 .chips button{background:transparent;border:1px solid var(--rule);color:var(--dim);
   border-radius:999px;padding:.35rem .7rem;font:inherit;font-size:12px;cursor:pointer;}
 
+/* ---- 遊ぶ：フィルター・並び替え ---- */
+.filterbar{margin:6px 2px 12px;}
+.catchips{display:flex;gap:8px;flex-wrap:wrap;}
+.catchip{background:transparent;border:1px solid var(--rule);color:var(--dim);border-radius:999px;
+  padding:.35rem .8rem;font:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;}
+.catchip.on{background:var(--gold);color:#241a00;border-color:var(--gold);}
+.catchips.pick{margin:2px 0;}
+.sortrow{display:flex;justify-content:flex-end;margin-top:10px;}
+.sortsel{font-size:11px;color:var(--dim);display:flex;align-items:center;gap:6px;}
+.sortsel select{background:var(--plate);border:1px solid var(--rule);color:var(--ink);border-radius:8px;
+  padding:.3rem .5rem;font:inherit;font-size:12px;}
+
+/* ---- 相談：素材（絵文字）ピッカー ---- */
+.assetbar{padding:0 14px 4px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.assettoggle{background:transparent;border:1px solid var(--rule);color:var(--ink);border-radius:999px;
+  padding:.35rem .8rem;font:inherit;font-size:12px;font-weight:700;cursor:pointer;flex:none;}
+.assettoggle.on{border-color:var(--gold);color:var(--gold);}
+.assettray{display:flex;gap:6px;flex-wrap:wrap;align-items:center;min-height:24px;}
+.assettray .hint{color:var(--dim);font-size:11px;}
+.traychip{background:var(--plate);border:1px solid var(--gold);color:var(--gold);border-radius:999px;
+  padding:.25rem .6rem;font:inherit;font-size:13px;font-weight:700;cursor:pointer;}
+.assetpanel{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px;
+  padding:10px 14px;border-top:1px solid var(--rule);max-height:34vh;overflow:auto;background:var(--bg);}
+.assetcell{background:var(--plate);border:1px solid var(--rule);border-radius:10px;color:var(--ink);
+  padding:8px 2px;font:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;}
+.assetcell.on{border-color:var(--gold);background:rgba(230,180,80,.14);}
+.assetcell .em{font-size:24px;line-height:1;}
+.assetcell .nm{font-size:10px;color:var(--dim);}
+
+/* ---- サムネ切り抜きモーダル ---- */
+.cropmodal{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:18px;}
+.cropmodal[hidden]{display:none;}
+.cropbox{width:100%;max-width:420px;background:var(--plate);border:1px solid var(--rule);border-radius:16px;padding:14px;}
+.crophead{font-weight:800;font-size:15px;margin-bottom:10px;}
+.crophead small{display:block;font-size:11px;color:var(--dim);font-weight:600;margin-top:2px;}
+.cropview{position:relative;width:100%;aspect-ratio:4/3;border-radius:12px;overflow:hidden;background:#000;
+  touch-action:none;cursor:grab;}
+.cropview img{position:absolute;left:0;top:0;max-width:none;user-select:none;-webkit-user-drag:none;}
+.croprow{display:flex;align-items:center;gap:10px;margin:12px 2px 4px;font-size:12px;color:var(--dim);}
+.croprow input[type=range]{flex:1;accent-color:var(--gold);}
+.cropbtns{display:flex;gap:10px;margin-top:12px;}
+.cropbtns button{flex:1;border:1px solid var(--rule);background:transparent;color:var(--ink);border-radius:11px;
+  padding:.7rem;font:inherit;font-weight:800;font-size:15px;cursor:pointer;}
+.cropbtns button.pri{background:var(--gold);color:#241a00;border:0;}
+
 /* ---- マイページ ---- */
 .records{list-style:none;margin:0;padding:0;}
 .records li{display:flex;align-items:center;gap:10px;padding:12px 2px;border-bottom:1px solid var(--rule);}
