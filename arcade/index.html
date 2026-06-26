@@ -9,7 +9,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon.svg" />
 <link rel="icon" href="icon.svg" />
-<link rel="stylesheet" href="css/app.css?v=10" />
+<link rel="stylesheet" href="css/app.css?v=11" />
 <title>ミニアーケード</title>
 </head>
 <body>
@@ -101,7 +101,8 @@
         <div class="section2">説明（任意）</div>
         <textarea id="pubDesc" class="field" rows="3" maxlength="140" placeholder="どんなゲーム？ 遊び方やコツなど"></textarea>
         <div class="pvbtns" style="margin-top:16px">
-          <button id="pubBack2">プレビューに戻る</button>
+          <button id="pubToChat">チャットで中身を編集 ›</button>
+          <button id="pubDraft">一時保存（非公開）</button>
           <button class="pri" id="pubDo">公開する</button>
         </div>
       </div>
@@ -137,9 +138,8 @@
 <!-- サムネ切り抜き -->
 <div class="cropmodal" id="cropModal" hidden>
   <div class="cropbox">
-    <div class="crophead">サムネを切り抜く<small>ドラッグで位置、スライダーで拡大</small></div>
+    <div class="crophead">サムネを切り抜く<small>ドラッグで移動・2本指のピンチで拡大</small></div>
     <div class="cropview" id="cropView"><img id="cropImg" alt="" draggable="false" /></div>
-    <div class="croprow"><span>ズーム</span><input type="range" id="cropZoom" min="1" max="3" step="0.01" value="1" /></div>
     <div class="cropbtns">
       <button id="cropCancel" type="button">キャンセル</button>
       <button class="pri" id="cropOk" type="button">決定</button>
@@ -170,6 +170,8 @@
   /* ---------- タブ切替 ---------- */
   var tabs=document.querySelectorAll(".tabbar button");
   function show(tab){
+    var leavingCreate=document.getElementById("view-create").classList.contains("active") && tab!=="create";
+    if(leavingCreate) autosaveDraft();
     document.querySelectorAll(".view").forEach(function(v){ v.classList.toggle("active", v.id==="view-"+tab); });
     tabs.forEach(function(b){ b.classList.toggle("on", b.dataset.tab===tab); });
     if(tab==="play") renderFeed();
@@ -262,7 +264,7 @@
     return '<ul class="crelist">'+list.map(function(c){
       var ic = c.thumb ? '<div class="ic" style="background:url('+c.thumb+') center/cover"></div>'
                        : '<div class="ic" style="background:'+grad(c.accent||"#e6b450")+'"></div>';
-      var badge = (c.published===false) ? '<span class="draftbadge">下書き</span>' : '';
+      var badge = (c.published===false) ? '<span class="draftbadge">下書き</span>' : '<span class="livebadge">公開中</span>';
       return '<li>'+ic+
         '<div class="mid"><div class="nm">'+esc(c.title)+badge+'</div><div class="dt">'+fmtDate(c.created_at)+'</div></div>'+
         '<div class="liacts">'+
@@ -291,8 +293,24 @@
   }
 
   /* ---------- 作る：サブ画面ルーター ---------- */
-  var createEntered=false, lastGen=null;
+  var createEntered=false, lastGen=null, dirty=false;
   var toPreviewBtn=document.getElementById("toPreview");
+  // 作成中に別画面へ移ると、未保存の作品を自動で一時保存（非公開）して後で再開できるようにする。
+  function autosaveDraft(){
+    if(!lastGen || !lastGen.html || !dirty) return;
+    var editing=lastGen.editingId;
+    // 公開済みを勝手に非公開化しない：新規・下書きだけ非公開保存、公開済みは公開のまま更新。
+    var keepPublic = !!(editing && lastGen.published===true);
+    var payload=Object.assign({}, lastGen, {published:keepPublic});
+    dirty=false;
+    var p = editing ? Catalog.update(editing, payload) : Catalog.publish(payload);
+    p.then(function(row){
+      if(!editing && row && row.id) lastGen.editingId=row.id;
+      lastGen.published=payload.published;
+      refreshCreations();
+      if(!editing) showToast("下書きを保存しました");
+    }).catch(function(){ dirty=true; });
+  }
   function crShow(s){
     document.querySelectorAll("#view-create .crscreen").forEach(function(el){ el.classList.toggle("on", el.id==="cr-"+s); });
     if(s==="list") renderCreationsInto("creations");
@@ -301,14 +319,15 @@
   }
   function enterCreate(){ if(!createEntered){ createEntered=true; crShow("list"); } }
 
-  document.getElementById("newBtn").addEventListener("click", function(){ resetChat(); crShow("chat"); });
-  document.getElementById("chatBack").addEventListener("click", function(){ crShow("list"); });
+  document.getElementById("newBtn").addEventListener("click", function(){ autosaveDraft(); resetChat(); crShow("chat"); });
+  document.getElementById("chatBack").addEventListener("click", function(){ autosaveDraft(); crShow("list"); });
   document.getElementById("pvBack").addEventListener("click", function(){ crShow("chat"); });
   document.getElementById("pvToChat").addEventListener("click", function(){ crShow("chat"); });
   document.getElementById("pvPublish").addEventListener("click", function(){ crShow("publish"); });
   document.getElementById("pvDraft").addEventListener("click", saveDraft);
   document.getElementById("pubBack").addEventListener("click", function(){ crShow("preview"); });
-  document.getElementById("pubBack2").addEventListener("click", function(){ crShow("preview"); });
+  document.getElementById("pubToChat").addEventListener("click", function(){ crShow("chat"); });
+  document.getElementById("pubDraft").addEventListener("click", saveDraft);
   toPreviewBtn.addEventListener("click", function(){
     if(lastGen) crShow("preview"); else showToast("まずアイデアを送って生成してね");
   });
@@ -334,22 +353,27 @@
   }
   pubCat.addEventListener("click", function(e){
     var b=e.target.closest("button[data-cat]"); if(!b||!lastGen) return;
-    lastGen.category=b.getAttribute("data-cat"); renderPubCat();
+    lastGen.category=b.getAttribute("data-cat"); dirty=true; renderPubCat();
   });
+  document.getElementById("pubTitle").addEventListener("input", function(){ if(lastGen){ lastGen.title=this.value; dirty=true; } });
+  document.getElementById("pubDesc").addEventListener("input", function(){ if(lastGen){ lastGen.description=this.value; dirty=true; } });
   function renderPublish(){
     if(!lastGen) return;
-    document.getElementById("pubBarTitle").textContent = lastGen.editingId ? "編集（上書き保存）" : "公開設定";
-    document.getElementById("pubDo").textContent = lastGen.editingId ? "保存する" : "公開する";
+    var live = lastGen.published===true;
+    document.getElementById("pubBarTitle").textContent = lastGen.editingId ? "情報を編集" : "公開設定";
+    document.getElementById("pubDo").textContent = live ? "保存する（公開中）" : "公開する";
+    // 公開中のものを編集している時は「一時保存（非公開）」=非公開化なので表記を変える
+    document.getElementById("pubDraft").textContent = live ? "非公開にする" : "一時保存（非公開）";
     document.getElementById("pubTitle").value = lastGen.title || "";
     document.getElementById("pubDesc").value = lastGen.description || "";
     renderPubCat();
     updateThumbPrev();
   }
   /* サムネ切り抜き（固定 4:3、ドラッグ移動＋ズーム） */
-  var OUT_W=600, OUT_H=450;
+  var OUT_W=600, OUT_H=450, CROP_ZMAX=6;
   var cropModal=document.getElementById("cropModal"), cropView=document.getElementById("cropView"),
-      cropImg=document.getElementById("cropImg"), cropZoom=document.getElementById("cropZoom");
-  var cZoom=1, cTx=0, cTy=0, cBase=1, cNatW=0, cNatH=0, cDrag=false, cSX=0, cSY=0, cSTx=0, cSTy=0;
+      cropImg=document.getElementById("cropImg");
+  var cZoom=1, cTx=0, cTy=0, cBase=1, cNatW=0, cNatH=0;
   function cropClamp(){
     var Vw=cropView.clientWidth, Vh=cropView.clientHeight, s=cBase*cZoom;
     cTx=Math.min(0, Math.max(Vw-cNatW*s, cTx));
@@ -369,7 +393,7 @@
         cropModal.hidden=false;
         requestAnimationFrame(function(){
           var Vw=cropView.clientWidth, Vh=cropView.clientHeight;
-          cBase=Math.max(Vw/cNatW, Vh/cNatH); cZoom=1; cropZoom.value="1";
+          cBase=Math.max(Vw/cNatW, Vh/cNatH); cZoom=1;
           cTx=(Vw-cNatW*cBase)/2; cTy=(Vh-cNatH*cBase)/2; cropApply();
         });
       };
@@ -379,23 +403,47 @@
     reader.onerror=function(){ showToast("画像を読めませんでした"); };
     reader.readAsDataURL(file);
   }
-  cropZoom.addEventListener("input", function(){
-    var Vw=cropView.clientWidth, Vh=cropView.clientHeight, oldS=cBase*cZoom;
-    var cx=(Vw/2-cTx)/oldS, cy=(Vh/2-cTy)/oldS;
-    cZoom=parseFloat(cropZoom.value)||1;
-    var newS=cBase*cZoom; cTx=Vw/2-cx*newS; cTy=Vh/2-cy*newS;
-    cropClamp(); cropApply();
-  });
+  // 1本指=移動、2本指=ピンチで拡大縮小
+  var ptrs={};
+  var piDist=0, piZoom=1, piImgX=0, piImgY=0, panSX=0, panSY=0, panTx=0, panTy=0, panning=false;
+  function rectXY(e){ var r=cropView.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; }
+  function activePts(){ return Object.keys(ptrs).map(function(k){ return ptrs[k]; }); }
+  function startPinch(){
+    var a=activePts(); var dx=a[0].x-a[1].x, dy=a[0].y-a[1].y;
+    piDist=Math.hypot(dx,dy)||1; piZoom=cZoom;
+    var mx=(a[0].x+a[1].x)/2, my=(a[0].y+a[1].y)/2, s=cBase*cZoom;
+    piImgX=(mx-cTx)/s; piImgY=(my-cTy)/s; panning=false;
+  }
+  function startPan(){
+    var a=activePts(); panSX=a[0].x; panSY=a[0].y; panTx=cTx; panTy=cTy; panning=true;
+  }
   cropView.addEventListener("pointerdown", function(e){
-    cDrag=true; cSX=e.clientX; cSY=e.clientY; cSTx=cTx; cSTy=cTy;
+    ptrs[e.pointerId]=rectXY(e);
     try{ cropView.setPointerCapture(e.pointerId); }catch(err){}
+    var n=activePts().length;
+    if(n>=2) startPinch(); else startPan();
   });
   cropView.addEventListener("pointermove", function(e){
-    if(!cDrag) return; cTx=cSTx+(e.clientX-cSX); cTy=cSTy+(e.clientY-cSY); cropClamp(); cropApply();
+    if(!ptrs[e.pointerId]) return;
+    ptrs[e.pointerId]=rectXY(e);
+    var a=activePts();
+    if(a.length>=2){
+      var dx=a[0].x-a[1].x, dy=a[0].y-a[1].y, d=Math.hypot(dx,dy)||1;
+      cZoom=Math.min(CROP_ZMAX, Math.max(1, piZoom*(d/piDist)));
+      var mx=(a[0].x+a[1].x)/2, my=(a[0].y+a[1].y)/2, s=cBase*cZoom;
+      cTx=mx-piImgX*s; cTy=my-piImgY*s; cropClamp(); cropApply();
+    } else if(panning){
+      cTx=panTx+(a[0].x-panSX); cTy=panTy+(a[0].y-panSY); cropClamp(); cropApply();
+    }
   });
-  cropView.addEventListener("pointerup", function(){ cDrag=false; });
-  cropView.addEventListener("pointercancel", function(){ cDrag=false; });
-  function closeCrop(){ cropModal.hidden=true; cropImg.removeAttribute("src"); }
+  function endPtr(e){
+    delete ptrs[e.pointerId];
+    var n=activePts().length;
+    if(n>=2) startPinch(); else if(n===1) startPan(); else panning=false;
+  }
+  cropView.addEventListener("pointerup", endPtr);
+  cropView.addEventListener("pointercancel", endPtr);
+  function closeCrop(){ cropModal.hidden=true; cropImg.removeAttribute("src"); ptrs={}; panning=false; }
   document.getElementById("cropCancel").addEventListener("click", closeCrop);
   document.getElementById("cropOk").addEventListener("click", function(){
     if(!lastGen){ closeCrop(); return; }
@@ -403,7 +451,7 @@
     var sx=(0-cTx)/s, sy=(0-cTy)/s, sw=Vw/s, sh=Vh/s;
     var cv=document.createElement("canvas"); cv.width=OUT_W; cv.height=OUT_H;
     cv.getContext("2d").drawImage(cropImg, sx, sy, sw, sh, 0, 0, OUT_W, OUT_H);
-    try{ lastGen.thumb=cv.toDataURL("image/jpeg",0.85); updateThumbPrev(); }
+    try{ lastGen.thumb=cv.toDataURL("image/jpeg",0.85); dirty=true; updateThumbPrev(); }
     catch(e){ showToast("切り抜きに失敗しました"); }
     closeCrop();
   });
@@ -453,31 +501,32 @@
     if(i>=0){ pickedAssets.splice(i,1); renderAssetTray(); renderAssetPanel(); }
   });
   renderAssetTray();
-  document.getElementById("thumbClear").addEventListener("click", function(){ if(lastGen){ lastGen.thumb=null; updateThumbPrev(); } });
-  // 一時保存（公開せず下書きとして保存）。プレビュー右上の「一時保存」から。
+  document.getElementById("thumbClear").addEventListener("click", function(){ if(lastGen){ lastGen.thumb=null; dirty=true; updateThumbPrev(); } });
+  // 一時保存（公開せず下書きとして保存）。プレビューや情報編集画面の「一時保存」から。
   function saveDraft(){
     if(!lastGen) return;
     var editing=lastGen.editingId;
     var payload=Object.assign({}, lastGen, {published:false});
     var btn=document.getElementById("pvDraft"); if(btn) btn.disabled=true;
     var p = editing ? Catalog.update(editing, payload) : Catalog.publish(payload);
+    dirty=false;
     p.then(function(row){
       if(btn) btn.disabled=false;
       if(!editing && row && row.id) lastGen.editingId=row.id; // 以後は同じ下書きを上書き
       lastGen.published=false;
       showToast("一時保存しました"); crShow("list");
-    }).catch(function(e){ if(btn) btn.disabled=false; showToast("保存に失敗："+String(e.message||e).slice(0,40)); });
+    }).catch(function(e){ dirty=true; if(btn) btn.disabled=false; showToast("保存に失敗："+String(e.message||e).slice(0,40)); });
   }
   document.getElementById("pubDo").addEventListener("click", function(){
     if(!lastGen) return;
     lastGen.title = (document.getElementById("pubTitle").value||"").trim() || lastGen.title || "ゲーム";
     lastGen.description = (document.getElementById("pubDesc").value||"").trim();
     lastGen.published = true;
-    var btn=this; btn.disabled=true;
+    var btn=this; btn.disabled=true; dirty=false;
     var editing=lastGen.editingId;
     var p = editing ? Catalog.update(editing, lastGen) : Catalog.publish(lastGen);
     p.then(function(row){ btn.disabled=false; if(!editing && row && row.id) lastGen.editingId=row.id; lastGen.published=true; showToast("公開しました！"); crShow("list"); })
-     .catch(function(e){ btn.disabled=false; showToast("失敗："+String(e.message||e).slice(0,40)); });
+     .catch(function(e){ dirty=true; btn.disabled=false; showToast("失敗："+String(e.message||e).slice(0,40)); });
   });
 
   /* ---------- 作る：AIチャット（会話モード＋編集） ---------- */
@@ -519,11 +568,12 @@
   function editGame(id){
     Catalog.getGenerated(id).then(function(g){
       if(!g) return;
-      chatlog.innerHTML=""; chatInit=true; busy=false; convo=[]; showStarters(false);
-      lastGen={ title:g.title, html:g.html, accent:g.accent||"#e6b450", description:g.description||"", thumb:g.thumb||null, editingId:g.id, category:g.category||"その他" };
+      chatlog.innerHTML=""; chatInit=true; busy=false; convo=[]; dirty=false; showStarters(false);
+      lastGen={ title:g.title, html:g.html, accent:g.accent||"#e6b450", description:g.description||"", thumb:g.thumb||null, editingId:g.id, category:g.category||"その他", published:g.published };
       toPreviewBtn.classList.remove("off");
-      bubble("bot","「"+g.title+"」を編集中。直したい所を言ってね（例：もっと速く／敵を増やして／色を青に）。\nプレビュー → 公開設定 → 保存 で上書きできます。");
-      show("create"); crShow("chat");
+      // チャットに移った時のための前置き（まずは情報編集画面を出す）
+      bubble("bot","「"+g.title+"」を編集中。直したい所を言ってね（例：もっと速く／敵を増やして／色を青に）。");
+      show("create"); crShow("publish");   // まずタグ・名前・説明・サムネを編集する画面へ
     });
   }
   function sendChat(text){
@@ -548,7 +598,8 @@
       lastGen={ title:res.title, html:res.html,
         accent: k.accent || ACCENTS[Math.floor(Math.random()*ACCENTS.length)],
         description: k.description || "", thumb: k.thumb || null, editingId: k.editingId || null,
-        category: res.category || k.category || "その他" };
+        category: res.category || k.category || "その他", published: k.published };
+      dirty=true;
       convo.push({role:"assistant",content:"（ゲームを生成しました）"});
       toPreviewBtn.classList.remove("off");
       bubble("bot","「"+res.title+"」ができたよ！下のボタンか右上の「プレビュー」で遊んでみて。\nさらに直したい時はそのまま話してね。");
@@ -576,6 +627,10 @@
   document.getElementById("chips").addEventListener("click", function(e){
     if(e.target.tagName==="BUTTON"){ sendChat(e.target.textContent); }
   });
+
+  // アプリを閉じる/バックグラウンドへ行く時も、未保存の作品を自動で下書き保存（ベストエフォート）
+  window.addEventListener("pagehide", autosaveDraft);
+  document.addEventListener("visibilitychange", function(){ if(document.hidden) autosaveDraft(); });
 
   /* ---------- 初期表示 ---------- */
   var start=(location.hash||"#play").slice(1);
