@@ -9,7 +9,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon.svg" />
 <link rel="icon" href="icon.svg" />
-<link rel="stylesheet" href="css/app.css?v=9" />
+<link rel="stylesheet" href="css/app.css?v=10" />
 <title>ミニアーケード</title>
 </head>
 <body>
@@ -71,14 +71,12 @@
         <button class="back" id="pvBack" aria-label="戻る">‹</button>
         <div class="t">プレビュー</div>
         <button class="act" id="pvToChat">チャット</button>
+        <button class="act" id="pvDraft">一時保存</button>
+        <button class="act gold" id="pvPublish">公開</button>
       </div>
       <div class="crbody">
         <div class="pvframe"><iframe id="pvFrame" title="preview"></iframe></div>
         <p class="pvnote" id="pvTitle"></p>
-        <div class="pvbtns">
-          <button id="pvEdit">チャットで直す</button>
-          <button class="pri" id="pvToPublish">公開設定へ ›</button>
-        </div>
       </div>
     </div>
     <!-- ④ 公開設定 -->
@@ -154,7 +152,7 @@
 <script src="js/config.js?v=2"></script>
 <script src="js/store.js?v=2"></script>
 <script src="js/ai.js?v=6"></script>
-<script src="js/catalog.js?v=5"></script>
+<script src="js/catalog.js?v=6"></script>
 <script src="js/arcade-embed.js?v=3"></script>
 <script>
 (function () {
@@ -228,7 +226,7 @@
       var items = GAMES.map(function(g){
         return {id:g.id,title:g.title,author:g.author,category:g.category||"その他",accent:g.accent,blurb:g.blurb,
                 score:g.score,thumb:null,ts:Infinity};
-      }).concat(gen.map(function(g){
+      }).concat(gen.filter(function(g){ return g.published!==false; }).map(function(g){
         return {id:g.id,title:g.title,author:g.author||"ゲスト",category:g.category||"その他",accent:g.accent||"#e6b450",
                 thumb:g.thumb||null,blurb:(g.description||"AIで作られたゲーム"),score:{type:"high",unit:"点"},
                 ts:(g.created_at?new Date(g.created_at).getTime():0)};
@@ -264,8 +262,9 @@
     return '<ul class="crelist">'+list.map(function(c){
       var ic = c.thumb ? '<div class="ic" style="background:url('+c.thumb+') center/cover"></div>'
                        : '<div class="ic" style="background:'+grad(c.accent||"#e6b450")+'"></div>';
+      var badge = (c.published===false) ? '<span class="draftbadge">下書き</span>' : '';
       return '<li>'+ic+
-        '<div class="mid"><div class="nm">'+esc(c.title)+'</div><div class="dt">'+fmtDate(c.created_at)+'</div></div>'+
+        '<div class="mid"><div class="nm">'+esc(c.title)+badge+'</div><div class="dt">'+fmtDate(c.created_at)+'</div></div>'+
         '<div class="liacts">'+
           '<a class="go" href="play.html?game='+c.id+'">遊ぶ</a>'+
           '<button data-act="edit" data-id="'+c.id+'">編集</button>'+
@@ -306,8 +305,8 @@
   document.getElementById("chatBack").addEventListener("click", function(){ crShow("list"); });
   document.getElementById("pvBack").addEventListener("click", function(){ crShow("chat"); });
   document.getElementById("pvToChat").addEventListener("click", function(){ crShow("chat"); });
-  document.getElementById("pvEdit").addEventListener("click", function(){ crShow("chat"); });
-  document.getElementById("pvToPublish").addEventListener("click", function(){ crShow("publish"); });
+  document.getElementById("pvPublish").addEventListener("click", function(){ crShow("publish"); });
+  document.getElementById("pvDraft").addEventListener("click", saveDraft);
   document.getElementById("pubBack").addEventListener("click", function(){ crShow("preview"); });
   document.getElementById("pubBack2").addEventListener("click", function(){ crShow("preview"); });
   toPreviewBtn.addEventListener("click", function(){
@@ -455,14 +454,29 @@
   });
   renderAssetTray();
   document.getElementById("thumbClear").addEventListener("click", function(){ if(lastGen){ lastGen.thumb=null; updateThumbPrev(); } });
+  // 一時保存（公開せず下書きとして保存）。プレビュー右上の「一時保存」から。
+  function saveDraft(){
+    if(!lastGen) return;
+    var editing=lastGen.editingId;
+    var payload=Object.assign({}, lastGen, {published:false});
+    var btn=document.getElementById("pvDraft"); if(btn) btn.disabled=true;
+    var p = editing ? Catalog.update(editing, payload) : Catalog.publish(payload);
+    p.then(function(row){
+      if(btn) btn.disabled=false;
+      if(!editing && row && row.id) lastGen.editingId=row.id; // 以後は同じ下書きを上書き
+      lastGen.published=false;
+      showToast("一時保存しました"); crShow("list");
+    }).catch(function(e){ if(btn) btn.disabled=false; showToast("保存に失敗："+String(e.message||e).slice(0,40)); });
+  }
   document.getElementById("pubDo").addEventListener("click", function(){
     if(!lastGen) return;
     lastGen.title = (document.getElementById("pubTitle").value||"").trim() || lastGen.title || "ゲーム";
     lastGen.description = (document.getElementById("pubDesc").value||"").trim();
+    lastGen.published = true;
     var btn=this; btn.disabled=true;
     var editing=lastGen.editingId;
     var p = editing ? Catalog.update(editing, lastGen) : Catalog.publish(lastGen);
-    p.then(function(){ btn.disabled=false; showToast(editing?"保存しました":"公開しました！"); crShow("list"); })
+    p.then(function(row){ btn.disabled=false; if(!editing && row && row.id) lastGen.editingId=row.id; lastGen.published=true; showToast("公開しました！"); crShow("list"); })
      .catch(function(e){ btn.disabled=false; showToast("失敗："+String(e.message||e).slice(0,40)); });
   });
 
@@ -558,7 +572,7 @@
     card.querySelector(".toPv").addEventListener("click", function(){ crShow("preview"); });
   }
   sendBtn.addEventListener("click", function(){ sendChat(input.value); });
-  input.addEventListener("keydown", function(e){ if(e.key==="Enter") sendChat(input.value); });
+  // Enterでは送信しない（送信ボタンのみ）。改行を入れたい時のため標準動作は残す。
   document.getElementById("chips").addEventListener("click", function(e){
     if(e.target.tagName==="BUTTON"){ sendChat(e.target.textContent); }
   });

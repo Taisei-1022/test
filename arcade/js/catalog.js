@@ -24,23 +24,25 @@ window.Catalog = (function () {
   }
   function loadLS() { try { return JSON.parse(localStorage.getItem(LS)) || []; } catch (e) { return []; } }
   function saveLS(a) { localStorage.setItem(LS, JSON.stringify(a)); }
+  // 任意列（まだSupabaseに無いかもしれない列）。列不明エラー時はこれらを外して再試行する。
+  var OPTIONAL = ["category", "published"];
   function fields(g) {
     return {
       title: g.title, author: g.author || "ゲスト", html: g.html,
       accent: g.accent || "#e6b450", description: g.description || "", thumb: g.thumb || null,
-      category: g.category || "その他"
+      category: g.category || "その他",
+      published: g.published !== false   // 既定は公開。一時保存だけ false。
     };
   }
-  // category 列がまだ無いSupabaseでも壊れないように、列不明エラーなら category を外して送り直す
   function schemaErr(status, text) {
-    return status === 400 && /category|column|schema cache|PGRST204/i.test(text || "");
+    return status === 400 && /category|published|column|schema cache|PGRST204/i.test(text || "");
   }
   async function writeRow(path, method, row) {
     var res = await rq(path, { method: method, headers: { Prefer: "return=representation" }, body: JSON.stringify(row) });
     if (res.ok) return res;
     var t = ""; try { t = await res.text(); } catch (e) {}
-    if (schemaErr(res.status, t) && "category" in row) {
-      var r2 = Object.assign({}, row); delete r2.category;
+    if (schemaErr(res.status, t)) {
+      var r2 = Object.assign({}, row); OPTIONAL.forEach(function (k) { delete r2[k]; });
       var res2 = await rq(path, { method: method, headers: { Prefer: "return=representation" }, body: JSON.stringify(r2) });
       if (res2.ok) return res2;
       var t2 = ""; try { t2 = await res2.text(); } catch (e) {}
@@ -48,14 +50,14 @@ window.Catalog = (function () {
     }
     throw new Error("write_failed:" + res.status + ":" + t.slice(0, 120));
   }
-  // category 列が無い場合は select から外して取得し直す
+  // 任意列が無い場合は select から外して取得し直す
   async function getSel(path) {
     var res = await rq(path);
     if (res.ok) return res;
     var t = ""; try { t = await res.text(); } catch (e) {}
-    if (schemaErr(res.status, t) && /,category/.test(path)) {
-      var res2 = await rq(path.replace(",category", ""));
-      if (res2.ok) return res2;
+    if (schemaErr(res.status, t)) {
+      var p2 = path; OPTIONAL.forEach(function (k) { p2 = p2.replace("," + k, ""); });
+      if (p2 !== path) { var res2 = await rq(p2); if (res2.ok) return res2; }
     }
     throw new Error("read_failed:" + res.status);
   }
@@ -102,26 +104,26 @@ window.Catalog = (function () {
     copy: async function (id) {
       var g = await this.getGenerated(id);
       if (!g) throw new Error("not_found");
-      return this.publish({ title: (g.title || "ゲーム") + " のコピー", html: g.html, accent: g.accent, description: g.description, thumb: g.thumb, author: g.author, category: g.category });
+      return this.publish({ title: (g.title || "ゲーム") + " のコピー", html: g.html, accent: g.accent, description: g.description, thumb: g.thumb, author: g.author, category: g.category, published: g.published });
     },
 
     // 一覧（HTML本体は含めない・サムネは含む）
     listGenerated: async function () {
       if (remote) {
         try {
-          var res = await getSel("games?select=id,title,author,accent,description,thumb,owner,created_at,category&order=created_at.desc&limit=50");
+          var res = await getSel("games?select=id,title,author,accent,description,thumb,owner,created_at,category,published&order=created_at.desc&limit=50");
           return await res.json();
         } catch (e) { console.warn("listGenerated failed", e); return []; }
       }
       return loadLS().map(function (g) {
-        return { id: g.id, title: g.title, author: g.author, accent: g.accent, description: g.description, thumb: g.thumb, owner: g.owner, created_at: g.created_at, category: g.category };
+        return { id: g.id, title: g.title, author: g.author, accent: g.accent, description: g.description, thumb: g.thumb, owner: g.owner, created_at: g.created_at, category: g.category, published: g.published };
       });
     },
 
     getGenerated: async function (id) {
       if (remote) {
         try {
-          var res = await getSel("games?id=eq." + enc(id) + "&select=id,title,author,html,accent,description,thumb,owner,category&limit=1");
+          var res = await getSel("games?id=eq." + enc(id) + "&select=id,title,author,html,accent,description,thumb,owner,category,published&limit=1");
           return (await res.json())[0] || null;
         } catch (e) { console.warn("getGenerated failed", e); return null; }
       }
