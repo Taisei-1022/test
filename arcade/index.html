@@ -9,7 +9,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon.svg" />
 <link rel="icon" href="icon.svg" />
-<link rel="stylesheet" href="css/app.css?v=7" />
+<link rel="stylesheet" href="css/app.css?v=8" />
 <title>ミニアーケード</title>
 </head>
 <body>
@@ -418,10 +418,18 @@
       assetTray=document.getElementById("assetTray"), pickedAssets=[];
   var EMOJI_NAME={}; (window.ARCADE_EMOJI||[]).forEach(function(a){ EMOJI_NAME[a.e]=a.name; });
   function renderAssetPanel(){
-    assetPanel.innerHTML=(window.ARCADE_EMOJI||[]).map(function(a){
+    var head='<div class="assethead"><span>キャラに使う絵文字をえらぶ</span>'+
+      '<button type="button" class="assetclose">✕ 閉じる</button></div>';
+    assetPanel.innerHTML=head+(window.ARCADE_EMOJI||[]).map(function(a){
       var on=pickedAssets.indexOf(a.e)>=0;
       return '<button type="button" class="assetcell'+(on?" on":"")+'" data-e="'+a.e+'"><span class="em">'+a.e+'</span><span class="nm">'+esc(a.name)+'</span></button>';
     }).join("");
+  }
+  function setAssetOpen(open){
+    assetPanel.hidden=!open;
+    assetToggle.classList.toggle("on", open);
+    assetToggle.textContent = open ? "🎨 素材を閉じる" : "🎨 素材をえらぶ";
+    if(open) renderAssetPanel();
   }
   function renderAssetTray(){
     if(!pickedAssets.length){ assetTray.innerHTML='<span class="hint">キャラに使いたい絵文字を選べます（任意）</span>'; return; }
@@ -431,12 +439,9 @@
     if(!pickedAssets.length) return "";
     return "（使いたい素材: "+pickedAssets.map(function(e){ return e+(EMOJI_NAME[e]||""); }).join("、")+"）\n";
   }
-  assetToggle.addEventListener("click", function(){
-    var show=assetPanel.hidden; assetPanel.hidden=!show;
-    assetToggle.classList.toggle("on", show);
-    if(show) renderAssetPanel();
-  });
+  assetToggle.addEventListener("click", function(){ setAssetOpen(assetPanel.hidden); });
   assetPanel.addEventListener("click", function(e){
+    if(e.target.closest(".assetclose")){ setAssetOpen(false); return; }
     var b=e.target.closest("button[data-e]"); if(!b) return;
     var em=b.getAttribute("data-e"), i=pickedAssets.indexOf(em);
     if(i>=0) pickedAssets.splice(i,1);
@@ -480,7 +485,7 @@
   }
   function resetChat(){
     chatlog.innerHTML=""; chatInit=false; busy=false; lastGen=null; convo=[];
-    pickedAssets=[]; renderAssetTray(); assetPanel.hidden=true; assetToggle.classList.remove("on");
+    pickedAssets=[]; renderAssetTray(); setAssetOpen(false);
     toPreviewBtn.classList.add("off"); initChat();
   }
   function initChat(){
