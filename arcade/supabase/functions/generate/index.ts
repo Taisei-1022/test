@@ -75,6 +75,9 @@ function json(o: unknown, status = 200) {
 
 type Msg = { role: string; content: string };
 
+const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
+// 429 / 5xx / ネットワーク断は一時的なので最大3回までリトライ（503 upstream connect error 対策）
 async function callClaude(key: string, system: string, messages: Msg[], schema: unknown, think: boolean) {
   const body: Record<string, unknown> = {
     model: "claude-opus-4-8",
@@ -87,16 +90,33 @@ async function callClaude(key: string, system: string, messages: Msg[], schema: 
   };
   if (think) body.thinking = { type: "adaptive" };
 
-  const r = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!r.ok) { const t = await r.text(); throw new Error("anthropic:" + r.status + ":" + t.slice(0, 200)); }
-  const data = await r.json();
-  if (data.stop_reason === "refusal") throw new Error("refused");
-  const text = (data.content || []).filter((b: { type: string }) => b.type === "text").map((b: { text: string }) => b.text).join("");
-  return JSON.parse(text);
+  let lastErr: Error | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let r: Response;
+    try {
+      r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch (e) {
+      lastErr = new Error("network:" + String(e).slice(0, 120));
+      await sleep(700 * (attempt + 1));
+      continue;
+    }
+    if (r.status === 429 || r.status >= 500) {
+      const t = await r.text();
+      lastErr = new Error("anthropic:" + r.status + ":" + t.slice(0, 160));
+      await sleep(700 * (attempt + 1));
+      continue;
+    }
+    if (!r.ok) { const t = await r.text(); throw new Error("anthropic:" + r.status + ":" + t.slice(0, 200)); }
+    const data = await r.json();
+    if (data.stop_reason === "refusal") throw new Error("refused");
+    const text = (data.content || []).filter((b: { type: string }) => b.type === "text").map((b: { text: string }) => b.text).join("");
+    return JSON.parse(text);
+  }
+  throw lastErr || new Error("ai_unavailable");
 }
 
 Deno.serve(async (req) => {
