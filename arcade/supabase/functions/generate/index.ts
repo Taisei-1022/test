@@ -1,8 +1,13 @@
-// Supabase Edge Function: ゲーム生成 / 編集（Claude / Anthropic Messages API）
-// - APIキーはサーバー側の環境変数 ANTHROPIC_API_KEY に置く（クライアントには出さない）
-// - { prompt }            → 新規生成
-// - { prompt, prevHtml }  → 既存ゲームを指示で修正（案A）
-// - 構造化出力で { title, html } を受け取る
+// Supabase Edge Function: ゲーム相談チャット / 生成 / 編集（Claude / Anthropic Messages API）
+// 入力:
+//   { messages: [{role:'user'|'assistant', content}], prevHtml? }
+//   （後方互換: { prompt } も可 → messages=[{role:'user',content:prompt}] とみなす）
+// 出力（構造化）:
+//   { action:'ask',   reply, options:[...] }            … まだ相談する（質問＋選択肢）
+//   { action:'build', reply, title, html }              … ゲームを生成した
+// 流れ:
+//   - prevHtml あり → 既存ゲームを指示で修正（相談スキップ・thinkingあり）
+//   - prevHtml なし → まずプランナー(軽量・質問役)。build判断なら本生成(thinkingあり)。
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -10,7 +15,24 @@ const CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const SYSTEM = `You generate a complete, self-contained single-file HTML5 mini-game.
+// 相談役（コードは書かない・日本語で会話）
+const PLAN_SYSTEM = `You are a friendly Japanese-speaking game-design partner for a casual one-screen mobile mini-game maker.
+In THIS step you only TALK with the user to shape a simple, fun game — you do NOT write any code.
+
+Rules:
+- Always answer in Japanese, short and friendly.
+- On the user's FIRST message you MUST ask exactly one clarifying question (action="ask") and propose about 3 concrete options. Never build on the first turn.
+- Keep the conversation going one question at a time — core mechanic, goal, controls, theme, or difficulty — each with up to ~4 short tappable options when useful.
+- Switch to action="build" only when the design is clear enough, OR the user says things like 「これで」「作って」「おまかせ」「いいね」, OR after about 2–3 exchanges.
+- Encourage variety; do not push everyone toward the same kind of game.
+
+Output (structured):
+- action: "ask" or "build"
+- reply: a short Japanese message to the user (for "build", a brief line like "じゃあ作るね！")
+- options: 0–4 short Japanese choice strings the user can tap (for "ask"; empty for "build")`;
+
+// 本生成（自己完結の単一HTMLゲーム）
+const BUILD_SYSTEM = `You generate a complete, self-contained single-file HTML5 mini-game.
 
 Hard requirements:
 - Output ONLY through the structured format: "title" (short, Japanese) and "html" (the full game).
@@ -24,12 +46,22 @@ Hard requirements:
   Include this exact fallback near the top of your script so it also runs standalone:
     window.Arcade = window.Arcade || {ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
 - Use Canvas or DOM. Keep it light. No heavy loops that freeze the tab.
-- Make it genuinely fun and a little polished: a clear goal, simple controls, gradually increasing difficulty.
+- Make it genuinely fun and polished: clear goal, responsive controls, juicy feedback, difficulty that ramps up.
 - Japanese UI text. Dark, clean look. No emoji as UI icons.
 - When editing an existing game, keep what already works and apply ONLY the requested change; return the FULL updated HTML.
 - Do NOT include explanations or markdown fences — the "html" field is raw HTML only.`;
 
-const SCHEMA = {
+const PLAN_SCHEMA = {
+  type: "object",
+  properties: {
+    action: { type: "string", enum: ["ask", "build"] },
+    reply: { type: "string" },
+    options: { type: "array", items: { type: "string" } },
+  },
+  required: ["action", "reply"],
+  additionalProperties: false,
+};
+const GAME_SCHEMA = {
   type: "object",
   properties: { title: { type: "string" }, html: { type: "string" } },
   required: ["title", "html"],
@@ -37,10 +69,33 @@ const SCHEMA = {
 };
 
 function json(o: unknown, status = 200) {
-  return new Response(JSON.stringify(o), {
-    status,
-    headers: { ...CORS, "content-type": "application/json" },
+  return new Response(JSON.stringify(o), { status, headers: { ...CORS, "content-type": "application/json" } });
+}
+
+type Msg = { role: string; content: string };
+
+async function callClaude(key: string, system: string, messages: Msg[], schema: unknown, think: boolean) {
+  const body: Record<string, unknown> = {
+    model: "claude-opus-4-8",
+    max_tokens: think ? 16000 : 1024,
+    system,
+    messages,
+    output_config: think
+      ? { effort: "medium", format: { type: "json_schema", schema } }
+      : { format: { type: "json_schema", schema } },
+  };
+  if (think) body.thinking = { type: "adaptive" };
+
+  const r = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    body: JSON.stringify(body),
   });
+  if (!r.ok) { const t = await r.text(); throw new Error("anthropic:" + r.status + ":" + t.slice(0, 200)); }
+  const data = await r.json();
+  if (data.stop_reason === "refusal") throw new Error("refused");
+  const text = (data.content || []).filter((b: { type: string }) => b.type === "text").map((b: { text: string }) => b.text).join("");
+  return JSON.parse(text);
 }
 
 Deno.serve(async (req) => {
@@ -50,61 +105,47 @@ Deno.serve(async (req) => {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) return json({ error: "missing_api_key" }, 500);
 
-  let prompt = "", prevHtml = "";
+  let messages: Msg[] = [], prevHtml = "";
   try {
     const b = await req.json();
-    prompt = String(b?.prompt ?? "");
-    prevHtml = String(b?.prevHtml ?? "");
+    if (Array.isArray(b?.messages)) {
+      messages = b.messages.filter((m: Msg) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+        .map((m: Msg) => ({ role: m.role, content: String(m.content).slice(0, 4000) }));
+    } else if (b?.prompt) {
+      messages = [{ role: "user", content: String(b.prompt).slice(0, 500) }];
+    }
+    prevHtml = String(b?.prevHtml ?? "").slice(0, 80000);
   } catch { /* ignore */ }
-  prompt = prompt.slice(0, 500).trim();
-  prevHtml = prevHtml.slice(0, 80000);
-  if (!prompt) return json({ error: "empty_prompt" }, 400);
 
-  const userContent = prevHtml
-    ? "次の既存ゲーム(HTML)を、下の指示に従って修正してください。修正後の完全な単一HTMLだけを返し、タイトルも内容に合わせて更新してOKです。\n\n【指示】\n" + prompt + "\n\n【既存HTML】\n" + prevHtml
-    : "作りたいゲーム: " + prompt;
+  if (!messages.length) return json({ error: "empty_prompt" }, 400);
+  const lastUser = [...messages].reverse().find((m) => m.role === "user");
+  const instruction = (lastUser?.content || "").trim();
 
-  const body = {
-    model: "claude-opus-4-8",
-    max_tokens: 16000,
-    system: SYSTEM,
-    messages: [{ role: "user", content: userContent }],
-    output_config: { format: { type: "json_schema", schema: SCHEMA } },
-  };
-
-  let r: Response;
   try {
-    r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
+    // --- 編集モード（既存HTMLあり）: 相談せず直接ビルド ---
+    if (prevHtml) {
+      const userContent = "次の既存ゲーム(HTML)を、下の指示に従って修正してください。修正後の完全な単一HTMLだけを返し、タイトルも内容に合わせて更新してOKです。\n\n【指示】\n" +
+        instruction + "\n\n【既存HTML】\n" + prevHtml;
+      const g = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, true);
+      if (!g.html) return json({ error: "empty_html" }, 502);
+      return json({ action: "build", reply: "直したよ！", title: g.title || "無題のゲーム", html: g.html });
+    }
+
+    // --- 相談（プランナー: 軽量・質問役） ---
+    const plan = await callClaude(key, PLAN_SYSTEM, messages, PLAN_SCHEMA, false);
+    if (plan.action !== "build") {
+      return json({ action: "ask", reply: plan.reply || "どんな感じにする？", options: Array.isArray(plan.options) ? plan.options.slice(0, 4) : [] });
+    }
+
+    // --- 本生成（thinkingあり） ---
+    const transcript = messages.map((m) => (m.role === "user" ? "ユーザー: " : "AI: ") + m.content).join("\n");
+    const userContent = "次の相談で決まった内容で、ミニゲームを作ってください。完全な単一HTMLだけを返す。\n\n【相談ログ】\n" + transcript;
+    const g = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, true);
+    if (!g.html) return json({ error: "empty_html" }, 502);
+    return json({ action: "build", reply: plan.reply || "作ったよ！", title: g.title || "無題のゲーム", html: g.html });
   } catch (e) {
-    return json({ error: "network", detail: String(e).slice(0, 200) }, 502);
+    const s = String((e as Error)?.message || e);
+    if (s.indexOf("refused") >= 0) return json({ error: "refused" }, 422);
+    return json({ error: "generate_error", detail: s.slice(0, 200) }, 502);
   }
-
-  if (!r.ok) {
-    const t = await r.text();
-    return json({ error: "anthropic_error", status: r.status, detail: t.slice(0, 300) }, 502);
-  }
-
-  const data = await r.json();
-  if (data.stop_reason === "refusal") return json({ error: "refused" }, 422);
-
-  const text = (data.content || [])
-    .filter((b: { type: string }) => b.type === "text")
-    .map((b: { text: string }) => b.text)
-    .join("");
-
-  let parsed: { title?: string; html?: string };
-  try { parsed = JSON.parse(text); } catch {
-    return json({ error: "parse_failed", raw: text.slice(0, 200) }, 502);
-  }
-  if (!parsed.html) return json({ error: "empty_html" }, 502);
-
-  return json({ title: parsed.title || "無題のゲーム", html: parsed.html });
 });

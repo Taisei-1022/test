@@ -9,7 +9,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon.svg" />
 <link rel="icon" href="icon.svg" />
-<link rel="stylesheet" href="css/app.css?v=5" />
+<link rel="stylesheet" href="css/app.css?v=6" />
 <title>ミニアーケード</title>
 </head>
 <body>
@@ -123,7 +123,7 @@
 <script src="js/games.js?v=2"></script>
 <script src="js/config.js?v=2"></script>
 <script src="js/store.js?v=2"></script>
-<script src="js/ai.js?v=4"></script>
+<script src="js/ai.js?v=5"></script>
 <script src="js/catalog.js?v=4"></script>
 <script src="js/arcade-embed.js?v=3"></script>
 <script>
@@ -313,45 +313,66 @@
      .catch(function(e){ btn.disabled=false; showToast("失敗："+String(e.message||e).slice(0,40)); });
   });
 
-  /* ---------- 作る：AIチャット（本実装＋編集=案A） ---------- */
+  /* ---------- 作る：AIチャット（会話モード＋編集） ---------- */
   var chatlog=document.getElementById("chatlog"), input=document.getElementById("chatInput"),
-      sendBtn=document.getElementById("chatSend"), chatInit=false, busy=false;
+      sendBtn=document.getElementById("chatSend"), chatInit=false, busy=false, convo=[];
   var ACCENTS=["#e6b450","#4c8dff","#3fb950","#e5484d","#b07cf0","#39c5bb"];
   function bubble(cls,text){ var d=document.createElement("div"); d.className="msg "+cls; d.textContent=text;
     chatlog.appendChild(d); chatlog.scrollTop=chatlog.scrollHeight; return d; }
+  function clearOptions(){ chatlog.querySelectorAll(".optrow").forEach(function(r){ r.remove(); }); }
+  function renderOptions(opts){
+    if(!opts||!opts.length) return;
+    var row=document.createElement("div"); row.className="optrow";
+    opts.slice(0,4).forEach(function(o){
+      var b=document.createElement("button"); b.type="button"; b.textContent=o;
+      b.addEventListener("click", function(){ sendChat(o); });
+      row.appendChild(b);
+    });
+    chatlog.appendChild(row); chatlog.scrollTop=chatlog.scrollHeight;
+  }
   function resetChat(){
-    chatlog.innerHTML=""; chatInit=false; busy=false; lastGen=null;
+    chatlog.innerHTML=""; chatInit=false; busy=false; lastGen=null; convo=[];
     toPreviewBtn.classList.add("off"); initChat();
   }
   function initChat(){
     if(chatInit) return; chatInit=true;
     bubble("bot", Ai.available()
-      ? "どんなゲームを作る？\nひと言で教えて。例：「落ちてくる寿司をキャッチ」\n（できたあとは「もっと速く」「敵を増やして」のように直せます）"
-      : "AI生成はまだ設定されていません。\nSupabaseのEdge Function（generate）とAPIキーを設定すると使えるようになります。");
+      ? "どんなゲームを作りたい？ ざっくりでOK。\nまずは一緒に方向性を決めてから作るよ。"
+      : "AI生成はまだ設定されていません。\nSupabaseのEdge Function（generate）とAPIキーを設定すると使えます。");
   }
   function editGame(id){
     Catalog.getGenerated(id).then(function(g){
       if(!g) return;
-      chatlog.innerHTML=""; chatInit=true; busy=false;
+      chatlog.innerHTML=""; chatInit=true; busy=false; convo=[];
       lastGen={ title:g.title, html:g.html, accent:g.accent||"#e6b450", description:g.description||"", thumb:g.thumb||null, editingId:g.id };
       toPreviewBtn.classList.remove("off");
       bubble("bot","「"+g.title+"」を編集中。直したい所を言ってね（例：もっと速く／敵を増やして／色を青に）。\nプレビュー → 公開設定 → 保存 で上書きできます。");
       show("create"); crShow("chat");
     });
   }
-  function sendIdea(text){
+  function sendChat(text){
     text=(text||"").trim(); if(!text||busy) return;
-    bubble("user",text); input.value=""; busy=true;
+    clearOptions();
+    bubble("user",text); convo.push({role:"user",content:text}); input.value=""; busy=true;
     var prev = (lastGen && lastGen.html) ? lastGen.html : "";
-    var typing=bubble("bot typing", (prev?"直しているよ…":"作っているよ…")+"（10〜30秒かかることがあります）");
-    Ai.generate(text, prev).then(function(g){
+    var typing=bubble("bot typing", prev?"直しているよ…":"考え中…");
+    Ai.send(convo, prev).then(function(res){
       typing.remove();
+      if(res.action==="ask"){
+        var reply=res.reply||"どんな感じにする？";
+        bubble("bot", reply); convo.push({role:"assistant",content:reply});
+        renderOptions(res.options||[]);
+        busy=false; return;
+      }
+      // build
+      if(res.reply) bubble("bot", res.reply);
       var k = lastGen || {};
-      lastGen={ title:g.title, html:g.html,
+      lastGen={ title:res.title, html:res.html,
         accent: k.accent || ACCENTS[Math.floor(Math.random()*ACCENTS.length)],
         description: k.description || "", thumb: k.thumb || null, editingId: k.editingId || null };
+      convo.push({role:"assistant",content:"（ゲームを生成しました）"});
       toPreviewBtn.classList.remove("off");
-      bubble("bot","「"+g.title+"」ができたよ！下のボタンか右上の「プレビュー」で遊んでみて。\nさらに直したい時はそのまま続けて話してね。");
+      bubble("bot","「"+res.title+"」ができたよ！下のボタンか右上の「プレビュー」で遊んでみて。\nさらに直したい時はそのまま話してね。");
       showGenCard();
       busy=false;
     }).catch(function(err){
@@ -359,7 +380,7 @@
       var s=String(err&&err.message||err);
       var msg = /not_configured/.test(s)
         ? "AI生成が未設定です。SupabaseのEdge Functionとキーを設定してね。"
-        : "生成に失敗しちゃった。もう一度、短い言葉で試してみて。\n("+s.slice(0,90)+")";
+        : "うまくいかなかった…もう一度試してみて。\n("+s.slice(0,90)+")";
       bubble("bot", msg);
     });
   }
@@ -371,10 +392,10 @@
     chatlog.appendChild(card); chatlog.scrollTop=chatlog.scrollHeight;
     card.querySelector(".toPv").addEventListener("click", function(){ crShow("preview"); });
   }
-  sendBtn.addEventListener("click", function(){ sendIdea(input.value); });
-  input.addEventListener("keydown", function(e){ if(e.key==="Enter") sendIdea(input.value); });
+  sendBtn.addEventListener("click", function(){ sendChat(input.value); });
+  input.addEventListener("keydown", function(e){ if(e.key==="Enter") sendChat(input.value); });
   document.getElementById("chips").addEventListener("click", function(e){
-    if(e.target.tagName==="BUTTON"){ sendIdea(e.target.textContent); }
+    if(e.target.tagName==="BUTTON"){ sendChat(e.target.textContent); }
   });
 
   /* ---------- 初期表示 ---------- */

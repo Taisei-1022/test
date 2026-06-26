@@ -135,6 +135,9 @@ textarea.field{resize:vertical;line-height:1.5;}
 /* ---- 作る（AIチャット モック） ---- */
 .chatlog{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
 .chatlog>*{flex:0 0 auto;}
+.optrow{display:flex;flex-wrap:wrap;gap:8px;align-self:flex-start;max-width:92%;}
+.optrow button{background:var(--plate);border:1px solid var(--gold);color:var(--gold);
+  border-radius:999px;padding:.5rem .85rem;font:inherit;font-size:13px;font-weight:700;cursor:pointer;}
 .msg{max-width:84%;padding:10px 13px;border-radius:14px;font-size:14px;line-height:1.6;white-space:pre-wrap;}
 .msg.bot{align-self:flex-start;background:var(--plate);border:1px solid var(--rule);border-bottom-left-radius:5px;}
 .msg.user{align-self:flex-end;background:var(--gold);color:#241a00;font-weight:600;border-bottom-right-radius:5px;}
