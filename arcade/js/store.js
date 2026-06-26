@@ -51,11 +51,11 @@ window.Store = (function () {
   function remoteStore() {
     function rq(path, opts) {
       opts = opts || {};
-      opts.headers = Object.assign({
-        apikey: cfg.supabaseKey,
-        Authorization: "Bearer " + cfg.supabaseKey,
-        "Content-Type": "application/json"
-      }, opts.headers || {});
+      var h = { apikey: cfg.supabaseKey, "Content-Type": "application/json" };
+      // 旧 anon(JWT, eyJ...) のときだけ Authorization を付ける。
+      // 新 publishable key(sb_publishable_...) は apikey ヘッダだけでよい。
+      if (/^eyJ/.test(cfg.supabaseKey)) h.Authorization = "Bearer " + cfg.supabaseKey;
+      opts.headers = Object.assign(h, opts.headers || {});
       return fetch(cfg.supabaseUrl.replace(/\/$/, "") + "/rest/v1/" + path, opts);
     }
     var enc = encodeURIComponent;
