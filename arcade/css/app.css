@@ -77,6 +77,34 @@ a{color:inherit;text-decoration:none;}
 .tabbar button.on .ic{stroke:var(--gold);}
 .tabbar button.on .icf{fill:var(--gold);stroke:none;}
 
+/* ---- 作る（サブ画面: 一覧 / チャット / プレビュー） ---- */
+.crscreen{position:absolute;inset:0;display:none;flex-direction:column;}
+.crscreen.on{display:flex;}
+.crbar{display:flex;align-items:center;gap:10px;padding:14px 14px 10px;border-bottom:1px solid var(--rule);}
+.crbar .back{width:34px;height:34px;border-radius:9px;border:1px solid var(--rule);background:transparent;
+  color:var(--ink);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.crbar .t{flex:1;font-weight:800;font-size:18px;}
+.crbar .act{background:transparent;border:0;color:var(--gold);font:inherit;font-weight:800;font-size:15px;cursor:pointer;padding:6px;}
+.crbar .act.off{color:var(--dim);}
+.crbar .newbtn{background:var(--gold);color:#241a00;border:0;border-radius:10px;padding:.5rem .85rem;font:inherit;font-weight:800;font-size:14px;cursor:pointer;}
+.crbody{flex:1;overflow:auto;padding:14px;}
+
+.emptybox{margin-top:60px;text-align:center;color:var(--dim);font-size:14px;line-height:1.8;}
+.crelist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px;}
+.crelist li{display:flex;align-items:center;gap:12px;background:var(--plate);border:1px solid var(--rule);border-radius:12px;padding:10px;}
+.crelist li .ic{width:54px;height:42px;border-radius:8px;flex:none;}
+.crelist li .nm{flex:1;font-weight:800;font-size:14px;}
+.crelist li .dt{font-size:11px;color:var(--dim);}
+.crelist li .badge{font-size:10px;font-weight:700;color:#241a00;background:var(--gold);padding:2px 7px;border-radius:999px;}
+
+.bigpv{height:200px;border-radius:16px;display:flex;align-items:center;justify-content:center;
+  color:rgba(0,0,0,.72);font-weight:800;font-size:18px;text-align:center;padding:0 16px;margin-bottom:14px;}
+.pvnote{color:var(--dim);font-size:13px;line-height:1.7;margin:0 0 16px;}
+.pvbtns{display:flex;flex-direction:column;gap:10px;}
+.pvbtns button{border:1px solid var(--rule);background:transparent;color:var(--ink);border-radius:11px;
+  padding:.8rem;font:inherit;font-weight:800;font-size:15px;cursor:pointer;}
+.pvbtns button.pri{background:var(--gold);color:#241a00;border:0;}
+
 /* ---- 作る（AIチャット モック） ---- */
 .chatlog{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
 .chatlog>*{flex:0 0 auto;}

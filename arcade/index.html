@@ -24,18 +24,47 @@
     </div>
   </section>
 
-  <!-- 作る（AIチャット モック） -->
-  <section id="view-create" class="view col">
-    <div class="top" style="padding:14px 14px 8px"><div class="brand">作る<small>AIといっしょに</small></div></div>
-    <div class="chatlog" id="chatlog"></div>
-    <div class="chips" id="chips">
-      <button>落ちてくる寿司をキャッチ</button>
-      <button>もぐらたたき</button>
-      <button>色をそろえるパズル</button>
+  <!-- 作る -->
+  <section id="view-create" class="view">
+    <!-- ① 作品一覧 -->
+    <div id="cr-list" class="crscreen on">
+      <div class="crbar"><div class="t">作る</div><button class="newbtn" id="newBtn">＋ 新規作成</button></div>
+      <div class="crbody"><div id="creations"></div></div>
     </div>
-    <div class="composer">
-      <input id="chatInput" placeholder="作りたいゲームを書く…" autocomplete="off" />
-      <button id="chatSend">送信</button>
+    <!-- ② チャット -->
+    <div id="cr-chat" class="crscreen">
+      <div class="crbar">
+        <button class="back" id="chatBack" aria-label="戻る">‹</button>
+        <div class="t">新規作成</div>
+        <button class="act off" id="toPreview">プレビュー</button>
+      </div>
+      <div class="chatlog" id="chatlog"></div>
+      <div class="chips" id="chips">
+        <button>落ちてくる寿司をキャッチ</button>
+        <button>もぐらたたき</button>
+        <button>色をそろえるパズル</button>
+      </div>
+      <div class="composer">
+        <input id="chatInput" placeholder="作りたいゲームを書く…" autocomplete="off" />
+        <button id="chatSend">送信</button>
+      </div>
+    </div>
+    <!-- ③ プレビュー -->
+    <div id="cr-preview" class="crscreen">
+      <div class="crbar">
+        <button class="back" id="pvBack" aria-label="戻る">‹</button>
+        <div class="t">プレビュー</div>
+        <button class="act" id="pvToChat">チャット</button>
+      </div>
+      <div class="crbody">
+        <div class="bigpv" id="bigpv"><b id="pvTitle"></b></div>
+        <p class="pvnote">※ いまは見た目だけのモックです。実際の生成（AI連携）は次のステップで繋ぎます。</p>
+        <div class="pvbtns">
+          <button class="pri" id="pvPlay">プレイ（モック）</button>
+          <button id="pvEdit">チャットに戻って修正</button>
+          <button id="pvPublish">公開する</button>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -48,7 +77,7 @@
       <div class="section">自己ベスト</div>
       <ul class="records" id="records"></ul>
       <div class="section">作ったゲーム</div>
-      <p style="color:var(--dim);font-size:13px;margin:4px 2px">まだありません。「作る」タブから作成できます（近日）。</p>
+      <div id="myCreations"></div>
     </div>
   </section>
 </div>
@@ -77,7 +106,9 @@
   function shade(hex){ var n=parseInt(hex.slice(1),16),r=(n>>16)&255,g=(n>>8)&255,b=n&255;
     r=Math.round(r*.55);g=Math.round(g*.55);b=Math.round(b*.55);
     return "#"+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1); }
+  function grad(c){ return "linear-gradient(140deg,"+c+","+shade(c)+")"; }
   function me(){ return Store.name() || "ゲスト"; }
+  function fmtDate(t){ try{ return new Date(t).toLocaleDateString("ja-JP"); }catch(e){ return ""; } }
   var toast=document.getElementById("toast");
   function showToast(m){ toast.textContent=m; toast.classList.add("show"); setTimeout(function(){toast.classList.remove("show");},1500); }
 
@@ -88,7 +119,7 @@
     tabs.forEach(function(b){ b.classList.toggle("on", b.dataset.tab===tab); });
     if(tab==="play") renderFeed();
     if(tab==="mypage") renderMypage();
-    if(tab==="create") initChat();
+    if(tab==="create") enterCreate();
     if(location.hash!=="#"+tab) history.replaceState(null,"","#"+tab);
   }
   tabs.forEach(function(b){ b.addEventListener("click", function(){ show(b.dataset.tab); }); });
@@ -104,7 +135,7 @@
       grid.innerHTML=rows.map(function(row){
         var g=row.g, topTxt=row.top?(row.top.score+g.score.unit+" / "+row.top.player):"まだ記録なし";
         return '<a class="card" href="play.html?game='+g.id+'">'+
-          '<div class="thumb" style="background:linear-gradient(140deg,'+g.accent+','+shade(g.accent)+')"><b>'+esc(g.title)+'</b></div>'+
+          '<div class="thumb" style="background:'+grad(g.accent)+'"><b>'+esc(g.title)+'</b></div>'+
           '<span class="cat">'+esc(g.category)+'</span>'+
           '<div class="ttl">'+esc(g.title)+'</div>'+
           '<div class="meta">作 '+esc(g.author)+' ・ '+row.plays+'プレイ</div>'+
@@ -119,6 +150,7 @@
   nameEl.addEventListener("change", function(){ Store.setName(nameEl.value.trim()); renderMypage(); });
   function renderMypage(){
     nameEl.value=Store.name();
+    document.getElementById("myCreations").innerHTML=creationsHTML();
     Promise.all(GAMES.map(function(g){ return Store.myBest(g.id,g.score.type,me()).then(function(b){return {g:g,best:b};}); }))
     .then(function(rows){
       records.innerHTML=rows.map(function(r){
@@ -128,16 +160,64 @@
     });
   }
 
+  /* ---------- 作る：作品ストア（モック / localStorage） ---------- */
+  function loadCreations(){ try{ return JSON.parse(localStorage.getItem("arcade.creations"))||[]; }catch(e){ return []; } }
+  function saveCreation(c){ var a=loadCreations(); a.unshift(c); localStorage.setItem("arcade.creations", JSON.stringify(a)); }
+  function creationsHTML(){
+    var a=loadCreations();
+    if(!a.length) return '<div class="emptybox">まだ作品がありません。<br>右上の「＋ 新規作成」から作ろう。</div>';
+    return '<ul class="crelist">'+a.map(function(c){
+      return '<li><div class="ic" style="background:'+grad(c.accent)+'"></div>'+
+        '<div style="flex:1"><div class="nm">'+esc(c.title)+'</div><div class="dt">'+fmtDate(c.at)+'</div></div>'+
+        '<span class="badge">公開</span></li>';
+    }).join("")+'</ul>';
+  }
+
+  /* ---------- 作る：サブ画面ルーター ---------- */
+  var createEntered=false, lastGen=null;
+  var toPreviewBtn=document.getElementById("toPreview");
+  function crShow(s){
+    document.querySelectorAll("#view-create .crscreen").forEach(function(el){ el.classList.toggle("on", el.id==="cr-"+s); });
+    if(s==="list") document.getElementById("creations").innerHTML=creationsHTML();
+    if(s==="preview") renderPreview();
+  }
+  function enterCreate(){ if(!createEntered){ createEntered=true; crShow("list"); } }
+
+  document.getElementById("newBtn").addEventListener("click", function(){ resetChat(); crShow("chat"); });
+  document.getElementById("chatBack").addEventListener("click", function(){ crShow("list"); });
+  document.getElementById("pvBack").addEventListener("click", function(){ crShow("chat"); });
+  document.getElementById("pvToChat").addEventListener("click", function(){ crShow("chat"); });
+  document.getElementById("pvEdit").addEventListener("click", function(){ crShow("chat"); });
+  document.getElementById("pvPlay").addEventListener("click", function(){ showToast("モックです：AI連携は次のステップ"); });
+  document.getElementById("pvPublish").addEventListener("click", function(){
+    if(!lastGen){ return; }
+    saveCreation({ title:lastGen.title, accent:lastGen.accent, at:Date.now() });
+    showToast("公開しました（モック）"); crShow("list");
+  });
+  toPreviewBtn.addEventListener("click", function(){
+    if(lastGen) crShow("preview"); else showToast("まずアイデアを送って生成してね");
+  });
+  function renderPreview(){
+    if(!lastGen) return;
+    var pv=document.getElementById("bigpv");
+    pv.style.background=grad(lastGen.accent);
+    document.getElementById("pvTitle").textContent=lastGen.title;
+  }
+
   /* ---------- 作る：AIチャット（モック） ---------- */
   var chatlog=document.getElementById("chatlog"), input=document.getElementById("chatInput"),
       sendBtn=document.getElementById("chatSend"), chatInit=false, busy=false;
+  var ACCENTS=["#e6b450","#4c8dff","#3fb950","#e5484d","#b07cf0","#39c5bb"];
   function bubble(cls,text){ var d=document.createElement("div"); d.className="msg "+cls; d.textContent=text;
     chatlog.appendChild(d); chatlog.scrollTop=chatlog.scrollHeight; return d; }
+  function resetChat(){
+    chatlog.innerHTML=""; chatInit=false; busy=false; lastGen=null;
+    toPreviewBtn.classList.add("off"); initChat();
+  }
   function initChat(){
     if(chatInit) return; chatInit=true;
     bubble("bot","どんなゲームを作る？\nひと言で教えて。例：「落ちてくる寿司をキャッチ」");
   }
-  var ACCENTS=["#e6b450","#4c8dff","#3fb950","#e5484d","#b07cf0","#39c5bb"];
   function sendIdea(text){
     text=(text||"").trim(); if(!text||busy) return;
     bubble("user",text); input.value=""; busy=true;
@@ -148,27 +228,27 @@
       var gen=bubble("bot typing","生成中…");
       setTimeout(function(){
         gen.remove();
-        showGenCard(text);
+        var accent=ACCENTS[Math.floor(Math.random()*ACCENTS.length)];
+        lastGen={ title:(text.length>14?text.slice(0,14)+"…":text), accent:accent };
+        toPreviewBtn.classList.remove("off");
+        showGenCard();
         busy=false;
       },1400);
     },800);
   }
-  function showGenCard(text){
-    var accent=ACCENTS[Math.floor(Math.random()*ACCENTS.length)];
-    var title=text.length>14?text.slice(0,14)+"…":text;
+  function showGenCard(){
     var card=document.createElement("div"); card.className="gencard";
-    card.innerHTML='<div class="pv" style="background:linear-gradient(140deg,'+accent+','+shade(accent)+')"><b>'+esc(title)+'</b></div>'+
+    card.innerHTML='<div class="pv" style="background:'+grad(lastGen.accent)+'"><b>'+esc(lastGen.title)+'</b></div>'+
       '<div class="bd"><div class="t">できあがり（プレビュー）</div>'+
-      '<div class="row"><button class="gplay">プレイ</button><button class="pri pub">フィードに公開</button></div></div>';
+      '<div class="row"><button class="pri toPv">プレビューを見る ›</button></div></div>';
     chatlog.appendChild(card); chatlog.scrollTop=chatlog.scrollHeight;
-    card.querySelector(".gplay").addEventListener("click",function(){ showToast("モックです：AI連携は次のステップ"); });
-    card.querySelector(".pub").addEventListener("click",function(){ showToast("モックです：公開は次のステップ"); });
-    bubble("bot","※ いまは見た目だけのモックだよ。実際の生成（AI連携）は次のステップで繋ぐね。");
+    card.querySelector(".toPv").addEventListener("click", function(){ crShow("preview"); });
+    bubble("bot","右上の「プレビュー」か、上のボタンから確認できるよ。修正したいときはそのまま続けて話してね。");
   }
   sendBtn.addEventListener("click", function(){ sendIdea(input.value); });
   input.addEventListener("keydown", function(e){ if(e.key==="Enter") sendIdea(input.value); });
   document.getElementById("chips").addEventListener("click", function(e){
-    if(e.target.tagName==="BUTTON"){ show("create"); sendIdea(e.target.textContent); }
+    if(e.target.tagName==="BUTTON"){ sendIdea(e.target.textContent); }
   });
 
   /* ---------- 初期表示 ---------- */
