@@ -141,6 +141,39 @@ async function callClaude(key: string, system: string, messages: Msg[], schema: 
   throw lastErr || new Error("ai_unavailable");
 }
 
+// 相談 or 生成の本体。結果オブジェクト（成功 or {error,...}）を返す。
+async function doWork(key: string, messages: Msg[], prevHtml: string) {
+  const lastUser = [...messages].reverse().find((m) => m.role === "user");
+  const instruction = (lastUser?.content || "").trim();
+  try {
+    // --- 編集モード（既存HTMLあり）: 相談せず直接ビルド ---
+    if (prevHtml) {
+      const userContent = "次の既存ゲーム(HTML)を、下の指示に従って修正してください。修正後の完全な単一HTMLだけを返し、タイトルも内容に合わせて更新してOKです。\n\n【指示】\n" +
+        instruction + "\n\n【既存HTML】\n" + prevHtml;
+      const g = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, true);
+      if (!g.html) return { error: "empty_html" };
+      return { action: "build", reply: "直したよ！", title: g.title || "無題のゲーム", html: g.html, category: g.category || "その他" };
+    }
+
+    // --- 相談（プランナー: 軽量・質問役） ---
+    const plan = await callClaude(key, PLAN_SYSTEM, messages, PLAN_SCHEMA, false);
+    if (plan.action !== "build") {
+      return { action: "ask", reply: plan.reply || "どんな感じにする？", options: Array.isArray(plan.options) ? plan.options.slice(0, 4) : [] };
+    }
+
+    // --- 本生成（thinkingあり） ---
+    const transcript = messages.map((m) => (m.role === "user" ? "ユーザー: " : "AI: ") + m.content).join("\n");
+    const userContent = "次の相談で決まった内容で、ミニゲームを作ってください。完全な単一HTMLだけを返す。\n\n【相談ログ】\n" + transcript;
+    const g = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, true);
+    if (!g.html) return { error: "empty_html" };
+    return { action: "build", reply: plan.reply || "作ったよ！", title: g.title || "無題のゲーム", html: g.html, category: g.category || "その他" };
+  } catch (e) {
+    const s = String((e as Error)?.message || e);
+    if (s.indexOf("refused") >= 0) return { error: "refused" };
+    return { error: "generate_error", detail: s.slice(0, 200) };
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
@@ -161,34 +194,27 @@ Deno.serve(async (req) => {
   } catch { /* ignore */ }
 
   if (!messages.length) return json({ error: "empty_prompt" }, 400);
-  const lastUser = [...messages].reverse().find((m) => m.role === "user");
-  const instruction = (lastUser?.content || "").trim();
 
-  try {
-    // --- 編集モード（既存HTMLあり）: 相談せず直接ビルド ---
-    if (prevHtml) {
-      const userContent = "次の既存ゲーム(HTML)を、下の指示に従って修正してください。修正後の完全な単一HTMLだけを返し、タイトルも内容に合わせて更新してOKです。\n\n【指示】\n" +
-        instruction + "\n\n【既存HTML】\n" + prevHtml;
-      const g = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, true);
-      if (!g.html) return json({ error: "empty_html" }, 502);
-      return json({ action: "build", reply: "直したよ！", title: g.title || "無題のゲーム", html: g.html, category: g.category || "その他" });
-    }
-
-    // --- 相談（プランナー: 軽量・質問役） ---
-    const plan = await callClaude(key, PLAN_SYSTEM, messages, PLAN_SCHEMA, false);
-    if (plan.action !== "build") {
-      return json({ action: "ask", reply: plan.reply || "どんな感じにする？", options: Array.isArray(plan.options) ? plan.options.slice(0, 4) : [] });
-    }
-
-    // --- 本生成（thinkingあり） ---
-    const transcript = messages.map((m) => (m.role === "user" ? "ユーザー: " : "AI: ") + m.content).join("\n");
-    const userContent = "次の相談で決まった内容で、ミニゲームを作ってください。完全な単一HTMLだけを返す。\n\n【相談ログ】\n" + transcript;
-    const g = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, true);
-    if (!g.html) return json({ error: "empty_html" }, 502);
-    return json({ action: "build", reply: plan.reply || "作ったよ！", title: g.title || "無題のゲーム", html: g.html, category: g.category || "その他" });
-  } catch (e) {
-    const s = String((e as Error)?.message || e);
-    if (s.indexOf("refused") >= 0) return json({ error: "refused" }, 422);
-    return json({ error: "generate_error", detail: s.slice(0, 200) }, 502);
-  }
+  // 生成は最大~50秒かかり、モバイルSafariは無通信の長いfetchを切る。
+  // 生成中はスペースを定期送信して接続を維持し、最後にJSONを流す（受信側はtrim()してparse）。
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      let done = false;
+      const hb = setInterval(() => {
+        if (done) return;
+        try { controller.enqueue(encoder.encode(" ")); } catch { /* closed */ }
+      }, 4000);
+      (async () => {
+        let result: unknown;
+        try { result = await doWork(key, messages, prevHtml); }
+        catch (e) { result = { error: "generate_error", detail: String((e as Error)?.message || e).slice(0, 200) }; }
+        done = true;
+        clearInterval(hb);
+        try { controller.enqueue(encoder.encode("\n" + JSON.stringify(result))); } catch { /* closed */ }
+        try { controller.close(); } catch { /* closed */ }
+      })();
+    },
+  });
+  return new Response(stream, { headers: { ...CORS, "content-type": "application/json; charset=utf-8", "cache-control": "no-cache" } });
 });

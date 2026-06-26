@@ -153,7 +153,7 @@
 <script src="js/assets.js?v=1"></script>
 <script src="js/config.js?v=2"></script>
 <script src="js/store.js?v=2"></script>
-<script src="js/ai.js?v=5"></script>
+<script src="js/ai.js?v=6"></script>
 <script src="js/catalog.js?v=5"></script>
 <script src="js/arcade-embed.js?v=3"></script>
 <script>
@@ -471,8 +471,13 @@
       sendBtn=document.getElementById("chatSend"), chipsEl=document.getElementById("chips"),
       chatInit=false, busy=false, convo=[];
   var ACCENTS=["#e6b450","#4c8dff","#3fb950","#e5484d","#b07cf0","#39c5bb"];
-  // お題チップは最初のアイデア出し用。会話が始まったら隠す。
-  function showChips(b){ chipsEl.style.display = b ? "" : "none"; }
+  var assetbarEl=document.querySelector(".assetbar");
+  // お題チップと素材ピッカーは最初のアイデア出し用。会話が始まったら隠す。
+  function showStarters(b){
+    chipsEl.style.display = b ? "" : "none";
+    if(assetbarEl) assetbarEl.style.display = b ? "" : "none";
+    if(!b) setAssetOpen(false);
+  }
   function bubble(cls,text){ var d=document.createElement("div"); d.className="msg "+cls; d.textContent=text;
     chatlog.appendChild(d); chatlog.scrollTop=chatlog.scrollHeight; return d; }
   function clearOptions(){ chatlog.querySelectorAll(".optrow").forEach(function(r){ r.remove(); }); }
@@ -488,7 +493,7 @@
   }
   function resetChat(){
     chatlog.innerHTML=""; chatInit=false; busy=false; lastGen=null; convo=[];
-    pickedAssets=[]; renderAssetTray(); setAssetOpen(false); showChips(true);
+    pickedAssets=[]; renderAssetTray(); setAssetOpen(false); showStarters(true);
     toPreviewBtn.classList.add("off"); initChat();
   }
   function initChat(){
@@ -500,7 +505,7 @@
   function editGame(id){
     Catalog.getGenerated(id).then(function(g){
       if(!g) return;
-      chatlog.innerHTML=""; chatInit=true; busy=false; convo=[]; showChips(false);
+      chatlog.innerHTML=""; chatInit=true; busy=false; convo=[]; showStarters(false);
       lastGen={ title:g.title, html:g.html, accent:g.accent||"#e6b450", description:g.description||"", thumb:g.thumb||null, editingId:g.id, category:g.category||"その他" };
       toPreviewBtn.classList.remove("off");
       bubble("bot","「"+g.title+"」を編集中。直したい所を言ってね（例：もっと速く／敵を増やして／色を青に）。\nプレビュー → 公開設定 → 保存 で上書きできます。");
@@ -511,7 +516,7 @@
     text=(text||"").trim(); if(!text||busy) return;
     clearOptions();
     var note=assetNote(), full=note+text;
-    bubble("user",full); convo.push({role:"user",content:full}); input.value=""; busy=true; showChips(false);
+    bubble("user",full); convo.push({role:"user",content:full}); input.value=""; busy=true; showStarters(false);
     if(pickedAssets.length){ pickedAssets=[]; renderAssetTray(); if(!assetPanel.hidden) renderAssetPanel(); }
     var prev = (lastGen && lastGen.html) ? lastGen.html : "";
     var typing=bubble("bot typing", prev?"直しているよ…":"考え中…");

@@ -9,13 +9,26 @@ window.Ai = (function () {
   async function post(payload) {
     var url = fnUrl();
     if (!url || !cfg.supabaseKey) throw new Error("not_configured");
-    var res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "apikey": cfg.supabaseKey, "Authorization": "Bearer " + cfg.supabaseKey },
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) { var t = ""; try { t = await res.text(); } catch (e) {} throw new Error("ai_failed:" + res.status + ":" + t.slice(0, 160)); }
-    return res.json();
+    // 生成は時間がかかる。サーバーはストリームで隙間にスペースを送って接続を維持し、
+    // 最後にJSONを流す。ここでは本文を全部受け取り、trim()してからparseする。
+    var ctrl = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, 180000) : null;
+    var res, raw;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "apikey": cfg.supabaseKey, "Authorization": "Bearer " + cfg.supabaseKey },
+        body: JSON.stringify(payload),
+        signal: ctrl ? ctrl.signal : undefined
+      });
+      raw = await res.text();
+    } finally { if (timer) clearTimeout(timer); }
+    var data = null;
+    try { data = JSON.parse((raw || "").trim()); } catch (e) {}
+    if (!res.ok) { throw new Error("ai_failed:" + res.status + ":" + String(raw || "").slice(0, 160)); }
+    if (!data) throw new Error("bad_response");
+    if (data.error) throw new Error("ai_failed:" + data.error + (data.detail ? (":" + data.detail) : ""));
+    return data;
   }
 
   return {
