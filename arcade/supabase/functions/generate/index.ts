@@ -99,6 +99,41 @@ type Msg = { role: string; content: string };
 
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
+// ===== レート制限（コスト/不正対策）=====
+// 値はここで調整可。req=全リクエスト（相談含む）、bld=ゲーム生成/編集（高コスト）。
+const LIMITS = {
+  cooldownSec: 3,                          // 連打クールダウン（端末ごと）
+  reqUser: 150, reqIp: 250, reqGlobal: 4000,   // 1日あたりのリクエスト上限
+  bldUser: 15, bldIp: 25, bldGlobal: 120,      // 1日あたりのゲーム生成上限（全体=予算ガード）
+};
+const SUPA_URL = Deno.env.get("SUPABASE_URL") || "";
+const SUPA_SRV = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+
+// Supabaseの ai_gate(RPC) を service_role で呼ぶ。テーブル/関数が無い等で失敗したら
+// null を返す（=フェイルオープン：保護は効かないがアプリは止めない）。
+async function gate(ub: string, ib: string, gb: string, umax: number, imax: number, gmax: number, cooldown: number) {
+  if (!SUPA_URL || !SUPA_SRV) return null;
+  try {
+    const r = await fetch(SUPA_URL.replace(/\/$/, "") + "/rest/v1/rpc/ai_gate", {
+      method: "POST",
+      headers: { apikey: SUPA_SRV, Authorization: "Bearer " + SUPA_SRV, "content-type": "application/json" },
+      body: JSON.stringify({ ub, ib, gb, umax, imax, gmax, cooldown }),
+    });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch { return null; }
+}
+const today = () => new Date().toISOString().slice(0, 10);
+
+// req gate / build gate の結果を、クライアント向けの理由に変換
+function limitReason(scope: "req" | "bld", g: { reason?: string } | null) {
+  const r = g?.reason || "";
+  if (r === "cooldown") return "cooldown";
+  if (r === "global_daily") return "global_busy";
+  if (scope === "bld") return "daily_limit";       // user/ip の作成上限
+  return "rate";                                    // req の user/ip 上限
+}
+
 // 429 / 5xx / ネットワーク断は一時的なので最大3回までリトライ（503 upstream connect error 対策）
 async function callClaude(key: string, system: string, messages: Msg[], schema: unknown, think: boolean) {
   const body: Record<string, unknown> = {
@@ -142,12 +177,24 @@ async function callClaude(key: string, system: string, messages: Msg[], schema: 
 }
 
 // 相談 or 生成の本体。結果オブジェクト（成功 or {error,...}）を返す。
-async function doWork(key: string, messages: Msg[], prevHtml: string) {
+async function doWork(key: string, messages: Msg[], prevHtml: string, token: string, ip: string) {
   const lastUser = [...messages].reverse().find((m) => m.role === "user");
   const instruction = (lastUser?.content || "").trim();
+  const d = today();
+  // ゲーム生成（高コスト）に入る前の上限チェック
+  const buildGate = async () => {
+    const g = await gate("u:bld:" + token + ":" + d, "i:bld:" + ip + ":" + d, "g:bld:" + d, LIMITS.bldUser, LIMITS.bldIp, LIMITS.bldGlobal, 0);
+    if (g && g.allowed === false) return { error: "rate_limited", reason: limitReason("bld", g) };
+    return null;
+  };
   try {
+    // --- すべてのリクエストに対する軽い上限＋連打防止 ---
+    const rg = await gate("u:req:" + token + ":" + d, "i:req:" + ip + ":" + d, "g:req:" + d, LIMITS.reqUser, LIMITS.reqIp, LIMITS.reqGlobal, LIMITS.cooldownSec);
+    if (rg && rg.allowed === false) return { error: "rate_limited", reason: limitReason("req", rg), retry_sec: rg.retry_sec };
+
     // --- 編集モード（既存HTMLあり）: 相談せず直接ビルド ---
     if (prevHtml) {
+      const blocked = await buildGate(); if (blocked) return blocked;
       const userContent = "次の既存ゲーム(HTML)を、下の指示に従って修正してください。修正後の完全な単一HTMLだけを返し、タイトルも内容に合わせて更新してOKです。\n\n【指示】\n" +
         instruction + "\n\n【既存HTML】\n" + prevHtml;
       const g = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, true);
@@ -161,7 +208,8 @@ async function doWork(key: string, messages: Msg[], prevHtml: string) {
       return { action: "ask", reply: plan.reply || "どんな感じにする？", options: Array.isArray(plan.options) ? plan.options.slice(0, 4) : [] };
     }
 
-    // --- 本生成（thinkingあり） ---
+    // --- 本生成（thinkingあり）: 直前に作成上限チェック ---
+    const blocked = await buildGate(); if (blocked) return blocked;
     const transcript = messages.map((m) => (m.role === "user" ? "ユーザー: " : "AI: ") + m.content).join("\n");
     const userContent = "次の相談で決まった内容で、ミニゲームを作ってください。完全な単一HTMLだけを返す。\n\n【相談ログ】\n" + transcript;
     const g = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, true);
@@ -182,7 +230,7 @@ Deno.serve(async (req) => {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) return json({ error: "missing_api_key" }, 500);
 
-  let messages: Msg[] = [], prevHtml = "";
+  let messages: Msg[] = [], prevHtml = "", token = "?";
   try {
     const b = await req.json();
     if (Array.isArray(b?.messages)) {
@@ -192,9 +240,12 @@ Deno.serve(async (req) => {
       messages = [{ role: "user", content: String(b.prompt).slice(0, 500) }];
     }
     prevHtml = String(b?.prevHtml ?? "").slice(0, 80000);
+    token = String(b?.token ?? "?").slice(0, 80) || "?";
   } catch { /* ignore */ }
 
   if (!messages.length) return json({ error: "empty_prompt" }, 400);
+
+  const ip = (req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "?").split(",")[0].trim() || "?";
 
   // 生成は最大~50秒かかり、モバイルSafariは無通信の長いfetchを切る。
   // 生成中はスペースを定期送信して接続を維持し、最後にJSONを流す（受信側はtrim()してparse）。
@@ -208,7 +259,7 @@ Deno.serve(async (req) => {
       }, 4000);
       (async () => {
         let result: unknown;
-        try { result = await doWork(key, messages, prevHtml); }
+        try { result = await doWork(key, messages, prevHtml, token, ip); }
         catch (e) { result = { error: "generate_error", detail: String((e as Error)?.message || e).slice(0, 200) }; }
         done = true;
         clearInterval(hb);

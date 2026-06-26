@@ -151,7 +151,7 @@
 <script src="js/assets.js?v=1"></script>
 <script src="js/config.js?v=2"></script>
 <script src="js/store.js?v=2"></script>
-<script src="js/ai.js?v=6"></script>
+<script src="js/ai.js?v=7"></script>
 <script src="js/catalog.js?v=6"></script>
 <script src="js/arcade-embed.js?v=3"></script>
 <script>
@@ -608,11 +608,21 @@
     }).catch(function(err){
       typing.remove(); busy=false;
       var s=String(err&&err.message||err);
-      var msg = /not_configured/.test(s)
-        ? "AI生成が未設定です。SupabaseのEdge Functionとキーを設定してね。"
-        : /insufficient_credit/.test(s)
-        ? "AIの利用クレジットが不足しています。\nAnthropicの管理画面（Plans & Billing）でクレジットを追加すると、また作れるようになります。"
-        : "うまくいかなかった…もう一度試してみて。\n("+s.slice(0,90)+")";
+      var msg;
+      if(/rate_limited/.test(s)){
+        var reason=s.split(":")[1]||"";
+        var sec=parseInt(s.split(":")[2],10);
+        msg = reason==="cooldown" ? ("少し待ってからもう一度送ってね"+(sec?("（あと約"+sec+"秒）"):""))
+            : reason==="daily_limit" ? "今日の作成上限に達しました。また明日試してね。"
+            : reason==="global_busy" ? "いま全体が混み合っています。少し時間をおいてね。"
+            : "リクエストが多すぎます。少し待ってからにしてね。";
+      } else {
+        msg = /not_configured/.test(s)
+          ? "AI生成が未設定です。SupabaseのEdge Functionとキーを設定してね。"
+          : /insufficient_credit/.test(s)
+          ? "AIの利用クレジットが不足しています。\nAnthropicの管理画面（Plans & Billing）でクレジットを追加すると、また作れるようになります。"
+          : "うまくいかなかった…もう一度試してみて。\n("+s.slice(0,90)+")";
+      }
       bubble("bot", msg);
     });
   }
