@@ -1,5 +1,6 @@
 :root{
-  --bg:#0f1512; --ink:#eef3f0; --dim:#8a958f; --rule:#27302c; --plate:#161c19; --gold:#e6b450;
+  /* ブランド：ダーク×バイオレット（--gold はアクセント変数名のまま流用） */
+  --bg:#141221; --ink:#f1eefb; --dim:#9a93b5; --rule:#2c2740; --plate:#1d1a2e; --gold:#8b5cf6;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);
@@ -22,7 +23,7 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);
 .a2hs-tx{flex:1;min-width:0;font-size:12px;color:var(--dim);line-height:1.45;}
 .a2hs-tx b{display:block;color:var(--ink);font-size:14px;font-weight:800;margin-bottom:1px;}
 .a2hs-tx strong{color:var(--gold);font-weight:800;}
-.a2hs-add{flex:none;background:var(--gold);color:#241a00;border:0;border-radius:9px;
+.a2hs-add{flex:none;background:var(--gold);color:#ffffff;border:0;border-radius:9px;
   padding:.5rem .9rem;font:inherit;font-weight:800;font-size:13px;cursor:pointer;}
 .a2hs-x{flex:none;background:transparent;border:0;color:var(--dim);font-size:22px;line-height:1;padding:0 4px;cursor:pointer;}
 a{color:inherit;text-decoration:none;}
@@ -52,7 +53,7 @@ a{color:inherit;text-decoration:none;}
 .card .cardbtns{display:flex;gap:8px;margin-top:10px;}
 .cbtn{flex:1;text-align:center;border:1px solid var(--rule);border-radius:9px;padding:.6rem .2rem;
   font-weight:800;font-size:12px;color:var(--ink);white-space:nowrap;}
-.cbtn.pri{background:var(--gold);color:#241a00;border:0;}
+.cbtn.pri{background:var(--gold);color:#ffffff;border:0;}
 .bar .rankbtn{border:1px solid var(--rule);border-radius:9px;padding:.4rem .7rem;font-size:12px;
   font-weight:800;color:var(--ink);white-space:nowrap;}
 
@@ -80,7 +81,7 @@ a{color:inherit;text-decoration:none;}
 .lb .empty{padding:16px 14px;color:var(--dim);font-size:13px;}
 
 .toast{position:fixed;left:50%;top:30%;transform:translateX(-50%);
-  background:var(--gold);color:#241a00;font-weight:800;padding:.7rem 1.1rem;border-radius:12px;
+  background:var(--gold);color:#ffffff;font-weight:800;padding:.7rem 1.1rem;border-radius:12px;
   font-size:15px;opacity:0;transition:opacity .25s, top .25s;pointer-events:none;z-index:30;}
 .toast.show{opacity:1;top:24%;}
 
@@ -116,12 +117,12 @@ a{color:inherit;text-decoration:none;}
 /* プレビュー上部に3つ並ぶので少し小さめ＋公開は塗りつぶし */
 #cr-preview .crbar{gap:6px;}
 #cr-preview .crbar .act{font-size:13px;padding:5px 6px;white-space:nowrap;}
-.crbar .act.gold{background:var(--gold);color:#241a00;border-radius:8px;padding:6px 12px;}
+.crbar .act.gold{background:var(--gold);color:#ffffff;border-radius:8px;padding:6px 12px;}
 .draftbadge,.livebadge{display:inline-block;margin:0 0 4px;font-size:10px;font-weight:800;
   border-radius:999px;padding:1px 7px;line-height:1.4;}
 .draftbadge{color:var(--dim);border:1px solid var(--rule);}
 .livebadge{color:#3fb950;border:1px solid #2a6b39;}
-.crbar .newbtn{background:var(--gold);color:#241a00;border:0;border-radius:10px;padding:.5rem .85rem;font:inherit;font-weight:800;font-size:14px;cursor:pointer;}
+.crbar .newbtn{background:var(--gold);color:#ffffff;border:0;border-radius:10px;padding:.5rem .85rem;font:inherit;font-weight:800;font-size:14px;cursor:pointer;}
 .crbody{flex:1;overflow:auto;padding:14px;}
 
 .emptybox{display:flex;flex-direction:column;justify-content:center;min-height:46vh;
@@ -135,7 +136,7 @@ a{color:inherit;text-decoration:none;}
 .liacts{flex-basis:100%;display:flex;gap:8px;margin-top:2px;}
 .liacts a,.liacts button{flex:1;text-align:center;border:1px solid var(--rule);background:transparent;color:var(--ink);
   border-radius:8px;padding:.45rem .2rem;font:inherit;font-weight:700;font-size:12px;cursor:pointer;text-decoration:none;}
-.liacts a.go{background:var(--gold);color:#241a00;border:0;}
+.liacts a.go{background:var(--gold);color:#ffffff;border:0;}
 .liacts button.del{color:#e5484d;}
 
 /* ---- 公開フォーム ---- */
@@ -147,7 +148,7 @@ textarea.field{resize:vertical;line-height:1.5;}
 .thumbprev{width:120px;height:90px;border-radius:12px;flex:none;overflow:hidden;background-size:cover;background-position:center;
   display:flex;align-items:center;justify-content:center;color:rgba(0,0,0,.72);font-weight:800;text-align:center;font-size:13px;padding:0 8px;}
 .thumbacts{display:flex;flex-direction:column;gap:8px;}
-.filebtn{display:inline-block;text-align:center;background:var(--gold);color:#241a00;border-radius:10px;
+.filebtn{display:inline-block;text-align:center;background:var(--gold);color:#ffffff;border-radius:10px;
   padding:.55rem .9rem;font-weight:800;font-size:13px;cursor:pointer;}
 .ghostbtn{background:transparent;border:1px solid var(--rule);color:var(--ink);border-radius:10px;
   padding:.5rem .9rem;font:inherit;font-weight:700;font-size:13px;cursor:pointer;}
@@ -160,7 +161,7 @@ textarea.field{resize:vertical;line-height:1.5;}
 .pvbtns{display:flex;flex-direction:column;gap:10px;}
 .pvbtns button{border:1px solid var(--rule);background:transparent;color:var(--ink);border-radius:11px;
   padding:.8rem;font:inherit;font-weight:800;font-size:15px;cursor:pointer;}
-.pvbtns button.pri{background:var(--gold);color:#241a00;border:0;}
+.pvbtns button.pri{background:var(--gold);color:#ffffff;border:0;}
 
 /* ---- 作る（AIチャット モック） ---- */
 .chatlog{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
@@ -170,7 +171,7 @@ textarea.field{resize:vertical;line-height:1.5;}
   border-radius:999px;padding:.5rem .85rem;font:inherit;font-size:13px;font-weight:700;cursor:pointer;}
 .msg{max-width:84%;padding:10px 13px;border-radius:14px;font-size:14px;line-height:1.6;white-space:pre-wrap;}
 .msg.bot{align-self:flex-start;background:var(--plate);border:1px solid var(--rule);border-bottom-left-radius:5px;}
-.msg.user{align-self:flex-end;background:var(--gold);color:#241a00;font-weight:600;border-bottom-right-radius:5px;}
+.msg.user{align-self:flex-end;background:var(--gold);color:#ffffff;font-weight:600;border-bottom-right-radius:5px;}
 .msg.typing{color:var(--dim);font-style:italic;}
 .gencard{align-self:flex-start;max-width:84%;border:1px solid var(--rule);border-radius:14px;overflow:hidden;background:var(--plate);}
 .gencard .pv{height:96px;display:flex;align-items:center;justify-content:center;color:rgba(0,0,0,.7);font-weight:800;text-align:center;padding:0 12px;}
@@ -179,11 +180,11 @@ textarea.field{resize:vertical;line-height:1.5;}
 .gencard .row{display:flex;gap:8px;}
 .gencard .row button{flex:1;border:1px solid var(--rule);background:transparent;color:var(--ink);
   border-radius:9px;padding:.5rem;font:inherit;font-weight:700;font-size:13px;cursor:pointer;}
-.gencard .row button.pri{background:var(--gold);color:#241a00;border:0;}
+.gencard .row button.pri{background:var(--gold);color:#ffffff;border:0;}
 .composer{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--rule);background:var(--bg);}
 .composer input{flex:1;background:var(--plate);border:1px solid var(--rule);color:var(--ink);
   border-radius:11px;padding:.65rem .8rem;font:inherit;font-size:15px;}
-.composer button{background:var(--gold);color:#241a00;border:0;border-radius:11px;
+.composer button{background:var(--gold);color:#ffffff;border:0;border-radius:11px;
   padding:0 1.05rem;font:inherit;font-weight:800;cursor:pointer;}
 .chips{display:flex;gap:8px;flex-wrap:wrap;padding:0 14px 6px;}
 .chips button{background:transparent;border:1px solid var(--rule);color:var(--dim);
@@ -194,7 +195,7 @@ textarea.field{resize:vertical;line-height:1.5;}
 .catchips{display:flex;gap:8px;flex-wrap:wrap;}
 .catchip{background:transparent;border:1px solid var(--rule);color:var(--dim);border-radius:999px;
   padding:.35rem .8rem;font:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;}
-.catchip.on{background:var(--gold);color:#241a00;border-color:var(--gold);}
+.catchip.on{background:var(--gold);color:#ffffff;border-color:var(--gold);}
 .catchips.pick{margin:2px 0;}
 .sortrow{display:flex;justify-content:flex-end;margin-top:10px;}
 .sortsel{font-size:11px;color:var(--dim);display:flex;align-items:center;gap:6px;}
@@ -239,7 +240,7 @@ textarea.field{resize:vertical;line-height:1.5;}
 .cropbtns{display:flex;gap:10px;margin-top:12px;}
 .cropbtns button{flex:1;border:1px solid var(--rule);background:transparent;color:var(--ink);border-radius:11px;
   padding:.7rem;font:inherit;font-weight:800;font-size:15px;cursor:pointer;}
-.cropbtns button.pri{background:var(--gold);color:#241a00;border:0;}
+.cropbtns button.pri{background:var(--gold);color:#ffffff;border:0;}
 
 /* ---- マイページ ---- */
 .records{list-style:none;margin:0;padding:0;}
