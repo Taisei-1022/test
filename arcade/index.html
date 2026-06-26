@@ -9,7 +9,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon.svg" />
 <link rel="icon" href="icon.svg" />
-<link rel="stylesheet" href="css/app.css?v=2" />
+<link rel="stylesheet" href="css/app.css?v=3" />
 <title>ミニアーケード</title>
 </head>
 <body>
@@ -57,12 +57,11 @@
         <button class="act" id="pvToChat">チャット</button>
       </div>
       <div class="crbody">
-        <div class="bigpv" id="bigpv"><b id="pvTitle"></b></div>
-        <p class="pvnote">※ いまは見た目だけのモックです。実際の生成（AI連携）は次のステップで繋ぎます。</p>
+        <div class="pvframe"><iframe id="pvFrame" title="preview"></iframe></div>
+        <p class="pvnote" id="pvTitle"></p>
         <div class="pvbtns">
-          <button class="pri" id="pvPlay">プレイ（モック）</button>
-          <button id="pvEdit">チャットに戻って修正</button>
-          <button id="pvPublish">公開する</button>
+          <button id="pvEdit">チャットに戻って直す</button>
+          <button class="pri" id="pvPublish">公開する</button>
         </div>
       </div>
     </div>
@@ -99,6 +98,9 @@
 <script src="js/games.js?v=2"></script>
 <script src="js/config.js?v=2"></script>
 <script src="js/store.js?v=2"></script>
+<script src="js/ai.js?v=3"></script>
+<script src="js/catalog.js?v=3"></script>
+<script src="js/arcade-embed.js?v=3"></script>
 <script>
 (function () {
   "use strict";
@@ -127,23 +129,31 @@
   /* ---------- 遊ぶ：フィード ---------- */
   var grid=document.getElementById("grid");
   function renderFeed(){
-    Promise.all(GAMES.map(function(g){
-      return Promise.all([Store.plays(g.id), Store.top(g.id,g.score.type,1)]).then(function(r){
-        return { g:g, plays:r[0], top:r[1][0]||null };
-      });
-    })).then(function(rows){
+    Catalog.listGenerated().then(function(gen){
+      var items = GAMES.map(function(g){
+        return {id:g.id,title:g.title,author:g.author,category:g.category,accent:g.accent,blurb:g.blurb,score:g.score};
+      }).concat(gen.map(function(g){
+        return {id:g.id,title:g.title,author:g.author||"ゲスト",category:"みんなの作品",
+                accent:g.accent||"#e6b450",blurb:"AIで作られたゲーム",score:{type:"high",unit:"点"}};
+      }));
+      return Promise.all(items.map(function(it){
+        return Promise.all([Store.plays(it.id),Store.top(it.id,it.score.type,1)]).then(function(r){
+          return {it:it,plays:r[0],top:r[1][0]||null};
+        });
+      }));
+    }).then(function(rows){
       grid.innerHTML=rows.map(function(row){
-        var g=row.g, topTxt=row.top?(row.top.score+g.score.unit+" / "+row.top.player):"まだ記録なし";
+        var it=row.it, topTxt=row.top?(row.top.score+it.score.unit+" / "+row.top.player):"まだ記録なし";
         return '<div class="card">'+
-          '<div class="thumb" style="background:'+grad(g.accent)+'"><b>'+esc(g.title)+'</b></div>'+
-          '<span class="cat">'+esc(g.category)+'</span>'+
-          '<div class="ttl">'+esc(g.title)+'</div>'+
-          '<div class="meta">作 '+esc(g.author)+' ・ '+row.plays+'プレイ</div>'+
-          '<div class="blurb">'+esc(g.blurb)+'</div>'+
+          '<div class="thumb" style="background:'+grad(it.accent)+'"><b>'+esc(it.title)+'</b></div>'+
+          '<span class="cat">'+esc(it.category)+'</span>'+
+          '<div class="ttl">'+esc(it.title)+'</div>'+
+          '<div class="meta">作 '+esc(it.author)+' ・ '+row.plays+'プレイ</div>'+
+          '<div class="blurb">'+esc(it.blurb)+'</div>'+
           '<div class="meta" style="margin-top:6px;color:var(--gold)">1位 '+esc(topTxt)+'</div>'+
           '<div class="cardbtns">'+
-            '<a class="cbtn pri" href="play.html?game='+g.id+'">遊ぶ</a>'+
-            '<a class="cbtn" href="leaderboard.html?game='+g.id+'">ランキング</a>'+
+            '<a class="cbtn pri" href="play.html?game='+it.id+'">遊ぶ</a>'+
+            '<a class="cbtn" href="leaderboard.html?game='+it.id+'">ランキング</a>'+
           '</div></div>';
       }).join("");
     });
@@ -154,7 +164,7 @@
   nameEl.addEventListener("change", function(){ Store.setName(nameEl.value.trim()); renderMypage(); });
   function renderMypage(){
     nameEl.value=Store.name();
-    document.getElementById("myCreations").innerHTML=creationsHTML();
+    renderCreationsInto("myCreations");
     Promise.all(GAMES.map(function(g){ return Store.myBest(g.id,g.score.type,me()).then(function(b){return {g:g,best:b};}); }))
     .then(function(rows){
       records.innerHTML=rows.map(function(r){
@@ -164,17 +174,21 @@
     });
   }
 
-  /* ---------- 作る：作品ストア（モック / localStorage） ---------- */
-  function loadCreations(){ try{ return JSON.parse(localStorage.getItem("arcade.creations"))||[]; }catch(e){ return []; } }
-  function saveCreation(c){ var a=loadCreations(); a.unshift(c); localStorage.setItem("arcade.creations", JSON.stringify(a)); }
-  function creationsHTML(){
-    var a=loadCreations();
-    if(!a.length) return '<div class="emptybox">まだ作品がありません。<br>右上の「＋ 新規作成」から作ろう。</div>';
-    return '<ul class="crelist">'+a.map(function(c){
-      return '<li><div class="ic" style="background:'+grad(c.accent)+'"></div>'+
-        '<div style="flex:1"><div class="nm">'+esc(c.title)+'</div><div class="dt">'+fmtDate(c.at)+'</div></div>'+
-        '<span class="badge">公開</span></li>';
+  /* ---------- 作る：作品ストア（Catalog 経由） ---------- */
+  function creationCardHTML(list){
+    if(!list.length) return '<div class="emptybox">まだ作品がありません。<br>右上の「＋ 新規作成」から作ろう。</div>';
+    return '<ul class="crelist">'+list.map(function(c){
+      return '<li><div class="ic" style="background:'+grad(c.accent||"#e6b450")+'"></div>'+
+        '<div style="flex:1"><div class="nm">'+esc(c.title)+'</div><div class="dt">'+fmtDate(c.created_at)+'</div></div>'+
+        '<a class="badge" href="play.html?game='+c.id+'" style="text-decoration:none">遊ぶ</a></li>';
     }).join("")+'</ul>';
+  }
+  function renderCreationsInto(elId){
+    var el=document.getElementById(elId); if(!el) return;
+    Catalog.listGenerated().then(function(all){
+      var mine=all.filter(function(g){ return (g.author||"ゲスト")===me(); });
+      el.innerHTML=creationCardHTML(mine);
+    });
   }
 
   /* ---------- 作る：サブ画面ルーター ---------- */
@@ -182,7 +196,7 @@
   var toPreviewBtn=document.getElementById("toPreview");
   function crShow(s){
     document.querySelectorAll("#view-create .crscreen").forEach(function(el){ el.classList.toggle("on", el.id==="cr-"+s); });
-    if(s==="list") document.getElementById("creations").innerHTML=creationsHTML();
+    if(s==="list") renderCreationsInto("creations");
     if(s==="preview") renderPreview();
   }
   function enterCreate(){ if(!createEntered){ createEntered=true; crShow("list"); } }
@@ -192,20 +206,20 @@
   document.getElementById("pvBack").addEventListener("click", function(){ crShow("chat"); });
   document.getElementById("pvToChat").addEventListener("click", function(){ crShow("chat"); });
   document.getElementById("pvEdit").addEventListener("click", function(){ crShow("chat"); });
-  document.getElementById("pvPlay").addEventListener("click", function(){ showToast("モックです：AI連携は次のステップ"); });
   document.getElementById("pvPublish").addEventListener("click", function(){
-    if(!lastGen){ return; }
-    saveCreation({ title:lastGen.title, accent:lastGen.accent, at:Date.now() });
-    showToast("公開しました（モック）"); crShow("list");
+    if(!lastGen) return;
+    var btn=this; btn.disabled=true;
+    Catalog.publish({ title:lastGen.title, html:lastGen.html, accent:lastGen.accent, author:me() })
+      .then(function(){ btn.disabled=false; showToast("公開しました！"); crShow("list"); })
+      .catch(function(e){ btn.disabled=false; showToast("公開に失敗："+String(e.message||e).slice(0,40)); });
   });
   toPreviewBtn.addEventListener("click", function(){
     if(lastGen) crShow("preview"); else showToast("まずアイデアを送って生成してね");
   });
   function renderPreview(){
     if(!lastGen) return;
-    var pv=document.getElementById("bigpv");
-    pv.style.background=grad(lastGen.accent);
-    document.getElementById("pvTitle").textContent=lastGen.title;
+    document.getElementById("pvTitle").textContent="「"+lastGen.title+"」のプレビュー（公開するとみんなが遊べます）";
+    document.getElementById("pvFrame").srcdoc = buildSrcdoc(lastGen.html);
   }
 
   /* ---------- 作る：AIチャット（モック） ---------- */
@@ -220,34 +234,37 @@
   }
   function initChat(){
     if(chatInit) return; chatInit=true;
-    bubble("bot","どんなゲームを作る？\nひと言で教えて。例：「落ちてくる寿司をキャッチ」");
+    bubble("bot", Ai.available()
+      ? "どんなゲームを作る？\nひと言で教えて。例：「落ちてくる寿司をキャッチ」"
+      : "AI生成はまだ設定されていません。\nSupabaseのEdge Function（generate）とAPIキーを設定すると使えるようになります。");
   }
   function sendIdea(text){
     text=(text||"").trim(); if(!text||busy) return;
     bubble("user",text); input.value=""; busy=true;
-    var typing=bubble("bot typing","考え中…");
-    setTimeout(function(){
+    var typing=bubble("bot typing","作っているよ…（10〜30秒かかることがあります）");
+    Ai.generate(text).then(function(g){
       typing.remove();
-      bubble("bot","いいね！「"+text+"」のゲームだね。\nこんなルールで組んでみる：\n・タップ／スワイプで操作\n・スコアは高いほど上位\n・だんだん難しくなる");
-      var gen=bubble("bot typing","生成中…");
-      setTimeout(function(){
-        gen.remove();
-        var accent=ACCENTS[Math.floor(Math.random()*ACCENTS.length)];
-        lastGen={ title:(text.length>14?text.slice(0,14)+"…":text), accent:accent };
-        toPreviewBtn.classList.remove("off");
-        showGenCard();
-        busy=false;
-      },1400);
-    },800);
+      lastGen={ title:g.title, html:g.html, accent:ACCENTS[Math.floor(Math.random()*ACCENTS.length)] };
+      toPreviewBtn.classList.remove("off");
+      bubble("bot","「"+g.title+"」ができたよ！下のボタンか右上の「プレビュー」で遊んでみて。\n直したい時はそのまま続けて話してね。");
+      showGenCard();
+      busy=false;
+    }).catch(function(err){
+      typing.remove(); busy=false;
+      var s=String(err&&err.message||err);
+      var msg = /not_configured/.test(s)
+        ? "AI生成が未設定です。SupabaseのEdge Functionとキーを設定してね。"
+        : "生成に失敗しちゃった。もう一度、短い言葉で試してみて。\n("+s.slice(0,90)+")";
+      bubble("bot", msg);
+    });
   }
   function showGenCard(){
     var card=document.createElement("div"); card.className="gencard";
     card.innerHTML='<div class="pv" style="background:'+grad(lastGen.accent)+'"><b>'+esc(lastGen.title)+'</b></div>'+
-      '<div class="bd"><div class="t">できあがり（プレビュー）</div>'+
-      '<div class="row"><button class="pri toPv">プレビューを見る ›</button></div></div>';
+      '<div class="bd"><div class="t">できあがり</div>'+
+      '<div class="row"><button class="pri toPv">プレビューで遊ぶ ›</button></div></div>';
     chatlog.appendChild(card); chatlog.scrollTop=chatlog.scrollHeight;
     card.querySelector(".toPv").addEventListener("click", function(){ crShow("preview"); });
-    bubble("bot","右上の「プレビュー」か、上のボタンから確認できるよ。修正したいときはそのまま続けて話してね。");
   }
   sendBtn.addEventListener("click", function(){ sendIdea(input.value); });
   input.addEventListener("keydown", function(e){ if(e.key==="Enter") sendIdea(input.value); });

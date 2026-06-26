@@ -1,0 +1,5 @@
+# Supabase 設定（Edge Function 用）
+# generate 関数は publishable キーで呼べるよう JWT 検証を無効化する。
+# （デプロイ時に supabase functions deploy generate --no-verify-jwt でも可）
+[functions.generate]
+verify_jwt = false

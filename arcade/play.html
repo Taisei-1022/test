@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<link rel="stylesheet" href="css/app.css?v=2" />
+<link rel="stylesheet" href="css/app.css?v=3" />
 <title>プレイ</title>
 </head>
 <body>
@@ -23,57 +23,54 @@
 <script src="js/games.js?v=2"></script>
 <script src="js/config.js?v=2"></script>
 <script src="js/store.js?v=2"></script>
+<script src="js/catalog.js?v=3"></script>
+<script src="js/arcade-embed.js?v=3"></script>
 <script>
 (function () {
   "use strict";
   var id = new URLSearchParams(location.search).get("game");
-  var game = getGame(id);
-  if (!game) { location.replace("index.html"); return; }
+  if (!id) { location.replace("index.html"); return; }
 
-  var stype = game.score.type, unit = game.score.unit;
-  var player = Store.name() || "ゲスト";
-
-  document.getElementById("title").textContent = game.title;
-  document.title = game.title;
   var frame = document.getElementById("frame");
-  frame.src = game.path;
-
   var bestEl = document.getElementById("best");
   var toast = document.getElementById("toast");
-  document.getElementById("rankBtn").href = "leaderboard.html?game=" + game.id;
+  var stype = "high", unit = "点", player = Store.name() || "ゲスト";
 
   function fmt(v) { return v + unit; }
-  function refreshBest() {
-    return Store.myBest(game.id, stype, player).then(function (b) {
-      bestEl.textContent = (b === null ? "—" : fmt(b));
-    });
-  }
-  function showToast(msg) {
-    toast.textContent = msg; toast.classList.add("show");
-    setTimeout(function () { toast.classList.remove("show"); }, 1500);
-  }
+  function showToast(msg) { toast.textContent = msg; toast.classList.add("show"); setTimeout(function(){toast.classList.remove("show");}, 1500); }
+  function refreshBest(gid) { return Store.myBest(gid, stype, player).then(function (b) { bestEl.textContent = (b === null ? "—" : fmt(b)); }); }
 
-  // ゲーム → 殻
-  window.addEventListener("message", function (e) {
-    var d = e.data;
-    if (!d || !d.__arcade) return;
-    if (d.call === "gameOver") {
-      var score = Math.round(Number(d.payload.score) || 0);
-      Store.myBest(game.id, stype, player).then(function (prev) {
-        Store.submit(game.id, stype, player, score).then(function () {
-          var better = prev === null || (stype === "low" ? score < prev : score > prev);
-          refreshBest();
-          showToast(better ? "自己ベスト更新！ " + fmt(score) : "結果 " + fmt(score));
+  Catalog.resolve(id).then(function (game) {
+    if (!game) { location.replace("index.html"); return; }
+    stype = game.score.type; unit = game.score.unit;
+    document.getElementById("title").textContent = game.title;
+    document.title = game.title;
+    document.getElementById("rankBtn").href = "leaderboard.html?game=" + game.id;
+
+    if (game.source === "seed") frame.src = game.path;        // シード：ファイルを読み込む
+    else frame.srcdoc = buildSrcdoc(game.html);               // 生成：HTMLを直接サンドボックス再生
+
+    refreshBest(game.id);
+
+    // ゲーム → 殻
+    window.addEventListener("message", function (e) {
+      var d = e.data;
+      if (!d || !d.__arcade) return;
+      if (d.call === "gameOver") {
+        var score = Math.round(Number(d.payload.score) || 0);
+        Store.myBest(game.id, stype, player).then(function (prev) {
+          Store.submit(game.id, stype, player, score).then(function () {
+            var better = prev === null || (stype === "low" ? score < prev : score > prev);
+            refreshBest(game.id);
+            showToast(better ? "自己ベスト更新！ " + fmt(score) : "結果 " + fmt(score));
+          });
         });
-      });
-    }
+      }
+    });
+
+    document.addEventListener("visibilitychange", function () { ctl(document.hidden ? "pause" : "resume"); });
+    function ctl(call) { try { frame.contentWindow.postMessage({ __arcadeCtl: true, call: call }, "*"); } catch (e) {} }
   });
-
-  // タブが隠れたら一時停止を通知
-  document.addEventListener("visibilitychange", function () { ctl(document.hidden ? "pause" : "resume"); });
-  function ctl(call) { try { frame.contentWindow.postMessage({ __arcadeCtl: true, call: call }, "*"); } catch (e) {} }
-
-  refreshBest();
 })();
 </script>
 </body>

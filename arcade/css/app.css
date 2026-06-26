@@ -105,6 +105,8 @@ a{color:inherit;text-decoration:none;}
 
 .bigpv{height:200px;border-radius:16px;display:flex;align-items:center;justify-content:center;
   color:rgba(0,0,0,.72);font-weight:800;font-size:18px;text-align:center;padding:0 16px;margin-bottom:14px;}
+.pvframe{height:58vh;border:1px solid var(--rule);border-radius:14px;overflow:hidden;background:#000;margin-bottom:12px;}
+.pvframe iframe{width:100%;height:100%;border:0;display:block;}
 .pvnote{color:var(--dim);font-size:13px;line-height:1.7;margin:0 0 16px;}
 .pvbtns{display:flex;flex-direction:column;gap:10px;}
 .pvbtns button{border:1px solid var(--rule);background:transparent;color:var(--ink);border-radius:11px;
