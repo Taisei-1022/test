@@ -1,7 +1,7 @@
 {
   "id": "./index.html",
-  "name": "ミニアーケード",
-  "short_name": "アーケード",
+  "name": "Vappa",
+  "short_name": "Vappa",
   "lang": "ja",
   "dir": "ltr",
   "start_url": "./index.html",
