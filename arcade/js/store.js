@@ -15,6 +15,14 @@ window.Store = (function () {
     setName: function (n) { localStorage.setItem(NAME, (n || "").slice(0, 16)); }
   };
 
+  // 人気順の集計ウィンドウ（今日=24h / 週間=7日 / 年間=365日 のローリング）
+  function wins() { var n = Date.now(); return { day: n - 864e5, week: n - 6048e5, year: n - 31536e6 }; }
+  function countWindows(times) {
+    var w = wins(), s = { total: times.length, today: 0, week: 0, year: 0 };
+    for (var i = 0; i < times.length; i++) { var t = times[i]; if (t >= w.year) s.year++; if (t >= w.week) s.week++; if (t >= w.day) s.today++; }
+    return s;
+  }
+
   function sorter(type) { return function (a, b) { return type === "low" ? a.score - b.score : b.score - a.score; }; }
   function isBetter(type, a, b) { return type === "low" ? a < b : a > b; }
   function dedupBest(rows) { // すでにソート済み前提：プレイヤーごとに最初(=最良)を残す
@@ -25,11 +33,16 @@ window.Store = (function () {
 
   /* ---------- 端末内(localStorage) ---------- */
   function localStore() {
-    var SCORES = "arcade.scores.v1";
+    var SCORES = "arcade.scores.v1", PLAYS = "arcade.plays.v1";
     function load() { try { return JSON.parse(localStorage.getItem(SCORES)) || {}; } catch (e) { return {}; } }
     function save(o) { localStorage.setItem(SCORES, JSON.stringify(o)); }
+    function loadLog() { try { return JSON.parse(localStorage.getItem(PLAYS)) || {}; } catch (e) { return {}; } }
+    function saveLog(o) { localStorage.setItem(PLAYS, JSON.stringify(o)); }
     return Object.assign({}, nameApi, {
       submit: async function (gameId, type, player, score) {
+        var lg = loadLog(); (lg[gameId] = lg[gameId] || []).push(Date.now());
+        if (lg[gameId].length > 5000) lg[gameId] = lg[gameId].slice(-5000);
+        saveLog(lg);
         var db = load(), list = db[gameId] || [];
         list.push({ player: player || "ゲスト", score: score, at: Date.now() });
         var byP = {};
@@ -43,7 +56,8 @@ window.Store = (function () {
         for (var i = 0; i < a.length; i++) { if (a[i].player !== player) continue; if (best === null || isBetter(type, a[i].score, best)) best = a[i].score; }
         return best;
       },
-      plays: async function (gameId) { return (load()[gameId] || []).length; }
+      plays: async function (gameId) { return (loadLog()[gameId] || []).length; },
+      playStats: async function (gameId) { return countWindows(loadLog()[gameId] || []); }
     });
   }
 
@@ -89,6 +103,17 @@ window.Store = (function () {
           var cr = res.headers.get("content-range") || "/0";
           return parseInt(cr.split("/")[1], 10) || 0;
         } catch (e) { console.warn("plays failed", e); return 0; }
+      },
+      // 時間帯別の人気（今日/週間/年間）。直近1年分の打刻を取得してJSで集計。
+      playStats: async function (gameId) {
+        try {
+          var since = new Date(wins().year).toISOString();
+          var res = await rq("scores?game_id=eq." + enc(gameId) + "&created_at=gte." + enc(since) +
+            "&select=created_at&order=created_at.desc&limit=5000");
+          var rows = await res.json();
+          var times = (rows || []).map(function (r) { return new Date(r.created_at).getTime(); });
+          return countWindows(times);
+        } catch (e) { console.warn("playStats failed", e); return { total: 0, today: 0, week: 0, year: 0 }; }
       }
     });
   }

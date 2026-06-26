@@ -24,8 +24,10 @@
         <div class="sortrow">
           <label class="sortsel">並び替え
             <select id="sortSel">
+              <option value="pop_week">人気順（週間）</option>
+              <option value="pop_today">人気順（今日）</option>
+              <option value="pop_year">人気順（年間）</option>
               <option value="new">新着順</option>
-              <option value="plays">人気順（プレイ数）</option>
               <option value="title">名前順</option>
             </select>
           </label>
@@ -150,7 +152,7 @@
 <script src="js/games.js?v=2"></script>
 <script src="js/assets.js?v=1"></script>
 <script src="js/config.js?v=2"></script>
-<script src="js/store.js?v=2"></script>
+<script src="js/store.js?v=3"></script>
 <script src="js/ai.js?v=7"></script>
 <script src="js/catalog.js?v=6"></script>
 <script src="js/arcade-embed.js?v=3"></script>
@@ -184,7 +186,9 @@
   /* ---------- 遊ぶ：フィード（フィルター・並び替え） ---------- */
   var grid=document.getElementById("grid");
   var catChips=document.getElementById("catChips"), sortSel=document.getElementById("sortSel");
-  var feedRows=[], feedCat="all", feedSort="new";
+  var feedRows=[], feedCat="all", feedSort="pop_week";
+  var POP_LABEL={pop_today:"今日",pop_week:"週間",pop_year:"年間"};
+  function popOf(r){ return feedSort==="pop_today"?r.stats.today : feedSort==="pop_year"?r.stats.year : r.stats.week; }
   function thumbDiv(it){
     return it.thumb
       ? '<div class="thumb" style="background:url('+it.thumb+') center/cover"></div>'
@@ -202,19 +206,21 @@
   }
   function paintFeed(){
     var rows=feedRows.filter(function(r){ return feedCat==="all" || r.it.category===feedCat; });
+    var isPop=/^pop_/.test(feedSort);
     rows.sort(function(a,b){
-      if(feedSort==="plays") return b.plays-a.plays || (b.ts-a.ts);
+      if(isPop) return popOf(b)-popOf(a) || (b.ts-a.ts);
       if(feedSort==="title") return String(a.it.title).localeCompare(String(b.it.title),"ja");
       return b.ts-a.ts; // new
     });
     if(!rows.length){ grid.innerHTML='<div class="emptybox" style="grid-column:1/-1;margin-top:30px">このカテゴリの作品はまだありません。</div>'; return; }
     grid.innerHTML=rows.map(function(row){
       var it=row.it, topTxt=row.top?(row.top.score+it.score.unit+" / "+row.top.player):"まだ記録なし";
+      var playsTxt=isPop ? (POP_LABEL[feedSort]+" "+popOf(row)+"プレイ") : (row.plays+"プレイ");
       return '<div class="card">'+
         thumbDiv(it)+
         '<span class="cat">'+esc(it.category)+'</span>'+
         '<div class="ttl">'+esc(it.title)+'</div>'+
-        '<div class="meta">作 '+esc(it.author)+' ・ '+row.plays+'プレイ</div>'+
+        '<div class="meta">作 '+esc(it.author)+' ・ '+playsTxt+'</div>'+
         '<div class="blurb">'+esc(it.blurb)+'</div>'+
         '<div class="meta" style="margin-top:6px;color:var(--gold)">1位 '+esc(topTxt)+'</div>'+
         '<div class="cardbtns">'+
@@ -234,8 +240,8 @@
                 ts:(g.created_at?new Date(g.created_at).getTime():0)};
       }));
       return Promise.all(items.map(function(it){
-        return Promise.all([Store.plays(it.id),Store.top(it.id,it.score.type,1)]).then(function(r){
-          return {it:it,plays:r[0],top:r[1][0]||null,ts:it.ts};
+        return Promise.all([Store.playStats(it.id),Store.top(it.id,it.score.type,1)]).then(function(r){
+          return {it:it,stats:r[0],plays:r[0].total,top:r[1][0]||null,ts:it.ts};
         });
       }));
     }).then(function(rows){
