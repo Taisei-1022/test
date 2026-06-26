@@ -9,7 +9,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon.svg" />
 <link rel="icon" href="icon.svg" />
-<link rel="stylesheet" href="css/app.css" />
+<link rel="stylesheet" href="css/app.css?v=2" />
 <title>ミニアーケード</title>
 </head>
 <body>
@@ -96,9 +96,9 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="js/games.js"></script>
-<script src="js/config.js"></script>
-<script src="js/store.js"></script>
+<script src="js/games.js?v=2"></script>
+<script src="js/config.js?v=2"></script>
+<script src="js/store.js?v=2"></script>
 <script>
 (function () {
   "use strict";
@@ -134,13 +134,17 @@
     })).then(function(rows){
       grid.innerHTML=rows.map(function(row){
         var g=row.g, topTxt=row.top?(row.top.score+g.score.unit+" / "+row.top.player):"まだ記録なし";
-        return '<a class="card" href="play.html?game='+g.id+'">'+
+        return '<div class="card">'+
           '<div class="thumb" style="background:'+grad(g.accent)+'"><b>'+esc(g.title)+'</b></div>'+
           '<span class="cat">'+esc(g.category)+'</span>'+
           '<div class="ttl">'+esc(g.title)+'</div>'+
           '<div class="meta">作 '+esc(g.author)+' ・ '+row.plays+'プレイ</div>'+
           '<div class="blurb">'+esc(g.blurb)+'</div>'+
-          '<div class="meta" style="margin-top:6px;color:var(--gold)">1位 '+esc(topTxt)+'</div></a>';
+          '<div class="meta" style="margin-top:6px;color:var(--gold)">1位 '+esc(topTxt)+'</div>'+
+          '<div class="cardbtns">'+
+            '<a class="cbtn pri" href="play.html?game='+g.id+'">遊ぶ</a>'+
+            '<a class="cbtn" href="leaderboard.html?game='+g.id+'">ランキング</a>'+
+          '</div></div>';
       }).join("");
     });
   }
