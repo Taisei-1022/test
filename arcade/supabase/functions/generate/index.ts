@@ -1,4 +1,5 @@
 // Supabase Edge Function: ゲーム相談チャット / 生成 / 編集（Claude / Anthropic Messages API）
+// deploy: conversational mode (planner + build with adaptive thinking)
 // 入力:
 //   { messages: [{role:'user'|'assistant', content}], prevHtml? }
 //   （後方互換: { prompt } も可 → messages=[{role:'user',content:prompt}] とみなす）
