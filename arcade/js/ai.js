@@ -57,7 +57,7 @@ window.Ai = (function () {
   // 非同期生成：完成までポーリング。通信が一時的に切れても続行（サーバー側は生成し続ける）。
   async function pollJob(jobId) {
     var start = Date.now();
-    while (Date.now() - start < 190000) {
+    while (Date.now() - start < 395000) {
       await sleep(2500);
       var d = null;
       try { d = await pollOnce(jobId); } catch (e) { d = null; }
