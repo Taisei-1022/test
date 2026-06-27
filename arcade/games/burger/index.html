@@ -26,7 +26,7 @@
 <body>
 <canvas id="c"></canvas>
 <div id="hud"></div>
-<button id="rotBtn" type="button" aria-label="回転">⟳<small>15°</small></button>
+<button id="rotBtn" type="button" aria-label="回転">⟳<small>30°</small></button>
 <div id="ov">
   <h1>🍔 バーガータワー</h1>
   <p>いろんな商品を高く積み上げろ！<br>🍔🍟🥤🍗🥫…まれに🥧も。<br>スワイプで位置決め、<b>⟳で15°回転</b>、<b>指を離すと落下</b>。崩れたら終わり。</p>
@@ -45,72 +45,92 @@
   function mAbs(m){return{c1:{x:Math.abs(m.c1.x),y:Math.abs(m.c1.y)},c2:{x:Math.abs(m.c2.x),y:Math.abs(m.c2.y)}};}
   function neg(v){return{x:-v.x,y:-v.y};}
 
-  function Body(w,h,mass,fric){
-    this.w=w;this.h=h;this.px=0;this.py=0;this.angle=0;this.vx=0;this.vy=0;this.av=0;
+  function Body(verts,density,fric){
+    this.verts=verts;                  // ローカル凸多角形（中心が原点）
+    this.px=0;this.py=0;this.angle=0;this.vx=0;this.vy=0;this.av=0;
     this.friction=fric==null?0.5:fric;
-    if(mass===Infinity){this.invMass=0;this.invI=0;}
-    else{this.invMass=1/mass;var I=mass*(w*w+h*h)/12;this.invI=1/I;}
+    var minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9,i;
+    for(i=0;i<verts.length;i++){var v=verts[i];if(v.x<minx)minx=v.x;if(v.x>maxx)maxx=v.x;if(v.y<miny)miny=v.y;if(v.y>maxy)maxy=v.y;}
+    this.w=maxx-minx; this.h=maxy-miny;          // 描画・カメラ用のバウンディング
+    if(density===Infinity){this.invMass=0;this.invI=0;}
+    else{
+      var area=0,I=0;
+      for(i=0;i<verts.length;i++){
+        var p0=verts[i],p1=verts[(i+1)%verts.length];
+        var cr=p0.x*p1.y-p1.x*p0.y; area+=cr;
+        I+=cr*((p0.x*p0.x+p0.x*p1.x+p1.x*p1.x)+(p0.y*p0.y+p0.y*p1.y+p1.y*p1.y));
+      }
+      var mass=density*Math.abs(area)/2;
+      this.invMass=1/mass; this.invI=1/(density*Math.abs(I)/12);
+    }
   }
 
-  function computeIncidentEdge(h,pos,Rot,normal){
-    var RotT=mT(Rot); var n=neg(mMulV(RotT,normal)); var na={x:Math.abs(n.x),y:Math.abs(n.y)}; var c=[{},{}];
-    if(na.x>na.y){
-      if(n.x>0){ c[0]={v:{x:h.x,y:-h.y},fp:{ie2:3,oe2:4}}; c[1]={v:{x:h.x,y:h.y},fp:{ie2:4,oe2:1}}; }
-      else      { c[0]={v:{x:-h.x,y:h.y},fp:{ie2:1,oe2:2}}; c[1]={v:{x:-h.x,y:-h.y},fp:{ie2:2,oe2:3}}; }
-    } else {
-      if(n.y>0){ c[0]={v:{x:h.x,y:h.y},fp:{ie2:4,oe2:1}}; c[1]={v:{x:-h.x,y:h.y},fp:{ie2:1,oe2:2}}; }
-      else      { c[0]={v:{x:-h.x,y:-h.y},fp:{ie2:2,oe2:3}}; c[1]={v:{x:h.x,y:-h.y},fp:{ie2:3,oe2:4}}; }
-    }
-    c[0].v=add(pos,mMulV(Rot,c[0].v)); c[1].v=add(pos,mMulV(Rot,c[1].v));
-    c[0].fp.ie1=0;c[0].fp.oe1=0;c[1].fp.ie1=0;c[1].fp.oe1=0;
-    return c;
-  }
   function add(a,b){return{x:a.x+b.x,y:a.y+b.y};} function sub(a,b){return{x:a.x-b.x,y:a.y-b.y};} function scl(v,s){return{x:v.x*s,y:v.y*s};}
-  function clipSeg(vIn,n,offset,clipEdge){
-    var out=[]; var d0=dot(n,vIn[0].v)-offset, d1=dot(n,vIn[1].v)-offset;
-    if(d0<=0)out.push({v:vIn[0].v,fp:Object.assign({},vIn[0].fp)});
-    if(d1<=0)out.push({v:vIn[1].v,fp:Object.assign({},vIn[1].fp)});
-    if(d0*d1<0){ var i=d0/(d0-d1); var v={x:vIn[0].v.x+i*(vIn[1].v.x-vIn[0].v.x),y:vIn[0].v.y+i*(vIn[1].v.y-vIn[0].v.y)};
-      var fp; if(d0>0){fp={ie1:clipEdge,ie2:vIn[0].fp.ie2,oe1:vIn[0].fp.oe1,oe2:vIn[0].fp.oe2};}
-              else    {fp={ie1:vIn[1].fp.ie1,ie2:vIn[1].fp.ie2,oe1:clipEdge,oe2:vIn[1].fp.oe2};}
-      out.push({v:v,fp:fp});
+  function nrm(v){var L=Math.hypot(v.x,v.y)||1;return{x:v.x/L,y:v.y/L};}
+
+  /* ===== 凸多角形どうしの衝突（SAT＋クリッピング。長方形も4角形として扱う） ===== */
+  function worldPoly(b){
+    var R=mAng(b.angle),V=[],N=[],vs=b.verts,i;
+    for(i=0;i<vs.length;i++)V.push(add({x:b.px,y:b.py},mMulV(R,vs[i])));
+    for(i=0;i<V.length;i++){
+      var a=V[i],c=V[(i+1)%V.length],n=nrm({x:c.y-a.y,y:-(c.x-a.x)});
+      var mid=scl(add(a,c),0.5);
+      if(dot(n,sub(mid,{x:b.px,y:b.py}))<0)n=neg(n);   // 必ず外向きに
+      N.push(n);
+    }
+    return {V:V,N:N};
+  }
+  function maxSep(P,Q){
+    var best=-1e9,bi=0;
+    for(var i=0;i<P.N.length;i++){
+      var n=P.N[i],v=P.V[i],mn=1e9;
+      for(var j=0;j<Q.V.length;j++){var d=dot(n,sub(Q.V[j],v));if(d<mn)mn=d;}
+      if(mn>best){best=mn;bi=i;}
+    }
+    return {sep:best,idx:bi};
+  }
+  function clipSeg(seg,n,off){   // dot(n,x)<=off の側を残す
+    var out=[],d0=dot(n,seg[0])-off,d1=dot(n,seg[1])-off;
+    if(d0<=0)out.push(seg[0]); if(d1<=0)out.push(seg[1]);
+    if(d0*d1<0)out.push(add(seg[0],scl(sub(seg[1],seg[0]),d0/(d0-d1))));
+    return out;
+  }
+  function collide(A,B){
+    var pa=worldPoly(A),pb=worldPoly(B);
+    var sa=maxSep(pa,pb); if(sa.sep>0)return[];
+    var sb=maxSep(pb,pa); if(sb.sep>0)return[];
+    var refA=sa.sep>=sb.sep-0.4;              // 参照面を持つ方（A優先のヒステリシスで面の取り合いを防ぐ）
+    var ref=refA?pa:pb, inc=refA?pb:pa, ri=refA?sa.idx:sb.idx;
+    var refN=ref.N[ri], rv1=ref.V[ri], rv2=ref.V[(ri+1)%ref.V.length];
+    var ii=0,md=1e9;                          // 入射面：参照法線に最も逆向きの面
+    for(var k=0;k<inc.N.length;k++){var d=dot(inc.N[k],refN);if(d<md){md=d;ii=k;}}
+    var seg=[inc.V[ii],inc.V[(ii+1)%inc.V.length]];
+    var t=nrm(sub(rv2,rv1));
+    seg=clipSeg(seg,neg(t),-dot(t,rv1)); if(seg.length<2)return[];
+    seg=clipSeg(seg,t,dot(t,rv2)); if(seg.length<2)return[];
+    var front=dot(refN,rv1), normal=refA?refN:neg(refN), out=[];
+    for(var m=0;m<seg.length;m++){
+      var s=dot(refN,seg[m])-front;
+      if(s<=0)out.push({position:seg[m],normal:{x:normal.x,y:normal.y},separation:s,feature:(refA?'A':'B')+ri+'_'+m,Pn:0,Pt:0});
     }
     return out;
   }
-  function fkey(fp){return fp.ie1+'_'+fp.ie2+'_'+fp.oe1+'_'+fp.oe2;}
-  function flip(fp){var t=fp.ie1;fp.ie1=fp.oe1;fp.oe1=t;t=fp.ie2;fp.ie2=fp.oe2;fp.oe2=t;}
 
-  function collide(A,B){
-    var hA={x:A.w/2,y:A.h/2},hB={x:B.w/2,y:B.h/2};
-    var posA={x:A.px,y:A.py},posB={x:B.px,y:B.py};
-    var RA=mAng(A.angle),RB=mAng(B.angle),RAT=mT(RA),RBT=mT(RB);
-    var dp=sub(posB,posA),dA=mMulV(RAT,dp),dB=mMulV(RBT,dp);
-    var C=mMul(RAT,RB),aC=mAbs(C),aCT=mT(aC);
-    var faceA={x:Math.abs(dA.x)-hA.x-(aC.c1.x*hB.x+aC.c2.x*hB.y),y:Math.abs(dA.y)-hA.y-(aC.c1.y*hB.x+aC.c2.y*hB.y)};
-    if(faceA.x>0||faceA.y>0)return[];
-    var faceB={x:Math.abs(dB.x)-(aCT.c1.x*hA.x+aCT.c2.x*hA.y)-hB.x,y:Math.abs(dB.y)-(aCT.c1.y*hA.x+aCT.c2.y*hA.y)-hB.y};
-    if(faceB.x>0||faceB.y>0)return[];
-    var axis="AX",sep=faceA.x,normal=dA.x>0?{x:RA.c1.x,y:RA.c1.y}:{x:-RA.c1.x,y:-RA.c1.y};
-    var RT=0.95,AT=0.01;
-    if(faceA.y>RT*sep+AT*hA.y){axis="AY";sep=faceA.y;normal=dA.y>0?{x:RA.c2.x,y:RA.c2.y}:{x:-RA.c2.x,y:-RA.c2.y};}
-    if(faceB.x>RT*sep+AT*hB.x){axis="BX";sep=faceB.x;normal=dB.x>0?{x:RB.c1.x,y:RB.c1.y}:{x:-RB.c1.x,y:-RB.c1.y};}
-    if(faceB.y>RT*sep+AT*hB.y){axis="BY";sep=faceB.y;normal=dB.y>0?{x:RB.c2.x,y:RB.c2.y}:{x:-RB.c2.x,y:-RB.c2.y};}
-    var fn,front,sn,negS,posS,negE,posE,inc;
-    if(axis==="AX"){fn=normal;front=dot(posA,fn)+hA.x;sn=RA.c2;var s=dot(posA,sn);negS=-s+hA.y;posS=s+hA.y;negE=3;posE=1;inc=computeIncidentEdge(hB,posB,RB,fn);}
-    else if(axis==="AY"){fn=normal;front=dot(posA,fn)+hA.y;sn=RA.c1;var s2=dot(posA,sn);negS=-s2+hA.x;posS=s2+hA.x;negE=2;posE=4;inc=computeIncidentEdge(hB,posB,RB,fn);}
-    else if(axis==="BX"){fn=neg(normal);front=dot(posB,fn)+hB.x;sn=RB.c2;var s3=dot(posB,sn);negS=-s3+hB.y;posS=s3+hB.y;negE=3;posE=1;inc=computeIncidentEdge(hA,posA,RA,fn);}
-    else{fn=neg(normal);front=dot(posB,fn)+hB.y;sn=RB.c1;var s4=dot(posB,sn);negS=-s4+hB.x;posS=s4+hB.x;negE=2;posE=4;inc=computeIncidentEdge(hA,posA,RA,fn);}
-    var cp1=clipSeg(inc,neg(sn),negS,negE); if(cp1.length<2)return[];
-    var cp2=clipSeg(cp1,sn,posS,posE); if(cp2.length<2)return[];
-    var contacts=[];
-    for(var i=0;i<2;i++){
-      var s=dot(fn,cp2[i].v)-front;
-      if(s<=0){
-        var fp=cp2[i].fp; if(axis==="BX"||axis==="BY")flip(fp);
-        contacts.push({position:sub(cp2[i].v,scl(fn,s)),normal:{x:normal.x,y:normal.y},separation:s,feature:fkey(fp),Pn:0,Pt:0});
-      }
+  /* 形ごとの凸ハル（中心原点・SCで拡縮）。見た目に合わせた当たり判定に使う。 */
+  var DENS=1/900;
+  function rectVerts(w,h){var x=w/2,y=h/2;return [{x:-x,y:-y},{x:x,y:-y},{x:x,y:y},{x:-x,y:y}];}
+  function hullFor(t,sc){
+    var x=t.w*sc/2, y=t.h*sc/2, k=t.k;
+    if(k==="drink"||k==="fries")              // 台形（上が少し広い・底は広めで安定）
+      return [{x:-x,y:-y},{x:x,y:-y},{x:x*0.9,y:y},{x:-x*0.9,y:y}];
+    if(k==="ketchup")                          // ボトル（上が細い）
+      return [{x:-x,y:y},{x:x,y:y},{x:x,y:-y*0.3},{x:x*0.42,y:-y},{x:-x*0.42,y:-y},{x:-x,y:-y*0.3}];
+    if(k==="nugget"){                          // 丸い八角形
+      var cx=x*0.42,cy=y*0.42;
+      return [{x:-x+cx,y:-y},{x:x-cx,y:-y},{x:x,y:-y+cy},{x:x,y:y-cy},{x:x-cx,y:y},{x:-x+cx,y:y},{x:-x,y:y-cy},{x:-x,y:-y+cy}];
     }
-    return contacts;
+    var ax=x*0.18,ay=y*0.30;                   // burger / applepie：角丸長方形（八角形・底は広め）
+    return [{x:-x+ax,y:-y},{x:x-ax,y:-y},{x:x,y:-y+ay},{x:x,y:y-ay},{x:x-ax,y:y},{x:-x+ax,y:y},{x:-x,y:y-ay},{x:-x,y:-y+ay}];
   }
 
   function Arbiter(b1,b2){this.b1=b1;this.b2=b2;this.fric=Math.sqrt(b1.friction*b2.friction);this.contacts=[];}
@@ -156,7 +176,7 @@
     }
   };
 
-  var GRAV=1250, ITER=10;
+  var GRAV=1250, ITER=14;
   function World(){this.bodies=[];this.arb={};}
   World.prototype.add=function(b){this.bodies.push(b);return b;};
   World.prototype.step=function(dt){
@@ -201,7 +221,7 @@
   function reset(){
     world=new World();
     var pw=Math.min(W*0.5,210), pt=H-130;
-    plate=new Body(pw,22,Infinity,0.8); plate.px=W/2; plate.py=pt; world.add(plate);
+    plate=new Body(rectVerts(pw,22),Infinity,0.8); plate.px=W/2; plate.py=pt; world.add(plate);
     score=0; camY=0; state="aim"; settleT=0; active=null; fingerX=W/2;
     nextHeld();
   }
@@ -211,7 +231,7 @@
 
   function drop(){
     if(state!=="aim"||!held||!running||paused)return;
-    var b=new Body(held.w,held.h,(held.w*held.h)/900,0.55);
+    var b=new Body(hullFor(held.t,SC),DENS,0.7);
     b.px=Math.max(held.w/2,Math.min(W-held.w/2,fingerX));
     b.py=screenToWorldY(TOPY);
     b.angle=held.angle||0;
@@ -423,7 +443,7 @@
   cv.addEventListener("pointerdown",pdown); cv.addEventListener("pointermove",pmove); cv.addEventListener("pointerup",pup); cv.addEventListener("pointercancel",pup);
   // 回転ボタン：1タップで15度
   var rotBtn=document.getElementById("rotBtn");
-  function doRot(e){ if(e){e.stopPropagation();e.preventDefault&&e.preventDefault();} if(running&&!paused&&state==="aim"&&held){ held.angle=(held.angle||0)+Math.PI/12; } }
+  function doRot(e){ if(e){e.stopPropagation();e.preventDefault&&e.preventDefault();} if(running&&!paused&&state==="aim"&&held){ held.angle=(held.angle||0)+Math.PI/6; } }
   rotBtn.addEventListener("click",doRot);
   document.getElementById("startBtn").addEventListener("click",function(e){e.stopPropagation();start();});
   if(window.Arcade){Arcade.onPause(function(){paused=true;});Arcade.onResume(function(){paused=false;last=performance.now();});Arcade.onRestart(start);}
