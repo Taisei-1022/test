@@ -196,7 +196,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.14";
+  var APP_VERSION = "0.9.15";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -232,8 +232,12 @@
   }
   function curCr(){ var on=document.querySelector("#view-create .crscreen.on"); return on? on.id.replace("cr-",""):"list"; }
   function navState(){ var v=document.querySelector(".view.active"); var tab=v?v.id.replace("view-",""):"play"; return {tab:tab, cr: tab==="create"?curCr():null}; }
-  // 「奥」へ進む＝履歴を積む
-  function pushScreen(tab, cr){ renderScreen(tab,cr); history.pushState({tab:tab,cr:cr||null},"","#"+tab); }
+  // 「奥」へ進む＝履歴を積む（同じ画面なら積まない＝重複履歴で戻りがもたつくのを防ぐ）
+  function pushScreen(tab, cr){
+    var c=navState();
+    if(c.tab===tab && (tab!=="create" || (c.cr||"list")===(cr||"list"))){ renderScreen(tab,cr); return; }
+    renderScreen(tab,cr); history.pushState({tab:tab,cr:cr||null},"","#"+tab);
+  }
   // 現在地を置き換える（保存後にlistへ戻る等）
   function replaceScreen(tab, cr){ renderScreen(tab,cr); history.replaceState({tab:tab,cr:cr||null},"","#"+tab); }
   // タブ切替：同じ画面なら積まない
@@ -457,10 +461,11 @@
   toPreviewBtn.addEventListener("click", function(){
     if(lastGen) pushScreen("create","preview"); else showToast("まずアイデアを送って生成してね");
   });
+  var pvHtml=null;   // いまプレビューに読み込み済みのHTML（同じなら再読み込みしない＝黒い再描画を防ぐ）
   function renderPreview(){
     if(!lastGen) return;
     document.getElementById("pvTitle").textContent="「"+lastGen.title+"」のプレビュー（公開設定でタイトル・説明・サムネを決められます）";
-    document.getElementById("pvFrame").srcdoc = buildSrcdoc(lastGen.html);
+    if(pvHtml!==lastGen.html){ document.getElementById("pvFrame").srcdoc = buildSrcdoc(lastGen.html); pvHtml=lastGen.html; }
   }
 
   /* ---------- 公開フォーム ---------- */
