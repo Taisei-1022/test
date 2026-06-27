@@ -52,6 +52,12 @@ Hard requirements:
 - When editing an existing game, keep what already works and apply ONLY the requested change; return the FULL updated HTML.
 - Do NOT include explanations or markdown fences — the "html" field is raw HTML only.
 
+Quality & self-check (IMPORTANT — the game must actually run):
+- Before finalizing, mentally simulate a full playthrough: start screen → several seconds of play → game over → restart. The game MUST be controllable and able to end.
+- Ensure there are NO runtime errors: every variable/function is defined before use, no typos, no undefined references, no calls to APIs that don't exist. Balanced brackets/parentheses.
+- Output the COMPLETE document. Never truncate. It MUST end with </html>.
+- Keep the code reasonably small and robust so it can't freeze the tab.
+
 Characters / sprites (IMPORTANT for looks):
 - Do NOT use plain rectangles for characters. Give them a real look using EMOJI drawn on the canvas — they render natively, need no files, and work offline.
 - Draw an emoji as a sprite like this:
@@ -164,22 +170,56 @@ async function getJob(id: string): Promise<{ result: unknown; created_at: string
   } catch { return null; }
 }
 
-// 本生成（重い1回）。doWork からビルド部分だけを切り出したもの。
-async function buildOnce(key: string, messages: Msg[], prevHtml: string) {
-  const lastUser = [...messages].reverse().find((m) => m.role === "user");
-  const instruction = (lastUser?.content || "").trim();
-  if (prevHtml) {
-    const userContent = "次の既存ゲーム(HTML)を、下の指示に従って修正してください。修正後の完全な単一HTMLだけを返し、タイトルも内容に合わせて更新してOKです。\n\n【指示】\n" +
-      instruction + "\n\n【既存HTML】\n" + prevHtml;
-    const g = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, true);
-    if (!g.html) return { error: "empty_html" };
-    return { action: "build", reply: "直したよ！", title: g.title || "無題のゲーム", html: g.html, category: g.category || "その他" };
+// 生成HTMLの自動チェック（実行はしないが「全く動かない」系を静的に検出）。
+// 問題があれば理由を返す。OKなら null。
+function validateGame(html: string): string | null {
+  const h = (html || "").trim();
+  if (h.length < 300) return "出力が短すぎて未完成です";
+  if (!/<\/html>\s*$/i.test(h)) return "HTMLが途中で切れています（</html>で終わっていない）";
+  // <script src=...> を除く、インラインscriptのJS構文をチェック
+  const scripts: string[] = [];
+  const re = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(h)) !== null) { if (!/\bsrc\s*=/i.test(m[1])) scripts.push(m[2]); }
+  if (!scripts.length) return "ゲームのスクリプトがありません";
+  for (const code of scripts) {
+    if (!code.trim()) continue;
+    try { new Function(code); }                    // コンパイルのみ（実行はしない）＝構文エラー/途中切れを検出
+    catch (e) { return "JavaScriptの構文エラー: " + String((e as Error)?.message || e).slice(0, 120); }
   }
-  const transcript = messages.map((m) => (m.role === "user" ? "ユーザー: " : "AI: ") + m.content).join("\n");
-  const userContent = "次の相談で決まった内容で、ミニゲームを作ってください。完全な単一HTMLだけを返す。\n\n【相談ログ】\n" + transcript;
+  if (!/Arcade\s*\.\s*gameOver/.test(h)) return "ゲーム終了の通知(Arcade.gameOver)が呼ばれていません";
+  return null;
+}
+
+// 本生成（重い1回）。生成→自動チェック→ダメなら1回だけ自動修正。
+async function buildOnce(key: string, messages: Msg[], prevHtml: string) {
+  let userContent: string, reply: string;
+  if (prevHtml) {
+    const lastUser = [...messages].reverse().find((m) => m.role === "user");
+    const instruction = (lastUser?.content || "").trim();
+    userContent = "次の既存ゲーム(HTML)を、下の指示に従って修正してください。修正後の完全な単一HTMLだけを返し、タイトルも内容に合わせて更新してOKです。\n\n【指示】\n" +
+      instruction + "\n\n【既存HTML】\n" + prevHtml;
+    reply = "直したよ！";
+  } else {
+    const transcript = messages.map((mm) => (mm.role === "user" ? "ユーザー: " : "AI: ") + mm.content).join("\n");
+    userContent = "次の相談で決まった内容で、ミニゲームを作ってください。完全な単一HTMLだけを返す。\n\n【相談ログ】\n" + transcript;
+    reply = "作ったよ！";
+  }
   const g = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, true);
   if (!g.html) return { error: "empty_html" };
-  return { action: "build", reply: "作ったよ！", title: g.title || "無題のゲーム", html: g.html, category: g.category || "その他" };
+  let title = g.title || "無題のゲーム", html = g.html, category = g.category || "その他";
+
+  // 自動チェック → 問題があれば1回だけAIに直させる
+  const problem = validateGame(html);
+  if (problem) {
+    try {
+      const fixUser = "あなたが作った次のHTMLゲームに問題が見つかりました：「" + problem +
+        "」。原因を必ず直し、最後まで完結した完全な単一HTMLだけを返してください（</html>まで）。タイトルは維持。\n\n【HTML】\n" + html;
+      const g2 = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: fixUser }], GAME_SCHEMA, true);
+      if (g2.html) { html = g2.html; title = g2.title || title; category = g2.category || category; }
+    } catch { /* 修正に失敗したら元の生成結果をそのまま返す */ }
+  }
+  return { action: "build", reply, title, html, category };
 }
 // callClaude 例外をクライアント向けエラーへ変換
 function buildErr(e: unknown) {
@@ -202,7 +242,7 @@ async function callClaude(key: string, system: string, messages: Msg[], schema: 
     system,
     messages,
     output_config: think
-      ? { effort: "low", format: { type: "json_schema", schema } }
+      ? { effort: "medium", format: { type: "json_schema", schema } }
       : { format: { type: "json_schema", schema } },
   };
   if (think) body.thinking = { type: "adaptive" };
