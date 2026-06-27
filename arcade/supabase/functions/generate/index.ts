@@ -258,10 +258,12 @@ Deno.serve(async (req) => {
   const stream = new ReadableStream({
     start(controller) {
       let done = false;
+      // 接続確立のため即座に1バイト送る＋以後2秒ごとに送って、モバイルが長い通信を切るのを防ぐ
+      try { controller.enqueue(encoder.encode(" ")); } catch { /* closed */ }
       const hb = setInterval(() => {
         if (done) return;
         try { controller.enqueue(encoder.encode(" ")); } catch { /* closed */ }
-      }, 4000);
+      }, 2000);
       (async () => {
         let result: unknown;
         try { result = await doWork(key, messages, prevHtml, token, ip); }
