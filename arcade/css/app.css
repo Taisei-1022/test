@@ -90,7 +90,8 @@ a{color:inherit;text-decoration:none;}
 /* ---- タブ構成（遊ぶ/作る/マイページ） ---- */
 /* ホームバー用の余白は standalone（ホームから起動）の時だけ。ブラウザでは付けない（下に隙間が出るため） */
 :root{--tab:52px;}
-html.standalone{--tab:calc(52px + env(safe-area-inset-bottom));}
+/* 安全領域そのままだとホームバーの上が空きすぎるので16px詰める（最低6pxは残す） */
+html.standalone{--sab:max(env(safe-area-inset-bottom) - 16px, 6px); --tab:calc(52px + var(--sab));}
 .screen{position:fixed;left:0;right:0;top:0;bottom:var(--tab);overflow:hidden;}
 .view{position:absolute;inset:0;overflow:auto;display:none;-webkit-overflow-scrolling:touch;}
 .view.active{display:block;}
@@ -98,7 +99,7 @@ html.standalone{--tab:calc(52px + env(safe-area-inset-bottom));}
 
 .tabbar{position:fixed;left:0;right:0;bottom:0;height:var(--tab);display:flex;
   background:var(--plate);border-top:1px solid var(--rule);z-index:20;}
-html.standalone .tabbar{padding-bottom:env(safe-area-inset-bottom);}
+html.standalone .tabbar{padding-bottom:var(--sab);}
 .tabbar button{flex:1;background:transparent;border:0;color:var(--dim);font:inherit;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
   font-size:10.5px;font-weight:700;cursor:pointer;}
