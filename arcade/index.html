@@ -166,7 +166,7 @@
   </div>
 </div>
 
-<script src="js/games.js?v=3"></script>
+<script src="js/games.js?v=4"></script>
 <script src="js/assets.js?v=1"></script>
 <script src="js/config.js?v=2"></script>
 <script src="js/store.js?v=3"></script>
@@ -263,7 +263,7 @@
     Catalog.listGenerated().then(function(gen){
       var items = GAMES.map(function(g){
         return {id:g.id,title:g.title,author:g.author,category:g.category||"その他",accent:g.accent,blurb:g.blurb,
-                score:g.score,thumb:null,ts:Infinity};
+                score:g.score,thumb:g.thumb||null,ts:Infinity};
       }).concat(gen.filter(function(g){ return g.published!==false; }).map(function(g){
         return {id:g.id,title:g.title,author:g.author||"ゲスト",category:g.category||"その他",accent:g.accent||"#e6b450",
                 thumb:g.thumb||null,blurb:(g.description||"AIで作られたゲーム"),score:{type:"high",unit:"点"},

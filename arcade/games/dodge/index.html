@@ -99,8 +99,9 @@
   }
   function draw(){
     ctx.fillStyle="#0f1512";ctx.fillRect(0,0,W,H);
-    ctx.fillStyle="#3f4b45";
-    for(var i=0;i<blocks.length;i++){var b=blocks[i];rr(b.x,b.y,b.w,b.h,5*U);ctx.fill();}
+    for(var i=0;i<blocks.length;i++){var b=blocks[i];
+      ctx.fillStyle="#7d8b83";rr(b.x,b.y,b.w,b.h,5*U);ctx.fill();
+      ctx.fillStyle="rgba(255,255,255,.16)";rr(b.x,b.y,b.w,Math.min(6*U,b.h*0.5),4*U);ctx.fill();}
     // プレイヤー
     ctx.fillStyle="#3fb950";ctx.beginPath();ctx.arc(player.x,player.y,player.r,0,Math.PI*2);ctx.fill();
     ctx.strokeStyle="rgba(255,255,255,.8)";ctx.lineWidth=2*U;ctx.stroke();
