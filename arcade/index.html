@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-180.png?v=3" />
 <link rel="icon" href="icon-192.png?v=3" />
-<link rel="stylesheet" href="css/app.css?v=18" />
+<link rel="stylesheet" href="css/app.css?v=19" />
 <title>Vappa</title>
 </head>
 <body>
@@ -51,6 +51,7 @@
       <div class="crbar">
         <button class="back" id="chatBack" aria-label="戻る">‹</button>
         <div class="t">作る（AI）</div>
+        <button class="act" id="copyChat" type="button" aria-label="チャットをコピー">⧉ コピー</button>
         <button class="act off" id="toPreview">プレビュー</button>
       </div>
       <div class="chatlog" id="chatlog"></div>
@@ -174,6 +175,7 @@
 <script src="js/catalog.js?v=6"></script>
 <script src="js/arcade-embed.js?v=3"></script>
 <script src="js/pwa.js?v=1"></script>
+<script src="js/sw-reg.js?v=1"></script>
 <script>
 (function () {
   "use strict";
@@ -671,6 +673,20 @@
     card.querySelector(".toPv").addEventListener("click", function(){ crShow("preview"); });
   }
   sendBtn.addEventListener("click", function(){ sendChat(input.value); });
+  // チャット履歴をテキストでコピー（別のセッションに貼って続きを頼む等に使える）
+  function copyChat(){
+    var lines=[];
+    chatlog.querySelectorAll(".msg").forEach(function(m){
+      var t=(m.textContent||"").trim(); if(!t||/typing/.test(m.className)) return;
+      lines.push((m.classList.contains("user")?"あなた":"AI")+": "+t);
+    });
+    var text=lines.join("\n\n");
+    if(!text){ showToast("履歴がまだありません"); return; }
+    function ok(){ showToast("チャットをコピーしました"); }
+    function fb(){ try{ var ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); ok(); }catch(e){ showToast("コピーできませんでした"); } }
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(ok,fb); } else fb();
+  }
+  document.getElementById("copyChat").addEventListener("click", copyChat);
   // Enterでは送信しない（送信ボタンのみ）。改行を入れたい時のため標準動作は残す。
   document.getElementById("chips").addEventListener("click", function(e){
     if(e.target.tagName==="BUTTON"){ sendChat(e.target.textContent); }
