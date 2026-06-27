@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-180.png?v=3" />
 <link rel="icon" href="icon-192.png?v=3" />
-<link rel="stylesheet" href="css/app.css?v=23" />
+<link rel="stylesheet" href="css/app.css?v=24" />
 <title>Vappa</title>
 </head>
 <body>
@@ -188,7 +188,7 @@
 <script src="js/config.js?v=2"></script>
 <script src="js/store.js?v=4"></script>
 <script src="js/ai.js?v=11"></script>
-<script src="js/catalog.js?v=7"></script>
+<script src="js/catalog.js?v=8"></script>
 <script src="js/arcade-embed.js?v=3"></script>
 <script src="js/pwa.js?v=1"></script>
 <script src="js/sw-reg.js?v=2"></script>
@@ -196,7 +196,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.15";
+  var APP_VERSION = "0.9.16";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -216,6 +216,12 @@
   var PENDING="arcade.pendingGen";
   function savePending(jobId,editingId,title){ try{ localStorage.setItem(PENDING, JSON.stringify({job:jobId, editingId:editingId||null, title:title||"", ts:Date.now()})); }catch(e){} }
   function clearPending(){ try{ localStorage.removeItem(PENDING); }catch(e){} }
+  // 別画面にいる間に新しいビルドが完了した作品に「新着」タグを付ける
+  var NEWBUILDS="arcade.newbuilds";
+  function loadNB(){ try{ return JSON.parse(localStorage.getItem(NEWBUILDS))||[]; }catch(e){ return []; } }
+  function markNewBuild(id){ if(!id)return; try{ var a=loadNB(); if(a.indexOf(id)<0){ a.push(id); localStorage.setItem(NEWBUILDS, JSON.stringify(a.slice(-50))); } }catch(e){} }
+  function clearNewBuild(id){ try{ localStorage.setItem(NEWBUILDS, JSON.stringify(loadNB().filter(function(x){return x!==id;}))); }catch(e){} }
+  function isNewBuild(id){ return loadNB().indexOf(id)>=0; }
 
   /* ---------- 画面遷移＋履歴（スワイプ戻る/戻るボタンをアプリ内の論理戻りに） ---------- */
   var tabs=document.querySelectorAll(".tabbar button");
@@ -367,6 +373,7 @@
       var ic = c.thumb ? '<div class="ic" style="background:url('+c.thumb+') center/cover"></div>'
                        : '<div class="ic" style="background:'+grad(c.accent||"#e6b450")+'"></div>';
       var badge = (c.published===false) ? '<span class="draftbadge">下書き</span>' : '<span class="livebadge">公開中</span>';
+      if(isNewBuild(c.id)) badge += '<span class="newbadge">新着ビルド</span>';
       return '<li>'+ic+
         '<div class="mid">'+badge+'<div class="nm">'+esc(c.title)+'</div><div class="dt">'+fmtDate(c.created_at)+'</div></div>'+
         '<div class="liacts">'+
@@ -461,11 +468,12 @@
   toPreviewBtn.addEventListener("click", function(){
     if(lastGen) pushScreen("create","preview"); else showToast("まずアイデアを送って生成してね");
   });
-  var pvHtml=null;   // いまプレビューに読み込み済みのHTML（同じなら再読み込みしない＝黒い再描画を防ぐ）
   function renderPreview(){
     if(!lastGen) return;
     document.getElementById("pvTitle").textContent="「"+lastGen.title+"」のプレビュー（公開設定でタイトル・説明・サムネを決められます）";
-    if(pvHtml!==lastGen.html){ document.getElementById("pvFrame").srcdoc = buildSrcdoc(lastGen.html); pvHtml=lastGen.html; }
+    // 毎回読み込み直す（非表示中にiframe中身が破棄されても黒のままにならないように）。
+    // 戻る時の黒い中間は pushScreen の重複排除で解消済みなので、ここは確実さ優先。
+    document.getElementById("pvFrame").srcdoc = buildSrcdoc(lastGen.html);
   }
 
   /* ---------- 公開フォーム ---------- */
@@ -699,6 +707,7 @@
       : "AI生成はまだ設定されていません。\nSupabaseのEdge Function（generate）とAPIキーを設定すると使えます。");
   }
   function editGame(id){
+    clearNewBuild(id);   // 開いたら「新着」タグを消す
     Catalog.getGenerated(id).then(function(g){
       if(!g) return;
       chatlog.innerHTML=""; chatInit=true; busy=false; convo=[]; dirty=false; showStarters(false);
@@ -747,7 +756,7 @@
       busy=false;
       // 生成中に他画面へ移動していたら、結果を失わないよう下書きに退避＋通知
       var onChat = document.getElementById("view-create").classList.contains("active") && document.getElementById("cr-chat").classList.contains("on");
-      if(!onChat){ autosaveDraft(); showToast("「"+res.title+"」ができたよ！"); }
+      if(!onChat){ autosaveDraft(); markNewBuild(lastGen&&lastGen.editingId); refreshCreations(); showToast("「"+res.title+"」ができたよ！"); }
     }).catch(function(err){
       typing.remove(); busy=false; setGenerating(false); clearPending();
       var s=String(err&&err.message||err);
@@ -804,10 +813,19 @@
     Ai.resumeJob(p.job).then(function(res){
       setGenerating(false); clearPending();
       if(!res||res.action!=="build") return;
-      var payload={ title:(p.title && p.title!=="無題のゲーム") ? p.title : (res.title||"無題のゲーム"), html:res.html, description:"", thumb:null, category:res.category||"その他", published:false };
-      var done=function(){ refreshCreations(); showToast("「"+payload.title+"」ができたよ！（保存済み）"); };
-      if(p.editingId){ Catalog.update(p.editingId, payload).then(done).catch(done); }
-      else { Catalog.publish(payload).then(done).catch(done); }
+      var ttl=(p.title && p.title!=="無題のゲーム") ? p.title : (res.title||"無題のゲーム");
+      var done=function(){ markNewBuild(p.editingId); refreshCreations(); showToast("「"+ttl+"」ができたよ！（保存済み）"); };
+      if(p.editingId){
+        // 既存の作品にマージ（chat・説明・サムネを消さない。htmlとカテゴリだけ更新）
+        Catalog.getGenerated(p.editingId).then(function(g){
+          g=g||{};
+          var merged=Object.assign({}, g, { html:res.html, category:res.category||g.category||"その他",
+            title:(g.title && g.title!=="無題のゲーム") ? g.title : ttl, published:false });
+          return Catalog.update(p.editingId, merged);
+        }).then(done).catch(done);
+      } else {
+        Catalog.publish({ title:ttl, html:res.html, category:res.category||"その他", published:false }).then(done).catch(done);
+      }
     }).catch(function(){ setGenerating(false); clearPending(); });
   }
 

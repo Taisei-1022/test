@@ -27,13 +27,15 @@ window.Catalog = (function () {
   // 任意列（まだSupabaseに無いかもしれない列）。列不明エラー時はこれらを外して再試行する。
   var OPTIONAL = ["category", "published", "chat"];
   function fields(g) {
-    return {
+    var f = {
       title: g.title, author: g.author || "ゲスト", html: g.html,
       accent: g.accent || "#e6b450", description: g.description || "", thumb: g.thumb || null,
       category: g.category || "その他",
-      published: g.published !== false,  // 既定は公開。一時保存だけ false。
-      chat: g.chat || null               // 会話履歴（JSON文字列）。列が無ければ自動で外す。
+      published: g.published !== false   // 既定は公開。一時保存だけ false。
     };
+    // chat は「指定された時だけ」送る。未指定の更新で既存の会話履歴を空で上書きしないため。
+    if (g.chat !== undefined) f.chat = g.chat;
+    return f;
   }
   function schemaErr(status, text) {
     return status === 400 && /category|published|chat|column|schema cache|PGRST204/i.test(text || "");

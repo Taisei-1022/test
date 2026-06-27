@@ -150,10 +150,11 @@ html.standalone .tabbar{padding-bottom:var(--sab);}
 #cr-preview .crbar{gap:6px;}
 #cr-preview .crbar .act{font-size:13px;padding:5px 6px;white-space:nowrap;}
 .crbar .act.gold{background:var(--gold);color:#ffffff;border-radius:8px;padding:6px 12px;}
-.draftbadge,.livebadge{display:inline-block;margin:0 0 4px;font-size:10px;font-weight:800;
+.draftbadge,.livebadge,.newbadge{display:inline-block;margin:0 6px 4px 0;font-size:10px;font-weight:800;
   border-radius:999px;padding:1px 7px;line-height:1.4;}
 .draftbadge{color:var(--dim);border:1px solid var(--rule);}
 .livebadge{color:#3fb950;border:1px solid #2a6b39;}
+.newbadge{color:#fff;background:var(--gold);border:1px solid var(--gold);}
 .crbar .newbtn{background:var(--gold);color:#ffffff;border:0;border-radius:10px;padding:.5rem .85rem;font:inherit;font-weight:800;font-size:14px;cursor:pointer;}
 .crbar .howtobtn{width:34px;height:34px;flex:none;border-radius:50%;border:1px solid var(--rule);background:transparent;
   color:var(--ink);font:inherit;font-weight:800;font-size:15px;cursor:pointer;}
