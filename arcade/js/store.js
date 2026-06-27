@@ -7,12 +7,21 @@ window.Store = (function () {
   "use strict";
   var cfg = window.ARCADE_CONFIG || {};
   var remote = !!(cfg.supabaseUrl && cfg.supabaseKey);
-  var NAME = "arcade.name";
+  var NAME = "arcade.name", GID = "arcade.guestid";
 
   // なまえは端末ごと（共有ランキングでも同じ）
   var nameApi = {
     name: function () { return localStorage.getItem(NAME) || ""; },
-    setName: function (n) { localStorage.setItem(NAME, (n || "").slice(0, 16)); }
+    setName: function (n) { localStorage.setItem(NAME, (n || "").slice(0, 16)); },
+    // スコア記録・本人判定に使うID。名前未設定でも端末ごとに固有のゲスト名を返す。
+    // （以前は全員 "ゲスト" で、自己ベスト/ランキングが他人と混ざっていた。その対策）
+    player: function () {
+      var n = (localStorage.getItem(NAME) || "").trim();
+      if (n) return n;
+      var g = localStorage.getItem(GID);
+      if (!g) { g = "ゲスト" + Math.random().toString(36).slice(2, 6); localStorage.setItem(GID, g); }
+      return g;
+    }
   };
 
   // 人気順の集計ウィンドウ（今日=24h / 週間=7日 / 年間=365日 のローリング）

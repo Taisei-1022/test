@@ -186,7 +186,7 @@
 <script src="js/games.js?v=5"></script>
 <script src="js/assets.js?v=1"></script>
 <script src="js/config.js?v=2"></script>
-<script src="js/store.js?v=3"></script>
+<script src="js/store.js?v=4"></script>
 <script src="js/ai.js?v=10"></script>
 <script src="js/catalog.js?v=7"></script>
 <script src="js/arcade-embed.js?v=3"></script>
@@ -196,7 +196,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.7";
+  var APP_VERSION = "0.9.8";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -206,7 +206,7 @@
     r=Math.round(r*.55);g=Math.round(g*.55);b=Math.round(b*.55);
     return "#"+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1); }
   function grad(c){ return "linear-gradient(140deg,"+(c||"#e6b450")+","+shade(c||"#e6b450")+")"; }
-  function me(){ return Store.name() || "ゲスト"; }
+  function me(){ return Store.player(); }
   function fmtDate(t){ try{ return new Date(t).toLocaleDateString("ja-JP"); }catch(e){ return ""; } }
   var toast=document.getElementById("toast");
   function showToast(m){ toast.textContent=m; toast.classList.add("show"); setTimeout(function(){toast.classList.remove("show");},1500); }

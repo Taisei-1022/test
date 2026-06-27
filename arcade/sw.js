@@ -7,7 +7,7 @@ var CORE = [
   "./", "./index.html", "./play.html", "./leaderboard.html",
   "./manifest.webmanifest", "./logo.png?v=1",
   "./css/app.css?v=23",
-  "./js/games.js?v=5", "./js/assets.js?v=1", "./js/config.js?v=2", "./js/store.js?v=3",
+  "./js/games.js?v=5", "./js/assets.js?v=1", "./js/config.js?v=2", "./js/store.js?v=4",
   "./js/ai.js?v=10", "./js/catalog.js?v=7", "./js/arcade-embed.js?v=3", "./js/pwa.js?v=1"
 ];
 

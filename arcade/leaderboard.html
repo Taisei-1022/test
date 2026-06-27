@@ -23,7 +23,7 @@
 
 <script src="js/games.js?v=5"></script>
 <script src="js/config.js?v=2"></script>
-<script src="js/store.js?v=3"></script>
+<script src="js/store.js?v=4"></script>
 <script src="js/catalog.js?v=7"></script>
 <script src="js/sw-reg.js?v=1"></script>
 <script>
@@ -31,7 +31,7 @@
   "use strict";
   var id = new URLSearchParams(location.search).get("game");
   if (!id) { location.replace("index.html"); return; }
-  var player = Store.name() || "ゲスト";
+  var player = Store.player();
   // どこから来たかで戻り先を変える（ホーム一覧→ホーム / プレイ画面→プレイ）
   var from = new URLSearchParams(location.search).get("from");
   document.getElementById("back").href = (from === "play") ? ("play.html?game=" + id) : "index.html";

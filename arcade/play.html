@@ -22,7 +22,7 @@
 
 <script src="js/games.js?v=5"></script>
 <script src="js/config.js?v=2"></script>
-<script src="js/store.js?v=3"></script>
+<script src="js/store.js?v=4"></script>
 <script src="js/catalog.js?v=7"></script>
 <script src="js/sw-reg.js?v=1"></script>
 <script src="js/arcade-embed.js?v=3"></script>
@@ -35,7 +35,7 @@
   var frame = document.getElementById("frame");
   var bestEl = document.getElementById("best");
   var toast = document.getElementById("toast");
-  var stype = "high", unit = "点", player = Store.name() || "ゲスト";
+  var stype = "high", unit = "点", player = Store.player();
 
   function fmt(v) { return v + unit; }
   function showToast(msg) { toast.textContent = msg; toast.classList.add("show"); setTimeout(function(){toast.classList.remove("show");}, 1500); }
