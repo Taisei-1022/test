@@ -297,8 +297,11 @@
   }
 
   /* ---------- 作る：自作リスト（編集/複製/削除） ---------- */
-  function creationCardHTML(list){
-    if(!list.length) return '<div class="emptybox">まだ作品がありません。<br>右上の「＋ 新規作成」から作ろう。</div>';
+  function creationCardHTML(list, elId){
+    if(!list.length){
+      var hint = (elId==="myCreations") ? '下の「作る」タブから作ろう。' : '右上の「＋ 新規作成」から作ろう。';
+      return '<div class="emptybox">まだ作品がありません。<br>'+hint+'</div>';
+    }
     return '<ul class="crelist">'+list.map(function(c){
       var ic = c.thumb ? '<div class="ic" style="background:url('+c.thumb+') center/cover"></div>'
                        : '<div class="ic" style="background:'+grad(c.accent||"#e6b450")+'"></div>';
@@ -318,7 +321,7 @@
     el.onclick=handleCreationClick;
     Catalog.listGenerated().then(function(all){
       var mine=all.filter(function(g){ return Catalog.mine(g); });
-      el.innerHTML=creationCardHTML(mine);
+      el.innerHTML=creationCardHTML(mine, elId);
     });
   }
   function refreshCreations(){ renderCreationsInto("creations"); renderCreationsInto("myCreations"); }
