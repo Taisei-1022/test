@@ -206,9 +206,9 @@
     // physics substeps
     acc+=dt; var hstep=1/120, n=0;
     while(acc>=hstep&&n<5){ world.step(hstep); acc-=hstep; n++; }
-    // camera：一番高い箱を画面上部に収める
+    // camera：積み上がった箱（落下中の箱は除外）で計算。台が上下に動いて見えるのを防ぐ。
     var topW=plate.py-plate.h/2;
-    for(var i=1;i<world.bodies.length;i++){ var b=world.bodies[i]; topW=Math.min(topW,b.py-b.h/2); }
+    for(var i=1;i<world.bodies.length;i++){ var b=world.bodies[i]; if(b===active) continue; topW=Math.min(topW,b.py-b.h/2); }
     var targetCam=Math.max(0, H*0.30 - topW);
     camY+=(targetCam-camY)*Math.min(1,dt*5);
     // 落下中の箱の判定
@@ -224,11 +224,96 @@
   function drawBody(b,ghost){
     var sy=worldToScreenY(b.py);
     ctx.save(); ctx.translate(b.px,sy); ctx.rotate(b.angle);
-    ctx.globalAlpha=ghost?0.55:1;
-    ctx.fillStyle=b.t?b.t.col2:"#cfd3da"; rr(-b.w/2,-b.h/2,b.w,b.h,Math.min(12,b.h/3)); ctx.fill();
-    ctx.fillStyle="rgba(255,255,255,.16)"; rr(-b.w/2,-b.h/2,b.w,Math.min(9,b.h/3),6); ctx.fill();
-    if(b.t){ ctx.globalAlpha=ghost?0.7:1; ctx.font=Math.round(Math.min(b.w,b.h)*0.78)+"px serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(b.t.em,0,1); }
+    ctx.globalAlpha=ghost?0.6:1;
+    if(b===plate||!b.t){ drawPlate(b.w,b.h); }
+    else { drawShape(b.t.k,b.w,b.h); }
     ctx.restore(); ctx.globalAlpha=1;
+  }
+
+  /* ===== リアルなベクター描画（中心原点・w×h内に収める） ===== */
+  function drawShape(k,w,h){
+    if(k==="burger") drawBurger(w,h);
+    else if(k==="fries") drawFries(w,h);
+    else if(k==="drink") drawDrink(w,h);
+  }
+  function drawPlate(w,h){
+    var hw=w/2,hh=h/2;
+    ctx.fillStyle="#2a263f"; rr(-w*0.13,0,w*0.26,hh*1.6,3); ctx.fill();      // 脚
+    ctx.fillStyle="#3a3357"; rr(-hw,-hh,w,h,hh); ctx.fill();                  // トレイ
+    ctx.fillStyle="rgba(255,255,255,.12)"; rr(-hw,-hh,w,h*0.45,hh*0.45); ctx.fill();
+  }
+  function drawBurger(w,h){
+    var hw=w/2,hh=h/2;
+    // 下バンズ
+    ctx.fillStyle="#e8ad5c"; rr(-hw,hh-h*0.26,w,h*0.26,h*0.13); ctx.fill();
+    ctx.fillStyle="rgba(0,0,0,.10)"; rr(-hw,hh-h*0.10,w,h*0.10,h*0.05); ctx.fill();
+    // パティ
+    ctx.fillStyle="#6e3b1c"; rr(-hw*0.99,hh-h*0.50,w*0.99,h*0.22,5); ctx.fill();
+    // チーズ（たれ）
+    ctx.fillStyle="#f6bd18";
+    var cy=hh-h*0.50;
+    ctx.beginPath(); ctx.moveTo(-hw,cy); ctx.lineTo(hw,cy);
+    ctx.lineTo(hw*0.62,cy+h*0.15); ctx.lineTo(hw*0.28,cy+h*0.02);
+    ctx.lineTo(-hw*0.08,cy+h*0.14); ctx.lineTo(-hw*0.48,cy+h*0.03);
+    ctx.lineTo(-hw*0.78,cy+h*0.13); ctx.closePath(); ctx.fill();
+    // レタス（波）
+    ctx.fillStyle="#86c440";
+    var ly=hh-h*0.55, waves=5;
+    ctx.beginPath(); ctx.moveTo(-hw,ly-h*0.05);
+    for(var i=0;i<=waves;i++){ var x=-hw+(w*i/waves); ctx.lineTo(x, ly+((i%2===0)?h*0.06:-h*0.01)); }
+    ctx.lineTo(hw,ly-h*0.05); ctx.closePath(); ctx.fill();
+    // 上バンズ（ドーム）
+    ctx.fillStyle="#ef9f43";
+    var baseY=hh-h*0.57;
+    ctx.beginPath(); ctx.moveTo(-hw,baseY);
+    ctx.quadraticCurveTo(-hw,-hh,0,-hh); ctx.quadraticCurveTo(hw,-hh,hw,baseY);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle="rgba(255,255,255,.18)";
+    ctx.beginPath(); ctx.ellipse(-hw*0.28,baseY-h*0.24,hw*0.34,h*0.09,-0.4,0,Math.PI*2); ctx.fill();
+    // ごま
+    ctx.fillStyle="#fff7e6";
+    function seed(sx,sy,rot){ ctx.save(); ctx.translate(sx,sy); ctx.rotate(rot); ctx.beginPath(); ctx.ellipse(0,0,w*0.035,h*0.028,0,0,Math.PI*2); ctx.fill(); ctx.restore(); }
+    seed(-hw*0.35,-hh+h*0.20,0.5); seed(0,-hh+h*0.13,-0.3); seed(hw*0.34,-hh+h*0.21,0.4);
+    seed(-hw*0.14,-hh+h*0.33,-0.5); seed(hw*0.16,-hh+h*0.33,0.3);
+  }
+  function drawFries(w,h){
+    var hw=w/2,hh=h/2;
+    // ポテト（箱の上から飛び出す）
+    var fryW=w*0.17, xs=[-hw*0.55,-hw*0.18,hw*0.2,hw*0.55], off=[h*0.02,-h*0.05,h*0.05,-h*0.01];
+    for(var i=0;i<xs.length;i++){
+      ctx.save(); ctx.translate(xs[i],0); ctx.rotate((i-1.5)*0.07);
+      ctx.fillStyle=(i%2)?"#f0b429":"#f9cf5b";
+      rr(-fryW/2,-hh+off[i],fryW,h*0.58,fryW*0.35); ctx.fill();
+      ctx.fillStyle="rgba(255,255,255,.18)"; rr(-fryW/2,-hh+off[i],fryW*0.4,h*0.5,fryW*0.2); ctx.fill();
+      ctx.restore();
+    }
+    // 赤い箱（台形）
+    var ct=hh-h*0.62;
+    ctx.fillStyle="#e02424";
+    ctx.beginPath(); ctx.moveTo(-hw,ct); ctx.lineTo(hw,ct); ctx.lineTo(hw*0.78,hh); ctx.lineTo(-hw*0.78,hh); ctx.closePath(); ctx.fill();
+    ctx.fillStyle="#c81e1e"; rr(-hw,ct,w,h*0.07,2); ctx.fill();
+    // 白ストライプ
+    ctx.fillStyle="rgba(255,255,255,.92)";
+    rr(-hw*0.34,ct+h*0.10,w*0.13,h*0.46,2); ctx.fill();
+    rr(hw*0.12,ct+h*0.10,w*0.13,h*0.46,2); ctx.fill();
+  }
+  function drawDrink(w,h){
+    var hw=w/2,hh=h/2;
+    var cupTop=-hh+h*0.18;
+    // カップ本体（やや先細り）
+    ctx.fillStyle="#f3f4f6";
+    ctx.beginPath(); ctx.moveTo(-hw,cupTop); ctx.lineTo(hw,cupTop); ctx.lineTo(hw*0.8,hh); ctx.lineTo(-hw*0.8,hh); ctx.closePath(); ctx.fill();
+    // ブランド帯
+    ctx.fillStyle="#e02424";
+    ctx.beginPath(); ctx.moveTo(-hw*0.97,cupTop+h*0.16); ctx.lineTo(hw*0.97,cupTop+h*0.16); ctx.lineTo(hw*0.9,cupTop+h*0.30); ctx.lineTo(-hw*0.9,cupTop+h*0.30); ctx.closePath(); ctx.fill();
+    ctx.fillStyle="rgba(255,255,255,.5)"; rr(-hw*0.7,cupTop+h*0.34,w*0.16,h*0.4,3); ctx.fill();
+    // フタ
+    ctx.fillStyle="#cfd6dd"; rr(-hw*1.03,cupTop-h*0.05,w*1.06,h*0.09,3); ctx.fill();
+    ctx.fillStyle="#dfe4ea";
+    ctx.beginPath(); ctx.moveTo(-hw*0.92,cupTop-h*0.04); ctx.quadraticCurveTo(0,cupTop-h*0.17,hw*0.92,cupTop-h*0.04); ctx.closePath(); ctx.fill();
+    // ストロー（最前面）
+    ctx.strokeStyle="#ff5d8f"; ctx.lineWidth=Math.max(3,w*0.11); ctx.lineCap="round";
+    ctx.beginPath(); ctx.moveTo(hw*0.18,cupTop-h*0.02); ctx.lineTo(hw*0.5,-hh); ctx.stroke();
   }
   function draw(){
     ctx.clearRect(0,0,W,H);
@@ -239,8 +324,7 @@
     if(state==="aim"&&held){
       var x=Math.max(held.w/2,Math.min(W-held.w/2,fingerX));
       ctx.save();ctx.translate(x,TOPY);
-      ctx.globalAlpha=0.85;ctx.fillStyle=held.t.col2;rr(-held.w/2,-held.h/2,held.w,held.h,Math.min(12,held.h/3));ctx.fill();
-      ctx.globalAlpha=1;ctx.font=Math.round(Math.min(held.w,held.h)*0.78)+"px serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(held.t.em,0,1);
+      ctx.globalAlpha=0.92;drawShape(held.t.k,held.w,held.h);ctx.globalAlpha=1;
       ctx.restore();
       ctx.strokeStyle="rgba(255,255,255,.2)";ctx.setLineDash([5,7]);ctx.beginPath();ctx.moveTo(x,TOPY+held.h/2);ctx.lineTo(x,H);ctx.stroke();ctx.setLineDash([]);
     }
