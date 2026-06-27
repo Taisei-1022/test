@@ -88,6 +88,8 @@ window.Ai = (function () {
     },
     // 既存ジョブIDの完了を待つ（離脱→再起動後の復元用）
     resumeJob: function (jobId) { return pollJob(jobId); },
+    // 今日の作成上限の使用状況を取得（加算しない）
+    usage: function () { return post({ usage: true, token: token() }); },
     // 後方互換：一言からそのまま生成
     generate: async function (prompt, prevHtml) {
       var r = await post({ messages: [{ role: "user", content: prompt }], prevHtml: prevHtml || "", token: token() });

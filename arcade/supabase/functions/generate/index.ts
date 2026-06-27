@@ -169,6 +169,16 @@ async function getJob(id: string): Promise<{ result: unknown; created_at: string
     return Array.isArray(rows) && rows[0] ? rows[0] : null;
   } catch { return null; }
 }
+// ai_usage の当日カウントを読む（加算しない）。テーブルが無ければ null。
+async function readUsage(bucket: string): Promise<number | null> {
+  if (!SUPA_URL || !SUPA_SRV) return null;
+  try {
+    const r = await fetch(SUPA_URL.replace(/\/$/, "") + "/rest/v1/ai_usage?bucket=eq." + encodeURIComponent(bucket) + "&select=n", { headers: jobHeaders });
+    if (!r.ok) return null;
+    const rows = await r.json();
+    return Array.isArray(rows) ? (rows[0] ? (rows[0].n || 0) : 0) : null;
+  } catch { return null; }
+}
 
 // 生成HTMLの自動チェック（実行はしないが「全く動かない」系を静的に検出）。
 // 問題があれば理由を返す。OKなら null。
@@ -306,10 +316,11 @@ Deno.serve(async (req) => {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) return json({ error: "missing_api_key" }, 500);
 
-  let messages: Msg[] = [], prevHtml = "", token = "?", jobId = "";
+  let messages: Msg[] = [], prevHtml = "", token = "?", jobId = "", wantUsage = false;
   try {
     const b = await req.json();
     if (typeof b?.job === "string") jobId = b.job;
+    if (b?.usage === true) wantUsage = true;
     if (Array.isArray(b?.messages)) {
       messages = b.messages.filter((m: Msg) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
         .map((m: Msg) => ({ role: m.role, content: String(m.content).slice(0, 4000) }));
@@ -319,6 +330,14 @@ Deno.serve(async (req) => {
     prevHtml = String(b?.prevHtml ?? "").slice(0, 80000);
     token = String(b?.token ?? "?").slice(0, 80) || "?";
   } catch { /* ignore */ }
+
+  // ---- 使用量の確認（加算しない・上限チェックもしない）----
+  if (wantUsage) {
+    const d = today();
+    const used = await readUsage("u:bld:" + token + ":" + d);
+    if (used === null) return json({ enabled: false });   // rate_limit.sql 未実行 = 無制限
+    return json({ enabled: true, bldUsed: used, bldLimit: LIMITS.bldUser, bldRemaining: Math.max(0, LIMITS.bldUser - used) });
+  }
 
   // ---- ポーリング：ジョブの状態確認（軽い・短い）----
   if (jobId) {

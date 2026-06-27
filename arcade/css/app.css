@@ -44,6 +44,11 @@ html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);
 .genspin{flex:none;width:18px;height:18px;border-radius:50%;border:2.5px solid rgba(139,92,246,.3);
   border-top-color:var(--gold);animation:genspin .8s linear infinite;}
 @keyframes genspin{to{transform:rotate(360deg);}}
+/* 今日のAI作成 使用状況 */
+.usagebox{background:var(--plate);border:1px solid var(--rule);border-radius:12px;
+  padding:12px 14px;font-size:15px;color:var(--ink);font-weight:700;}
+.usagebox b{font-weight:800;}
+.usagebox .dim{color:var(--dim);font-weight:700;font-size:13px;}
 /* バージョン表示（デプロイ確認用・薄く） */
 .verbadge{position:fixed;top:calc(env(safe-area-inset-top) + 3px);right:7px;z-index:70;
   font-size:9px;line-height:1;color:var(--dim);opacity:.45;pointer-events:none;

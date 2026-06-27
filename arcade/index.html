@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-180.png?v=3" />
 <link rel="icon" href="icon-192.png?v=3" />
-<link rel="stylesheet" href="css/app.css?v=22" />
+<link rel="stylesheet" href="css/app.css?v=23" />
 <title>Vappa</title>
 </head>
 <body>
@@ -119,6 +119,8 @@
       <div class="top"><div class="brand"><img class="logo" src="logo.png?v=1" alt="Vappa" /><small>マイページ</small></div></div>
       <div class="section">なまえ</div>
       <label class="name"><input id="name" maxlength="16" placeholder="ゲスト" style="width:180px" /></label>
+      <div class="section">今日のAI作成</div>
+      <div id="usage" class="usagebox">—</div>
       <div class="section">作ったゲーム</div>
       <div id="myCreations"></div>
     </div>
@@ -185,7 +187,7 @@
 <script src="js/assets.js?v=1"></script>
 <script src="js/config.js?v=2"></script>
 <script src="js/store.js?v=3"></script>
-<script src="js/ai.js?v=9"></script>
+<script src="js/ai.js?v=10"></script>
 <script src="js/catalog.js?v=7"></script>
 <script src="js/arcade-embed.js?v=3"></script>
 <script src="js/pwa.js?v=1"></script>
@@ -194,7 +196,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.5";
+  var APP_VERSION = "0.9.6";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -317,6 +319,18 @@
   function renderMypage(){
     nameEl.value=Store.name();
     renderCreationsInto("myCreations");
+    renderUsage();
+  }
+  function renderUsage(){
+    var el=document.getElementById("usage"); if(!el) return;
+    if(!(window.Ai&&Ai.available&&Ai.available()&&Ai.usage)){ el.textContent="—"; return; }
+    el.textContent="確認中…";
+    Ai.usage().then(function(u){
+      if(!u){ el.textContent="—"; return; }
+      if(u.enabled===false){ el.innerHTML='上限：<b>未設定</b>（いまは無制限）'; return; }
+      var used=u.bldUsed||0, lim=u.bldLimit||0, rem=(u.bldRemaining==null?Math.max(0,lim-used):u.bldRemaining);
+      el.innerHTML='今日の作成：<b>'+used+' / '+lim+'</b> 本　<span class="dim">（残り '+rem+'）</span>';
+    }).catch(function(){ el.textContent="—"; });
   }
 
   /* ---------- 作る：自作リスト（編集/複製/削除） ---------- */
