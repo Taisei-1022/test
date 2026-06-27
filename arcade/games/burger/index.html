@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1" />
+<title>バーガータワー</title>
+<style>
+  *{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;}
+  html,body{height:100%;background:#1a1326;overflow:hidden;font-family:"Hiragino Maru Gothic ProN","Hiragino Sans",system-ui,sans-serif;color:#fff;touch-action:none;}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block;}
+  #hud{position:fixed;top:calc(env(safe-area-inset-top) + 10px);left:0;right:0;text-align:center;font-weight:800;font-size:20px;z-index:2;text-shadow:0 2px 6px rgba(0,0,0,.5);pointer-events:none;}
+  #ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+     background:rgba(12,8,20,.82);text-align:center;padding:24px;z-index:5;}
+  #ov h1{font-size:26px;font-weight:800;}
+  #ov p{color:#d8c9b6;font-size:14px;line-height:1.7;}
+  #ov .big{font-size:42px;font-weight:800;color:#ffcf5c;}
+  #ov button{background:#ffb02e;color:#3a2400;border:0;border-radius:14px;padding:.85rem 1.7rem;font:inherit;font-weight:800;font-size:16px;cursor:pointer;}
+  #ov[hidden]{display:none;}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"></div>
+<div id="ov">
+  <h1>🍔 バーガータワー</h1>
+  <p>流れてくる具材をタップで落として<br>高く積もう。重心が土台から外れると崩壊！<br>タップでドロップ。</p>
+  <button id="startBtn">はじめる</button>
+</div>
+<script src="../../js/arcade-sdk.js?v=2"></script>
+<script>
+(function(){
+  "use strict";
+  var cv=document.getElementById("c"), ctx=cv.getContext("2d"), hud=document.getElementById("hud"), ov=document.getElementById("ov");
+  var W=0,H=0,DPR=Math.min(2,window.devicePixelRatio||1);
+  function resize(){ W=window.innerWidth; H=window.innerHeight; cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0); }
+  window.addEventListener("resize",resize);
+
+  var ITEMS=[
+    {nm:"パティ",em:"🥩",w:.80,col:"#8a4f2b"},
+    {nm:"チーズ",em:"🧀",w:.72,col:"#f0b429"},
+    {nm:"レタス",em:"🥬",w:.92,col:"#57b85c"},
+    {nm:"トマト",em:"🍅",w:.66,col:"#e5484d"},
+    {nm:"たまご",em:"🍳",w:.64,col:"#f4d35e"},
+    {nm:"ベーコン",em:"🥓",w:.78,col:"#d06a5e"}
+  ];
+  var baseW, pieceH=30, running=false, paused=false, last=0;
+  var stack, mover, score, dir, speed, camY, toppling, topT, tipDir, tipAng, tipVel;
+
+  function reset(){
+    baseW=Math.min(W*0.42, 170);
+    stack=[{x:W/2, w:baseW, col:"#d9952b", em:"🍞", base:true}];
+    score=0; camY=0; toppling=false; topT=0; tipAng=0; tipVel=0; tipDir=1; speed=Math.min(W,420)*0.55;
+    newMover();
+  }
+  function topPiece(){ return stack[stack.length-1]; }
+  function stackTopY(){ return H-120 - (stack.length-1)*pieceH; }
+
+  function newMover(){
+    var it=ITEMS[Math.floor(Math.random()*ITEMS.length)];
+    mover={ it:it, w:baseW*it.w, x: baseW*it.w/2+10 };
+    dir=1; speed=Math.min(speed+7, W*1.25);
+    mover.y = stackTopY()-pieceH-70;
+  }
+  function startTip(d){ toppling=true; topT=0; tipDir=d; tipAng=0; tipVel=1.4; }
+
+  function drop(){
+    if(!running||paused||toppling||!mover) return;
+    var below=topPiece(), nx=mover.x;
+    var p={x:nx, w:mover.w, col:mover.it.col, em:mover.it.em};
+    // 重なりが無さすぎる → その場で崩落
+    if(Math.abs(nx-below.x) > (below.w/2 + p.w/2) - 6){ stack.push(p); startTip(nx>below.x?1:-1); return; }
+    stack.push(p); score++;
+    // 重心が土台からはみ出したら タワー倒壊
+    var base=stack[0], sw=0, sx=0;
+    for(var i=1;i<stack.length;i++){ sw+=stack[i].w; sx+=stack[i].x*stack[i].w; }
+    var com=sx/sw;
+    if(com < base.x-base.w/2 || com > base.x+base.w/2){ startTip(com>base.x?1:-1); return; }
+    newMover();
+  }
+
+  function step(dt){
+    if(toppling){ topT+=dt; tipVel+=dt*10; tipAng+=tipDir*tipVel*dt; if(topT>0.95) gameOver(); return; }
+    mover.x += dir*speed*dt;
+    var lim=mover.w/2+6;
+    if(mover.x<lim){ mover.x=lim; dir=1; }
+    if(mover.x>W-lim){ mover.x=W-lim; dir=-1; }
+    var targetCam = Math.max(0, (stack.length-1)*pieceH - (H*0.40));
+    camY += (targetCam-camY)*Math.min(1,dt*6);
+  }
+  function pieceScreenY(i){ return H-120 - i*pieceH + camY; }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    var g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,"#241a36"); g.addColorStop(1,"#15101f");
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    var plateY=pieceScreenY(0)+pieceH/2+10;
+    ctx.fillStyle="#cfd3da"; rr(W/2-baseW*0.8, plateY, baseW*1.6, 12, 6); ctx.fill();
+
+    var pivotX, pivotY;
+    if(toppling){ var bs=stack[0]; pivotX=bs.x+tipDir*bs.w/2; pivotY=pieceScreenY(0)-pieceH/2; }
+    for(var i=0;i<stack.length;i++){
+      ctx.save();
+      if(toppling && i>=1){ ctx.translate(pivotX,pivotY); ctx.rotate(tipAng); ctx.translate(-pivotX,-pivotY); }
+      drawPiece(stack[i], pieceScreenY(i));
+      ctx.restore();
+    }
+    if(mover && !toppling){
+      drawPiece({x:mover.x,w:mover.w,col:mover.it.col,em:mover.it.em}, mover.y);
+      ctx.strokeStyle="rgba(255,255,255,.18)"; ctx.setLineDash([5,6]); ctx.beginPath();
+      ctx.moveTo(mover.x, mover.y+14); ctx.lineTo(mover.x, pieceScreenY(stack.length-1)-pieceH/2); ctx.stroke(); ctx.setLineDash([]);
+    }
+    hud.textContent = score+" 段";
+  }
+  function drawPiece(p,y){
+    ctx.fillStyle=p.col; rr(p.x-p.w/2, y-pieceH/2, p.w, pieceH-4, 9); ctx.fill();
+    ctx.fillStyle="rgba(255,255,255,.14)"; rr(p.x-p.w/2, y-pieceH/2, p.w, 8, 6); ctx.fill();
+    if(p.em){ ctx.font="18px serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(p.em, p.x, y-1); }
+  }
+  function rr(x,y,w,h,r){ r=Math.min(r,h/2,w/2); ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+  function loop(t){ if(!running) return; var dt=Math.min(0.05,(t-last)/1000)||0; last=t; if(!paused){ step(dt); draw(); } requestAnimationFrame(loop); }
+  function start(){ resize(); reset(); ov.hidden=true; running=true; paused=false; last=performance.now(); if(window.Arcade)Arcade.ready(); requestAnimationFrame(loop); }
+  function gameOver(){ running=false;
+    ov.innerHTML='<h1>くずれた…</h1><div class="big">'+score+' 段</div><p>もっと高く積める？</p><button id="rb">リトライ</button>';
+    ov.hidden=false; document.getElementById("rb").addEventListener("click",start);
+    if(window.Arcade)Arcade.gameOver(score);
+  }
+  cv.addEventListener("pointerdown",function(e){ e.preventDefault(); drop(); });
+  document.getElementById("startBtn").addEventListener("click",function(e){e.stopPropagation();start();});
+  if(window.Arcade){ Arcade.onPause(function(){paused=true;}); Arcade.onResume(function(){paused=false;last=performance.now();}); Arcade.onRestart(start); }
+  resize(); reset(); draw();
+})();
+</script>
+</body>
+</html>

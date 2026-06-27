@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1" />
+<title>ミニロワイヤル</title>
+<style>
+  *{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;}
+  html,body{height:100%;background:#0e1020;overflow:hidden;font-family:"Hiragino Maru Gothic ProN","Hiragino Sans",system-ui,sans-serif;color:#fff;touch-action:none;}
+  #wrap{position:fixed;inset:0;display:flex;flex-direction:column;}
+  canvas{flex:1;display:block;width:100%;}
+  #cards{display:flex;gap:8px;padding:8px 10px calc(env(safe-area-inset-bottom) + 10px);background:#15182c;border-top:1px solid #272b45;}
+  .card{flex:1;background:#1f2440;border:1px solid #313764;border-radius:12px;padding:8px 4px;text-align:center;cursor:pointer;transition:transform .06s;}
+  .card:active{transform:scale(.94);}
+  .card.dis{opacity:.4;}
+  .card .em{font-size:26px;line-height:1;}
+  .card .nm{font-size:11px;font-weight:800;margin-top:2px;}
+  .card .co{font-size:11px;font-weight:800;color:#c79bff;margin-top:1px;}
+  #ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+     background:rgba(8,9,20,.82);text-align:center;padding:24px;z-index:5;}
+  #ov h1{font-size:26px;font-weight:800;}
+  #ov p{color:#b9b6d6;font-size:14px;line-height:1.7;}
+  #ov .big{font-size:40px;font-weight:800;color:#c79bff;}
+  #ov button{background:#8b5cf6;color:#fff;border:0;border-radius:14px;padding:.85rem 1.6rem;font:inherit;font-weight:800;font-size:16px;cursor:pointer;}
+  #ov[hidden]{display:none;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c"></canvas>
+  <div id="cards"></div>
+</div>
+<div id="ov">
+  <h1>ミニロワイヤル</h1>
+  <p>エリクサーをためてユニットを出撃！<br>敵タワーを壊すたびに +1点。<br>自分のタワーを守りきろう。</p>
+  <button id="startBtn">はじめる</button>
+</div>
+<script src="../../js/arcade-sdk.js?v=2"></script>
+<script>
+(function(){
+  "use strict";
+  var cv=document.getElementById("c"), ctx=cv.getContext("2d");
+  var cardsEl=document.getElementById("cards"), ov=document.getElementById("ov");
+  var W=0,H=0,DPR=Math.min(2,window.devicePixelRatio||1);
+  function resize(){ W=cv.clientWidth; H=cv.clientHeight; cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0); }
+  window.addEventListener("resize",resize);
+
+  var TYPES=[
+    {key:"sol",nm:"兵士",em:"🗡️",cost:3,hp:70,atk:24,spd:70,col:"#7dd3fc"},
+    {key:"kni",nm:"騎士",em:"🛡️",cost:5,hp:175,atk:30,spd:52,col:"#a78bfa"},
+    {key:"gia",nm:"ジャイ",em:"🐲",cost:7,hp:430,atk:42,spd:34,col:"#f0a35e"}
+  ];
+  var ENGAGE=30, TOWER_R=120, TOWER_ATK=46;
+  var state, units, myEli, foeEli, score, foeTimer, running=false, last=0, paused=false, towerBaseHP, foeTowerMax, flash=0, selKey=null;
+
+  function reset(){
+    units=[]; myEli=5; foeEli=5; score=0; foeTimer=1.2; flash=0; selKey=null;
+    towerBaseHP=1000; foeTowerMax=1000;
+    state={ myTower:1000, myTowerMax:1000, foeTower:1000, foeTowerMax:1000 };
+  }
+  function towerY(){ return {foe: 78, my: H-92}; }
+
+  function spawn(side, t){
+    var ty=towerY();
+    var y = side==="me" ? ty.my-34 : ty.foe+34;
+    units.push({ side:side, t:t, hp:t.hp, max:t.hp, y:y, x:W/2 + (Math.random()*60-30), atkCd:0 });
+  }
+  function canPlay(t){ return myEli>=t.cost; }
+  function play(t){
+    if(state==null||!running||!canPlay(t)) return;
+    myEli-=t.cost; spawn("me",t); renderCards();
+  }
+
+  function renderCards(){
+    cardsEl.innerHTML="";
+    TYPES.forEach(function(t){
+      var d=document.createElement("div");
+      d.className="card"+(myEli>=t.cost?"":" dis");
+      d.innerHTML='<div class="em">'+t.em+'</div><div class="nm">'+t.nm+'</div><div class="co">⚡'+t.cost+'</div>';
+      d.addEventListener("click",function(){ play(t); });
+      cardsEl.appendChild(d);
+    });
+  }
+
+  function foeAI(dt){
+    foeTimer-=dt;
+    if(foeTimer<=0){
+      foeTimer=0.9+Math.random()*1.3;
+      // 難易度：スコアが上がるほど積極的・強い
+      var pool=TYPES.filter(function(t){ return foeEli>=t.cost; });
+      if(pool.length){
+        var pick = (score>=2 && foeEli>=7 && Math.random()<.5)? TYPES[2]
+                 : pool[Math.floor(Math.random()*pool.length)];
+        if(foeEli>=pick.cost){ foeEli-=pick.cost; spawn("foe",pick); }
+      }
+    }
+  }
+
+  function step(dt){
+    var ty=towerY();
+    var eliRate = 1/1.1 + Math.min(score*0.06,0.6); // 徐々に加速
+    myEli=Math.min(10,myEli+eliRate*dt);
+    foeEli=Math.min(10,foeEli+(eliRate+0.05+Math.min(score*0.05,0.5))*dt);
+    foeAI(dt);
+
+    // 各ユニットの行動
+    for(var i=0;i<units.length;i++){
+      var u=units[i]; if(u.hp<=0) continue;
+      u.atkCd-=dt;
+      var dir = u.side==="me" ? -1 : 1; // me は上(yマイナス)へ
+      // 最も近い敵ユニット（前方）を探す
+      var target=null, tdist=1e9;
+      for(var j=0;j<units.length;j++){
+        var o=units[j]; if(o.hp<=0||o.side===u.side) continue;
+        var dy=o.y-u.y;
+        if(dir<0 ? dy<0 : dy>0){ var ad=Math.abs(dy); if(ad<tdist){ tdist=ad; target=o; } }
+      }
+      var enemyTowerY = u.side==="me" ? ty.foe : ty.my;
+      var distTower = Math.abs(u.y-enemyTowerY);
+      if(target && tdist<=ENGAGE){
+        if(u.atkCd<=0){ target.hp-=u.t.atk*0.5; u.atkCd=0.5; }
+      } else if(distTower<=ENGAGE+8){
+        if(u.atkCd<=0){
+          if(u.side==="me") state.foeTower-=u.t.atk*0.5; else state.myTower-=u.t.atk*0.5;
+          u.atkCd=0.5;
+        }
+      } else {
+        u.y += dir*u.t.spd*dt;
+      }
+    }
+    // タワー攻撃（射程内の最も近い敵を撃つ）
+    towerShoot("me", ty.my, dt);
+    towerShoot("foe", ty.foe, dt);
+
+    units=units.filter(function(u){ return u.hp>0; });
+
+    if(state.foeTower<=0){
+      score++; flash=0.7;
+      foeTowerMax=Math.round(foeTowerMax*1.22);
+      state.foeTowerMax=foeTowerMax; state.foeTower=foeTowerMax;
+      // 敵ユニットを一掃、味方は残す
+      units=units.filter(function(u){ return u.side==="me"; });
+      foeEli=Math.max(foeEli,3);
+    }
+    if(state.myTower<=0){ gameOver(); }
+  }
+  function towerShoot(side,y,dt){
+    // タワーのオートディフェンス（簡易）
+    var target=null,td=1e9;
+    for(var i=0;i<units.length;i++){ var u=units[i]; if(u.side===side) continue; var d=Math.abs(u.y-y); if(d<TOWER_R&&d<td){td=d;target=u;} }
+    if(target){ target.hp-=TOWER_ATK*dt; }
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    var ty=towerY();
+    // 背景レーン
+    var g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,"#171a30"); g.addColorStop(1,"#10122a");
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle="rgba(255,255,255,.05)"; ctx.lineWidth=2;
+    for(var l=1;l<6;l++){ ctx.beginPath(); ctx.moveTo(0,H*l/6); ctx.lineTo(W,H*l/6); ctx.stroke(); }
+
+    drawTower(W/2, ty.foe, state.foeTower, state.foeTowerMax, "#ff6b6b", "敵");
+    drawTower(W/2, ty.my, state.myTower, state.myTowerMax, "#8b5cf6", "味方");
+
+    units.forEach(function(u){
+      ctx.font="24px serif"; ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.globalAlpha=u.side==="foe"?0.95:1;
+      ctx.fillText(u.t.em, u.x, u.y);
+      ctx.globalAlpha=1;
+      // hpバー
+      var w=26, hpr=Math.max(0,u.hp/u.max);
+      ctx.fillStyle="rgba(0,0,0,.5)"; ctx.fillRect(u.x-w/2,u.y-22,w,4);
+      ctx.fillStyle=u.side==="me"?"#8b5cf6":"#ff6b6b"; ctx.fillRect(u.x-w/2,u.y-22,w*hpr,4);
+    });
+
+    // HUD
+    ctx.textAlign="left"; ctx.textBaseline="top";
+    ctx.font="800 18px sans-serif"; ctx.fillStyle="#fff";
+    ctx.fillText("撃破 "+score, 12, 10);
+    // エリクサー
+    var bx=12, by=H-20, bw=W-24, er=myEli/10;
+    ctx.fillStyle="#241a40"; roundRect(bx,by,bw,10,5); ctx.fill();
+    ctx.fillStyle="#c084fc"; roundRect(bx,by,bw*er,10,5); ctx.fill();
+    ctx.fillStyle="#fff"; ctx.font="800 12px sans-serif"; ctx.textAlign="right";
+    ctx.fillText("⚡"+Math.floor(myEli), W-14, by-16);
+
+    if(flash>0){ ctx.fillStyle="rgba(199,155,255,"+(flash*0.5)+")"; ctx.fillRect(0,0,W,H);
+      ctx.fillStyle="#fff"; ctx.font="800 30px sans-serif"; ctx.textAlign="center"; ctx.fillText("敵タワー撃破！",W/2,ty.foe+40); }
+  }
+  function drawTower(x,y,hp,max,col,label){
+    ctx.fillStyle=col; roundRect(x-34,y-26,68,52,10); ctx.fill();
+    ctx.fillStyle="rgba(0,0,0,.25)"; roundRect(x-34,y-26,68,14,8); ctx.fill();
+    var w=72, hpr=Math.max(0,hp/max);
+    ctx.fillStyle="rgba(0,0,0,.5)"; roundRect(x-w/2,y+30,w,7,3); ctx.fill();
+    ctx.fillStyle=col; roundRect(x-w/2,y+30,w*hpr,7,3); ctx.fill();
+  }
+  function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+  function loop(t){
+    if(!running) return;
+    var dt=Math.min(0.05,(t-last)/1000)||0; last=t;
+    if(!paused){ if(flash>0) flash-=dt; step(dt); draw(); renderCardsThrottle(); }
+    requestAnimationFrame(loop);
+  }
+  var rcAcc=0;
+  function renderCardsThrottle(){ rcAcc++; if(rcAcc%6===0) renderCards(); }
+
+  function start(){
+    resize(); reset(); renderCards(); ov.hidden=true; running=true; paused=false; last=performance.now();
+    if(window.Arcade) Arcade.ready();
+    requestAnimationFrame(loop);
+  }
+  function gameOver(){
+    running=false;
+    ov.innerHTML='<h1>ゲームオーバー</h1><div class="big">'+score+' 撃破</div><p>もう一度挑戦！</p><button id="rb">リトライ</button>';
+    ov.hidden=false;
+    document.getElementById("rb").addEventListener("click",start);
+    if(window.Arcade) Arcade.gameOver(score);
+  }
+  document.getElementById("startBtn").addEventListener("click",start);
+  if(window.Arcade){ Arcade.onPause(function(){paused=true;}); Arcade.onResume(function(){paused=false; last=performance.now();}); Arcade.onRestart(start); }
+  resize(); reset(); renderCards(); draw && (function(){ try{draw();}catch(e){} })();
+})();
+</script>
+</body>
+</html>

@@ -29,6 +29,36 @@ window.GAMES = [
     score: { type: "high", unit: "秒" },
     accent: "#3fb950",
     blurb: "落ちてくるブロックを指でよけて生き残れ。"
+  },
+  {
+    id: "royale",
+    title: "ミニロワイヤル",
+    author: "ぴこ",
+    category: "アクション",
+    path: "games/royale/index.html",
+    score: { type: "high", unit: "撃破" },
+    accent: "#8b5cf6",
+    blurb: "エリクサーをためてユニット出撃。敵タワーを壊せ！"
+  },
+  {
+    id: "burger",
+    title: "バーガータワー",
+    author: "うどん",
+    category: "タイミング",
+    path: "games/burger/index.html",
+    score: { type: "high", unit: "段" },
+    accent: "#ffb02e",
+    blurb: "具材をタップで落として高く積む。バランス注意！"
+  },
+  {
+    id: "pingpong",
+    title: "たっきゅう",
+    author: "みどり",
+    category: "反射神経",
+    path: "games/pingpong/index.html",
+    score: { type: "high", unit: "回" },
+    accent: "#34d399",
+    blurb: "打つほど加速。何回ラリーが続く？"
   }
 ];
 window.getGame = function (id) {

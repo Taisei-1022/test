@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Vappa 運営：賑わい</title>
+<style>
+  body{margin:0;background:#141221;color:#f1eefb;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;padding:18px;max-width:560px;margin:0 auto;}
+  h1{font-size:20px;} .sub{color:#9a93b5;font-size:13px;line-height:1.6;margin:4px 0 16px;}
+  .row{display:flex;align-items:center;gap:10px;background:#1d1a2e;border:1px solid #2c2740;border-radius:12px;padding:10px 12px;margin-bottom:8px;}
+  .row .nm{flex:1;font-weight:800;font-size:14px;} .row .ct{color:#9a93b5;font-size:12px;}
+  button{background:#8b5cf6;color:#fff;border:0;border-radius:10px;padding:.55rem .9rem;font:inherit;font-weight:800;font-size:13px;cursor:pointer;}
+  button.sec{background:transparent;border:1px solid #3a3460;color:#cdbcff;}
+  .bar{display:flex;gap:10px;align-items:center;margin:14px 0;}
+  input{width:64px;background:#1d1a2e;border:1px solid #2c2740;color:#fff;border-radius:8px;padding:.4rem .5rem;font:inherit;}
+  #log{margin-top:14px;background:#0f0d18;border:1px solid #2c2740;border-radius:10px;padding:10px;font-size:12px;white-space:pre-wrap;min-height:80px;color:#bdb6d6;}
+</style>
+</head>
+<body>
+<h1>賑わい演出（運営）</h1>
+<p class="sub">各ゲームにサクラのスコアを入れて、ランキング＆プレイ数を埋めます。スコア1件＝1プレイ。<br>※運営専用ページ。アプリからはリンクしていません。</p>
+<div class="bar">
+  1ゲームあたり <input id="cnt" type="number" value="8" min="1" max="30" /> 件
+  <button id="all">全ゲームに仕込む</button>
+</div>
+<div id="list"></div>
+<div id="log">準備OK。</div>
+
+<script src="js/games.js?v=3"></script>
+<script src="js/config.js?v=2"></script>
+<script src="js/store.js?v=3"></script>
+<script src="js/catalog.js?v=6"></script>
+<script src="js/seed-activity.js?v=1"></script>
+<script>
+(function(){
+  "use strict";
+  var listEl=document.getElementById("list"), logEl=document.getElementById("log");
+  function log(m){ logEl.textContent = "» "+m+"\n"+logEl.textContent; }
+  function cnt(){ return Math.max(1,Math.min(30, parseInt(document.getElementById("cnt").value,10)||8)); }
+  var all=[];
+
+  function rowFor(g){
+    var d=document.createElement("div"); d.className="row";
+    d.innerHTML='<div class="nm">'+g.title+'<div class="ct">'+g.id+' ・ '+(g.score&&g.score.type||"high")+'</div></div>';
+    var b=document.createElement("button"); b.textContent="仕込む";
+    b.onclick=function(){ b.disabled=true;
+      SeedActivity.seedGame(g.id,(g.score&&g.score.type)||"high",cnt()).then(function(r){
+        b.disabled=false; log(g.title+"："+(r.ok?"OK "+r.count+"件":"失敗 "+r.status));
+      });
+    };
+    d.appendChild(b); return d;
+  }
+  function render(){
+    listEl.innerHTML="";
+    all.forEach(function(g){ listEl.appendChild(rowFor(g)); });
+  }
+  // シード＋生成ゲームをまとめて対象に
+  all = (window.GAMES||[]).slice();
+  Catalog.listGenerated().then(function(gen){
+    (gen||[]).forEach(function(g){ if(g.published!==false) all.push({id:g.id,title:g.title||g.id,score:{type:"high"}}); });
+    render();
+  }).catch(render);
+
+  document.getElementById("all").addEventListener("click",function(){
+    log("全ゲームに仕込み開始…");
+    SeedActivity.seedAll(all, cnt()).then(function(res){
+      var ok=res.filter(function(r){return r.ok;}).length;
+      log("完了："+ok+"/"+res.length+" ゲーム成功");
+    });
+  });
+})();
+</script>
+</body>
+</html>

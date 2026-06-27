@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1" />
+<title>たっきゅう</title>
+<style>
+  *{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;}
+  html,body{height:100%;background:#0e1322;overflow:hidden;font-family:"Hiragino Maru Gothic ProN","Hiragino Sans",system-ui,sans-serif;color:#fff;touch-action:none;}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block;}
+  #ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+     background:rgba(8,11,22,.82);text-align:center;padding:24px;z-index:5;}
+  #ov h1{font-size:26px;font-weight:800;}
+  #ov p{color:#aeb8d6;font-size:14px;line-height:1.7;}
+  #ov .big{font-size:42px;font-weight:800;color:#34d399;}
+  #ov button{background:#34d399;color:#05281c;border:0;border-radius:14px;padding:.85rem 1.7rem;font:inherit;font-weight:800;font-size:16px;cursor:pointer;}
+  #ov[hidden]{display:none;}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ov">
+  <h1>🏓 たっきゅう</h1>
+  <p>下のバーを指でスライドして打ち返す。<br>打つたびに加速！ 何回ラリーできる？<br>見逃したら終わり。</p>
+  <button id="startBtn">はじめる</button>
+</div>
+<script src="../../js/arcade-sdk.js?v=2"></script>
+<script>
+(function(){
+  "use strict";
+  var cv=document.getElementById("c"), ctx=cv.getContext("2d"), ov=document.getElementById("ov");
+  var W=0,H=0,DPR=Math.min(2,window.devicePixelRatio||1);
+  function resize(){ W=window.innerWidth; H=window.innerHeight; cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0); pw=Math.min(W*0.28,120); }
+  window.addEventListener("resize",resize);
+
+  var pw=110, ph=14, run=false, paused=false, last=0;
+  var me, ai, ball, rally, aiPts, baseSpd;
+
+  function reset(){
+    me={x:W/2}; ai={x:W/2}; rally=0; aiPts=0; baseSpd=Math.max(H,560)*0.55;
+    serve(1);
+  }
+  function serve(dir){ // dir 1=下(自分)へ, -1=上(AI)へ
+    ball={x:W/2,y:H/2, vx:(Math.random()*2-1)*baseSpd*0.4, vy:dir*baseSpd, r:11, spd:baseSpd};
+  }
+  function speedUp(){ ball.spd*=1.045; }
+
+  function step(dt){
+    var meY=H-58, aiY=58;
+    // AI追従（速度に対して少し遅く＝たまにミス）
+    var aiMax = baseSpd*0.62 + rally*4;
+    var d=ball.x-ai.x; ai.x += Math.max(-aiMax*dt, Math.min(aiMax*dt, d));
+    ai.x=Math.max(pw/2,Math.min(W-pw/2,ai.x));
+
+    ball.x+=ball.vx*dt; ball.y+=ball.vy*dt;
+    // 壁
+    if(ball.x<ball.r){ ball.x=ball.r; ball.vx=Math.abs(ball.vx); }
+    if(ball.x>W-ball.r){ ball.x=W-ball.r; ball.vx=-Math.abs(ball.vx); }
+    // 自分のパドル
+    if(ball.vy>0 && ball.y>=meY-ph/2-ball.r && ball.y<=meY+ph){
+      if(Math.abs(ball.x-me.x)<=pw/2+ball.r){
+        ball.y=meY-ph/2-ball.r; rally++; speedUp();
+        var off=(ball.x-me.x)/(pw/2); reflect(-1, off);
+      }
+    }
+    // AIパドル
+    if(ball.vy<0 && ball.y<=aiY+ph/2+ball.r && ball.y>=aiY-ph){
+      if(Math.abs(ball.x-ai.x)<=pw/2+ball.r){
+        ball.y=aiY+ph/2+ball.r; speedUp();
+        var off2=(ball.x-ai.x)/(pw/2); reflect(1, off2);
+      }
+    }
+    // 見逃し
+    if(ball.y>H+30){ gameOver(); }
+    else if(ball.y<-30){ aiPts++; serve(1); } // AIが見逃し→自分の得点、続行
+  }
+  function reflect(dirY, off){
+    // dirY: 1=下向きに, -1=上向きに 跳ね返す。offで角度を付ける
+    var ang = off*0.9; // -0.9..0.9 rad 方向
+    var s=ball.spd;
+    ball.vx = Math.sin(ang)*s;
+    ball.vy = dirY*Math.cos(ang)*s;
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    var g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,"#14203a"); g.addColorStop(1,"#0c1120");
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    // センターライン
+    ctx.strokeStyle="rgba(255,255,255,.12)"; ctx.setLineDash([8,10]); ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(0,H/2); ctx.lineTo(W,H/2); ctx.stroke(); ctx.setLineDash([]);
+    // スコア
+    ctx.fillStyle="rgba(255,255,255,.9)"; ctx.font="800 22px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="top";
+    ctx.fillText("ラリー "+rally, W/2, H/2-34);
+    if(aiPts>0){ ctx.fillStyle="rgba(52,211,153,.8)"; ctx.font="800 13px sans-serif"; ctx.fillText("得点 "+aiPts, W/2, H/2+12); }
+    // パドル
+    var meY=H-58, aiY=58;
+    ctx.fillStyle="#34d399"; rr(me.x-pw/2, meY-ph/2, pw, ph, 7); ctx.fill();
+    ctx.fillStyle="#ff6b6b"; rr(ai.x-pw/2, aiY-ph/2, pw, ph, 7); ctx.fill();
+    // ボール
+    ctx.beginPath(); ctx.arc(ball.x,ball.y,ball.r,0,7); ctx.fillStyle="#ffd166"; ctx.fill();
+  }
+  function rr(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+  function loop(t){ if(!run) return; var dt=Math.min(0.04,(t-last)/1000)||0; last=t; if(!paused){ step(dt); draw(); } requestAnimationFrame(loop); }
+  function start(){ resize(); reset(); ov.hidden=true; run=true; paused=false; last=performance.now(); if(window.Arcade)Arcade.ready(); requestAnimationFrame(loop); }
+  function gameOver(){ run=false;
+    ov.innerHTML='<h1>ミス！</h1><div class="big">'+rally+' ラリー</div><p>連続で打ち返そう。</p><button id="rb">リトライ</button>';
+    ov.hidden=false; document.getElementById("rb").addEventListener("click",start);
+    if(window.Arcade)Arcade.gameOver(rally);
+  }
+  function move(e){ if(!run)return; var x=(e.touches?e.touches[0].clientX:e.clientX); me.x=Math.max(pw/2,Math.min(W-pw/2,x)); }
+  cv.addEventListener("pointerdown",move); cv.addEventListener("pointermove",move);
+  document.getElementById("startBtn").addEventListener("click",function(e){e.stopPropagation();start();});
+  if(window.Arcade){ Arcade.onPause(function(){paused=true;}); Arcade.onResume(function(){paused=false;last=performance.now();}); Arcade.onRestart(start); }
+  resize(); reset(); draw();
+})();
+</script>
+</body>
+</html>
