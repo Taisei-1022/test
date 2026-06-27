@@ -196,7 +196,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.13";
+  var APP_VERSION = "0.9.14";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -698,15 +698,16 @@
       if(!g) return;
       chatlog.innerHTML=""; chatInit=true; busy=false; convo=[]; dirty=false; showStarters(false);
       // 保存していた会話履歴を復元（あれば）
+      var hadHistory=false;
       try{ if(g.chat){ var arr=JSON.parse(g.chat); if(Array.isArray(arr)) convo=arr; } }catch(e){}
       convo.forEach(function(m){
         var t=(m&&m.content)||""; if(!t||t==="（ゲームを生成しました）") return;
-        bubble(m.role==="user"?"user":"bot", t);
+        hadHistory=true; bubble(m.role==="user"?"user":"bot", t);
       });
       lastGen={ title:g.title, html:g.html, accent:g.accent||"#e6b450", description:g.description||"", thumb:g.thumb||null, editingId:g.id, category:g.category||"その他", published:g.published, chat:g.chat||null };
       toPreviewBtn.classList.remove("off");
-      // チャットに移った時のための前置き（まずは情報編集画面を出す）
-      bubble("bot","「"+g.title+"」を編集中。直したい所を言ってね（例：もっと速く／敵を増やして／色を青に）。");
+      // 履歴がある時は前置きを出さない（重複するので）。履歴が無い時だけ案内を表示。
+      if(!hadHistory) bubble("bot","「"+g.title+"」を編集中。直したい所を言ってね（例：もっと速く／敵を増やして／色を青に）。");
       pushScreen("create","publish");   // まずタグ・名前・説明・サムネを編集する画面へ
     });
   }
