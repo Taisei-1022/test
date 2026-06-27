@@ -153,6 +153,19 @@
   </div>
 </div>
 
+<!-- 新規プロジェクト（仮の名前を入れて開始） -->
+<div class="howto" id="newproj" hidden>
+  <div class="howtobox">
+    <h3>新しいプロジェクト</h3>
+    <p class="lead">ゲーム名を入れてね（あとで変更OK。空欄なら「無題のゲーム」）</p>
+    <input id="newprojName" class="field" maxlength="40" placeholder="例：ねこジャンプ" />
+    <div class="pvbtns" style="margin-top:16px">
+      <button id="newprojCancel">キャンセル</button>
+      <button class="pri" id="newprojOk">作成してはじめる</button>
+    </div>
+  </div>
+</div>
+
 <!-- 作り方チュートリアル -->
 <div class="howto" id="howto" hidden>
   <div class="howtobox">
@@ -172,7 +185,7 @@
 <script src="js/assets.js?v=1"></script>
 <script src="js/config.js?v=2"></script>
 <script src="js/store.js?v=3"></script>
-<script src="js/ai.js?v=8"></script>
+<script src="js/ai.js?v=9"></script>
 <script src="js/catalog.js?v=7"></script>
 <script src="js/arcade-embed.js?v=3"></script>
 <script src="js/pwa.js?v=1"></script>
@@ -181,7 +194,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.4";
+  var APP_VERSION = "0.9.5";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -197,6 +210,10 @@
   function showToast(m){ toast.textContent=m; toast.classList.add("show"); setTimeout(function(){toast.classList.remove("show");},1500); }
   var genBar=document.getElementById("genBar");
   function setGenerating(on){ if(genBar) genBar.hidden=!on; }
+  // 生成中ジョブを端末に記録（離脱・再起動しても結果を取りこぼさないため）
+  var PENDING="arcade.pendingGen";
+  function savePending(jobId,editingId,title){ try{ localStorage.setItem(PENDING, JSON.stringify({job:jobId, editingId:editingId||null, title:title||"", ts:Date.now()})); }catch(e){} }
+  function clearPending(){ try{ localStorage.removeItem(PENDING); }catch(e){} }
 
   /* ---------- タブ切替 ---------- */
   var tabs=document.querySelectorAll(".tabbar button");
@@ -367,7 +384,31 @@
   }
   function enterCreate(){ if(!createEntered){ createEntered=true; crShow("list"); } }
 
-  document.getElementById("newBtn").addEventListener("click", function(){ autosaveDraft(); resetChat(); crShow("chat"); });
+  // 新規作成：まず仮のゲーム名を入れて、進行中プロジェクトとして即保存してから開始
+  var newprojModal=document.getElementById("newproj"), newprojName=document.getElementById("newprojName");
+  function openNewProj(){ newprojName.value=""; newprojModal.hidden=false; setTimeout(function(){ try{newprojName.focus();}catch(e){} },60); }
+  function closeNewProj(){ newprojModal.hidden=true; }
+  function createProject(name){
+    var title=(name||"").trim()||"無題のゲーム";
+    closeNewProj();
+    autosaveDraft();   // 直前に編集中があれば保存
+    // チャットを白紙に（resetChatと同等だがlastGenは新プロジェクトにする）
+    chatlog.innerHTML=""; chatInit=false; busy=false; convo=[];
+    pickedAssets=[]; renderAssetTray(); setAssetOpen(false); showStarters(true);
+    toPreviewBtn.classList.add("off");
+    lastGen={ title:title, html:"", accent:ACCENTS[Math.floor(Math.random()*ACCENTS.length)], description:"", thumb:null, editingId:null, category:"その他", published:false, chat:"[]" };
+    dirty=false;
+    // すぐ下書き保存して一覧に「進行中」として残す
+    Catalog.publish({ title:title, html:"", description:"", thumb:null, category:"その他", published:false, chat:"[]" })
+      .then(function(row){ if(row&&row.id) lastGen.editingId=row.id; refreshCreations(); })
+      .catch(function(){});
+    initChat();
+    crShow("chat"); show("create");
+  }
+  document.getElementById("newBtn").addEventListener("click", openNewProj);
+  document.getElementById("newprojCancel").addEventListener("click", closeNewProj);
+  document.getElementById("newprojOk").addEventListener("click", function(){ createProject(newprojName.value); });
+  newprojName.addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); createProject(newprojName.value); } });
   document.getElementById("chatBack").addEventListener("click", function(){ autosaveDraft(); crShow("list"); });
   document.getElementById("pvBack").addEventListener("click", function(){ crShow("chat"); });
   document.getElementById("pvToChat").addEventListener("click", function(){ crShow("chat"); });
@@ -640,8 +681,8 @@
     if(pickedAssets.length){ pickedAssets=[]; renderAssetTray(); if(!assetPanel.hidden) renderAssetPanel(); }
     var prev = (lastGen && lastGen.html) ? lastGen.html : "";
     var typing=bubble("bot typing", prev?"直しているよ…":"考え中…");
-    Ai.send(convo, prev, function(){ setGenerating(true); }).then(function(res){
-      typing.remove(); setGenerating(false);
+    Ai.send(convo, prev, function(jobId){ setGenerating(true); savePending(jobId, lastGen&&lastGen.editingId, lastGen&&lastGen.title); }).then(function(res){
+      typing.remove(); setGenerating(false); clearPending();
       if(res.action==="ask"){
         var reply=res.reply||"どんな感じにする？";
         bubble("bot", reply); convo.push({role:"assistant",content:reply});
@@ -651,7 +692,7 @@
       // build
       if(res.reply) bubble("bot", res.reply);
       var k = lastGen || {};
-      lastGen={ title:res.title, html:res.html,
+      lastGen={ title:(k.title && k.title!=="無題のゲーム") ? k.title : (res.title||"無題のゲーム"), html:res.html,
         accent: k.accent || ACCENTS[Math.floor(Math.random()*ACCENTS.length)],
         description: k.description || "", thumb: k.thumb || null, editingId: k.editingId || null,
         category: res.category || k.category || "その他", published: k.published };
@@ -665,7 +706,7 @@
       var onChat = document.getElementById("view-create").classList.contains("active") && document.getElementById("cr-chat").classList.contains("on");
       if(!onChat){ autosaveDraft(); showToast("「"+res.title+"」ができたよ！"); }
     }).catch(function(err){
-      typing.remove(); busy=false; setGenerating(false);
+      typing.remove(); busy=false; setGenerating(false); clearPending();
       var s=String(err&&err.message||err);
       var msg;
       if(/rate_limited/.test(s)){
@@ -705,10 +746,30 @@
   window.addEventListener("pagehide", autosaveDraft);
   document.addEventListener("visibilitychange", function(){ if(document.hidden) autosaveDraft(); });
 
+  // 起動時：生成中のまま離脱していたジョブがあれば結果を取りに行き、プロジェクトへ保存
+  function recoverPending(){
+    var raw; try{ raw=localStorage.getItem(PENDING); }catch(e){ return; }
+    if(!raw) return;
+    var p; try{ p=JSON.parse(raw); }catch(e){ clearPending(); return; }
+    if(!p||!p.job){ clearPending(); return; }
+    if(Date.now()-(p.ts||0) > 10*60*1000){ clearPending(); return; }   // 古すぎは破棄
+    if(!(window.Ai&&Ai.available&&Ai.available()&&Ai.resumeJob)) return;
+    setGenerating(true); showToast("前回の生成を確認中…");
+    Ai.resumeJob(p.job).then(function(res){
+      setGenerating(false); clearPending();
+      if(!res||res.action!=="build") return;
+      var payload={ title:(p.title && p.title!=="無題のゲーム") ? p.title : (res.title||"無題のゲーム"), html:res.html, description:"", thumb:null, category:res.category||"その他", published:false };
+      var done=function(){ refreshCreations(); showToast("「"+payload.title+"」ができたよ！（保存済み）"); };
+      if(p.editingId){ Catalog.update(p.editingId, payload).then(done).catch(done); }
+      else { Catalog.publish(payload).then(done).catch(done); }
+    }).catch(function(){ setGenerating(false); clearPending(); });
+  }
+
   /* ---------- 初期表示 ---------- */
   var start=(location.hash||"#play").slice(1);
   if(!/^(play|create|mypage)$/.test(start)) start="play";
   show(start);
+  recoverPending();
 })();
 </script>
 </body>

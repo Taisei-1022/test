@@ -80,12 +80,14 @@ window.Ai = (function () {
     send: function (messages, prevHtml, onBuild) {
       return post({ messages: messages, prevHtml: prevHtml || "", token: token() }).then(function (data) {
         if (data && data.action === "job") {
-          if (onBuild) { try { onBuild(); } catch (e) {} }
+          if (onBuild) { try { onBuild(data.job_id); } catch (e) {} }
           return pollJob(data.job_id);
         }
         return data;
       });
     },
+    // 既存ジョブIDの完了を待つ（離脱→再起動後の復元用）
+    resumeJob: function (jobId) { return pollJob(jobId); },
     // 後方互換：一言からそのまま生成
     generate: async function (prompt, prevHtml) {
       var r = await post({ messages: [{ role: "user", content: prompt }], prevHtml: prevHtml || "", token: token() });
