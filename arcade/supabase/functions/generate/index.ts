@@ -32,6 +32,65 @@ Output (structured):
 - reply: a short Japanese message to the user (for "build", a brief line like "じゃあ作るね！")
 - options: 0–4 short Japanese choice strings the user can tap (for "ask"; empty for "build")`;
 
+// 品質の手本（この構造・完成度を真似させる。丸写しはさせない）。
+// 状態管理 / resize / Arcadeフック＆フォールバック / touch+pointer入力 / ループ / スコア / 演出 を網羅。
+const GOLD_EXAMPLE = `<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
+<title>キャッチ</title>
+<style>
+*{margin:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+html,body{height:100%;background:#10131c;overflow:hidden;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff;touch-action:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+#ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(8,10,18,.82);text-align:center;padding:24px}
+#ov h1{font-size:28px} #ov p{color:#aeb6c8;font-size:15px;line-height:1.7} #ov .big{font-size:40px;font-weight:800;color:#ffd166}
+#ov button{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.8rem 1.6rem;font:inherit;font-weight:800;font-size:16px}
+#ov[hidden]{display:none}
+#hud{position:fixed;top:calc(env(safe-area-inset-top) + 10px);left:0;right:0;text-align:center;font-weight:800;font-size:20px;pointer-events:none;text-shadow:0 2px 6px rgba(0,0,0,.5)}
+</style></head><body>
+<canvas id="c"></canvas><div id="hud"></div>
+<div id="ov"><h1>🍎 キャッチ</h1><p>かごを動かしてリンゴをキャッチ！<br>3回落とすと終わり。</p><button id="start">はじめる</button></div>
+<script>
+window.Arcade = window.Arcade || {ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
+(function(){
+  "use strict";
+  var cv=document.getElementById("c"),ctx=cv.getContext("2d"),ov=document.getElementById("ov"),hud=document.getElementById("hud");
+  var W=0,H=0,DPR=Math.min(2,window.devicePixelRatio||1);
+  function resize(){W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+  addEventListener("resize",resize);
+  var basket,items,spawnT,spawnGap,score,miss,run,paused,last;
+  function reset(){basket={x:0,w:84,y:0};items=[];spawnT=0;spawnGap=1.0;score=0;miss=0;run=false;paused=false;basket.x=innerWidth/2;}
+  function start(){resize();reset();ov.hidden=true;run=true;last=performance.now();Arcade.ready();requestAnimationFrame(loop);}
+  function over(){run=false;ov.innerHTML='<h1>おしまい</h1><div class="big">'+score+'</div><p>キャッチ数</p><button id="rb">リトライ</button>';ov.hidden=false;document.getElementById("rb").onclick=start;Arcade.gameOver(score);}
+  function spawn(){items.push({x:40+Math.random()*(W-80),y:-30,v:160+score*4});}
+  function loop(t){if(!run)return;var dt=Math.min(.05,(t-last)/1000);last=t;if(!paused)update(dt);draw();requestAnimationFrame(loop);}
+  function update(dt){
+    basket.y=H-90;
+    spawnT+=dt;spawnGap=Math.max(.45,1.0-score*.02);
+    if(spawnT>=spawnGap){spawnT=0;spawn();}
+    for(var i=items.length-1;i>=0;i--){var it=items[i];it.y+=it.v*dt;
+      if(it.y>basket.y-18&&it.y<basket.y+18&&Math.abs(it.x-basket.x)<basket.w/2+16){items.splice(i,1);score++;continue;}
+      if(it.y>H+30){items.splice(i,1);miss++;if(miss>=3){over();return;}}
+    }
+    hud.textContent=score+"　❤×"+(3-miss);
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    var g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,"#1b2236");g.addColorStop(1,"#0d1018");ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+    ctx.font="30px serif";ctx.textAlign="center";ctx.textBaseline="middle";
+    for(var i=0;i<items.length;i++)ctx.fillText("🍎",items[i].x,items[i].y);
+    ctx.fillStyle="#c98a3a";ctx.fillRect(basket.x-basket.w/2,basket.y-10,basket.w,22);
+    ctx.fillStyle="#e0a55a";ctx.fillRect(basket.x-basket.w/2,basket.y-14,basket.w,8);
+  }
+  function move(e){if(!run)return;var x=(e.touches?e.touches[0].clientX:e.clientX);basket.x=Math.max(basket.w/2,Math.min(W-basket.w/2,x));if(e.preventDefault)e.preventDefault();}
+  cv.addEventListener("pointermove",move);cv.addEventListener("pointerdown",move);
+  cv.addEventListener("touchmove",move,{passive:false});cv.addEventListener("touchstart",move,{passive:false});
+  document.getElementById("start").addEventListener("click",start);
+  Arcade.onRestart(start);Arcade.onPause(function(){paused=true;});Arcade.onResume(function(){paused=false;last=performance.now();});
+  resize();reset();draw();
+})();
+</script></body></html>`;
+
 // 本生成（自己完結の単一HTMLゲーム）
 const BUILD_SYSTEM = `You generate a complete, self-contained single-file HTML5 mini-game.
 
@@ -71,7 +130,10 @@ Characters / sprites (IMPORTANT for looks):
 - If the conversation says the user picked specific 素材 (emoji), use THOSE as the main characters/objects.
 
 Category:
-- Also choose ONE best-fitting "category" from: アクション / パズル / シューティング / 反射神経 / よける / タイミング / 記憶 / レース / その他.`;
+- Also choose ONE best-fitting "category" from: アクション / パズル / シューティング / 反射神経 / よける / タイミング / 記憶 / レース / その他.
+
+Reference example — study its STRUCTURE and POLISH and emulate it (states, resize, Arcade hooks + the fallback shim, touch+pointer input, the rAF loop, score, juicy feedback). Make a DIFFERENT game per the user's request; do NOT copy it verbatim:
+` + "```html\n" + GOLD_EXAMPLE + "\n```";
 
 const PLAN_SCHEMA = {
   type: "object",
@@ -199,6 +261,14 @@ function validateGame(html: string): string | null {
     catch (e) { return "JavaScriptの構文エラー: " + String((e as Error)?.message || e).slice(0, 120); }
   }
   if (!/Arcade\s*\.\s*gameOver/.test(h)) return "ゲーム終了の通知(Arcade.gameOver)が呼ばれていません";
+  if (!/Arcade\s*\.\s*ready/.test(h)) return "開始通知(Arcade.ready)が呼ばれていません";
+  // 操作できる入力が無いゲームは壊れ（タップ/スワイプ/キー等のいずれか必須）
+  if (!/(touchstart|touchmove|touchend|pointerdown|pointermove|pointerup|mousedown|mousemove|keydown|click)/i.test(h))
+    return "操作の入力（タップ/スワイプ/キー等）が見当たりません";
+  // canvasを使うのに描画コンテキストを取っていない＝高確率で壊れ
+  if (/<canvas/i.test(h) && !/getContext/.test(h)) return "canvasがありますが getContext を取得していません";
+  // アニメ/タイマーが全く無い＝動かない可能性（イベント駆動のみは稀なので緩めに）
+  if (!/(requestAnimationFrame|setInterval|setTimeout)/.test(h)) return "ゲームループ/タイマーが見当たりません";
   return null;
 }
 
@@ -243,14 +313,15 @@ function buildErr(e: unknown) {
 // フェーズごとのモデル（コスト最適化）：
 //   相談・質問役（think=false）→ Haiku（安い・速い）
 //   ゲーム本生成・修正（think=true）→ Sonnet（品質と価格のバランス）
-const MODELS = { plan: "claude-haiku-4-5-20251001", build: "claude-opus-4-8" };
+const MODELS = { plan: "claude-haiku-4-5-20251001", build: "claude-sonnet-4-6" };
 
 // 429 / 5xx / ネットワーク断は一時的なので最大3回までリトライ（503 upstream connect error 対策）
 async function callClaude(key: string, system: string, messages: Msg[], schema: unknown, think: boolean) {
   const body: Record<string, unknown> = {
     model: think ? MODELS.build : MODELS.plan,
     max_tokens: think ? 16000 : 1024,
-    system,
+    // システムプロンプト（見本込みで長い）はプロンプトキャッシュに載せ、2回目以降の入力コストを大幅減
+    system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
     messages,
     output_config: think
       ? { effort: "medium", format: { type: "json_schema", schema } }
