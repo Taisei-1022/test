@@ -49,7 +49,7 @@ window.GAMES = [
     title: "バーガータワー",
     author: "うどん",
     category: "タイミング",
-    path: "games/burger/index.html",
+    path: "games/burger/index.html?v=2",
     thumb: "games/burger/thumb.png?v=1",
     score: { type: "high", unit: "段" },
     accent: "#ffb02e",

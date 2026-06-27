@@ -147,7 +147,7 @@ async function callClaude(key: string, system: string, messages: Msg[], schema: 
     system,
     messages,
     output_config: think
-      ? { effort: "medium", format: { type: "json_schema", schema } }
+      ? { effort: "low", format: { type: "json_schema", schema } }
       : { format: { type: "json_schema", schema } },
   };
   if (think) body.thinking = { type: "adaptive" };
