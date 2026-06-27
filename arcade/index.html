@@ -196,7 +196,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.12";
+  var APP_VERSION = "0.9.13";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -217,18 +217,36 @@
   function savePending(jobId,editingId,title){ try{ localStorage.setItem(PENDING, JSON.stringify({job:jobId, editingId:editingId||null, title:title||"", ts:Date.now()})); }catch(e){} }
   function clearPending(){ try{ localStorage.removeItem(PENDING); }catch(e){} }
 
-  /* ---------- タブ切替 ---------- */
+  /* ---------- 画面遷移＋履歴（スワイプ戻る/戻るボタンをアプリ内の論理戻りに） ---------- */
   var tabs=document.querySelectorAll(".tabbar button");
-  function show(tab){
+  // 画面を描画するだけ（履歴は触らない）。popstateからもここを呼ぶ。
+  function renderScreen(tab, cr){
+    if(!/^(play|create|mypage)$/.test(tab)) tab="play";
     var leavingCreate=document.getElementById("view-create").classList.contains("active") && tab!=="create";
     if(leavingCreate) autosaveDraft();
     document.querySelectorAll(".view").forEach(function(v){ v.classList.toggle("active", v.id==="view-"+tab); });
     tabs.forEach(function(b){ b.classList.toggle("on", b.dataset.tab===tab); });
     if(tab==="play") renderFeed();
     if(tab==="mypage") renderMypage();
-    if(tab==="create"){ enterCreate(); maybeHowto(); }
-    if(location.hash!=="#"+tab) history.replaceState(null,"","#"+tab);
+    if(tab==="create"){ enterCreate(); crShow(cr||"list"); maybeHowto(); }
   }
+  function curCr(){ var on=document.querySelector("#view-create .crscreen.on"); return on? on.id.replace("cr-",""):"list"; }
+  function navState(){ var v=document.querySelector(".view.active"); var tab=v?v.id.replace("view-",""):"play"; return {tab:tab, cr: tab==="create"?curCr():null}; }
+  // 「奥」へ進む＝履歴を積む
+  function pushScreen(tab, cr){ renderScreen(tab,cr); history.pushState({tab:tab,cr:cr||null},"","#"+tab); }
+  // 現在地を置き換える（保存後にlistへ戻る等）
+  function replaceScreen(tab, cr){ renderScreen(tab,cr); history.replaceState({tab:tab,cr:cr||null},"","#"+tab); }
+  // タブ切替：同じ画面なら積まない
+  function show(tab){
+    var cr = tab==="create" ? curCr() : null;
+    var c = navState();
+    if(c.tab===tab && (tab!=="create" || c.cr===cr)){ renderScreen(tab,cr); return; }
+    pushScreen(tab, cr);
+  }
+  window.addEventListener("popstate", function(e){
+    var st=e.state || { tab:(location.hash||"#play").slice(1), cr:null };
+    renderScreen(st.tab, st.cr);
+  });
   tabs.forEach(function(b){ b.addEventListener("click", function(){ show(b.dataset.tab); }); });
 
   /* ---------- 作り方チュートリアル ---------- */
@@ -377,7 +395,9 @@
   var toPreviewBtn=document.getElementById("toPreview");
   // 作成中に別画面へ移ると、未保存の作品を自動で一時保存（非公開）して後で再開できるようにする。
   function autosaveDraft(){
-    if(!lastGen || !lastGen.html || !dirty) return;
+    if(!lastGen || !dirty) return;
+    // 生成前（html空）でも、下書きが既にある＝相談中なら会話履歴だけでも保存する
+    if(!lastGen.html && !lastGen.editingId) return;
     lastGen.chat=JSON.stringify(convo);   // 会話履歴も一緒に保存
     var editing=lastGen.editingId;
     // 公開済みを勝手に非公開化しない：新規・下書きだけ非公開保存、公開済みは公開のまま更新。
@@ -419,22 +439,23 @@
       .then(function(row){ if(row&&row.id) lastGen.editingId=row.id; refreshCreations(); })
       .catch(function(){});
     initChat();
-    crShow("chat"); show("create");
+    pushScreen("create","chat");
   }
   document.getElementById("newBtn").addEventListener("click", openNewProj);
   document.getElementById("newprojCancel").addEventListener("click", closeNewProj);
   document.getElementById("newprojOk").addEventListener("click", function(){ createProject(newprojName.value); });
   newprojName.addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); createProject(newprojName.value); } });
-  document.getElementById("chatBack").addEventListener("click", function(){ autosaveDraft(); crShow("list"); });
-  document.getElementById("pvBack").addEventListener("click", function(){ crShow("chat"); });
-  document.getElementById("pvToChat").addEventListener("click", function(){ crShow("chat"); });
-  document.getElementById("pvPublish").addEventListener("click", function(){ crShow("publish"); });
+  // 戻る系はすべて history.back() に統一（スワイプ戻ると同じ挙動に）
+  document.getElementById("chatBack").addEventListener("click", function(){ autosaveDraft(); history.back(); });
+  document.getElementById("pvBack").addEventListener("click", function(){ history.back(); });
+  document.getElementById("pvToChat").addEventListener("click", function(){ pushScreen("create","chat"); });
+  document.getElementById("pvPublish").addEventListener("click", function(){ pushScreen("create","publish"); });
   document.getElementById("pvDraft").addEventListener("click", saveDraft);
-  document.getElementById("pubBack").addEventListener("click", function(){ crShow("preview"); });
-  document.getElementById("pubToChat").addEventListener("click", function(){ crShow("chat"); });
+  document.getElementById("pubBack").addEventListener("click", function(){ history.back(); });
+  document.getElementById("pubToChat").addEventListener("click", function(){ pushScreen("create","chat"); });
   document.getElementById("pubDraft").addEventListener("click", saveDraft);
   toPreviewBtn.addEventListener("click", function(){
-    if(lastGen) crShow("preview"); else showToast("まずアイデアを送って生成してね");
+    if(lastGen) pushScreen("create","preview"); else showToast("まずアイデアを送って生成してね");
   });
   function renderPreview(){
     if(!lastGen) return;
@@ -620,7 +641,7 @@
       if(btn) btn.disabled=false;
       if(!editing && row && row.id) lastGen.editingId=row.id; // 以後は同じ下書きを上書き
       lastGen.published=false;
-      showToast("一時保存しました"); crShow("list");
+      showToast("一時保存しました"); replaceScreen("create","list");
     }).catch(function(e){ dirty=true; if(btn) btn.disabled=false; showToast("保存に失敗："+String(e.message||e).slice(0,40)); });
   }
   document.getElementById("pubDo").addEventListener("click", function(){
@@ -632,7 +653,7 @@
     var btn=this; btn.disabled=true; dirty=false;
     var editing=lastGen.editingId;
     var p = editing ? Catalog.update(editing, lastGen) : Catalog.publish(lastGen);
-    p.then(function(row){ btn.disabled=false; if(!editing && row && row.id) lastGen.editingId=row.id; lastGen.published=true; showToast("公開しました！"); crShow("list"); })
+    p.then(function(row){ btn.disabled=false; if(!editing && row && row.id) lastGen.editingId=row.id; lastGen.published=true; showToast("公開しました！"); replaceScreen("create","list"); })
      .catch(function(e){ dirty=true; btn.disabled=false; showToast("失敗："+String(e.message||e).slice(0,40)); });
   });
 
@@ -686,14 +707,14 @@
       toPreviewBtn.classList.remove("off");
       // チャットに移った時のための前置き（まずは情報編集画面を出す）
       bubble("bot","「"+g.title+"」を編集中。直したい所を言ってね（例：もっと速く／敵を増やして／色を青に）。");
-      show("create"); crShow("publish");   // まずタグ・名前・説明・サムネを編集する画面へ
+      pushScreen("create","publish");   // まずタグ・名前・説明・サムネを編集する画面へ
     });
   }
   function sendChat(text){
     text=(text||"").trim(); if(!text||busy) return;
     clearOptions();
     var note=assetNote(), full=note+text;
-    bubble("user",full); convo.push({role:"user",content:full}); input.value=""; input.style.height="auto"; busy=true; showStarters(false);
+    bubble("user",full); convo.push({role:"user",content:full}); input.value=""; input.style.height="auto"; busy=true; dirty=true; showStarters(false);
     if(pickedAssets.length){ pickedAssets=[]; renderAssetTray(); if(!assetPanel.hidden) renderAssetPanel(); }
     var prev = (lastGen && lastGen.html) ? lastGen.html : "";
     var typing=bubble("bot typing", prev?"直しているよ…":"考え中…");
@@ -751,7 +772,7 @@
       '<div class="bd"><div class="t">できあがり</div>'+
       '<div class="row"><button class="pri toPv">プレビューで遊ぶ ›</button></div></div>';
     chatlog.appendChild(card); chatlog.scrollTop=chatlog.scrollHeight;
-    card.querySelector(".toPv").addEventListener("click", function(){ crShow("preview"); });
+    card.querySelector(".toPv").addEventListener("click", function(){ pushScreen("create","preview"); });
   }
   sendBtn.addEventListener("click", function(){ sendChat(input.value); });
   // 入力欄（textarea）：内容に応じて高さを自動調整。改行は標準動作（Enterでは送信しない）。
@@ -787,7 +808,7 @@
   /* ---------- 初期表示 ---------- */
   var start=(location.hash||"#play").slice(1);
   if(!/^(play|create|mypage)$/.test(start)) start="play";
-  show(start);
+  replaceScreen(start, start==="create"?"list":null);
   recoverPending();
 })();
 </script>
