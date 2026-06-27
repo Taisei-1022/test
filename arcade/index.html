@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-180.png?v=3" />
 <link rel="icon" href="icon-192.png?v=3" />
-<link rel="stylesheet" href="css/app.css?v=19" />
+<link rel="stylesheet" href="css/app.css?v=20" />
 <title>Vappa</title>
 </head>
 <body>
@@ -51,7 +51,6 @@
       <div class="crbar">
         <button class="back" id="chatBack" aria-label="戻る">‹</button>
         <div class="t">作る（AI）</div>
-        <button class="act" id="copyChat" type="button" aria-label="チャットをコピー">⧉ コピー</button>
         <button class="act off" id="toPreview">プレビュー</button>
       </div>
       <div class="chatlog" id="chatlog"></div>
@@ -66,7 +65,7 @@
       </div>
       <div class="assetpanel" id="assetPanel" hidden></div>
       <div class="composer">
-        <input id="chatInput" placeholder="作りたいゲーム / 直したい所を書く…" autocomplete="off" />
+        <textarea id="chatInput" placeholder="作りたいゲーム / 直したい所を書く…" rows="1" autocomplete="off"></textarea>
         <button id="chatSend">送信</button>
       </div>
     </div>
@@ -621,7 +620,7 @@
     text=(text||"").trim(); if(!text||busy) return;
     clearOptions();
     var note=assetNote(), full=note+text;
-    bubble("user",full); convo.push({role:"user",content:full}); input.value=""; busy=true; showStarters(false);
+    bubble("user",full); convo.push({role:"user",content:full}); input.value=""; input.style.height="auto"; busy=true; showStarters(false);
     if(pickedAssets.length){ pickedAssets=[]; renderAssetTray(); if(!assetPanel.hidden) renderAssetPanel(); }
     var prev = (lastGen && lastGen.html) ? lastGen.html : "";
     var typing=bubble("bot typing", prev?"直しているよ…":"考え中…");
@@ -676,21 +675,9 @@
     card.querySelector(".toPv").addEventListener("click", function(){ crShow("preview"); });
   }
   sendBtn.addEventListener("click", function(){ sendChat(input.value); });
-  // チャット履歴をテキストでコピー（別のセッションに貼って続きを頼む等に使える）
-  function copyChat(){
-    var lines=[];
-    chatlog.querySelectorAll(".msg").forEach(function(m){
-      var t=(m.textContent||"").trim(); if(!t||/typing/.test(m.className)) return;
-      lines.push((m.classList.contains("user")?"あなた":"AI")+": "+t);
-    });
-    var text=lines.join("\n\n");
-    if(!text){ showToast("履歴がまだありません"); return; }
-    function ok(){ showToast("チャットをコピーしました"); }
-    function fb(){ try{ var ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); ok(); }catch(e){ showToast("コピーできませんでした"); } }
-    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(ok,fb); } else fb();
-  }
-  document.getElementById("copyChat").addEventListener("click", copyChat);
-  // Enterでは送信しない（送信ボタンのみ）。改行を入れたい時のため標準動作は残す。
+  // 入力欄（textarea）：内容に応じて高さを自動調整。改行は標準動作（Enterでは送信しない）。
+  function autoGrow(){ input.style.height="auto"; input.style.height=Math.min(120, input.scrollHeight)+"px"; }
+  input.addEventListener("input", autoGrow);
   document.getElementById("chips").addEventListener("click", function(e){
     if(e.target.tagName==="BUTTON"){ sendChat(e.target.textContent); }
   });

@@ -206,6 +206,8 @@ textarea.field{resize:vertical;line-height:1.5;}
 .msg.bot{align-self:flex-start;background:var(--plate);border:1px solid var(--rule);border-bottom-left-radius:5px;}
 .msg.user{align-self:flex-end;background:var(--gold);color:#ffffff;font-weight:600;border-bottom-right-radius:5px;}
 .msg.typing{color:var(--dim);font-style:italic;}
+/* チャットは長押しで選択→コピー/カット（OS標準メニュー）を出せるようにする */
+.chatlog .msg{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default;cursor:text;}
 .gencard{align-self:flex-start;max-width:84%;border:1px solid var(--rule);border-radius:14px;overflow:hidden;background:var(--plate);}
 .gencard .pv{height:96px;display:flex;align-items:center;justify-content:center;color:rgba(0,0,0,.7);font-weight:800;text-align:center;padding:0 12px;}
 .gencard .bd{padding:10px 12px;}
@@ -215,8 +217,9 @@ textarea.field{resize:vertical;line-height:1.5;}
   border-radius:9px;padding:.5rem;font:inherit;font-weight:700;font-size:13px;cursor:pointer;}
 .gencard .row button.pri{background:var(--gold);color:#ffffff;border:0;}
 .composer{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--rule);background:var(--bg);}
-.composer input{flex:1;background:var(--plate);border:1px solid var(--rule);color:var(--ink);
+.composer input,.composer textarea{flex:1;background:var(--plate);border:1px solid var(--rule);color:var(--ink);
   border-radius:11px;padding:.65rem .8rem;font:inherit;font-size:15px;}
+.composer textarea{resize:none;line-height:1.5;max-height:120px;overflow-y:auto;min-height:0;}
 .composer button{background:var(--gold);color:#ffffff;border:0;border-radius:11px;
   padding:0 1.05rem;font:inherit;font-weight:800;cursor:pointer;}
 .chips{display:flex;gap:8px;flex-wrap:wrap;padding:0 14px 6px;}
