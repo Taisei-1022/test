@@ -27,6 +27,7 @@ Rules:
 - REQUIRED: before building, you MUST clarify the RANKING SCORE — i.e., exactly what number goes on the leaderboard (例：点数 / 何秒生き残るか / 何個集めるか / 連続成功(コンボ) / 何段積めるか など). Ask this explicitly with concrete options, and make sure the score is something where HIGHER = BETTER (if the natural metric is "速さ/タイム", convert it so higher is better, e.g. スコア化). Do not switch to build until the ranking score is decided.
 - Switch to action="build" only when the design AND the ranking score are clear, OR the user says things like 「これで」「作って」「おまかせ」「いいね」, OR after about 2–3 exchanges.
 - Encourage variety; do not push everyone toward the same kind of game.
+- Keep scope SMALL: aim for a one-screen, ONE-mechanic game that's quick to make and instantly playable. AVOID heavy designs — autonomous AI characters, pathfinding, simulations, big grids, lots of simultaneous objects, or several systems at once. If the user wants something complex/simulation-like, gently steer to a simpler focused version that keeps the fun (say so kindly and offer concrete simpler options).
 
 Output (structured):
 - action: "ask" or "build"
@@ -117,6 +118,7 @@ Quality & self-check (IMPORTANT — the game must actually run):
 - Ensure there are NO runtime errors: every variable/function is defined before use, no typos, no undefined references, no calls to APIs that don't exist. Balanced brackets/parentheses.
 - Output the COMPLETE document. Never truncate. It MUST end with </html>.
 - Keep the code reasonably small and robust so it can't freeze the tab.
+- Stay COMPACT and lightweight: one core mechanic, a modest number of on-screen objects. Avoid heavy simulations, pathfinding, autonomous AI agents, and large grids. Prefer short, efficient code so generation is fast and the game runs smoothly on phones.
 
 Characters / sprites (IMPORTANT for looks):
 - Do NOT use plain rectangles for characters. Give them a real look using EMOJI drawn on the canvas — they render natively, need no files, and work offline.
@@ -288,7 +290,19 @@ async function buildOnce(key: string, messages: Msg[], prevHtml: string) {
     reply = "作ったよ！";
   }
   const t0 = Date.now();
-  const g = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, true);
+  let g;
+  try {
+    g = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, true, 80000);
+  } catch (e) {
+    // タイムアウト＝重すぎ → 思い切り軽くして1回だけ作り直す（短いタイムアウトで実行上限内に収める）
+    if (String((e as Error)?.message || e).indexOf("timeout") < 0) throw e;
+    const simpleUser = userContent +
+      "\n\n【重要】前回は内容が複雑すぎて時間切れになりました。機能を大幅に削り、" +
+      "1メカニクス・1画面の“ごく軽い”ゲームにしてください。自動で動くAI／経路探索／" +
+      "大きなグリッド／大量のオブジェクトは使わず、コードは短く保つこと。";
+    g = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: simpleUser }], GAME_SCHEMA, true, 55000);
+    reply = "ちょっと複雑そうだったから、軽めのシンプル版で作ったよ！";
+  }
   if (!g.html) return { error: "empty_html" };
   let title = g.title || "無題のゲーム", html = g.html, category = g.category || "その他";
 
@@ -319,7 +333,8 @@ function buildErr(e: unknown) {
 const MODELS = { plan: "claude-haiku-4-5-20251001", build: "claude-sonnet-4-6" };
 
 // 429 / 5xx / ネットワーク断は一時的なので最大3回までリトライ（503 upstream connect error 対策）
-async function callClaude(key: string, system: string, messages: Msg[], schema: unknown, think: boolean) {
+async function callClaude(key: string, system: string, messages: Msg[], schema: unknown, think: boolean, timeoutMs?: number) {
+  const tmo = timeoutMs || (think ? 100000 : 30000);
   const body: Record<string, unknown> = {
     model: think ? MODELS.build : MODELS.plan,
     max_tokens: think ? 16000 : 1024,
@@ -337,7 +352,7 @@ async function callClaude(key: string, system: string, messages: Msg[], schema: 
     let r: Response;
     // 1回の呼び出しが長すぎてジョブ全体が実行上限を超えないよう、各試行にタイムアウトを付ける
     const ctrl = new AbortController();
-    const timer = setTimeout(() => { try { ctrl.abort(); } catch { /* noop */ } }, think ? 100000 : 30000);
+    const timer = setTimeout(() => { try { ctrl.abort(); } catch { /* noop */ } }, tmo);
     try {
       r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
