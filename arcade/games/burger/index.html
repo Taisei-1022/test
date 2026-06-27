@@ -11,8 +11,7 @@
   #hud{position:fixed;top:calc(env(safe-area-inset-top) + 10px);left:0;right:0;text-align:center;font-weight:800;font-size:20px;z-index:2;text-shadow:0 2px 6px rgba(0,0,0,.5);pointer-events:none;}
   #ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
      background:rgba(12,8,20,.82);text-align:center;padding:24px;z-index:5;}
-  #ov h1{font-size:26px;font-weight:800;}
-  #ov p{color:#d8c9b6;font-size:14px;line-height:1.7;}
+  #ov h1{font-size:26px;font-weight:800;} #ov p{color:#d8c9b6;font-size:14px;line-height:1.7;}
   #ov .big{font-size:42px;font-weight:800;color:#ffcf5c;}
   #ov button{background:#ffb02e;color:#3a2400;border:0;border-radius:14px;padding:.85rem 1.7rem;font:inherit;font-weight:800;font-size:16px;cursor:pointer;}
   #ov[hidden]{display:none;}
@@ -23,112 +22,244 @@
 <div id="hud"></div>
 <div id="ov">
   <h1>🍔 バーガータワー</h1>
-  <p>流れてくる具材をタップで落として<br>高く積もう。重心が土台から外れると崩壊！<br>タップでドロップ。</p>
+  <p>🍔ハンバーガー / 🍟ポテト / 🥤ドリンク を積み上げろ！<br>スワイプで位置を決めて、<b>指を離すと落下</b>。<br>崩れたら終わり。</p>
   <button id="startBtn">はじめる</button>
 </div>
 <script src="../../js/arcade-sdk.js?v=2"></script>
 <script>
 (function(){
   "use strict";
-  var cv=document.getElementById("c"), ctx=cv.getContext("2d"), hud=document.getElementById("hud"), ov=document.getElementById("ov");
-  var W=0,H=0,DPR=Math.min(2,window.devicePixelRatio||1);
-  function resize(){ W=window.innerWidth; H=window.innerHeight; cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0); }
+  /* ===================== 小さな2D剛体物理（箱・回転あり / box2d-lite方式） ===================== */
+  function dot(a,b){return a.x*b.x+a.y*b.y;} function crs(a,b){return a.x*b.y-a.y*b.x;}
+  function mAng(r){var c=Math.cos(r),s=Math.sin(r);return{c1:{x:c,y:s},c2:{x:-s,y:c}};}
+  function mMulV(m,v){return{x:m.c1.x*v.x+m.c2.x*v.y,y:m.c1.y*v.x+m.c2.y*v.y};}
+  function mT(m){return{c1:{x:m.c1.x,y:m.c2.x},c2:{x:m.c1.y,y:m.c2.y}};}
+  function mMul(a,b){return{c1:mMulV(a,b.c1),c2:mMulV(a,b.c2)};}
+  function mAbs(m){return{c1:{x:Math.abs(m.c1.x),y:Math.abs(m.c1.y)},c2:{x:Math.abs(m.c2.x),y:Math.abs(m.c2.y)}};}
+  function neg(v){return{x:-v.x,y:-v.y};}
+
+  function Body(w,h,mass,fric){
+    this.w=w;this.h=h;this.px=0;this.py=0;this.angle=0;this.vx=0;this.vy=0;this.av=0;
+    this.friction=fric==null?0.5:fric;
+    if(mass===Infinity){this.invMass=0;this.invI=0;}
+    else{this.invMass=1/mass;var I=mass*(w*w+h*h)/12;this.invI=1/I;}
+  }
+
+  function computeIncidentEdge(h,pos,Rot,normal){
+    var RotT=mT(Rot); var n=neg(mMulV(RotT,normal)); var na={x:Math.abs(n.x),y:Math.abs(n.y)}; var c=[{},{}];
+    if(na.x>na.y){
+      if(n.x>0){ c[0]={v:{x:h.x,y:-h.y},fp:{ie2:3,oe2:4}}; c[1]={v:{x:h.x,y:h.y},fp:{ie2:4,oe2:1}}; }
+      else      { c[0]={v:{x:-h.x,y:h.y},fp:{ie2:1,oe2:2}}; c[1]={v:{x:-h.x,y:-h.y},fp:{ie2:2,oe2:3}}; }
+    } else {
+      if(n.y>0){ c[0]={v:{x:h.x,y:h.y},fp:{ie2:4,oe2:1}}; c[1]={v:{x:-h.x,y:h.y},fp:{ie2:1,oe2:2}}; }
+      else      { c[0]={v:{x:-h.x,y:-h.y},fp:{ie2:2,oe2:3}}; c[1]={v:{x:h.x,y:-h.y},fp:{ie2:3,oe2:4}}; }
+    }
+    c[0].v=add(pos,mMulV(Rot,c[0].v)); c[1].v=add(pos,mMulV(Rot,c[1].v));
+    c[0].fp.ie1=0;c[0].fp.oe1=0;c[1].fp.ie1=0;c[1].fp.oe1=0;
+    return c;
+  }
+  function add(a,b){return{x:a.x+b.x,y:a.y+b.y};} function sub(a,b){return{x:a.x-b.x,y:a.y-b.y};} function scl(v,s){return{x:v.x*s,y:v.y*s};}
+  function clipSeg(vIn,n,offset,clipEdge){
+    var out=[]; var d0=dot(n,vIn[0].v)-offset, d1=dot(n,vIn[1].v)-offset;
+    if(d0<=0)out.push({v:vIn[0].v,fp:Object.assign({},vIn[0].fp)});
+    if(d1<=0)out.push({v:vIn[1].v,fp:Object.assign({},vIn[1].fp)});
+    if(d0*d1<0){ var i=d0/(d0-d1); var v={x:vIn[0].v.x+i*(vIn[1].v.x-vIn[0].v.x),y:vIn[0].v.y+i*(vIn[1].v.y-vIn[0].v.y)};
+      var fp; if(d0>0){fp={ie1:clipEdge,ie2:vIn[0].fp.ie2,oe1:vIn[0].fp.oe1,oe2:vIn[0].fp.oe2};}
+              else    {fp={ie1:vIn[1].fp.ie1,ie2:vIn[1].fp.ie2,oe1:clipEdge,oe2:vIn[1].fp.oe2};}
+      out.push({v:v,fp:fp});
+    }
+    return out;
+  }
+  function fkey(fp){return fp.ie1+'_'+fp.ie2+'_'+fp.oe1+'_'+fp.oe2;}
+  function flip(fp){var t=fp.ie1;fp.ie1=fp.oe1;fp.oe1=t;t=fp.ie2;fp.ie2=fp.oe2;fp.oe2=t;}
+
+  function collide(A,B){
+    var hA={x:A.w/2,y:A.h/2},hB={x:B.w/2,y:B.h/2};
+    var posA={x:A.px,y:A.py},posB={x:B.px,y:B.py};
+    var RA=mAng(A.angle),RB=mAng(B.angle),RAT=mT(RA),RBT=mT(RB);
+    var dp=sub(posB,posA),dA=mMulV(RAT,dp),dB=mMulV(RBT,dp);
+    var C=mMul(RAT,RB),aC=mAbs(C),aCT=mT(aC);
+    var faceA={x:Math.abs(dA.x)-hA.x-(aC.c1.x*hB.x+aC.c2.x*hB.y),y:Math.abs(dA.y)-hA.y-(aC.c1.y*hB.x+aC.c2.y*hB.y)};
+    if(faceA.x>0||faceA.y>0)return[];
+    var faceB={x:Math.abs(dB.x)-(aCT.c1.x*hA.x+aCT.c2.x*hA.y)-hB.x,y:Math.abs(dB.y)-(aCT.c1.y*hA.x+aCT.c2.y*hA.y)-hB.y};
+    if(faceB.x>0||faceB.y>0)return[];
+    var axis="AX",sep=faceA.x,normal=dA.x>0?{x:RA.c1.x,y:RA.c1.y}:{x:-RA.c1.x,y:-RA.c1.y};
+    var RT=0.95,AT=0.01;
+    if(faceA.y>RT*sep+AT*hA.y){axis="AY";sep=faceA.y;normal=dA.y>0?{x:RA.c2.x,y:RA.c2.y}:{x:-RA.c2.x,y:-RA.c2.y};}
+    if(faceB.x>RT*sep+AT*hB.x){axis="BX";sep=faceB.x;normal=dB.x>0?{x:RB.c1.x,y:RB.c1.y}:{x:-RB.c1.x,y:-RB.c1.y};}
+    if(faceB.y>RT*sep+AT*hB.y){axis="BY";sep=faceB.y;normal=dB.y>0?{x:RB.c2.x,y:RB.c2.y}:{x:-RB.c2.x,y:-RB.c2.y};}
+    var fn,front,sn,negS,posS,negE,posE,inc;
+    if(axis==="AX"){fn=normal;front=dot(posA,fn)+hA.x;sn=RA.c2;var s=dot(posA,sn);negS=-s+hA.y;posS=s+hA.y;negE=3;posE=1;inc=computeIncidentEdge(hB,posB,RB,fn);}
+    else if(axis==="AY"){fn=normal;front=dot(posA,fn)+hA.y;sn=RA.c1;var s2=dot(posA,sn);negS=-s2+hA.x;posS=s2+hA.x;negE=2;posE=4;inc=computeIncidentEdge(hB,posB,RB,fn);}
+    else if(axis==="BX"){fn=neg(normal);front=dot(posB,fn)+hB.x;sn=RB.c2;var s3=dot(posB,sn);negS=-s3+hB.y;posS=s3+hB.y;negE=3;posE=1;inc=computeIncidentEdge(hA,posA,RA,fn);}
+    else{fn=neg(normal);front=dot(posB,fn)+hB.y;sn=RB.c1;var s4=dot(posB,sn);negS=-s4+hB.x;posS=s4+hB.x;negE=2;posE=4;inc=computeIncidentEdge(hA,posA,RA,fn);}
+    var cp1=clipSeg(inc,neg(sn),negS,negE); if(cp1.length<2)return[];
+    var cp2=clipSeg(cp1,sn,posS,posE); if(cp2.length<2)return[];
+    var contacts=[];
+    for(var i=0;i<2;i++){
+      var s=dot(fn,cp2[i].v)-front;
+      if(s<=0){
+        var fp=cp2[i].fp; if(axis==="BX"||axis==="BY")flip(fp);
+        contacts.push({position:sub(cp2[i].v,scl(fn,s)),normal:{x:normal.x,y:normal.y},separation:s,feature:fkey(fp),Pn:0,Pt:0});
+      }
+    }
+    return contacts;
+  }
+
+  function Arbiter(b1,b2){this.b1=b1;this.b2=b2;this.fric=Math.sqrt(b1.friction*b2.friction);this.contacts=[];}
+  Arbiter.prototype.update=function(nc){
+    var merged=[];
+    for(var i=0;i<nc.length;i++){var c=nc[i];
+      for(var j=0;j<this.contacts.length;j++){if(this.contacts[j].feature===c.feature){c.Pn=this.contacts[j].Pn;c.Pt=this.contacts[j].Pt;break;}}
+      merged.push(c);
+    }
+    this.contacts=merged;
+  };
+  Arbiter.prototype.preStep=function(invDt){
+    var b1=this.b1,b2=this.b2,SLOP=0.5,BIAS=0.2;
+    for(var i=0;i<this.contacts.length;i++){var c=this.contacts[i],n=c.normal;
+      var r1=sub(c.position,{x:b1.px,y:b1.py}),r2=sub(c.position,{x:b2.px,y:b2.py});
+      var rn1=dot(r1,n),rn2=dot(r2,n);
+      var kn=b1.invMass+b2.invMass+b1.invI*(dot(r1,r1)-rn1*rn1)+b2.invI*(dot(r2,r2)-rn2*rn2);
+      c.mN=1/kn;
+      var t={x:n.y,y:-n.x},rt1=dot(r1,t),rt2=dot(r2,t);
+      var kt=b1.invMass+b2.invMass+b1.invI*(dot(r1,r1)-rt1*rt1)+b2.invI*(dot(r2,r2)-rt2*rt2);
+      c.mT=1/kt; c.t=t; c.r1=r1; c.r2=r2;
+      c.bias=-BIAS*invDt*Math.min(0,c.separation+SLOP);
+      var P={x:c.Pn*n.x+c.Pt*t.x,y:c.Pn*n.y+c.Pt*t.y};
+      b1.vx-=b1.invMass*P.x;b1.vy-=b1.invMass*P.y;b1.av-=b1.invI*crs(r1,P);
+      b2.vx+=b2.invMass*P.x;b2.vy+=b2.invMass*P.y;b2.av+=b2.invI*crs(r2,P);
+    }
+  };
+  Arbiter.prototype.applyImpulse=function(){
+    var b1=this.b1,b2=this.b2;
+    for(var i=0;i<this.contacts.length;i++){var c=this.contacts[i],n=c.normal,r1=c.r1,r2=c.r2,t=c.t;
+      var dvx=b2.vx-b2.av*r2.y-b1.vx+b1.av*r1.y, dvy=b2.vy+b2.av*r2.x-b1.vy-b1.av*r1.x;
+      var vn=dvx*n.x+dvy*n.y; var dPn=c.mN*(-vn+c.bias);
+      var p0=c.Pn; c.Pn=Math.max(p0+dPn,0); dPn=c.Pn-p0;
+      var Px=dPn*n.x,Py=dPn*n.y;
+      b1.vx-=b1.invMass*Px;b1.vy-=b1.invMass*Py;b1.av-=b1.invI*crs(r1,{x:Px,y:Py});
+      b2.vx+=b2.invMass*Px;b2.vy+=b2.invMass*Py;b2.av+=b2.invI*crs(r2,{x:Px,y:Py});
+      dvx=b2.vx-b2.av*r2.y-b1.vx+b1.av*r1.y; dvy=b2.vy+b2.av*r2.x-b1.vy-b1.av*r1.x;
+      var vt=dvx*t.x+dvy*t.y; var dPt=c.mT*(-vt); var max=this.fric*c.Pn;
+      var t0=c.Pt; c.Pt=Math.max(-max,Math.min(max,t0+dPt)); dPt=c.Pt-t0;
+      var Tx=dPt*t.x,Ty=dPt*t.y;
+      b1.vx-=b1.invMass*Tx;b1.vy-=b1.invMass*Ty;b1.av-=b1.invI*crs(r1,{x:Tx,y:Ty});
+      b2.vx+=b2.invMass*Tx;b2.vy+=b2.invMass*Ty;b2.av+=b2.invI*crs(r2,{x:Tx,y:Ty});
+    }
+  };
+
+  var GRAV=1700, ITER=10;
+  function World(){this.bodies=[];this.arb={};}
+  World.prototype.add=function(b){this.bodies.push(b);return b;};
+  World.prototype.step=function(dt){
+    var bs=this.bodies,invDt=dt>0?1/dt:0;
+    for(var i=0;i<bs.length;i++)for(var j=i+1;j<bs.length;j++){
+      var a=bs[i],b=bs[j]; if(a.invMass===0&&b.invMass===0)continue;
+      var cs=collide(a,b),key=i+","+j;
+      if(cs.length){ var ar=this.arb[key]; if(!ar){ar=new Arbiter(a,b);this.arb[key]=ar;} ar.update(cs); }
+      else delete this.arb[key];
+    }
+    for(i=0;i<bs.length;i++){var b=bs[i];if(b.invMass>0){b.vy+=dt*GRAV;}}
+    for(var k in this.arb)this.arb[k].preStep(invDt);
+    for(var it=0;it<ITER;it++)for(k in this.arb)this.arb[k].applyImpulse();
+    for(i=0;i<bs.length;i++){var b=bs[i];if(b.invMass>0){b.px+=dt*b.vx;b.py+=dt*b.vy;b.angle+=dt*b.av;b.vx*=0.999;b.vy*=0.999;b.av*=0.995;}}
+  };
+
+  /* ===================== ゲーム ===================== */
+  var cv=document.getElementById("c"),ctx=cv.getContext("2d"),hud=document.getElementById("hud"),ov=document.getElementById("ov");
+  var W=0,H=0,DPR=Math.min(2,window.devicePixelRatio||1),SC=1;
+  function resize(){W=window.innerWidth;H=window.innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);SC=Math.max(0.8,Math.min(1.3,W/390));}
   window.addEventListener("resize",resize);
 
-  var ITEMS=[
-    {nm:"パティ",em:"🥩",w:.80,col:"#8a4f2b"},
-    {nm:"チーズ",em:"🧀",w:.72,col:"#f0b429"},
-    {nm:"レタス",em:"🥬",w:.92,col:"#57b85c"},
-    {nm:"トマト",em:"🍅",w:.66,col:"#e5484d"},
-    {nm:"たまご",em:"🍳",w:.64,col:"#f4d35e"},
-    {nm:"ベーコン",em:"🥓",w:.78,col:"#d06a5e"}
+  var TYPES=[
+    {k:"burger",em:"🍔",w:96,h:50,col2:"#d9952b"},
+    {k:"fries", em:"🍟",w:58,h:84,col2:"#e5484d"},
+    {k:"drink", em:"🥤",w:50,h:96,col2:"#4ea8de"}
   ];
-  var baseW, pieceH=30, running=false, paused=false, last=0;
-  var stack, mover, score, dir, speed, camY, toppling, topT, tipDir, tipAng, tipVel;
+  var world,plate,score,running=false,paused=false,last=0,acc=0;
+  var held,fingerX,active,settleT,state; // state: aim | fall
+  var TOPY=110; // 落下開始のスクリーンY
+  var camY=0;
 
   function reset(){
-    baseW=Math.min(W*0.42, 170);
-    stack=[{x:W/2, w:baseW, col:"#d9952b", em:"🍞", base:true}];
-    score=0; camY=0; toppling=false; topT=0; tipAng=0; tipVel=0; tipDir=1; speed=Math.min(W,420)*0.55;
-    newMover();
+    world=new World();
+    var pw=Math.min(W*0.5,210), pt=H-130;
+    plate=new Body(pw,22,Infinity,0.8); plate.px=W/2; plate.py=pt; world.add(plate);
+    score=0; camY=0; state="aim"; settleT=0; active=null; fingerX=W/2;
+    nextHeld();
   }
-  function topPiece(){ return stack[stack.length-1]; }
-  function stackTopY(){ return H-120 - (stack.length-1)*pieceH; }
-
-  function newMover(){
-    var it=ITEMS[Math.floor(Math.random()*ITEMS.length)];
-    mover={ it:it, w:baseW*it.w, x: baseW*it.w/2+10 };
-    dir=1; speed=Math.min(speed+7, W*1.25);
-    mover.y = stackTopY()-pieceH-70;
-  }
-  function startTip(d){ toppling=true; topT=0; tipDir=d; tipAng=0; tipVel=1.4; }
+  function nextHeld(){ var t=TYPES[Math.floor(Math.random()*TYPES.length)]; held={t:t,w:t.w*SC,h:t.h*SC}; state="aim"; }
+  function worldToScreenY(wy){return wy+camY;}
+  function screenToWorldY(sy){return sy-camY;}
 
   function drop(){
-    if(!running||paused||toppling||!mover) return;
-    var below=topPiece(), nx=mover.x;
-    var p={x:nx, w:mover.w, col:mover.it.col, em:mover.it.em};
-    // 重なりが無さすぎる → その場で崩落
-    if(Math.abs(nx-below.x) > (below.w/2 + p.w/2) - 6){ stack.push(p); startTip(nx>below.x?1:-1); return; }
-    stack.push(p); score++;
-    // 重心が土台からはみ出したら タワー倒壊
-    var base=stack[0], sw=0, sx=0;
-    for(var i=1;i<stack.length;i++){ sw+=stack[i].w; sx+=stack[i].x*stack[i].w; }
-    var com=sx/sw;
-    if(com < base.x-base.w/2 || com > base.x+base.w/2){ startTip(com>base.x?1:-1); return; }
-    newMover();
+    if(state!=="aim"||!held||!running||paused)return;
+    var b=new Body(held.w,held.h,(held.w*held.h)/900,0.55);
+    b.px=Math.max(held.w/2,Math.min(W-held.w/2,fingerX));
+    b.py=screenToWorldY(TOPY);
+    b.t=held.t;
+    world.add(b); active=b; state="fall"; settleT=0; held=null;
   }
 
-  function step(dt){
-    if(toppling){ topT+=dt; tipVel+=dt*10; tipAng+=tipDir*tipVel*dt; if(topT>0.95) gameOver(); return; }
-    mover.x += dir*speed*dt;
-    var lim=mover.w/2+6;
-    if(mover.x<lim){ mover.x=lim; dir=1; }
-    if(mover.x>W-lim){ mover.x=W-lim; dir=-1; }
-    var targetCam = Math.max(0, (stack.length-1)*pieceH - (H*0.40));
-    camY += (targetCam-camY)*Math.min(1,dt*6);
+  function update(dt){
+    // physics substeps
+    acc+=dt; var hstep=1/120, n=0;
+    while(acc>=hstep&&n<5){ world.step(hstep); acc-=hstep; n++; }
+    // camera：一番高い箱を画面上部に収める
+    var topW=plate.py-plate.h/2;
+    for(var i=1;i<world.bodies.length;i++){ var b=world.bodies[i]; topW=Math.min(topW,b.py-b.h/2); }
+    var targetCam=Math.max(0, H*0.30 - topW);
+    camY+=(targetCam-camY)*Math.min(1,dt*5);
+    // 落下中の箱の判定
+    if(state==="fall"&&active){
+      var spd=Math.abs(active.vx)+Math.abs(active.vy)+Math.abs(active.av)*40;
+      if(spd<14){ settleT+=dt; if(settleT>0.35){ score++; active=null; nextHeld(); } }
+      else settleT=0;
+    }
+    // 画面外に落ちた箱があれば崩壊
+    for(i=1;i<world.bodies.length;i++){ var bb=world.bodies[i]; if(worldToScreenY(bb.py)>H+80){ gameOver(); return; } }
   }
-  function pieceScreenY(i){ return H-120 - i*pieceH + camY; }
 
+  function drawBody(b,ghost){
+    var sy=worldToScreenY(b.py);
+    ctx.save(); ctx.translate(b.px,sy); ctx.rotate(b.angle);
+    ctx.globalAlpha=ghost?0.55:1;
+    ctx.fillStyle=b.t?b.t.col2:"#cfd3da"; rr(-b.w/2,-b.h/2,b.w,b.h,Math.min(12,b.h/3)); ctx.fill();
+    ctx.fillStyle="rgba(255,255,255,.16)"; rr(-b.w/2,-b.h/2,b.w,Math.min(9,b.h/3),6); ctx.fill();
+    if(b.t){ ctx.globalAlpha=ghost?0.7:1; ctx.font=Math.round(Math.min(b.w,b.h)*0.78)+"px serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(b.t.em,0,1); }
+    ctx.restore(); ctx.globalAlpha=1;
+  }
   function draw(){
     ctx.clearRect(0,0,W,H);
-    var g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,"#241a36"); g.addColorStop(1,"#15101f");
-    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
-    var plateY=pieceScreenY(0)+pieceH/2+10;
-    ctx.fillStyle="#cfd3da"; rr(W/2-baseW*0.8, plateY, baseW*1.6, 12, 6); ctx.fill();
-
-    var pivotX, pivotY;
-    if(toppling){ var bs=stack[0]; pivotX=bs.x+tipDir*bs.w/2; pivotY=pieceScreenY(0)-pieceH/2; }
-    for(var i=0;i<stack.length;i++){
-      ctx.save();
-      if(toppling && i>=1){ ctx.translate(pivotX,pivotY); ctx.rotate(tipAng); ctx.translate(-pivotX,-pivotY); }
-      drawPiece(stack[i], pieceScreenY(i));
+    var g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,"#241a36");g.addColorStop(1,"#15101f");ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+    drawBody(plate,false);
+    for(var i=1;i<world.bodies.length;i++)drawBody(world.bodies[i],false);
+    // ホールド中プレビュー
+    if(state==="aim"&&held){
+      var x=Math.max(held.w/2,Math.min(W-held.w/2,fingerX));
+      ctx.save();ctx.translate(x,TOPY);
+      ctx.globalAlpha=0.85;ctx.fillStyle=held.t.col2;rr(-held.w/2,-held.h/2,held.w,held.h,Math.min(12,held.h/3));ctx.fill();
+      ctx.globalAlpha=1;ctx.font=Math.round(Math.min(held.w,held.h)*0.78)+"px serif";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(held.t.em,0,1);
       ctx.restore();
+      ctx.strokeStyle="rgba(255,255,255,.2)";ctx.setLineDash([5,7]);ctx.beginPath();ctx.moveTo(x,TOPY+held.h/2);ctx.lineTo(x,H);ctx.stroke();ctx.setLineDash([]);
     }
-    if(mover && !toppling){
-      drawPiece({x:mover.x,w:mover.w,col:mover.it.col,em:mover.it.em}, mover.y);
-      ctx.strokeStyle="rgba(255,255,255,.18)"; ctx.setLineDash([5,6]); ctx.beginPath();
-      ctx.moveTo(mover.x, mover.y+14); ctx.lineTo(mover.x, pieceScreenY(stack.length-1)-pieceH/2); ctx.stroke(); ctx.setLineDash([]);
-    }
-    hud.textContent = score+" 段";
+    hud.textContent=score+" 段";
   }
-  function drawPiece(p,y){
-    ctx.fillStyle=p.col; rr(p.x-p.w/2, y-pieceH/2, p.w, pieceH-4, 9); ctx.fill();
-    ctx.fillStyle="rgba(255,255,255,.14)"; rr(p.x-p.w/2, y-pieceH/2, p.w, 8, 6); ctx.fill();
-    if(p.em){ ctx.font="18px serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(p.em, p.x, y-1); }
-  }
-  function rr(x,y,w,h,r){ r=Math.min(r,h/2,w/2); ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+  function rr(x,y,w,h,r){r=Math.min(r,h/2,w/2);ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
 
-  function loop(t){ if(!running) return; var dt=Math.min(0.05,(t-last)/1000)||0; last=t; if(!paused){ step(dt); draw(); } requestAnimationFrame(loop); }
-  function start(){ resize(); reset(); ov.hidden=true; running=true; paused=false; last=performance.now(); if(window.Arcade)Arcade.ready(); requestAnimationFrame(loop); }
-  function gameOver(){ running=false;
-    ov.innerHTML='<h1>くずれた…</h1><div class="big">'+score+' 段</div><p>もっと高く積める？</p><button id="rb">リトライ</button>';
-    ov.hidden=false; document.getElementById("rb").addEventListener("click",start);
-    if(window.Arcade)Arcade.gameOver(score);
-  }
-  cv.addEventListener("pointerdown",function(e){ e.preventDefault(); drop(); });
+  function loop(t){if(!running)return;var dt=Math.min(0.04,(t-last)/1000)||0;last=t;if(!paused){update(dt);draw();}requestAnimationFrame(loop);}
+  function start(){resize();reset();ov.hidden=true;running=true;paused=false;last=performance.now();acc=0;if(window.Arcade)Arcade.ready();requestAnimationFrame(loop);}
+  function gameOver(){running=false;ov.innerHTML='<h1>くずれた…</h1><div class="big">'+score+' 段</div><p>もっと高く積める？</p><button id="rb">リトライ</button>';ov.hidden=false;document.getElementById("rb").addEventListener("click",start);if(window.Arcade)Arcade.gameOver(score);}
+
+  // 操作：スワイプで位置決め、指を離すと落下
+  function pdown(e){ if(state==="aim"){ fingerX=(e.touches?e.touches[0].clientX:e.clientX); } }
+  function pmove(e){ if(state==="aim"){ fingerX=(e.touches?e.touches[0].clientX:e.clientX); e.preventDefault&&e.preventDefault(); } }
+  function pup(e){ drop(); }
+  cv.addEventListener("pointerdown",pdown); cv.addEventListener("pointermove",pmove); cv.addEventListener("pointerup",pup); cv.addEventListener("pointercancel",pup);
   document.getElementById("startBtn").addEventListener("click",function(e){e.stopPropagation();start();});
-  if(window.Arcade){ Arcade.onPause(function(){paused=true;}); Arcade.onResume(function(){paused=false;last=performance.now();}); Arcade.onRestart(start); }
-  resize(); reset(); draw();
+  if(window.Arcade){Arcade.onPause(function(){paused=true;});Arcade.onResume(function(){paused=false;last=performance.now();});Arcade.onRestart(start);}
+  resize();reset();draw();
 })();
 </script>
 </body>
