@@ -31,7 +31,9 @@
   var id = new URLSearchParams(location.search).get("game");
   if (!id) { location.replace("index.html"); return; }
   var player = Store.name() || "ゲスト";
-  document.getElementById("back").href = "play.html?game=" + id;
+  // どこから来たかで戻り先を変える（ホーム一覧→ホーム / プレイ画面→プレイ）
+  var from = new URLSearchParams(location.search).get("from");
+  document.getElementById("back").href = (from === "play") ? ("play.html?game=" + id) : "index.html";
   function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
 
   Catalog.resolve(id).then(function (game) {

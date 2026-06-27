@@ -45,7 +45,7 @@
     stype = game.score.type; unit = game.score.unit;
     document.getElementById("title").textContent = game.title;
     document.title = game.title;
-    document.getElementById("rankBtn").href = "leaderboard.html?game=" + game.id;
+    document.getElementById("rankBtn").href = "leaderboard.html?game=" + game.id + "&from=play";
 
     if (game.source === "seed") frame.src = game.path;        // シード：ファイルを読み込む
     else frame.srcdoc = buildSrcdoc(game.html);               // 生成：HTMLを直接サンドボックス再生

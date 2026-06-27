@@ -245,7 +245,7 @@
     if(!rows.length){ grid.innerHTML='<div class="emptybox" style="grid-column:1/-1;margin-top:30px">このカテゴリの作品はまだありません。</div>'; return; }
     grid.innerHTML=rows.map(function(row){
       var it=row.it, topTxt=row.top?(row.top.score+it.score.unit+" / "+row.top.player):"まだ記録なし";
-      var playsTxt=isPop ? (POP_LABEL[feedSort]+" "+popOf(row)+"プレイ") : (row.plays+"プレイ");
+      var playsTxt=row.plays+"プレイ"; // 表示は累計（ランキング人数と矛盾しない）。並び替えだけ期間別。
       return '<div class="card">'+
         thumbDiv(it)+
         '<span class="cat">'+esc(it.category)+'</span>'+
@@ -255,7 +255,7 @@
         '<div class="meta" style="margin-top:6px;color:var(--gold)">1位 '+esc(topTxt)+'</div>'+
         '<div class="cardbtns">'+
           '<a class="cbtn pri" href="play.html?game='+it.id+'">遊ぶ</a>'+
-          '<a class="cbtn" href="leaderboard.html?game='+it.id+'">ランキング</a>'+
+          '<a class="cbtn" href="leaderboard.html?game='+it.id+'&from=home">ランキング</a>'+
         '</div></div>';
     }).join("");
   }
