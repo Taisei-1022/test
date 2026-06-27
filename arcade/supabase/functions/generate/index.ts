@@ -134,6 +134,61 @@ function limitReason(scope: "req" | "bld", g: { reason?: string } | null) {
   return "rate";                                    // req の user/ip 上限
 }
 
+// ===== 生成ジョブ（非同期化）=====
+// gen_jobs テーブルに service_role で読み書き。テーブルが無ければ null を返し、
+// 呼び出し側は従来の同期（ストリーミング）にフォールバックする。
+const JOBS_URL = SUPA_URL ? SUPA_URL.replace(/\/$/, "") + "/rest/v1/gen_jobs" : "";
+const jobHeaders = { apikey: SUPA_SRV, Authorization: "Bearer " + SUPA_SRV, "content-type": "application/json" };
+async function createJob(token: string): Promise<string | null> {
+  if (!JOBS_URL || !SUPA_SRV) return null;
+  try {
+    const r = await fetch(JOBS_URL, { method: "POST", headers: { ...jobHeaders, Prefer: "return=representation" }, body: JSON.stringify({ token }) });
+    if (!r.ok) return null;
+    const rows = await r.json();
+    return Array.isArray(rows) && rows[0] ? rows[0].id : null;
+  } catch { return null; }
+}
+async function finishJob(id: string, result: unknown) {
+  if (!JOBS_URL || !SUPA_SRV) return;
+  try {
+    await fetch(JOBS_URL + "?id=eq." + encodeURIComponent(id), { method: "PATCH", headers: jobHeaders, body: JSON.stringify({ result }) });
+  } catch { /* ignore */ }
+}
+async function getJob(id: string): Promise<{ result: unknown; created_at: string } | null> {
+  if (!JOBS_URL || !SUPA_SRV) return null;
+  try {
+    const r = await fetch(JOBS_URL + "?id=eq." + encodeURIComponent(id) + "&select=result,created_at", { headers: jobHeaders });
+    if (!r.ok) return null;
+    const rows = await r.json();
+    return Array.isArray(rows) && rows[0] ? rows[0] : null;
+  } catch { return null; }
+}
+
+// 本生成（重い1回）。doWork からビルド部分だけを切り出したもの。
+async function buildOnce(key: string, messages: Msg[], prevHtml: string) {
+  const lastUser = [...messages].reverse().find((m) => m.role === "user");
+  const instruction = (lastUser?.content || "").trim();
+  if (prevHtml) {
+    const userContent = "次の既存ゲーム(HTML)を、下の指示に従って修正してください。修正後の完全な単一HTMLだけを返し、タイトルも内容に合わせて更新してOKです。\n\n【指示】\n" +
+      instruction + "\n\n【既存HTML】\n" + prevHtml;
+    const g = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, true);
+    if (!g.html) return { error: "empty_html" };
+    return { action: "build", reply: "直したよ！", title: g.title || "無題のゲーム", html: g.html, category: g.category || "その他" };
+  }
+  const transcript = messages.map((m) => (m.role === "user" ? "ユーザー: " : "AI: ") + m.content).join("\n");
+  const userContent = "次の相談で決まった内容で、ミニゲームを作ってください。完全な単一HTMLだけを返す。\n\n【相談ログ】\n" + transcript;
+  const g = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, true);
+  if (!g.html) return { error: "empty_html" };
+  return { action: "build", reply: "作ったよ！", title: g.title || "無題のゲーム", html: g.html, category: g.category || "その他" };
+}
+// callClaude 例外をクライアント向けエラーへ変換
+function buildErr(e: unknown) {
+  const s = String((e as Error)?.message || e);
+  if (s.indexOf("refused") >= 0) return { error: "refused" };
+  if (/credit balance is too low/i.test(s)) return { error: "insufficient_credit" };
+  return { error: "generate_error", detail: s.slice(0, 200) };
+}
+
 // フェーズごとのモデル（コスト最適化）：
 //   相談・質問役（think=false）→ Haiku（安い・速い）
 //   ゲーム本生成・修正（think=true）→ Sonnet（品質と価格のバランス）
@@ -181,51 +236,27 @@ async function callClaude(key: string, system: string, messages: Msg[], schema: 
   throw lastErr || new Error("ai_unavailable");
 }
 
-// 相談 or 生成の本体。結果オブジェクト（成功 or {error,...}）を返す。
-async function doWork(key: string, messages: Msg[], prevHtml: string, token: string, ip: string) {
-  const lastUser = [...messages].reverse().find((m) => m.role === "user");
-  const instruction = (lastUser?.content || "").trim();
+// 受付：レート制限＋相談（プランナー）。結果がすぐ返せるものは immediate、
+// 重いビルドへ進む場合は { build:true } を返す。
+async function startFlow(key: string, messages: Msg[], prevHtml: string, token: string, ip: string): Promise<{ immediate?: unknown; build?: boolean }> {
   const d = today();
-  // ゲーム生成（高コスト）に入る前の上限チェック
-  const buildGate = async () => {
-    const g = await gate("u:bld:" + token + ":" + d, "i:bld:" + ip + ":" + d, "g:bld:" + d, LIMITS.bldUser, LIMITS.bldIp, LIMITS.bldGlobal, 0);
-    if (g && g.allowed === false) return { error: "rate_limited", reason: limitReason("bld", g) };
-    return null;
-  };
-  try {
-    // --- すべてのリクエストに対する軽い上限＋連打防止 ---
-    const rg = await gate("u:req:" + token + ":" + d, "i:req:" + ip + ":" + d, "g:req:" + d, LIMITS.reqUser, LIMITS.reqIp, LIMITS.reqGlobal, LIMITS.cooldownSec);
-    if (rg && rg.allowed === false) return { error: "rate_limited", reason: limitReason("req", rg), retry_sec: rg.retry_sec };
+  const rg = await gate("u:req:" + token + ":" + d, "i:req:" + ip + ":" + d, "g:req:" + d, LIMITS.reqUser, LIMITS.reqIp, LIMITS.reqGlobal, LIMITS.cooldownSec);
+  if (rg && rg.allowed === false) return { immediate: { error: "rate_limited", reason: limitReason("req", rg), retry_sec: rg.retry_sec } };
 
-    // --- 編集モード（既存HTMLあり）: 相談せず直接ビルド ---
-    if (prevHtml) {
-      const blocked = await buildGate(); if (blocked) return blocked;
-      const userContent = "次の既存ゲーム(HTML)を、下の指示に従って修正してください。修正後の完全な単一HTMLだけを返し、タイトルも内容に合わせて更新してOKです。\n\n【指示】\n" +
-        instruction + "\n\n【既存HTML】\n" + prevHtml;
-      const g = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, true);
-      if (!g.html) return { error: "empty_html" };
-      return { action: "build", reply: "直したよ！", title: g.title || "無題のゲーム", html: g.html, category: g.category || "その他" };
-    }
-
-    // --- 相談（プランナー: 軽量・質問役） ---
-    const plan = await callClaude(key, PLAN_SYSTEM, messages, PLAN_SCHEMA, false);
+  if (!prevHtml) {
+    // 相談（プランナー：軽量・速い）
+    let plan;
+    try { plan = await callClaude(key, PLAN_SYSTEM, messages, PLAN_SCHEMA, false); }
+    catch (e) { return { immediate: buildErr(e) }; }
     if (plan.action !== "build") {
-      return { action: "ask", reply: plan.reply || "どんな感じにする？", options: Array.isArray(plan.options) ? plan.options.slice(0, 4) : [] };
+      return { immediate: { action: "ask", reply: plan.reply || "どんな感じにする？", options: Array.isArray(plan.options) ? plan.options.slice(0, 4) : [] } };
     }
-
-    // --- 本生成（thinkingあり）: 直前に作成上限チェック ---
-    const blocked = await buildGate(); if (blocked) return blocked;
-    const transcript = messages.map((m) => (m.role === "user" ? "ユーザー: " : "AI: ") + m.content).join("\n");
-    const userContent = "次の相談で決まった内容で、ミニゲームを作ってください。完全な単一HTMLだけを返す。\n\n【相談ログ】\n" + transcript;
-    const g = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, true);
-    if (!g.html) return { error: "empty_html" };
-    return { action: "build", reply: plan.reply || "作ったよ！", title: g.title || "無題のゲーム", html: g.html, category: g.category || "その他" };
-  } catch (e) {
-    const s = String((e as Error)?.message || e);
-    if (s.indexOf("refused") >= 0) return { error: "refused" };
-    if (/credit balance is too low/i.test(s)) return { error: "insufficient_credit" };
-    return { error: "generate_error", detail: s.slice(0, 200) };
   }
+  // ビルドに進む前に作成上限チェック
+  const d2 = today();
+  const bgt = await gate("u:bld:" + token + ":" + d2, "i:bld:" + ip + ":" + d2, "g:bld:" + d2, LIMITS.bldUser, LIMITS.bldIp, LIMITS.bldGlobal, 0);
+  if (bgt && bgt.allowed === false) return { immediate: { error: "rate_limited", reason: limitReason("bld", bgt) } };
+  return { build: true };
 }
 
 Deno.serve(async (req) => {
@@ -235,9 +266,10 @@ Deno.serve(async (req) => {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) return json({ error: "missing_api_key" }, 500);
 
-  let messages: Msg[] = [], prevHtml = "", token = "?";
+  let messages: Msg[] = [], prevHtml = "", token = "?", jobId = "";
   try {
     const b = await req.json();
+    if (typeof b?.job === "string") jobId = b.job;
     if (Array.isArray(b?.messages)) {
       messages = b.messages.filter((m: Msg) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
         .map((m: Msg) => ({ role: m.role, content: String(m.content).slice(0, 4000) }));
@@ -248,28 +280,52 @@ Deno.serve(async (req) => {
     token = String(b?.token ?? "?").slice(0, 80) || "?";
   } catch { /* ignore */ }
 
-  if (!messages.length) return json({ error: "empty_prompt" }, 400);
+  // ---- ポーリング：ジョブの状態確認（軽い・短い）----
+  if (jobId) {
+    const row = await getJob(jobId);
+    if (!row) return json({ status: "error", error: "job_not_found" });
+    if (row.result) {
+      const res = row.result as { error?: string };
+      return json(res && res.error ? { status: "error", ...res } : { status: "done", ...(res as object) });
+    }
+    const age = (Date.now() - new Date(row.created_at).getTime()) / 1000;
+    if (age > 175) return json({ status: "error", error: "timeout" });
+    return json({ status: "pending" });
+  }
 
+  if (!messages.length) return json({ error: "empty_prompt" }, 400);
   const ip = (req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "?").split(",")[0].trim() || "?";
 
-  // 生成は最大~50秒かかり、モバイルSafariは無通信の長いfetchを切る。
-  // 生成中はスペースを定期送信して接続を維持し、最後にJSONを流す（受信側はtrim()してparse）。
+  // ---- 受付：ゲート＋相談（速い）----
+  let flow;
+  try { flow = await startFlow(key, messages, prevHtml, token, ip); }
+  catch (e) { return json(buildErr(e)); }
+  if (flow.immediate) return json(flow.immediate);
+
+  // ---- ビルド：非同期ジョブで開始。テーブルが無ければ同期ストリーミングにフォールバック ----
+  const id = await createJob(token);
+  if (id) {
+    const work = (async () => {
+      let r; try { r = await buildOnce(key, messages, prevHtml); } catch (e) { r = buildErr(e); }
+      await finishJob(id, r);
+    })();
+    try {
+      const ER = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
+      if (ER && ER.waitUntil) ER.waitUntil(work); else await work;
+    } catch { await work; }
+    return json({ action: "job", job_id: id });
+  }
+
+  // フォールバック：同期＋ストリーミング（モバイル対策のハートビート付き）
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     start(controller) {
       let done = false;
-      // 接続確立のため即座に1バイト送る＋以後2秒ごとに送って、モバイルが長い通信を切るのを防ぐ
       try { controller.enqueue(encoder.encode(" ")); } catch { /* closed */ }
-      const hb = setInterval(() => {
-        if (done) return;
-        try { controller.enqueue(encoder.encode(" ")); } catch { /* closed */ }
-      }, 2000);
+      const hb = setInterval(() => { if (done) return; try { controller.enqueue(encoder.encode(" ")); } catch { /* closed */ } }, 2000);
       (async () => {
-        let result: unknown;
-        try { result = await doWork(key, messages, prevHtml, token, ip); }
-        catch (e) { result = { error: "generate_error", detail: String((e as Error)?.message || e).slice(0, 200) }; }
-        done = true;
-        clearInterval(hb);
+        let result; try { result = await buildOnce(key, messages, prevHtml); } catch (e) { result = buildErr(e); }
+        done = true; clearInterval(hb);
         try { controller.enqueue(encoder.encode("\n" + JSON.stringify(result))); } catch { /* closed */ }
         try { controller.close(); } catch { /* closed */ }
       })();

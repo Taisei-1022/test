@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-180.png?v=3" />
 <link rel="icon" href="icon-192.png?v=3" />
-<link rel="stylesheet" href="css/app.css?v=20" />
+<link rel="stylesheet" href="css/app.css?v=21" />
 <title>Vappa</title>
 </head>
 <body>
@@ -138,6 +138,7 @@
 </nav>
 
 <div class="toast" id="toast"></div>
+<div class="genbar" id="genBar" hidden><span class="genspin"></span>ゲームを生成中… 少し待ってね（他の画面に移動してもOK）</div>
 
 <!-- サムネ切り抜き -->
 <div class="cropmodal" id="cropModal" hidden>
@@ -170,7 +171,7 @@
 <script src="js/assets.js?v=1"></script>
 <script src="js/config.js?v=2"></script>
 <script src="js/store.js?v=3"></script>
-<script src="js/ai.js?v=7"></script>
+<script src="js/ai.js?v=8"></script>
 <script src="js/catalog.js?v=6"></script>
 <script src="js/arcade-embed.js?v=3"></script>
 <script src="js/pwa.js?v=1"></script>
@@ -190,6 +191,8 @@
   function fmtDate(t){ try{ return new Date(t).toLocaleDateString("ja-JP"); }catch(e){ return ""; } }
   var toast=document.getElementById("toast");
   function showToast(m){ toast.textContent=m; toast.classList.add("show"); setTimeout(function(){toast.classList.remove("show");},1500); }
+  var genBar=document.getElementById("genBar");
+  function setGenerating(on){ if(genBar) genBar.hidden=!on; }
 
   /* ---------- タブ切替 ---------- */
   var tabs=document.querySelectorAll(".tabbar button");
@@ -624,8 +627,8 @@
     if(pickedAssets.length){ pickedAssets=[]; renderAssetTray(); if(!assetPanel.hidden) renderAssetPanel(); }
     var prev = (lastGen && lastGen.html) ? lastGen.html : "";
     var typing=bubble("bot typing", prev?"直しているよ…":"考え中…");
-    Ai.send(convo, prev).then(function(res){
-      typing.remove();
+    Ai.send(convo, prev, function(){ setGenerating(true); }).then(function(res){
+      typing.remove(); setGenerating(false);
       if(res.action==="ask"){
         var reply=res.reply||"どんな感じにする？";
         bubble("bot", reply); convo.push({role:"assistant",content:reply});
@@ -645,8 +648,11 @@
       bubble("bot","「"+res.title+"」ができたよ！下のボタンか右上の「プレビュー」で遊んでみて。\nさらに直したい時はそのまま話してね。");
       showGenCard();
       busy=false;
+      // 生成中に他画面へ移動していたら、結果を失わないよう下書きに退避＋通知
+      var onChat = document.getElementById("view-create").classList.contains("active") && document.getElementById("cr-chat").classList.contains("on");
+      if(!onChat){ autosaveDraft(); showToast("「"+res.title+"」ができたよ！"); }
     }).catch(function(err){
-      typing.remove(); busy=false;
+      typing.remove(); busy=false; setGenerating(false);
       var s=String(err&&err.message||err);
       var msg;
       if(/rate_limited/.test(s)){

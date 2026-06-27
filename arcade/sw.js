@@ -6,9 +6,9 @@ var CACHE = "vappa-v1";
 var CORE = [
   "./", "./index.html", "./play.html", "./leaderboard.html",
   "./manifest.webmanifest", "./logo.png?v=1",
-  "./css/app.css?v=20",
+  "./css/app.css?v=21",
   "./js/games.js?v=5", "./js/assets.js?v=1", "./js/config.js?v=2", "./js/store.js?v=3",
-  "./js/ai.js?v=7", "./js/catalog.js?v=6", "./js/arcade-embed.js?v=3", "./js/pwa.js?v=1"
+  "./js/ai.js?v=8", "./js/catalog.js?v=6", "./js/arcade-embed.js?v=3", "./js/pwa.js?v=1"
 ];
 
 self.addEventListener("install", function (e) {

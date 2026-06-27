@@ -34,10 +34,58 @@ window.Ai = (function () {
   // 端末ごとの簡易ID（Catalogと同じトークン）。レート制限のキーに使う。
   function token() { try { return (window.Catalog && Catalog.owner) ? Catalog.owner() : ""; } catch (e) { return ""; } }
 
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  // ジョブの状態を1回確認（軽い・短いリクエスト）。生のJSONを返す（エラーで投げない）。
+  async function pollOnce(jobId) {
+    var url = fnUrl();
+    var ctrl = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, 15000) : null;
+    var raw;
+    try {
+      var res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "apikey": cfg.supabaseKey, "Authorization": "Bearer " + cfg.supabaseKey },
+        body: JSON.stringify({ job: jobId }),
+        signal: ctrl ? ctrl.signal : undefined
+      });
+      raw = await res.text();
+    } finally { if (timer) clearTimeout(timer); }
+    try { return JSON.parse((raw || "").trim()); } catch (e) { return null; }
+  }
+
+  // 非同期生成：完成までポーリング。通信が一時的に切れても続行（サーバー側は生成し続ける）。
+  async function pollJob(jobId) {
+    var start = Date.now();
+    while (Date.now() - start < 190000) {
+      await sleep(2500);
+      var d = null;
+      try { d = await pollOnce(jobId); } catch (e) { d = null; }
+      if (!d) continue;                       // 一時的な失敗 → 次のポーリングで再確認
+      if (d.status === "pending") continue;
+      if (d.status === "error") {
+        if (d.error === "rate_limited") throw new Error("rate_limited:" + (d.reason || "") + (d.retry_sec ? (":" + d.retry_sec) : ""));
+        if (d.error === "timeout") throw new Error("ai_failed:timeout");
+        throw new Error("ai_failed:" + (d.error || "") + (d.detail ? (":" + d.detail) : ""));
+      }
+      if (d.status === "done") return d;       // {status:'done', action:'build', title, html, category, reply}
+    }
+    throw new Error("ai_failed:timeout");
+  }
+
   return {
     available: function () { return !!(cfg.supabaseUrl && cfg.supabaseKey); },
     // 会話を送る（相談 or 生成）。prevHtml を渡すと既存ゲームの編集モード。
-    send: function (messages, prevHtml) { return post({ messages: messages, prevHtml: prevHtml || "", token: token() }); },
+    // onBuild: 本生成が始まった（ジョブ受付）時に呼ぶコールバック（「生成中」表示用）。
+    send: function (messages, prevHtml, onBuild) {
+      return post({ messages: messages, prevHtml: prevHtml || "", token: token() }).then(function (data) {
+        if (data && data.action === "job") {
+          if (onBuild) { try { onBuild(); } catch (e) {} }
+          return pollJob(data.job_id);
+        }
+        return data;
+      });
+    },
     // 後方互換：一言からそのまま生成
     generate: async function (prompt, prevHtml) {
       var r = await post({ messages: [{ role: "user", content: prompt }], prevHtml: prevHtml || "", token: token() });
