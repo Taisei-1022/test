@@ -196,7 +196,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.6";
+  var APP_VERSION = "0.9.7";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -329,7 +329,9 @@
       if(!u){ el.textContent="—"; return; }
       if(u.enabled===false){ el.innerHTML='上限：<b>未設定</b>（いまは無制限）'; return; }
       var used=u.bldUsed||0, lim=u.bldLimit||0, rem=(u.bldRemaining==null?Math.max(0,lim-used):u.bldRemaining);
-      el.innerHTML='今日の作成：<b>'+used+' / '+lim+'</b> 本　<span class="dim">（残り '+rem+'）</span>';
+      var sub='';
+      if(u.ipLimit){ sub='<div class="dim" style="margin-top:5px;font-size:12px;font-weight:700">この回線 '+(u.ipUsed||0)+' / '+u.ipLimit+'　・　全体 '+(u.globalUsed||0)+' / '+(u.globalLimit||0)+'</div>'; }
+      el.innerHTML='今日の作成：<b>'+used+' / '+lim+'</b> 本　<span class="dim">（残り '+rem+'）</span>'+sub;
     }).catch(function(){ el.textContent="—"; });
   }
 
@@ -727,7 +729,8 @@
         var reason=s.split(":")[1]||"";
         var sec=parseInt(s.split(":")[2],10);
         msg = reason==="cooldown" ? ("少し待ってからもう一度送ってね"+(sec?("（あと約"+sec+"秒）"):""))
-            : reason==="daily_limit" ? "今日の作成上限に達しました。また明日試してね。"
+            : reason==="daily_limit" ? "今日のあなたの作成上限（15本）に達しました。また明日試してね。"
+            : reason==="ip_limit" ? "この回線からの作成が多く、一時的に制限中です。時間をおくか、別のネットワークで試してね。"
             : reason==="global_busy" ? "いま全体が混み合っています。少し時間をおいてね。"
             : "リクエストが多すぎます。少し待ってからにしてね。";
       } else {

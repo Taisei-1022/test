@@ -109,8 +109,8 @@ const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 // 値はここで調整可。req=全リクエスト（相談含む）、bld=ゲーム生成/編集（高コスト）。
 const LIMITS = {
   cooldownSec: 3,                          // 連打クールダウン（端末ごと）
-  reqUser: 150, reqIp: 250, reqGlobal: 4000,   // 1日あたりのリクエスト上限
-  bldUser: 15, bldIp: 25, bldGlobal: 120,      // 1日あたりのゲーム生成上限（全体=予算ガード）
+  reqUser: 150, reqIp: 500, reqGlobal: 4000,   // 1日あたりのリクエスト上限
+  bldUser: 15, bldIp: 60, bldGlobal: 250,      // 1日あたりのゲーム生成上限（IP=同一回線/全体=予算ガード）
 };
 const SUPA_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPA_SRV = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -136,8 +136,9 @@ function limitReason(scope: "req" | "bld", g: { reason?: string } | null) {
   const r = g?.reason || "";
   if (r === "cooldown") return "cooldown";
   if (r === "global_daily") return "global_busy";
-  if (scope === "bld") return "daily_limit";       // user/ip の作成上限
-  return "rate";                                    // req の user/ip 上限
+  if (r === "ip_daily") return "ip_limit";         // 同一回線（IP）の上限
+  if (scope === "bld") return "daily_limit";       // 端末ごとの作成上限
+  return "rate";                                    // req の user 上限
 }
 
 // ===== 生成ジョブ（非同期化）=====
@@ -331,12 +332,21 @@ Deno.serve(async (req) => {
     token = String(b?.token ?? "?").slice(0, 80) || "?";
   } catch { /* ignore */ }
 
+  const ip = (req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "?").split(",")[0].trim() || "?";
+
   // ---- 使用量の確認（加算しない・上限チェックもしない）----
   if (wantUsage) {
     const d = today();
     const used = await readUsage("u:bld:" + token + ":" + d);
     if (used === null) return json({ enabled: false });   // rate_limit.sql 未実行 = 無制限
-    return json({ enabled: true, bldUsed: used, bldLimit: LIMITS.bldUser, bldRemaining: Math.max(0, LIMITS.bldUser - used) });
+    const ipU = await readUsage("i:bld:" + ip + ":" + d);
+    const gU = await readUsage("g:bld:" + d);
+    return json({
+      enabled: true,
+      bldUsed: used, bldLimit: LIMITS.bldUser, bldRemaining: Math.max(0, LIMITS.bldUser - used),
+      ipUsed: ipU || 0, ipLimit: LIMITS.bldIp,
+      globalUsed: gU || 0, globalLimit: LIMITS.bldGlobal,
+    });
   }
 
   // ---- ポーリング：ジョブの状態確認（軽い・短い）----
@@ -353,7 +363,6 @@ Deno.serve(async (req) => {
   }
 
   if (!messages.length) return json({ error: "empty_prompt" }, 400);
-  const ip = (req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "?").split(",")[0].trim() || "?";
 
   // ---- 受付：ゲート＋相談（速い）----
   let flow;
