@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-180.png?v=3" />
 <link rel="icon" href="icon-192.png?v=3" />
-<link rel="stylesheet" href="css/app.css?v=16" />
+<link rel="stylesheet" href="css/app.css?v=17" />
 <title>Vappa</title>
 </head>
 <body>
@@ -20,7 +20,7 @@
   <!-- 遊ぶ -->
   <section id="view-play" class="view active">
     <div class="app">
-      <div class="top"><div class="brand">Vappa<small>あそぶ</small></div></div>
+      <div class="top"><div class="brand"><img class="logo" src="logo.png?v=1" alt="Vappa" /><small>あそぶ</small></div></div>
       <div class="filterbar">
         <div class="catchips" id="catChips"></div>
         <div class="sortrow">
@@ -43,7 +43,7 @@
   <section id="view-create" class="view">
     <!-- ① 作品一覧 -->
     <div id="cr-list" class="crscreen on">
-      <div class="crbar"><div class="t">作る</div><button class="newbtn" id="newBtn">＋ 新規作成</button></div>
+      <div class="crbar"><div class="t"><img class="logo" src="logo.png?v=1" alt="Vappa" /></div><button class="howtobtn" id="howtoBtn" type="button" aria-label="使い方">？</button><button class="newbtn" id="newBtn">＋ 新規作成</button></div>
       <div class="crbody"><div id="creations"></div></div>
     </div>
     <!-- ② チャット -->
@@ -116,7 +116,7 @@
   <!-- マイページ -->
   <section id="view-mypage" class="view">
     <div class="app">
-      <div class="top"><div class="brand">マイページ<small>あなたの記録</small></div></div>
+      <div class="top"><div class="brand"><img class="logo" src="logo.png?v=1" alt="Vappa" /><small>マイページ</small></div></div>
       <div class="section">なまえ</div>
       <label class="name"><input id="name" maxlength="16" placeholder="ゲスト" style="width:180px" /></label>
       <div class="section">作ったゲーム</div>
@@ -151,6 +151,21 @@
   </div>
 </div>
 
+<!-- 作り方チュートリアル -->
+<div class="howto" id="howto" hidden>
+  <div class="howtobox">
+    <h3>Vappaでゲームを作る</h3>
+    <p class="lead">AIと話すだけ。プログラミングは要りません。バカゲーも大歓迎！</p>
+    <ol>
+      <li><span class="no">1</span><div class="tx"><b>「＋ 新規作成」を押す</b><span>白紙から会話スタート。</span></div></li>
+      <li><span class="no">2</span><div class="tx"><b>AIと相談して決める</b><span>まず質問が来るので答えるだけ。「🎨素材」で絵文字キャラも選べる。「おまかせ」でもOK。</span></div></li>
+      <li><span class="no">3</span><div class="tx"><b>プレビューで遊ぶ</b><span>その場で試遊。直したい所はチャットで「もっと速く」などと言えば修正。</span></div></li>
+      <li><span class="no">4</span><div class="tx"><b>一時保存 or 公開</b><span>下書き保存して後で続きもOK。公開でみんなの「遊ぶ」に並ぶ。</span></div></li>
+    </ol>
+    <button class="ok" id="howtoOk" type="button">はじめる</button>
+  </div>
+</div>
+
 <script src="js/games.js?v=2"></script>
 <script src="js/assets.js?v=1"></script>
 <script src="js/config.js?v=2"></script>
@@ -162,6 +177,9 @@
 <script>
 (function () {
   "use strict";
+  // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
+  if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
+    document.documentElement.classList.add("standalone");
   function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
   function shade(hex){ var n=parseInt(hex.slice(1),16),r=(n>>16)&255,g=(n>>8)&255,b=n&255;
     r=Math.round(r*.55);g=Math.round(g*.55);b=Math.round(b*.55);
@@ -181,10 +199,19 @@
     tabs.forEach(function(b){ b.classList.toggle("on", b.dataset.tab===tab); });
     if(tab==="play") renderFeed();
     if(tab==="mypage") renderMypage();
-    if(tab==="create") enterCreate();
+    if(tab==="create"){ enterCreate(); maybeHowto(); }
     if(location.hash!=="#"+tab) history.replaceState(null,"","#"+tab);
   }
   tabs.forEach(function(b){ b.addEventListener("click", function(){ show(b.dataset.tab); }); });
+
+  /* ---------- 作り方チュートリアル ---------- */
+  var howto=document.getElementById("howto"), HOWTO_KEY="arcade.howto.v1";
+  function openHowto(){ howto.hidden=false; }
+  function closeHowto(){ howto.hidden=true; try{ localStorage.setItem(HOWTO_KEY,"1"); }catch(e){} }
+  function maybeHowto(){ try{ if(localStorage.getItem(HOWTO_KEY)!=="1") openHowto(); }catch(e){} }
+  document.getElementById("howtoBtn").addEventListener("click", openHowto);
+  document.getElementById("howtoOk").addEventListener("click", closeHowto);
+  howto.addEventListener("click", function(e){ if(e.target===howto) closeHowto(); });
 
   /* ---------- 遊ぶ：フィード（フィルター・並び替え） ---------- */
   var grid=document.getElementById("grid");
