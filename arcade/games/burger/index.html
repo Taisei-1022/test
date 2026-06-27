@@ -15,14 +15,21 @@
   #ov .big{font-size:42px;font-weight:800;color:#ffcf5c;}
   #ov button{background:#ffb02e;color:#3a2400;border:0;border-radius:14px;padding:.85rem 1.7rem;font:inherit;font-weight:800;font-size:16px;cursor:pointer;}
   #ov[hidden]{display:none;}
+  #rotBtn{position:fixed;right:18px;bottom:calc(env(safe-area-inset-bottom) + 24px);z-index:4;
+    width:66px;height:66px;border-radius:50%;border:0;background:rgba(255,176,46,.94);color:#3a2400;
+    font-size:30px;font-weight:800;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;
+    box-shadow:0 4px 14px rgba(0,0,0,.45);cursor:pointer;touch-action:manipulation;}
+  #rotBtn small{font-size:10px;font-weight:800;letter-spacing:.04em;margin-top:2px;}
+  #rotBtn:active{transform:scale(.92);}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div id="hud"></div>
+<button id="rotBtn" type="button" aria-label="回転">⟳<small>15°</small></button>
 <div id="ov">
   <h1>🍔 バーガータワー</h1>
-  <p>🍔ハンバーガー / 🍟ポテト / 🥤ドリンク を積み上げろ！<br>スワイプで位置を決めて、<b>指を離すと落下</b>。<br>崩れたら終わり。</p>
+  <p>いろんな商品を高く積み上げろ！<br>🍔🍟🥤🍗🥫…まれに🥧も。<br>スワイプで位置決め、<b>⟳で15°回転</b>、<b>指を離すと落下</b>。崩れたら終わり。</p>
   <button id="startBtn">はじめる</button>
 </div>
 <script src="../../js/arcade-sdk.js?v=2"></script>
@@ -149,7 +156,7 @@
     }
   };
 
-  var GRAV=1700, ITER=10;
+  var GRAV=1250, ITER=10;
   function World(){this.bodies=[];this.arb={};}
   World.prototype.add=function(b){this.bodies.push(b);return b;};
   World.prototype.step=function(dt){
@@ -173,10 +180,19 @@
   window.addEventListener("resize",resize);
 
   var TYPES=[
-    {k:"burger",em:"🍔",w:96,h:50,col2:"#d9952b"},
-    {k:"fries", em:"🍟",w:58,h:84,col2:"#e5484d"},
-    {k:"drink", em:"🥤",w:50,h:96,col2:"#4ea8de"}
+    {k:"burger", em:"🍔",w:96,h:50,col2:"#d9952b", wgt:20},
+    {k:"fries",  em:"🍟",w:58,h:84,col2:"#e5484d", wgt:18},
+    {k:"drink",  em:"🥤",w:50,h:96,col2:"#4ea8de", wgt:16},
+    {k:"nugget", em:"🍗",w:72,h:48,col2:"#dca23a", wgt:16},
+    {k:"ketchup",em:"🥫",w:46,h:80,col2:"#e23b3b", wgt:12},
+    {k:"applepie",em:"🥧",w:92,h:44,col2:"#e9b75a", wgt:2}  // めっちゃレア
   ];
+  function pickType(){
+    var tot=0,i; for(i=0;i<TYPES.length;i++)tot+=TYPES[i].wgt;
+    var r=Math.random()*tot;
+    for(i=0;i<TYPES.length;i++){ r-=TYPES[i].wgt; if(r<0)return TYPES[i]; }
+    return TYPES[0];
+  }
   var world,plate,score,running=false,paused=false,last=0,acc=0;
   var held,fingerX,active,settleT,state; // state: aim | fall
   var TOPY=110; // 落下開始のスクリーンY
@@ -189,7 +205,7 @@
     score=0; camY=0; state="aim"; settleT=0; active=null; fingerX=W/2;
     nextHeld();
   }
-  function nextHeld(){ var t=TYPES[Math.floor(Math.random()*TYPES.length)]; held={t:t,w:t.w*SC,h:t.h*SC}; state="aim"; }
+  function nextHeld(){ var t=pickType(); held={t:t,w:t.w*SC,h:t.h*SC,angle:0}; state="aim"; }
   function worldToScreenY(wy){return wy+camY;}
   function screenToWorldY(sy){return sy-camY;}
 
@@ -198,6 +214,7 @@
     var b=new Body(held.w,held.h,(held.w*held.h)/900,0.55);
     b.px=Math.max(held.w/2,Math.min(W-held.w/2,fingerX));
     b.py=screenToWorldY(TOPY);
+    b.angle=held.angle||0;
     b.t=held.t;
     world.add(b); active=b; state="fall"; settleT=0; held=null;
   }
@@ -217,8 +234,9 @@
       if(spd<14){ settleT+=dt; if(settleT>0.35){ score++; active=null; nextHeld(); } }
       else settleT=0;
     }
-    // 画面外に落ちた箱があれば崩壊
-    for(i=1;i<world.bodies.length;i++){ var bb=world.bodies[i]; if(worldToScreenY(bb.py)>H+80){ gameOver(); return; } }
+    // 崩壊判定：箱が台より下（ワールド座標）まで落ちたら終了。
+    // ※カメラのパンで画面外に出ても、台に乗っている箱では誤判定しないようワールド座標で見る。
+    for(i=1;i<world.bodies.length;i++){ var bb=world.bodies[i]; if(bb.py>plate.py+160){ gameOver(); return; } }
   }
 
   function drawBody(b,ghost){
@@ -235,6 +253,9 @@
     if(k==="burger") drawBurger(w,h);
     else if(k==="fries") drawFries(w,h);
     else if(k==="drink") drawDrink(w,h);
+    else if(k==="nugget") drawNugget(w,h);
+    else if(k==="ketchup") drawKetchup(w,h);
+    else if(k==="applepie") drawApplepie(w,h);
   }
   function drawPlate(w,h){
     var hw=w/2,hh=h/2;
@@ -315,6 +336,65 @@
     ctx.strokeStyle="#ff5d8f"; ctx.lineWidth=Math.max(3,w*0.11); ctx.lineCap="round";
     ctx.beginPath(); ctx.moveTo(hw*0.18,cupTop-h*0.02); ctx.lineTo(hw*0.5,-hh); ctx.stroke();
   }
+  function drawNugget(w,h){
+    var hw=w/2,hh=h/2;
+    // ゴツゴツした塊
+    ctx.fillStyle="#dca23a";
+    ctx.beginPath();
+    ctx.moveTo(-hw*0.6,-hh*0.2);
+    ctx.quadraticCurveTo(-hw,-hh*1.0, -hw*0.1,-hh*0.8);
+    ctx.quadraticCurveTo(hw*0.45,-hh*1.0, hw*0.92,-hh*0.15);
+    ctx.quadraticCurveTo(hw*1.0, hh*0.6, hw*0.25,hh*0.85);
+    ctx.quadraticCurveTo(-hw*0.55,hh*1.0, -hw*0.82,hh*0.2);
+    ctx.quadraticCurveTo(-hw*1.0,-hh*0.1, -hw*0.6,-hh*0.2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.lineJoin="round"; ctx.strokeStyle="#b9842a"; ctx.lineWidth=Math.max(2,w*0.04); ctx.stroke();
+    // 衣のハイライト
+    ctx.fillStyle="rgba(255,236,180,.35)";
+    ctx.beginPath(); ctx.ellipse(-hw*0.2,-hh*0.25,hw*0.4,hh*0.32,-0.3,0,Math.PI*2); ctx.fill();
+    // 衣のつぶつぶ
+    ctx.fillStyle="rgba(120,78,20,.4)";
+    var dots=[[-0.3,0.2],[0.15,-0.1],[0.4,0.35],[-0.05,0.45],[0.55,-0.2]];
+    for(var i=0;i<dots.length;i++){ ctx.beginPath(); ctx.arc(dots[i][0]*hw,dots[i][1]*hh,Math.max(1.2,w*0.018),0,Math.PI*2); ctx.fill(); }
+  }
+  function drawKetchup(w,h){
+    var hw=w/2,hh=h/2;
+    // 本体
+    ctx.fillStyle="#e23b3b"; rr(-hw,-hh+h*0.22,w,h*0.78,w*0.34); ctx.fill();
+    ctx.fillStyle="rgba(255,255,255,.14)"; rr(-hw+w*0.12,-hh+h*0.26,w*0.22,h*0.6,w*0.1); ctx.fill();
+    // 肩
+    ctx.fillStyle="#e23b3b";
+    ctx.beginPath(); ctx.moveTo(-hw*0.55,-hh+h*0.24); ctx.lineTo(hw*0.55,-hh+h*0.24);
+    ctx.lineTo(hw*0.3,-hh+h*0.10); ctx.lineTo(-hw*0.3,-hh+h*0.10); ctx.closePath(); ctx.fill();
+    // フタ
+    ctx.fillStyle="#fff"; rr(-hw*0.32,-hh,hw*0.64,h*0.12,2); ctx.fill();
+    // ラベル
+    ctx.fillStyle="#fff"; rr(-hw*0.78,-hh*0.08,w*0.78,h*0.34,4); ctx.fill();
+    // トマトマーク
+    ctx.fillStyle="#e23b3b"; ctx.beginPath(); ctx.arc(0,-hh*0.08+h*0.17,w*0.13,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle="#3fae5a"; ctx.beginPath(); ctx.ellipse(0,-hh*0.08+h*0.09,w*0.08,h*0.022,0,0,Math.PI*2); ctx.fill();
+  }
+  function drawApplepie(w,h){
+    var hw=w/2,hh=h/2;
+    // 生地
+    ctx.fillStyle="#e9b75a"; rr(-hw,-hh,w,h,h*0.24); ctx.fill();
+    // 焼き色（下側）
+    ctx.fillStyle="#d59b3e"; rr(-hw,hh-h*0.32,w,h*0.32,h*0.2); ctx.fill();
+    // 上面のツヤ
+    ctx.fillStyle="rgba(255,255,255,.22)"; rr(-hw,-hh,w,h*0.34,h*0.2); ctx.fill();
+    // 端のクリンプ（ギザギザ）
+    ctx.strokeStyle="#c98f37"; ctx.lineWidth=Math.max(2,w*0.022);
+    var n=7; for(var i=0;i<=n;i++){ var x=-hw+w*i/n; ctx.beginPath(); ctx.moveTo(x,-hh+h*0.06); ctx.lineTo(x,-hh+h*0.16); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x,hh-h*0.06); ctx.lineTo(x,hh-h*0.16); ctx.stroke(); }
+    // 通気スリット
+    ctx.strokeStyle="#9c6b2e"; ctx.lineWidth=Math.max(2,w*0.03); ctx.lineCap="round";
+    for(var s=-1;s<=1;s++){ ctx.beginPath(); ctx.moveTo(s*w*0.18-w*0.05,-h*0.10); ctx.lineTo(s*w*0.18+w*0.05,h*0.10); ctx.stroke(); }
+    // 砂糖
+    ctx.fillStyle="rgba(255,255,255,.55)";
+    var sg=[[-0.3,-0.2],[0.1,0.15],[0.35,-0.05],[-0.1,0.3]];
+    for(var j=0;j<sg.length;j++){ ctx.beginPath(); ctx.arc(sg[j][0]*hw,sg[j][1]*hh,Math.max(1,w*0.012),0,Math.PI*2); ctx.fill(); }
+  }
   function draw(){
     ctx.clearRect(0,0,W,H);
     var g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,"#241a36");g.addColorStop(1,"#15101f");ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
@@ -323,7 +403,7 @@
     // ホールド中プレビュー
     if(state==="aim"&&held){
       var x=Math.max(held.w/2,Math.min(W-held.w/2,fingerX));
-      ctx.save();ctx.translate(x,TOPY);
+      ctx.save();ctx.translate(x,TOPY);ctx.rotate(held.angle||0);
       ctx.globalAlpha=0.92;drawShape(held.t.k,held.w,held.h);ctx.globalAlpha=1;
       ctx.restore();
       ctx.strokeStyle="rgba(255,255,255,.2)";ctx.setLineDash([5,7]);ctx.beginPath();ctx.moveTo(x,TOPY+held.h/2);ctx.lineTo(x,H);ctx.stroke();ctx.setLineDash([]);
@@ -341,6 +421,10 @@
   function pmove(e){ if(state==="aim"){ fingerX=(e.touches?e.touches[0].clientX:e.clientX); e.preventDefault&&e.preventDefault(); } }
   function pup(e){ drop(); }
   cv.addEventListener("pointerdown",pdown); cv.addEventListener("pointermove",pmove); cv.addEventListener("pointerup",pup); cv.addEventListener("pointercancel",pup);
+  // 回転ボタン：1タップで15度
+  var rotBtn=document.getElementById("rotBtn");
+  function doRot(e){ if(e){e.stopPropagation();e.preventDefault&&e.preventDefault();} if(running&&!paused&&state==="aim"&&held){ held.angle=(held.angle||0)+Math.PI/12; } }
+  rotBtn.addEventListener("click",doRot);
   document.getElementById("startBtn").addEventListener("click",function(e){e.stopPropagation();start();});
   if(window.Arcade){Arcade.onPause(function(){paused=true;});Arcade.onResume(function(){paused=false;last=performance.now();});Arcade.onRestart(start);}
   resize();reset();draw();
