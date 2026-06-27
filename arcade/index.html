@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-180.png?v=3" />
 <link rel="icon" href="icon-192.png?v=3" />
-<link rel="stylesheet" href="css/app.css?v=21" />
+<link rel="stylesheet" href="css/app.css?v=22" />
 <title>Vappa</title>
 </head>
 <body>
@@ -139,6 +139,7 @@
 
 <div class="toast" id="toast"></div>
 <div class="genbar" id="genBar" hidden><span class="genspin"></span>ゲームを生成中… 少し待ってね（他の画面に移動してもOK）</div>
+<div class="verbadge" id="ver"></div>
 
 <!-- サムネ切り抜き -->
 <div class="cropmodal" id="cropModal" hidden>
@@ -172,13 +173,16 @@
 <script src="js/config.js?v=2"></script>
 <script src="js/store.js?v=3"></script>
 <script src="js/ai.js?v=8"></script>
-<script src="js/catalog.js?v=6"></script>
+<script src="js/catalog.js?v=7"></script>
 <script src="js/arcade-embed.js?v=3"></script>
 <script src="js/pwa.js?v=1"></script>
 <script src="js/sw-reg.js?v=1"></script>
 <script>
 (function () {
   "use strict";
+  // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
+  var APP_VERSION = "0.9.3";
+  try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
     document.documentElement.classList.add("standalone");
@@ -341,6 +345,7 @@
   // 作成中に別画面へ移ると、未保存の作品を自動で一時保存（非公開）して後で再開できるようにする。
   function autosaveDraft(){
     if(!lastGen || !lastGen.html || !dirty) return;
+    lastGen.chat=JSON.stringify(convo);   // 会話履歴も一緒に保存
     var editing=lastGen.editingId;
     // 公開済みを勝手に非公開化しない：新規・下書きだけ非公開保存、公開済みは公開のまま更新。
     var keepPublic = !!(editing && lastGen.published===true);
@@ -548,6 +553,7 @@
   // 一時保存（公開せず下書きとして保存）。プレビューや情報編集画面の「一時保存」から。
   function saveDraft(){
     if(!lastGen) return;
+    lastGen.chat=JSON.stringify(convo);
     var editing=lastGen.editingId;
     var payload=Object.assign({}, lastGen, {published:false});
     var btn=document.getElementById("pvDraft"); if(btn) btn.disabled=true;
@@ -562,6 +568,7 @@
   }
   document.getElementById("pubDo").addEventListener("click", function(){
     if(!lastGen) return;
+    lastGen.chat=JSON.stringify(convo);
     lastGen.title = (document.getElementById("pubTitle").value||"").trim() || lastGen.title || "ゲーム";
     lastGen.description = (document.getElementById("pubDesc").value||"").trim();
     lastGen.published = true;
@@ -612,7 +619,13 @@
     Catalog.getGenerated(id).then(function(g){
       if(!g) return;
       chatlog.innerHTML=""; chatInit=true; busy=false; convo=[]; dirty=false; showStarters(false);
-      lastGen={ title:g.title, html:g.html, accent:g.accent||"#e6b450", description:g.description||"", thumb:g.thumb||null, editingId:g.id, category:g.category||"その他", published:g.published };
+      // 保存していた会話履歴を復元（あれば）
+      try{ if(g.chat){ var arr=JSON.parse(g.chat); if(Array.isArray(arr)) convo=arr; } }catch(e){}
+      convo.forEach(function(m){
+        var t=(m&&m.content)||""; if(!t||t==="（ゲームを生成しました）") return;
+        bubble(m.role==="user"?"user":"bot", t);
+      });
+      lastGen={ title:g.title, html:g.html, accent:g.accent||"#e6b450", description:g.description||"", thumb:g.thumb||null, editingId:g.id, category:g.category||"その他", published:g.published, chat:g.chat||null };
       toPreviewBtn.classList.remove("off");
       // チャットに移った時のための前置き（まずは情報編集画面を出す）
       bubble("bot","「"+g.title+"」を編集中。直したい所を言ってね（例：もっと速く／敵を増やして／色を青に）。");

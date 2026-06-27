@@ -25,17 +25,18 @@ window.Catalog = (function () {
   function loadLS() { try { return JSON.parse(localStorage.getItem(LS)) || []; } catch (e) { return []; } }
   function saveLS(a) { localStorage.setItem(LS, JSON.stringify(a)); }
   // 任意列（まだSupabaseに無いかもしれない列）。列不明エラー時はこれらを外して再試行する。
-  var OPTIONAL = ["category", "published"];
+  var OPTIONAL = ["category", "published", "chat"];
   function fields(g) {
     return {
       title: g.title, author: g.author || "ゲスト", html: g.html,
       accent: g.accent || "#e6b450", description: g.description || "", thumb: g.thumb || null,
       category: g.category || "その他",
-      published: g.published !== false   // 既定は公開。一時保存だけ false。
+      published: g.published !== false,  // 既定は公開。一時保存だけ false。
+      chat: g.chat || null               // 会話履歴（JSON文字列）。列が無ければ自動で外す。
     };
   }
   function schemaErr(status, text) {
-    return status === 400 && /category|published|column|schema cache|PGRST204/i.test(text || "");
+    return status === 400 && /category|published|chat|column|schema cache|PGRST204/i.test(text || "");
   }
   async function writeRow(path, method, row) {
     var res = await rq(path, { method: method, headers: { Prefer: "return=representation" }, body: JSON.stringify(row) });
@@ -123,7 +124,7 @@ window.Catalog = (function () {
     getGenerated: async function (id) {
       if (remote) {
         try {
-          var res = await getSel("games?id=eq." + enc(id) + "&select=id,title,author,html,accent,description,thumb,owner,category,published&limit=1");
+          var res = await getSel("games?id=eq." + enc(id) + "&select=id,title,author,html,accent,description,thumb,owner,category,published,chat&limit=1");
           return (await res.json())[0] || null;
         } catch (e) { console.warn("getGenerated failed", e); return null; }
       }
