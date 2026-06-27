@@ -287,13 +287,15 @@ async function buildOnce(key: string, messages: Msg[], prevHtml: string) {
     userContent = "次の相談で決まった内容で、ミニゲームを作ってください。完全な単一HTMLだけを返す。\n\n【相談ログ】\n" + transcript;
     reply = "作ったよ！";
   }
+  const t0 = Date.now();
   const g = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, true);
   if (!g.html) return { error: "empty_html" };
   let title = g.title || "無題のゲーム", html = g.html, category = g.category || "その他";
 
-  // 自動チェック → 問題があれば1回だけAIに直させる
+  // 自動チェック → 問題があれば1回だけAIに直させる。
+  // ただし1回目に時間がかかった時は自動修正をスキップ（合計が実行上限を超えてジョブ消失するのを防ぐ）。
   const problem = validateGame(html);
-  if (problem) {
+  if (problem && (Date.now() - t0) < 55000) {
     try {
       const fixUser = "あなたが作った次のHTMLゲームに問題が見つかりました：「" + problem +
         "」。原因を必ず直し、最後まで完結した完全な単一HTMLだけを返してください（</html>まで）。タイトルは維持。\n\n【HTML】\n" + html;
@@ -325,7 +327,7 @@ async function callClaude(key: string, system: string, messages: Msg[], schema: 
     system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
     messages,
     output_config: think
-      ? { effort: "medium", format: { type: "json_schema", schema } }
+      ? { effort: "low", format: { type: "json_schema", schema } }
       : { format: { type: "json_schema", schema } },
   };
   if (think) body.thinking = { type: "adaptive" };
@@ -333,17 +335,22 @@ async function callClaude(key: string, system: string, messages: Msg[], schema: 
   let lastErr: Error | null = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     let r: Response;
+    // 1回の呼び出しが長すぎてジョブ全体が実行上限を超えないよう、各試行にタイムアウトを付ける
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => { try { ctrl.abort(); } catch { /* noop */ } }, think ? 100000 : 30000);
     try {
       r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
         body: JSON.stringify(body),
+        signal: ctrl.signal,
       });
     } catch (e) {
+      if ((e as Error)?.name === "AbortError") throw new Error("timeout");  // 自前タイムアウトはリトライせず即終了
       lastErr = new Error("network:" + String(e).slice(0, 120));
       await sleep(700 * (attempt + 1));
       continue;
-    }
+    } finally { clearTimeout(timer); }
     if (r.status === 429 || r.status >= 500) {
       const t = await r.text();
       lastErr = new Error("anthropic:" + r.status + ":" + t.slice(0, 160));
