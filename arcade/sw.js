@@ -2,7 +2,9 @@
    - ネットワーク優先（オンラインなら常に最新を取得＝自動アップデート）
    - 取得できない時だけキャッシュにフォールバック（オフライン対応）
    - 新バージョンはユーザーが「更新」を押すまで待機（勝手にリロードしない） */
-var CACHE = "vappa-v1";
+// CACHE 名はアプリのバージョンに紐づける（＝毎デプロイで sw.js が変わり、更新が必ず検知される）。
+// APP_VERSION を上げるたびにここも上げること。
+var CACHE = "vappa-0.9.10";
 var CORE = [
   "./", "./index.html", "./play.html", "./leaderboard.html",
   "./manifest.webmanifest", "./logo.png?v=1",

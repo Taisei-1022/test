@@ -30,7 +30,9 @@
     });
   }
 
-  navigator.serviceWorker.register("sw.js").then(function (reg) {
+  // updateViaCache:"none" → sw.js を常にネットから取り直す（GitHub PagesのHTTPキャッシュで
+  // 更新検知が遅れるのを防ぐ）
+  navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then(function (reg) {
     if (reg.waiting && navigator.serviceWorker.controller) showUpdateBar(reg);
     reg.addEventListener("updatefound", function () {
       var nw = reg.installing; if (!nw) return;
@@ -39,7 +41,8 @@
       });
     });
     function check() { reg.update().catch(function () {}); }
-    setTimeout(check, 3000);
+    setTimeout(check, 2000);
+    setInterval(check, 60000);                 // 開いたままでも約1分ごとに更新チェック
     window.addEventListener("focus", check);
     document.addEventListener("visibilitychange", function () { if (!document.hidden) check(); });
   }).catch(function () {});

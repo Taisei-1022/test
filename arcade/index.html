@@ -191,12 +191,12 @@
 <script src="js/catalog.js?v=7"></script>
 <script src="js/arcade-embed.js?v=3"></script>
 <script src="js/pwa.js?v=1"></script>
-<script src="js/sw-reg.js?v=1"></script>
+<script src="js/sw-reg.js?v=2"></script>
 <script>
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.9";
+  var APP_VERSION = "0.9.10";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
