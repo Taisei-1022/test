@@ -134,10 +134,15 @@ function limitReason(scope: "req" | "bld", g: { reason?: string } | null) {
   return "rate";                                    // req の user/ip 上限
 }
 
+// フェーズごとのモデル（コスト最適化）：
+//   相談・質問役（think=false）→ Haiku（安い・速い）
+//   ゲーム本生成・修正（think=true）→ Sonnet（品質と価格のバランス）
+const MODELS = { plan: "claude-haiku-4-5-20251001", build: "claude-sonnet-4-6" };
+
 // 429 / 5xx / ネットワーク断は一時的なので最大3回までリトライ（503 upstream connect error 対策）
 async function callClaude(key: string, system: string, messages: Msg[], schema: unknown, think: boolean) {
   const body: Record<string, unknown> = {
-    model: "claude-opus-4-8",
+    model: think ? MODELS.build : MODELS.plan,
     max_tokens: think ? 16000 : 1024,
     system,
     messages,
