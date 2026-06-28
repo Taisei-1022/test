@@ -295,8 +295,9 @@ async function buildOnce(key: string, messages: Msg[], prevHtml: string) {
     reply = "作ったよ！";
   }
   const t0 = Date.now();
+  const acc: Array<{ model: string; usage: Usage }> = [];   // トークン使用量を集計（コスト算出用）
   // Supabaseの実行上限は400秒。受付＋書き込みのバッファを引いて、本生成は最大380秒まで回す。
-  const g = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, true, 380000);
+  const g = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, true, 380000, acc);
   if (!g.html) return { error: "empty_html" };
   let title = g.title || "無題のゲーム", html = g.html, category = g.category || "その他";
 
@@ -307,11 +308,11 @@ async function buildOnce(key: string, messages: Msg[], prevHtml: string) {
     try {
       const fixUser = "あなたが作った次のHTMLゲームに問題が見つかりました：「" + problem +
         "」。原因を必ず直し、最後まで完結した完全な単一HTMLだけを返してください（</html>まで）。タイトルは維持。\n\n【HTML】\n" + html;
-      const g2 = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: fixUser }], GAME_SCHEMA, true, 150000);
+      const g2 = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: fixUser }], GAME_SCHEMA, true, 150000, acc);
       if (g2.html) { html = g2.html; title = g2.title || title; category = g2.category || category; }
     } catch { /* 修正に失敗したら元の生成結果をそのまま返す */ }
   }
-  return { action: "build", reply, title, html, category };
+  return { action: "build", reply, title, html, category, model: MODELS.build, cost: computeCost(acc) };
 }
 // callClaude 例外をクライアント向けエラーへ変換
 function buildErr(e: unknown) {
@@ -326,8 +327,30 @@ function buildErr(e: unknown) {
 //   ゲーム本生成・修正（think=true）→ ★一時的に Opus（品質確認用・高コスト。後で sonnet に戻す）
 const MODELS = { plan: "claude-haiku-4-5-20251001", build: "claude-opus-4-8" };
 
+// 1ドル=円（コスト表示用の概算レート）
+const USD_JPY = 160;
+// モデル別の単価（1Mトークンあたり、入力/出力ドル）。cache_read=入力×0.1, cache_write=入力×1.25。
+const PRICES: Record<string, { in: number; out: number }> = {
+  "claude-opus-4-8": { in: 5, out: 25 },
+  "claude-sonnet-4-6": { in: 3, out: 15 },
+  "claude-haiku-4-5-20251001": { in: 1, out: 5 },
+};
+type Usage = { input_tokens?: number; output_tokens?: number; cache_creation_input_tokens?: number; cache_read_input_tokens?: number };
+function computeCost(acc: Array<{ model: string; usage: Usage }>) {
+  let usd = 0, tin = 0, tout = 0, tcr = 0, tcw = 0;
+  for (const c of acc) {
+    const p = PRICES[c.model] || { in: 5, out: 25 };
+    const u = c.usage || {};
+    const inp = u.input_tokens || 0, out = u.output_tokens || 0;
+    const cw = u.cache_creation_input_tokens || 0, cr = u.cache_read_input_tokens || 0;
+    usd += (inp * p.in + cw * p.in * 1.25 + cr * p.in * 0.1 + out * p.out) / 1e6;
+    tin += inp; tout += out; tcw += cw; tcr += cr;
+  }
+  return { usd: Math.round(usd * 1e4) / 1e4, jpy: Math.round(usd * USD_JPY * 100) / 100, in: tin, out: tout, cache_w: tcw, cache_r: tcr };
+}
+
 // 429 / 5xx / ネットワーク断は一時的なので最大3回までリトライ（503 upstream connect error 対策）
-async function callClaude(key: string, system: string, messages: Msg[], schema: unknown, think: boolean, timeoutMs?: number) {
+async function callClaude(key: string, system: string, messages: Msg[], schema: unknown, think: boolean, timeoutMs?: number, acc?: Array<{ model: string; usage: Usage }>) {
   const tmo = timeoutMs || (think ? 100000 : 30000);
   const body: Record<string, unknown> = {
     model: think ? MODELS.build : MODELS.plan,
@@ -368,6 +391,7 @@ async function callClaude(key: string, system: string, messages: Msg[], schema: 
     }
     if (!r.ok) { const t = await r.text(); throw new Error("anthropic:" + r.status + ":" + t.slice(0, 200)); }
     const data = await r.json();
+    if (acc && data && data.usage) acc.push({ model: String(body.model), usage: data.usage });
     if (data.stop_reason === "refusal") throw new Error("refused");
     const text = (data.content || []).filter((b: { type: string }) => b.type === "text").map((b: { text: string }) => b.text).join("");
     return JSON.parse(text);
@@ -431,14 +455,14 @@ Deno.serve(async (req) => {
 
   // ---- 使用量の確認（加算しない・上限チェックもしない）----
   if (wantUsage) {
-    if (isAdmin) return json({ enabled: true, admin: true });   // 管理者は無制限表示
+    if (isAdmin) return json({ enabled: true, admin: true, model: MODELS.build });   // 管理者は無制限表示
     const d = today();
     const used = await readUsage("u:bld:" + token + ":" + d);
-    if (used === null) return json({ enabled: false });   // rate_limit.sql 未実行 = 無制限
+    if (used === null) return json({ enabled: false, model: MODELS.build });   // rate_limit.sql 未実行 = 無制限
     const ipU = await readUsage("i:bld:" + ip + ":" + d);
     const gU = await readUsage("g:bld:" + d);
     return json({
-      enabled: true,
+      enabled: true, model: MODELS.build,
       bldUsed: used, bldLimit: LIMITS.bldUser, bldRemaining: Math.max(0, LIMITS.bldUser - used),
       ipUsed: ipU || 0, ipLimit: LIMITS.bldIp,
       globalUsed: gU || 0, globalLimit: LIMITS.bldGlobal,

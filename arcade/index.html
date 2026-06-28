@@ -53,6 +53,7 @@
         <div class="t">作る（AI）</div>
         <button class="act off" id="toPreview">プレビュー</button>
       </div>
+      <div id="modeltag" class="dim" style="padding:4px 14px 0;font-size:11px;font-weight:700" hidden></div>
       <div class="chatlog" id="chatlog"></div>
       <div class="chips" id="chips">
         <button>落ちてくる寿司をキャッチ</button>
@@ -198,7 +199,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.18";
+  var APP_VERSION = "0.9.19";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -708,9 +709,19 @@
   }
   function initChat(){
     if(chatInit) return; chatInit=true;
+    showModelTag();
     bubble("bot", Ai.available()
       ? "どんなゲームを作りたい？ ざっくりでOK。\nまずは一緒に方向性を決めてから作るよ。"
       : "AI生成はまだ設定されていません。\nSupabaseのEdge Function（generate）とAPIキーを設定すると使えます。");
+  }
+  // 生成チャットに現在の生成モデル名を表示（サーバーが真実。usageで取得してキャッシュ）
+  var modelTagCache=null;
+  function showModelTag(){
+    var el=document.getElementById("modeltag"); if(!el) return;
+    if(!(window.Ai&&Ai.available&&Ai.available()&&Ai.usage)){ el.hidden=true; return; }
+    function paint(m){ if(!m){ el.hidden=true; return; } el.textContent="🤖 モデル："+m; el.hidden=false; }
+    if(modelTagCache){ paint(modelTagCache); return; }
+    Ai.usage().then(function(u){ modelTagCache=(u&&u.model)||null; paint(modelTagCache); }).catch(function(){ el.hidden=true; });
   }
   function editGame(id){
     clearNewBuild(id);   // 開いたら「新着」タグを消す
@@ -726,6 +737,7 @@
       });
       lastGen={ title:g.title, html:g.html, accent:g.accent||"#e6b450", description:g.description||"", thumb:g.thumb||null, editingId:g.id, category:g.category||"その他", published:g.published, chat:g.chat||null };
       toPreviewBtn.classList.remove("off");
+      showModelTag();
       // 履歴がある時は前置きを出さない（重複するので）。履歴が無い時だけ案内を表示。
       if(!hadHistory) bubble("bot","「"+g.title+"」を編集中。直したい所を言ってね（例：もっと速く／敵を増やして／色を青に）。");
       pushScreen("create","publish");   // まずタグ・名前・説明・サムネを編集する画面へ
@@ -758,6 +770,11 @@
       convo.push({role:"assistant",content:"（ゲームを生成しました）"});
       toPreviewBtn.classList.remove("off");
       bubble("bot","「"+res.title+"」ができたよ！下のボタンか右上の「プレビュー」で遊んでみて。\nさらに直したい時はそのまま話してね。");
+      // 管理者にだけ、この生成のコストを表示（res.cost はサーバーが算出）
+      if(res.cost && window.Ai && Ai.getAdmin && Ai.getAdmin()){
+        var c=res.cost;
+        bubble("bot","💰 この生成：約 ¥"+c.jpy+"（"+(res.model||"")+"｜入力 "+c.in+" / 出力 "+c.out+" トークン）");
+      }
       showGenCard();
       busy=false;
       // 生成中に他画面へ移動していたら、結果を失わないよう下書きに退避＋通知
