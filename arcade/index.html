@@ -11,13 +11,15 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-180.png?v=3" />
 <link rel="icon" href="icon-192.png?v=3" />
-<link rel="stylesheet" href="css/app.css?v=25" />
+<link rel="stylesheet" href="css/app.css?v=26" />
 <title>Vappa</title>
 <meta property="og:type" content="website" />
 <meta property="og:title" content="Vappa" />
 <meta property="og:description" content="AIでミニゲームを作って遊べる Vappa" />
-<meta property="og:image" content="https://taisei-1022.github.io/test/arcade/logo.png" />
-<meta name="twitter:card" content="summary" />
+<meta property="og:image" content="https://taisei-1022.github.io/test/arcade/og.png?v=1" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
 </head>
 <body>
 <div class="screen">
@@ -198,7 +200,7 @@
 <script src="js/store.js?v=4"></script>
 <script src="js/ai.js?v=12"></script>
 <script src="js/catalog.js?v=9"></script>
-<script src="js/share.js?v=1"></script>
+<script src="js/share.js?v=2"></script>
 <script src="js/arcade-embed.js?v=3"></script>
 <script src="js/pwa.js?v=1"></script>
 <script src="js/sw-reg.js?v=2"></script>
@@ -206,7 +208,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.22";
+  var APP_VERSION = "0.9.23";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)

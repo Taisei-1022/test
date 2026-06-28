@@ -81,7 +81,8 @@ window.Share = (function () {
     sheet.appendChild(c);
 
     ov.appendChild(sheet);
-    ov.addEventListener("click", function (e) { if (e.target === ov) close(); });
+    // ボタン以外のどこをタップしても閉じる（シートの余白＝デッドゾーンで固まらないように）。
+    ov.addEventListener("click", function (e) { if (!(e.target.closest && e.target.closest("button"))) close(); });
     document.body.appendChild(ov);
   }
 
