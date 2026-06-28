@@ -10,6 +10,7 @@ window.ARCADE_CONFIG = {
 /* 急上昇（遊ぶ画面の上部に常設）に出すゲームID。ここを編集すれば差し替えられる。
    先頭から順に表示。seed は "burger" 等の固定ID、生成ゲームはDBのUUID。 */
 window.ARCADE_TRENDING = [
+  "926bc863-3c4f-4658-9cef-a935df2e9111",     // 学歴中
   "burger",                                   // バーガータワー（既定）
   "c7cb2ca9-e665-4e90-a1c7-5673dbdd4bba",     // ゴールド・フィッシャー：マーメイドの誘惑
   "ad469fde-bf2b-4b49-95d7-0b62e59c367a",     // パーフェクト駐車
