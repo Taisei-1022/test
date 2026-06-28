@@ -199,7 +199,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.19";
+  var APP_VERSION = "0.9.20";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -740,6 +740,8 @@
       showModelTag();
       // 履歴がある時は前置きを出さない（重複するので）。履歴が無い時だけ案内を表示。
       if(!hadHistory) bubble("bot","「"+g.title+"」を編集中。直したい所を言ってね（例：もっと速く／敵を増やして／色を青に）。");
+      // 既に生成済みなら「できあがり」カード＋プレビューを復元（別画面から戻っても残るように）
+      if(lastGen.html) showGenCard();
       pushScreen("create","publish");   // まずタグ・名前・説明・サムネを編集する画面へ
     });
   }
