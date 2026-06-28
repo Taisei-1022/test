@@ -16,7 +16,7 @@
 <meta property="og:type" content="website" />
 <meta property="og:title" content="Vappa" />
 <meta property="og:description" content="AIでミニゲームを作って遊べる Vappa" />
-<meta property="og:image" content="https://taisei-1022.github.io/test/arcade/og.png?v=2" />
+<meta property="og:image" content="https://taisei-1022.github.io/test/arcade/og.png?v=3" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
 <meta name="twitter:card" content="summary_large_image" />
@@ -201,7 +201,7 @@
 <script src="js/store.js?v=5"></script>
 <script src="js/ai.js?v=12"></script>
 <script src="js/catalog.js?v=9"></script>
-<script src="js/share.js?v=4"></script>
+<script src="js/share.js?v=5"></script>
 <script src="js/arcade-embed.js?v=3"></script>
 <script src="js/pwa.js?v=1"></script>
 <script src="js/sw-reg.js?v=2"></script>
@@ -209,7 +209,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.29";
+  var APP_VERSION = "0.9.30";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -503,7 +503,10 @@
   var newprojModal=document.getElementById("newproj"), newprojName=document.getElementById("newprojName");
   function openNewProj(){ newprojName.value=""; newprojModal.hidden=false; setTimeout(function(){ try{newprojName.focus();}catch(e){} },60); }
   function closeNewProj(){ newprojModal.hidden=true; }
+  var creatingProject=false;
   function createProject(name){
+    if(creatingProject) return;          // ダブルタップで二重作成しない
+    creatingProject=true; setTimeout(function(){ creatingProject=false; }, 1200);
     var title=(name||"").trim()||"無題のゲーム";
     closeNewProj();
     autosaveDraft();   // 直前に編集中があれば保存
@@ -522,6 +525,8 @@
   }
   document.getElementById("newBtn").addEventListener("click", openNewProj);
   document.getElementById("newprojCancel").addEventListener("click", closeNewProj);
+  // 背景（モーダル外）タップで閉じる＝うっかり開いても固まらない
+  newprojModal.addEventListener("click", function(e){ if(e.target===newprojModal) closeNewProj(); });
   document.getElementById("newprojOk").addEventListener("click", function(){ createProject(newprojName.value); });
   newprojName.addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); createProject(newprojName.value); } });
   // 戻る系はすべて history.back() に統一（スワイプ戻ると同じ挙動に）
@@ -656,6 +661,7 @@
   cropView.addEventListener("pointercancel", endPtr);
   function closeCrop(){ cropModal.hidden=true; cropImg.removeAttribute("src"); ptrs={}; panning=false; }
   document.getElementById("cropCancel").addEventListener("click", closeCrop);
+  cropModal.addEventListener("click", function(e){ if(e.target===cropModal) closeCrop(); });
   document.getElementById("cropOk").addEventListener("click", function(){
     if(!lastGen){ closeCrop(); return; }
     var Vw=cropView.clientWidth, Vh=cropView.clientHeight, s=cBase*cZoom;

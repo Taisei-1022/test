@@ -10,7 +10,7 @@ window.Share = (function () {
   function baseDir() { return location.origin + location.pathname.replace(/[^/]*$/, ""); }
   // 共有リンクのバージョン。OG画像を変えてもLINE等はページURL単位でプレビューを
   // キャッシュするため、ここを上げてURLを変える＝再取得させてサムネを更新する。
-  var SHARE_V = "3";
+  var SHARE_V = "4";
   function appUrl() { return baseDir() + "?v=" + SHARE_V; }
   function gameUrl(id) { return baseDir() + "play.html?game=" + encodeURIComponent(id) + "&v=" + SHARE_V; }
 
