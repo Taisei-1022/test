@@ -5,15 +5,20 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<link rel="stylesheet" href="css/app.css?v=24" />
+<link rel="stylesheet" href="css/app.css?v=25" />
 <title>プレイ</title>
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Vappa" />
+<meta property="og:description" content="AIでミニゲームを作って遊べる Vappa" />
+<meta property="og:image" content="https://taisei-1022.github.io/test/arcade/logo.png" />
+<meta name="twitter:card" content="summary" />
 </head>
 <body>
 <div class="play">
   <div class="bar">
     <a class="back" href="index.html" aria-label="戻る">‹</a>
     <div class="t" id="title">…</div>
-    <button class="rankbtn" id="shareBtn">共有</button>
+    <button class="rankbtn shareic2" id="shareBtn" aria-label="共有"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button>
     <a class="rankbtn" id="rankBtn">ランキング</a>
     <div class="best"><span>自己ベスト</span><b id="best">—</b></div>
   </div>

@@ -11,8 +11,13 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-180.png?v=3" />
 <link rel="icon" href="icon-192.png?v=3" />
-<link rel="stylesheet" href="css/app.css?v=24" />
+<link rel="stylesheet" href="css/app.css?v=25" />
 <title>Vappa</title>
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Vappa" />
+<meta property="og:description" content="AIでミニゲームを作って遊べる Vappa" />
+<meta property="og:image" content="https://taisei-1022.github.io/test/arcade/logo.png" />
+<meta name="twitter:card" content="summary" />
 </head>
 <body>
 <div class="screen">
@@ -89,7 +94,7 @@
       <div class="crbar">
         <button class="back" id="pubBack" aria-label="戻る">‹</button>
         <div class="t" id="pubBarTitle">公開設定</div>
-        <button class="act" id="pubShare" hidden>共有</button>
+        <button class="act shareic2" id="pubShare" aria-label="共有" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button>
       </div>
       <div class="crbody">
         <div class="section2">サムネイル</div>
@@ -201,7 +206,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.21";
+  var APP_VERSION = "0.9.22";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -214,6 +219,7 @@
   function me(){ return Store.player(); }
   function fmtDate(t){ try{ return new Date(t).toLocaleDateString("ja-JP"); }catch(e){ return ""; } }
   function fmtYmd(t){ if(!t) return ""; try{ var d=new Date(t); if(isNaN(d)) return ""; var m=("0"+(d.getMonth()+1)).slice(-2), day=("0"+d.getDate()).slice(-2); return d.getFullYear()+"/"+m+"/"+day; }catch(e){ return ""; } }
+  var SHARE_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>';
   var toast=document.getElementById("toast");
   function showToast(m){ toast.textContent=m; toast.classList.add("show"); setTimeout(function(){toast.classList.remove("show");},1500); }
   var genBar=document.getElementById("genBar");
@@ -312,6 +318,7 @@
       return '<div class="card">'+
         thumbDiv(it)+
         '<span class="cat">'+esc(it.category)+'</span>'+
+        '<button class="shareic" data-share="'+it.id+'" data-title="'+esc(it.title)+'" aria-label="共有">'+SHARE_SVG+'</button>'+
         '<div class="ttl">'+esc(it.title)+'</div>'+
         '<div class="meta">作 '+esc(it.author)+' ・ '+playsTxt+(it.created?(' ・ 作成日 '+fmtYmd(it.created)):'')+'</div>'+
         '<div class="blurb">'+esc(it.blurb)+'</div>'+
@@ -319,7 +326,6 @@
         '<div class="cardbtns">'+
           '<a class="cbtn pri" href="play.html?game='+it.id+'">遊ぶ</a>'+
           '<a class="cbtn" href="leaderboard.html?game='+it.id+'&from=home">ランキング</a>'+
-          '<button class="cbtn" data-share="'+it.id+'" data-title="'+esc(it.title)+'">共有</button>'+
         '</div></div>';
     }).join("");
     grid.onclick=function(e){ var b=e.target.closest&&e.target.closest("[data-share]"); if(!b)return;
@@ -398,7 +404,7 @@
           '<a class="go" href="play.html?game='+c.id+'">遊ぶ</a>'+
           '<button data-act="edit" data-id="'+c.id+'">編集</button>'+
           '<button data-act="copy" data-id="'+c.id+'">複製</button>'+
-          (c.published===false ? '' : '<button data-act="share" data-id="'+c.id+'" data-title="'+esc(c.title)+'">共有</button>')+
+          (c.published===false ? '' : '<button class="shareic2" data-act="share" data-id="'+c.id+'" data-title="'+esc(c.title)+'" aria-label="共有">'+SHARE_SVG+'</button>')+
           '<button data-act="del" class="del" data-id="'+c.id+'">削除</button>'+
         '</div></li>';
     }).join("")+'</ul>';
