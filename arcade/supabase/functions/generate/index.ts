@@ -194,7 +194,9 @@ async function gate(ub: string, ib: string, gb: string, umax: number, imax: numb
     return await r.json();
   } catch { return null; }
 }
-const today = () => new Date().toISOString().slice(0, 10);
+// 日付バケットは日本時間(JST=UTC+9)基準。これでユーザー感覚どおり「日本の深夜0時」にリセットされる。
+// （以前は toISOString=UTC基準で、リセットが実質 朝9時JST になっていた）
+const today = () => new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
 
 // req gate / build gate の結果を、クライアント向けの理由に変換
 function limitReason(scope: "req" | "bld", g: { reason?: string } | null) {
