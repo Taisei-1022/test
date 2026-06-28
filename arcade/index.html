@@ -209,7 +209,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.24";
+  var APP_VERSION = "0.9.25";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -471,6 +471,17 @@
       if(!editing) showToast("下書きを保存しました");
     }).catch(function(){ dirty=true; });
   }
+  // チャットを「1メッセージごと」に確実に保存する（送信・返信・生成完了のたびに呼ぶ）。
+  // 下書き行が未作成（editingId未確定）の時は dirty を立て、確定時/遷移時に保存される。
+  function saveChatNow(){
+    if(!lastGen) return;
+    lastGen.chat=JSON.stringify(convo);
+    var editing=lastGen.editingId;
+    if(!editing){ dirty=true; return; }   // まだ行が無い→確定待ち（createProjectの.thenで拾う）
+    var keepPublic = lastGen.published===true;
+    var payload=Object.assign({}, lastGen, {published:keepPublic});
+    Catalog.update(editing, payload).then(function(){ dirty=false; }).catch(function(){ dirty=true; });
+  }
   function crShow(s){
     document.querySelectorAll("#view-create .crscreen").forEach(function(el){ el.classList.toggle("on", el.id==="cr-"+s); });
     if(s==="list") renderCreationsInto("creations");
@@ -495,7 +506,7 @@
     dirty=false;
     // すぐ下書き保存して一覧に「進行中」として残す
     Catalog.publish({ title:title, html:"", description:"", thumb:null, category:"その他", published:false, chat:"[]" })
-      .then(function(row){ if(row&&row.id) lastGen.editingId=row.id; refreshCreations(); })
+      .then(function(row){ if(row&&row.id){ lastGen.editingId=row.id; if(dirty) saveChatNow(); } refreshCreations(); })
       .catch(function(){});
     initChat();
     pushScreen("create","chat");
@@ -797,6 +808,7 @@
     clearOptions();
     var note=assetNote(), full=note+text;
     bubble("user",full); convo.push({role:"user",content:full}); input.value=""; input.style.height="auto"; busy=true; dirty=true; showStarters(false);
+    saveChatNow();   // 送信した瞬間に履歴を確実に保存（返信を待たない）
     if(pickedAssets.length){ pickedAssets=[]; renderAssetTray(); if(!assetPanel.hidden) renderAssetPanel(); }
     var prev = (lastGen && lastGen.html) ? lastGen.html : "";
     var typing=bubble("bot typing", prev?"直しているよ…":"考え中…");
@@ -806,6 +818,7 @@
         var reply=res.reply||"どんな感じにする？";
         bubble("bot", reply); convo.push({role:"assistant",content:reply});
         renderOptions(res.options||[]);
+        saveChatNow();   // 返信も履歴に保存
         busy=false; return;
       }
       // build
@@ -814,7 +827,7 @@
       lastGen={ title:(k.title && k.title!=="無題のゲーム") ? k.title : (res.title||"無題のゲーム"), html:res.html,
         accent: k.accent || ACCENTS[Math.floor(Math.random()*ACCENTS.length)],
         description: k.description || "", thumb: k.thumb || null, editingId: k.editingId || null,
-        category: res.category || k.category || "その他", published: k.published };
+        category: res.category || k.category || "その他", published: k.published, author: k.author || null };
       dirty=true;
       convo.push({role:"assistant",content:"（ゲームを生成しました）"});
       toPreviewBtn.classList.remove("off");
@@ -826,9 +839,10 @@
       }
       showGenCard();
       busy=false;
-      // 生成中に他画面へ移動していたら、結果を失わないよう下書きに退避＋通知
+      saveChatNow();   // 生成結果(HTML)＋会話履歴を確実に保存
+      // 生成中に他画面へ移動していたら、新着タグ＋通知
       var onChat = document.getElementById("view-create").classList.contains("active") && document.getElementById("cr-chat").classList.contains("on");
-      if(!onChat){ autosaveDraft(); markNewBuild(lastGen&&lastGen.editingId); refreshCreations(); showToast("「"+res.title+"」ができたよ！"); }
+      if(!onChat){ markNewBuild(lastGen&&lastGen.editingId); refreshCreations(); showToast("「"+res.title+"」ができたよ！"); }
     }).catch(function(err){
       typing.remove(); chatlog.querySelectorAll(".typing").forEach(function(n){n.remove();}); busy=false; setGenerating(false); clearPending();
       var s=String(err&&err.message||err);
