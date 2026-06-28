@@ -121,6 +121,9 @@
       <label class="name"><input id="name" maxlength="16" placeholder="ゲスト" style="width:180px" /></label>
       <div class="section">今日のAI作成</div>
       <div id="usage" class="usagebox">—</div>
+      <div class="section">管理者コード</div>
+      <label class="name"><input id="admincode" maxlength="80" placeholder="（任意）" style="width:180px" /></label>
+      <div class="dim" style="font-size:12px;font-weight:700;margin-top:4px">合言葉を入れると作成上限が無制限になります</div>
       <div class="section">作ったゲーム</div>
       <div id="myCreations"></div>
     </div>
@@ -187,7 +190,7 @@
 <script src="js/assets.js?v=1"></script>
 <script src="js/config.js?v=2"></script>
 <script src="js/store.js?v=4"></script>
-<script src="js/ai.js?v=11"></script>
+<script src="js/ai.js?v=12"></script>
 <script src="js/catalog.js?v=8"></script>
 <script src="js/arcade-embed.js?v=3"></script>
 <script src="js/pwa.js?v=1"></script>
@@ -196,7 +199,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.16";
+  var APP_VERSION = "0.9.17";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -344,8 +347,11 @@
   /* ---------- マイページ ---------- */
   var nameEl=document.getElementById("name");
   nameEl.addEventListener("change", function(){ Store.setName(nameEl.value.trim()); renderMypage(); });
+  var adminEl=document.getElementById("admincode");
+  if(adminEl){ adminEl.addEventListener("change", function(){ if(window.Ai&&Ai.setAdmin){ Ai.setAdmin(adminEl.value); } renderUsage(); }); }
   function renderMypage(){
     nameEl.value=Store.name();
+    if(adminEl && window.Ai && Ai.getAdmin){ adminEl.value=Ai.getAdmin(); }
     renderCreationsInto("myCreations");
     renderUsage();
   }
@@ -355,6 +361,7 @@
     el.textContent="確認中…";
     Ai.usage().then(function(u){
       if(!u){ el.textContent="—"; return; }
+      if(u.admin){ el.innerHTML='<b>管理者モード</b>：作成は無制限 🔓'; return; }
       if(u.enabled===false){ el.innerHTML='上限：<b>未設定</b>（いまは無制限）'; return; }
       var used=u.bldUsed||0, lim=u.bldLimit||0, rem=(u.bldRemaining==null?Math.max(0,lim-used):u.bldRemaining);
       var sub='';

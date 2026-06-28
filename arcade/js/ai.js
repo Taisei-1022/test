@@ -33,6 +33,9 @@ window.Ai = (function () {
   }
   // 端末ごとの簡易ID（Catalogと同じトークン）。レート制限のキーに使う。
   function token() { try { return (window.Catalog && Catalog.owner) ? Catalog.owner() : ""; } catch (e) { return ""; } }
+  // 管理者コード（端末に保存）。サーバーの ADMIN_CODE と一致するとレート制限が無制限になる。
+  var ADMINKEY = "arcade.admincode";
+  function adminCode() { try { return localStorage.getItem(ADMINKEY) || ""; } catch (e) { return ""; } }
 
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
@@ -78,7 +81,7 @@ window.Ai = (function () {
     // 会話を送る（相談 or 生成）。prevHtml を渡すと既存ゲームの編集モード。
     // onBuild: 本生成が始まった（ジョブ受付）時に呼ぶコールバック（「生成中」表示用）。
     send: function (messages, prevHtml, onBuild) {
-      return post({ messages: messages, prevHtml: prevHtml || "", token: token() }).then(function (data) {
+      return post({ messages: messages, prevHtml: prevHtml || "", token: token(), admin: adminCode() }).then(function (data) {
         if (data && data.action === "job") {
           if (onBuild) { try { onBuild(data.job_id); } catch (e) {} }
           return pollJob(data.job_id);
@@ -89,10 +92,13 @@ window.Ai = (function () {
     // 既存ジョブIDの完了を待つ（離脱→再起動後の復元用）
     resumeJob: function (jobId) { return pollJob(jobId); },
     // 今日の作成上限の使用状況を取得（加算しない）
-    usage: function () { return post({ usage: true, token: token() }); },
+    usage: function () { return post({ usage: true, token: token(), admin: adminCode() }); },
+    // 管理者コードの取得/設定（設定画面から呼ぶ）
+    getAdmin: function () { return adminCode(); },
+    setAdmin: function (v) { try { localStorage.setItem(ADMINKEY, (v || "").trim()); } catch (e) {} },
     // 後方互換：一言からそのまま生成
     generate: async function (prompt, prevHtml) {
-      var r = await post({ messages: [{ role: "user", content: prompt }], prevHtml: prevHtml || "", token: token() });
+      var r = await post({ messages: [{ role: "user", content: prompt }], prevHtml: prevHtml || "", token: token(), admin: adminCode() });
       if (!r.html) throw new Error("generate_empty");
       return { title: r.title || "無題のゲーム", html: r.html };
     }

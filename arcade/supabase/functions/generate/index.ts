@@ -179,6 +179,9 @@ const LIMITS = {
 };
 const SUPA_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPA_SRV = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+// 管理者コード。リクエストの admin がこれと一致したらレート制限を全スキップ（=無制限）。
+// 未設定なら管理者機能は無効（誰も無制限にならない）。Secretで設定・変更する。
+const ADMIN_CODE = Deno.env.get("ADMIN_CODE") || "";
 
 // Supabaseの ai_gate(RPC) を service_role で呼ぶ。テーブル/関数が無い等で失敗したら
 // null を返す（=フェイルオープン：保護は効かないがアプリは止めない）。
@@ -374,10 +377,13 @@ async function callClaude(key: string, system: string, messages: Msg[], schema: 
 
 // 受付：レート制限＋相談（プランナー）。結果がすぐ返せるものは immediate、
 // 重いビルドへ進む場合は { build:true } を返す。
-async function startFlow(key: string, messages: Msg[], prevHtml: string, token: string, ip: string): Promise<{ immediate?: unknown; build?: boolean }> {
+async function startFlow(key: string, messages: Msg[], prevHtml: string, token: string, ip: string, isAdmin: boolean): Promise<{ immediate?: unknown; build?: boolean }> {
   const d = today();
-  const rg = await gate("u:req:" + token + ":" + d, "i:req:" + ip + ":" + d, "g:req:" + d, LIMITS.reqUser, LIMITS.reqIp, LIMITS.reqGlobal, LIMITS.cooldownSec);
-  if (rg && rg.allowed === false) return { immediate: { error: "rate_limited", reason: limitReason("req", rg), retry_sec: rg.retry_sec } };
+  // 管理者はレート制限を全スキップ（リクエスト上限もビルド上限も無視）。
+  if (!isAdmin) {
+    const rg = await gate("u:req:" + token + ":" + d, "i:req:" + ip + ":" + d, "g:req:" + d, LIMITS.reqUser, LIMITS.reqIp, LIMITS.reqGlobal, LIMITS.cooldownSec);
+    if (rg && rg.allowed === false) return { immediate: { error: "rate_limited", reason: limitReason("req", rg), retry_sec: rg.retry_sec } };
+  }
 
   if (!prevHtml) {
     // 相談（プランナー：軽量・速い）
@@ -388,10 +394,12 @@ async function startFlow(key: string, messages: Msg[], prevHtml: string, token: 
       return { immediate: { action: "ask", reply: plan.reply || "どんな感じにする？", options: Array.isArray(plan.options) ? plan.options.slice(0, 4) : [] } };
     }
   }
-  // ビルドに進む前に作成上限チェック
-  const d2 = today();
-  const bgt = await gate("u:bld:" + token + ":" + d2, "i:bld:" + ip + ":" + d2, "g:bld:" + d2, LIMITS.bldUser, LIMITS.bldIp, LIMITS.bldGlobal, 0);
-  if (bgt && bgt.allowed === false) return { immediate: { error: "rate_limited", reason: limitReason("bld", bgt) } };
+  // ビルドに進む前に作成上限チェック（管理者はスキップ）
+  if (!isAdmin) {
+    const d2 = today();
+    const bgt = await gate("u:bld:" + token + ":" + d2, "i:bld:" + ip + ":" + d2, "g:bld:" + d2, LIMITS.bldUser, LIMITS.bldIp, LIMITS.bldGlobal, 0);
+    if (bgt && bgt.allowed === false) return { immediate: { error: "rate_limited", reason: limitReason("bld", bgt) } };
+  }
   return { build: true };
 }
 
@@ -402,11 +410,13 @@ Deno.serve(async (req) => {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) return json({ error: "missing_api_key" }, 500);
 
-  let messages: Msg[] = [], prevHtml = "", token = "?", jobId = "", wantUsage = false;
+  let messages: Msg[] = [], prevHtml = "", token = "?", jobId = "", wantUsage = false, isAdmin = false;
   try {
     const b = await req.json();
     if (typeof b?.job === "string") jobId = b.job;
     if (b?.usage === true) wantUsage = true;
+    // 管理者判定：コードが設定済みで、リクエストの admin と一致したときだけ true
+    if (ADMIN_CODE && typeof b?.admin === "string" && b.admin === ADMIN_CODE) isAdmin = true;
     if (Array.isArray(b?.messages)) {
       messages = b.messages.filter((m: Msg) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
         .map((m: Msg) => ({ role: m.role, content: String(m.content).slice(0, 4000) }));
@@ -421,6 +431,7 @@ Deno.serve(async (req) => {
 
   // ---- 使用量の確認（加算しない・上限チェックもしない）----
   if (wantUsage) {
+    if (isAdmin) return json({ enabled: true, admin: true });   // 管理者は無制限表示
     const d = today();
     const used = await readUsage("u:bld:" + token + ":" + d);
     if (used === null) return json({ enabled: false });   // rate_limit.sql 未実行 = 無制限
@@ -451,7 +462,7 @@ Deno.serve(async (req) => {
 
   // ---- 受付：ゲート＋相談（速い）----
   let flow;
-  try { flow = await startFlow(key, messages, prevHtml, token, ip); }
+  try { flow = await startFlow(key, messages, prevHtml, token, ip, isAdmin); }
   catch (e) { return json(buildErr(e)); }
   if (flow.immediate) return json(flow.immediate);
 
