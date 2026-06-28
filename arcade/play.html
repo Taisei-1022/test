@@ -13,6 +13,7 @@
   <div class="bar">
     <a class="back" href="index.html" aria-label="戻る">‹</a>
     <div class="t" id="title">…</div>
+    <button class="rankbtn" id="shareBtn">共有</button>
     <a class="rankbtn" id="rankBtn">ランキング</a>
     <div class="best"><span>自己ベスト</span><b id="best">—</b></div>
   </div>
@@ -23,7 +24,8 @@
 <script src="js/games.js?v=5"></script>
 <script src="js/config.js?v=2"></script>
 <script src="js/store.js?v=4"></script>
-<script src="js/catalog.js?v=8"></script>
+<script src="js/catalog.js?v=9"></script>
+<script src="js/share.js?v=1"></script>
 <script src="js/sw-reg.js?v=2"></script>
 <script src="js/arcade-embed.js?v=3"></script>
 <script>
@@ -47,6 +49,8 @@
     document.getElementById("title").textContent = game.title;
     document.title = game.title;
     document.getElementById("rankBtn").href = "leaderboard.html?game=" + game.id + "&from=play";
+    var sb = document.getElementById("shareBtn");
+    if (sb) sb.addEventListener("click", function () { if (window.Share) Share.open({ gameId: game.id, gameTitle: game.title }); });
 
     if (game.source === "seed") frame.src = game.path;        // シード：ファイルを読み込む
     else frame.srcdoc = buildSrcdoc(game.html);               // 生成：HTMLを直接サンドボックス再生

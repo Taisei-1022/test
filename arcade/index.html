@@ -89,6 +89,7 @@
       <div class="crbar">
         <button class="back" id="pubBack" aria-label="戻る">‹</button>
         <div class="t" id="pubBarTitle">公開設定</div>
+        <button class="act" id="pubShare" hidden>共有</button>
       </div>
       <div class="crbody">
         <div class="section2">サムネイル</div>
@@ -191,7 +192,8 @@
 <script src="js/config.js?v=2"></script>
 <script src="js/store.js?v=4"></script>
 <script src="js/ai.js?v=12"></script>
-<script src="js/catalog.js?v=8"></script>
+<script src="js/catalog.js?v=9"></script>
+<script src="js/share.js?v=1"></script>
 <script src="js/arcade-embed.js?v=3"></script>
 <script src="js/pwa.js?v=1"></script>
 <script src="js/sw-reg.js?v=2"></script>
@@ -199,7 +201,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.20";
+  var APP_VERSION = "0.9.21";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -211,6 +213,7 @@
   function grad(c){ return "linear-gradient(140deg,"+(c||"#e6b450")+","+shade(c||"#e6b450")+")"; }
   function me(){ return Store.player(); }
   function fmtDate(t){ try{ return new Date(t).toLocaleDateString("ja-JP"); }catch(e){ return ""; } }
+  function fmtYmd(t){ if(!t) return ""; try{ var d=new Date(t); if(isNaN(d)) return ""; var m=("0"+(d.getMonth()+1)).slice(-2), day=("0"+d.getDate()).slice(-2); return d.getFullYear()+"/"+m+"/"+day; }catch(e){ return ""; } }
   var toast=document.getElementById("toast");
   function showToast(m){ toast.textContent=m; toast.classList.add("show"); setTimeout(function(){toast.classList.remove("show");},1500); }
   var genBar=document.getElementById("genBar");
@@ -219,6 +222,8 @@
   var PENDING="arcade.pendingGen";
   function savePending(jobId,editingId,title){ try{ localStorage.setItem(PENDING, JSON.stringify({job:jobId, editingId:editingId||null, title:title||"", ts:Date.now()})); }catch(e){} }
   function clearPending(){ try{ localStorage.removeItem(PENDING); }catch(e){} }
+  // このゲームの生成/更新が進行中か（別画面から戻った時に「生成中…」を復元する判定用）
+  function isPendingFor(id){ try{ var p=JSON.parse(localStorage.getItem(PENDING)||"null"); return !!(p&&p.job&&p.editingId&&p.editingId===id); }catch(e){ return false; } }
   // 別画面にいる間に新しいビルドが完了した作品に「新着」タグを付ける
   var NEWBUILDS="arcade.newbuilds";
   function loadNB(){ try{ return JSON.parse(localStorage.getItem(NEWBUILDS))||[]; }catch(e){ return []; } }
@@ -308,24 +313,30 @@
         thumbDiv(it)+
         '<span class="cat">'+esc(it.category)+'</span>'+
         '<div class="ttl">'+esc(it.title)+'</div>'+
-        '<div class="meta">作 '+esc(it.author)+' ・ '+playsTxt+'</div>'+
+        '<div class="meta">作 '+esc(it.author)+' ・ '+playsTxt+(it.created?(' ・ 作成日 '+fmtYmd(it.created)):'')+'</div>'+
         '<div class="blurb">'+esc(it.blurb)+'</div>'+
         '<div class="meta" style="margin-top:6px;color:var(--gold)">1位 '+esc(topTxt)+'</div>'+
         '<div class="cardbtns">'+
           '<a class="cbtn pri" href="play.html?game='+it.id+'">遊ぶ</a>'+
           '<a class="cbtn" href="leaderboard.html?game='+it.id+'&from=home">ランキング</a>'+
+          '<button class="cbtn" data-share="'+it.id+'" data-title="'+esc(it.title)+'">共有</button>'+
         '</div></div>';
     }).join("");
+    grid.onclick=function(e){ var b=e.target.closest&&e.target.closest("[data-share]"); if(!b)return;
+      if(window.Share) Share.open({gameId:b.getAttribute("data-share"), gameTitle:b.getAttribute("data-title")}); };
   }
   function renderFeed(){
     Catalog.listGenerated().then(function(gen){
       var items = GAMES.map(function(g){
+        // シードは新着順では下げる（ts=0）。日付は無し。
         return {id:g.id,title:g.title,author:g.author,category:g.category||"その他",accent:g.accent,blurb:g.blurb,
-                score:g.score,thumb:g.thumb||null,ts:Infinity};
+                score:g.score,thumb:g.thumb||null,ts:0,created:null};
       }).concat(gen.filter(function(g){ return g.published!==false; }).map(function(g){
+        // 新着順＝最終更新時(updated_at)で並べる。無ければ作成日にフォールバック。
+        var upd = g.updated_at || g.created_at;
         return {id:g.id,title:g.title,author:g.author||"ゲスト",category:g.category||"その他",accent:g.accent||"#e6b450",
                 thumb:g.thumb||null,blurb:(g.description||"AIで作られたゲーム"),score:{type:"high",unit:"点"},
-                ts:(g.created_at?new Date(g.created_at).getTime():0)};
+                ts:(upd?new Date(upd).getTime():0),created:(g.created_at||null)};
       }));
       return Promise.all(items.map(function(it){
         return Promise.all([Store.playStats(it.id),Store.top(it.id,it.score.type,1)]).then(function(r){
@@ -387,6 +398,7 @@
           '<a class="go" href="play.html?game='+c.id+'">遊ぶ</a>'+
           '<button data-act="edit" data-id="'+c.id+'">編集</button>'+
           '<button data-act="copy" data-id="'+c.id+'">複製</button>'+
+          (c.published===false ? '' : '<button data-act="share" data-id="'+c.id+'" data-title="'+esc(c.title)+'">共有</button>')+
           '<button data-act="del" class="del" data-id="'+c.id+'">削除</button>'+
         '</div></li>';
     }).join("")+'</ul>';
@@ -404,6 +416,7 @@
     var btn=e.target.closest && e.target.closest("[data-act]"); if(!btn) return;
     var id=btn.getAttribute("data-id"), act=btn.getAttribute("data-act");
     if(act==="edit"){ editGame(id); }
+    else if(act==="share"){ if(window.Share) Share.open({gameId:id, gameTitle:btn.getAttribute("data-title")||""}); }
     else if(act==="copy"){ Catalog.copy(id).then(function(){ showToast("複製しました"); refreshCreations(); }).catch(function(){ showToast("複製に失敗"); }); }
     else if(act==="del"){ if(confirm("このゲームを削除する？元に戻せません")){ Catalog.remove(id).then(function(){ showToast("削除しました"); refreshCreations(); }).catch(function(){ showToast("削除に失敗"); }); } }
   }
@@ -512,9 +525,13 @@
     document.getElementById("pubDraft").textContent = live ? "非公開にする" : "一時保存（非公開）";
     document.getElementById("pubTitle").value = lastGen.title || "";
     document.getElementById("pubDesc").value = lastGen.description || "";
+    // 共有ボタン：保存済み＆公開中のときだけ出す
+    var ps=document.getElementById("pubShare"); if(ps){ ps.hidden=!(lastGen.editingId && live); }
     renderPubCat();
     updateThumbPrev();
   }
+  (function(){ var ps=document.getElementById("pubShare"); if(ps) ps.addEventListener("click", function(){
+    if(lastGen && lastGen.editingId && window.Share) Share.open({gameId:lastGen.editingId, gameTitle:lastGen.title||""}); }); })();
   /* サムネ切り抜き（固定 4:3、ドラッグ移動＋ズーム） */
   var OUT_W=600, OUT_H=450, CROP_ZMAX=6;
   var cropModal=document.getElementById("cropModal"), cropView=document.getElementById("cropView"),
@@ -735,13 +752,15 @@
         var t=(m&&m.content)||""; if(!t||t==="（ゲームを生成しました）") return;
         hadHistory=true; bubble(m.role==="user"?"user":"bot", t);
       });
-      lastGen={ title:g.title, html:g.html, accent:g.accent||"#e6b450", description:g.description||"", thumb:g.thumb||null, editingId:g.id, category:g.category||"その他", published:g.published, chat:g.chat||null };
+      lastGen={ title:g.title, html:g.html, accent:g.accent||"#e6b450", description:g.description||"", thumb:g.thumb||null, editingId:g.id, category:g.category||"その他", published:g.published, chat:g.chat||null, author:g.author||null };
       toPreviewBtn.classList.remove("off");
       showModelTag();
       // 履歴がある時は前置きを出さない（重複するので）。履歴が無い時だけ案内を表示。
       if(!hadHistory) bubble("bot","「"+g.title+"」を編集中。直したい所を言ってね（例：もっと速く／敵を増やして／色を青に）。");
       // 既に生成済みなら「できあがり」カード＋プレビューを復元（別画面から戻っても残るように）
       if(lastGen.html) showGenCard();
+      // このゲームの生成/更新がまだ進行中なら「生成中…」表示も復元する
+      if(isPendingFor(g.id)){ setGenerating(true); bubble("bot typing", lastGen.html?"直しているよ…":"考え中…"); }
       pushScreen("create","publish");   // まずタグ・名前・説明・サムネを編集する画面へ
     });
   }
@@ -754,7 +773,7 @@
     var prev = (lastGen && lastGen.html) ? lastGen.html : "";
     var typing=bubble("bot typing", prev?"直しているよ…":"考え中…");
     Ai.send(convo, prev, function(jobId){ setGenerating(true); savePending(jobId, lastGen&&lastGen.editingId, lastGen&&lastGen.title); }).then(function(res){
-      typing.remove(); setGenerating(false); clearPending();
+      typing.remove(); chatlog.querySelectorAll(".typing").forEach(function(n){n.remove();}); setGenerating(false); clearPending();
       if(res.action==="ask"){
         var reply=res.reply||"どんな感じにする？";
         bubble("bot", reply); convo.push({role:"assistant",content:reply});
@@ -783,7 +802,7 @@
       var onChat = document.getElementById("view-create").classList.contains("active") && document.getElementById("cr-chat").classList.contains("on");
       if(!onChat){ autosaveDraft(); markNewBuild(lastGen&&lastGen.editingId); refreshCreations(); showToast("「"+res.title+"」ができたよ！"); }
     }).catch(function(err){
-      typing.remove(); busy=false; setGenerating(false); clearPending();
+      typing.remove(); chatlog.querySelectorAll(".typing").forEach(function(n){n.remove();}); busy=false; setGenerating(false); clearPending();
       var s=String(err&&err.message||err);
       var msg;
       if(/rate_limited/.test(s)){

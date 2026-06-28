@@ -3,3 +3,4 @@
 alter table public.games add column if not exists category  text;
 alter table public.games add column if not exists published boolean not null default true;
 alter table public.games add column if not exists chat      text;   -- 会話履歴（JSON文字列）
+alter table public.games add column if not exists updated_at timestamptz not null default now();  -- 最終更新時（新着順の並び替え用）

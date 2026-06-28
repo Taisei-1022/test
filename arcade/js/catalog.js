@@ -25,20 +25,23 @@ window.Catalog = (function () {
   function loadLS() { try { return JSON.parse(localStorage.getItem(LS)) || []; } catch (e) { return []; } }
   function saveLS(a) { localStorage.setItem(LS, JSON.stringify(a)); }
   // 任意列（まだSupabaseに無いかもしれない列）。列不明エラー時はこれらを外して再試行する。
-  var OPTIONAL = ["category", "published", "chat"];
+  var OPTIONAL = ["category", "published", "chat", "updated_at"];
+  // 作者名：指定が無ければ、設定した名前（無ければ端末ごとのゲストID）を使う。
+  function defaultAuthor() { try { return (window.Store && Store.player) ? Store.player() : "ゲスト"; } catch (e) { return "ゲスト"; } }
   function fields(g) {
     var f = {
-      title: g.title, author: g.author || "ゲスト", html: g.html,
+      title: g.title, author: g.author || defaultAuthor(), html: g.html,
       accent: g.accent || "#e6b450", description: g.description || "", thumb: g.thumb || null,
       category: g.category || "その他",
-      published: g.published !== false   // 既定は公開。一時保存だけ false。
+      published: g.published !== false,  // 既定は公開。一時保存だけ false。
+      updated_at: new Date().toISOString()   // 書き込みのたびに更新（新着順＝最終更新で並べる用）
     };
     // chat は「指定された時だけ」送る。未指定の更新で既存の会話履歴を空で上書きしないため。
     if (g.chat !== undefined) f.chat = g.chat;
     return f;
   }
   function schemaErr(status, text) {
-    return status === 400 && /category|published|chat|column|schema cache|PGRST204/i.test(text || "");
+    return status === 400 && /category|published|chat|updated_at|column|schema cache|PGRST204/i.test(text || "");
   }
   async function writeRow(path, method, row) {
     var res = await rq(path, { method: method, headers: { Prefer: "return=representation" }, body: JSON.stringify(row) });
@@ -114,7 +117,7 @@ window.Catalog = (function () {
     listGenerated: async function () {
       if (remote) {
         try {
-          var res = await getSel("games?select=id,title,author,accent,description,thumb,owner,created_at,category,published&order=created_at.desc&limit=50");
+          var res = await getSel("games?select=id,title,author,accent,description,thumb,owner,created_at,updated_at,category,published&order=created_at.desc&limit=50");
           return await res.json();
         } catch (e) { console.warn("listGenerated failed", e); return []; }
       }
