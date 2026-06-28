@@ -123,7 +123,6 @@
       <div id="usage" class="usagebox">—</div>
       <div class="section">管理者コード</div>
       <label class="name"><input id="admincode" maxlength="80" placeholder="（任意）" style="width:180px" /></label>
-      <div class="dim" style="font-size:12px;font-weight:700;margin-top:4px">合言葉を入れると作成上限が無制限になります</div>
       <div class="section">作ったゲーム</div>
       <div id="myCreations"></div>
     </div>
@@ -199,7 +198,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.17";
+  var APP_VERSION = "0.9.18";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
