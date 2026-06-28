@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-180.png?v=3" />
 <link rel="icon" href="icon-192.png?v=3" />
-<link rel="stylesheet" href="css/app.css?v=26" />
+<link rel="stylesheet" href="css/app.css?v=27" />
 <title>Vappa</title>
 <meta property="og:type" content="website" />
 <meta property="og:title" content="Vappa" />
@@ -28,6 +28,7 @@
   <section id="view-play" class="view active">
     <div class="app">
       <div class="top"><div class="brand"><img class="logo" src="logo.png?v=1" alt="Vappa" /><small>あそぶ</small></div></div>
+      <div class="trending" id="trending" hidden></div>
       <div class="filterbar">
         <div class="catchips" id="catChips"></div>
         <div class="sortrow">
@@ -196,8 +197,8 @@
 
 <script src="js/games.js?v=5"></script>
 <script src="js/assets.js?v=1"></script>
-<script src="js/config.js?v=2"></script>
-<script src="js/store.js?v=4"></script>
+<script src="js/config.js?v=3"></script>
+<script src="js/store.js?v=5"></script>
 <script src="js/ai.js?v=12"></script>
 <script src="js/catalog.js?v=9"></script>
 <script src="js/share.js?v=2"></script>
@@ -208,7 +209,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.23";
+  var APP_VERSION = "0.9.24";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -354,8 +355,23 @@
     }).then(function(rows){
       feedRows=rows;
       if(feedCat!=="all" && !rows.some(function(r){return r.it.category===feedCat;})) feedCat="all";
-      renderCatChips(); paintFeed();
+      renderTrending(); renderCatChips(); paintFeed();
     });
+  }
+  // 急上昇（config の ARCADE_TRENDING で指定。小さいカード・ボタンなし・カードを押すとプレイ）
+  function renderTrending(){
+    var box=document.getElementById("trending"); if(!box) return;
+    var ids=window.ARCADE_TRENDING||[];
+    var byId={}; feedRows.forEach(function(r){ byId[r.it.id]=r.it; });
+    var items=ids.map(function(id){ return byId[id]; }).filter(Boolean);
+    if(!items.length){ box.hidden=true; box.innerHTML=""; return; }
+    box.hidden=false;
+    box.innerHTML='<div class="trendhd">🔥 急上昇</div><div class="trendrow">'+
+      items.map(function(it){
+        var th = it.thumb ? '<div class="tt" style="background:url('+it.thumb+') center/cover"></div>'
+                          : '<div class="tt" style="background:'+grad(it.accent)+'"><b>'+esc(it.title)+'</b></div>';
+        return '<a class="tcard" href="play.html?game='+it.id+'">'+th+'<div class="tnm">'+esc(it.title)+'</div></a>';
+      }).join("")+'</div>';
   }
   catChips.addEventListener("click", function(e){
     var b=e.target.closest("button[data-cat]"); if(!b) return;
@@ -365,7 +381,11 @@
 
   /* ---------- マイページ ---------- */
   var nameEl=document.getElementById("name");
-  nameEl.addEventListener("change", function(){ Store.setName(nameEl.value.trim()); renderMypage(); });
+  nameEl.addEventListener("change", function(){
+    var v=nameEl.value.trim();
+    if(Store.rename){ Store.rename(v).then(function(){ renderMypage(); }); }
+    else { Store.setName(v); renderMypage(); }
+  });
   var adminEl=document.getElementById("admincode");
   if(adminEl){ adminEl.addEventListener("change", function(){ if(window.Ai&&Ai.setAdmin){ Ai.setAdmin(adminEl.value); } renderUsage(); }); }
   function renderMypage(){

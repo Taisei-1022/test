@@ -23,14 +23,17 @@
   1ゲームあたり <input id="cnt" type="number" value="8" min="1" max="30" /> 件
   <button id="all">全ゲームに仕込む</button>
 </div>
+<div class="bar">
+  <button id="cap" class="sec">さくらを人間以下に補正（全ゲーム）</button>
+</div>
 <div id="list"></div>
 <div id="log">準備OK。</div>
 
 <script src="js/games.js?v=5"></script>
-<script src="js/config.js?v=2"></script>
-<script src="js/store.js?v=4"></script>
+<script src="js/config.js?v=3"></script>
+<script src="js/store.js?v=5"></script>
 <script src="js/catalog.js?v=9"></script>
-<script src="js/seed-activity.js?v=1"></script>
+<script src="js/seed-activity.js?v=2"></script>
 <script>
 (function(){
   "use strict";
@@ -67,6 +70,16 @@
       var ok=res.filter(function(r){return r.ok;}).length;
       log("完了："+ok+"/"+res.length+" ゲーム成功");
     });
+  });
+
+  document.getElementById("cap").addEventListener("click",function(){
+    var btn=this; btn.disabled=true; log("さくら補正開始…（人間の最高記録を超える行を下げる）");
+    SeedActivity.capAll(all).then(function(res){
+      var capped=res.reduce(function(s,r){return s+(r.capped||0);},0);
+      var skipped=res.filter(function(r){return r.skipped;}).length;
+      log("補正完了："+capped+"件を下方修正（人間記録なしでスキップ "+skipped+"ゲーム）");
+      btn.disabled=false;
+    }).catch(function(e){ log("補正エラー："+e); btn.disabled=false; });
   });
 })();
 </script>

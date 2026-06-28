@@ -35,6 +35,39 @@ window.SeedActivity = (function () {
     opts.headers = Object.assign(h, opts.headers || {});
     return fetch(cfg.supabaseUrl.replace(/\/$/, "") + "/rest/v1/" + path, opts);
   }
+  var SAKURA = {}; PLAYERS.forEach(function (p) { SAKURA[p] = 1; });
+  // そのゲームの「人間の最高記録」を返す（サクラ=PLAYERS は除外）。無ければ null。
+  async function fetchScores(gameId) {
+    var res = await rq("scores?game_id=eq." + encodeURIComponent(gameId) + "&select=id,player,score&limit=3000");
+    return res.ok ? await res.json() : [];
+  }
+  function humanBest(rows, type) {
+    var best = null;
+    rows.forEach(function (r) {
+      if (SAKURA[r.player]) return;                 // サクラは除外＝人間だけ
+      if (best === null || (type === "low" ? r.score < best : r.score > best)) best = r.score;
+    });
+    return best;
+  }
+  // 既存のサクラ記録のうち、人間の最高を超えているものを人間未満へ下方修正する。
+  async function capToHumans(gameId, type) {
+    var rows = await fetchScores(gameId);
+    var ht = humanBest(rows, type);
+    if (ht === null) return { gameId: gameId, skipped: "no_human" };
+    var overs = rows.filter(function (r) { return SAKURA[r.player] && (type === "low" ? r.score <= ht : r.score >= ht); });
+    for (var i = 0; i < overs.length; i++) {
+      var nv;
+      if (type === "low") { nv = ht + 1 + Math.floor(Math.random() * Math.max(1, Math.round(ht * 0.3))); }
+      else { nv = Math.max(1, Math.round(ht * (0.6 + Math.random() * 0.34))); if (nv >= ht) nv = ht - 1; }
+      await rq("scores?id=eq." + encodeURIComponent(overs[i].id), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ score: nv }) });
+    }
+    return { gameId: gameId, human: ht, capped: overs.length };
+  }
+  async function capAll(games) {
+    var out = [];
+    for (var i = 0; i < games.length; i++) { out.push(await capToHumans(games[i].id, (games[i].score && games[i].score.type) || "high")); }
+    return out;
+  }
   function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
   function shuffle(a) { a = a.slice(); for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
 
@@ -55,12 +88,19 @@ window.SeedActivity = (function () {
     var days = opts.days || 12;
     var r = (opts.range) || RANGES[gameId] || RANGES._default;
     var names = shuffle(PLAYERS).slice(0, Math.min(count, PLAYERS.length));
+    // 人間の最高記録を超えないようにクランプ（人間がいなければ制限なし）
+    var ht = humanBest(await fetchScores(gameId), type);
+    function clamp(v) {
+      if (ht === null) return v;
+      if (type === "low") return Math.max(v, ht + 1);     // low=小さいほど良い → 人間より大きく(=弱く)
+      return Math.min(v, Math.max(1, ht - 1));            // high=大きいほど良い → 人間未満
+    }
     var rows = [];
     for (var i = 0; i < count; i++) {
       rows.push({
         game_id: gameId,
         player: names[i % names.length] || pick(PLAYERS),
-        score: genScore(type, r),
+        score: clamp(genScore(type, r)),
         created_at: new Date(Date.now() - Math.random() * days * 864e5).toISOString()
       });
     }
@@ -85,5 +125,5 @@ window.SeedActivity = (function () {
     return out;
   }
 
-  return { PLAYERS: PLAYERS, RANGES: RANGES, seedGame: seedGame, seedAll: seedAll };
+  return { PLAYERS: PLAYERS, RANGES: RANGES, seedGame: seedGame, seedAll: seedAll, capToHumans: capToHumans, capAll: capAll };
 })();

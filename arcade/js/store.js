@@ -129,5 +129,22 @@ window.Store = (function () {
 
   var impl = remote ? remoteStore() : localStore();
   impl.isRemote = remote;
+
+  // 名前を変更し、共有ランキング側の自分の記録（旧名義の行）も新名義へ付け替える。
+  // 端末ごとのID（名前 or ゲストID）を player として保存しているので、旧playerを新playerにUPDATEする。
+  impl.rename = async function (newName) {
+    var oldP = nameApi.player();
+    nameApi.setName(newName);
+    var newP = nameApi.player();
+    if (remote && oldP && newP && oldP !== newP) {
+      try {
+        var h = { apikey: cfg.supabaseKey, "Content-Type": "application/json", Prefer: "return=minimal" };
+        if (/^eyJ/.test(cfg.supabaseKey)) h.Authorization = "Bearer " + cfg.supabaseKey;
+        await fetch(cfg.supabaseUrl.replace(/\/$/, "") + "/rest/v1/scores?player=eq." + encodeURIComponent(oldP),
+          { method: "PATCH", headers: h, body: JSON.stringify({ player: newP }) });
+      } catch (e) { console.warn("rename sync failed", e); }
+    }
+    return newP;
+  };
   return impl;
 })();
