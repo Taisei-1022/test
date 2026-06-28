@@ -209,7 +209,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.25";
+  var APP_VERSION = "0.9.26";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -274,7 +274,16 @@
     var st=e.state || { tab:(location.hash||"#play").slice(1), cr:null };
     renderScreen(st.tab, st.cr);
   });
-  tabs.forEach(function(b){ b.addEventListener("click", function(){ show(b.dataset.tab); }); });
+  // 下タブを押したら、そのタブの「メイン画面」へ飛ぶ（作る→作品一覧トップ）。
+  tabs.forEach(function(b){ b.addEventListener("click", function(){
+    var tab=b.dataset.tab;
+    var cr = (tab==="create") ? "list" : null;   // 作るは常にトップ(作品一覧)へ
+    var c = navState();
+    if(c.tab===tab && (tab!=="create" || (c.cr||"list")===cr)){ renderScreen(tab,cr); }
+    else { pushScreen(tab, cr); }
+    // メイン画面の先頭へスクロール
+    try{ var v=document.querySelector(".view.active"); var sc=v&&(v.querySelector(".app")||v.querySelector(".crbody")||v); if(sc) sc.scrollTop=0; }catch(e){}
+  }); });
 
   /* ---------- 作り方チュートリアル ---------- */
   var howto=document.getElementById("howto"), HOWTO_KEY="arcade.howto.v1";
