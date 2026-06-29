@@ -323,3 +323,8 @@ textarea.field{resize:vertical;line-height:1.5;}
 .records li .nm{flex:1;font-weight:700;}
 .records li .bs{font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums;}
 .records li .bs.none{color:var(--dim);font-weight:600;}
+
+/* マイページ下部の法的リンク（プライバシーポリシー等） */
+.legal{margin:26px 0 6px;text-align:center;}
+.legal a{color:var(--dim);font-size:12px;text-decoration:none;border-bottom:1px solid transparent;}
+.legal a:active{color:var(--ink);}
