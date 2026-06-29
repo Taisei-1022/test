@@ -210,7 +210,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.37";
+  var APP_VERSION = "0.9.38";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -482,13 +482,30 @@
     });
   }
   function refreshCreations(){ renderCreationsInto("creations"); renderCreationsInto("myCreations"); }
+  // 複製/削除は非同期（ネットワーク往復）。往復中の連打・多重発火を弾くガード。
+  // これが無いと、複製→再描画でできたコピーが先頭に来て同じ位置の連打が「コピーのコピー」を
+  // 雪だるま式に量産してしまう（過去に未公開ゴミが大量発生した原因）。
+  var creationBusy=false;
   function handleCreationClick(e){
     var btn=e.target.closest && e.target.closest("[data-act]"); if(!btn) return;
     var id=btn.getAttribute("data-id"), act=btn.getAttribute("data-act");
     if(act==="edit"){ editGame(id); }
     else if(act==="share"){ if(window.Share) Share.open({gameId:id, gameTitle:btn.getAttribute("data-title")||""}); }
-    else if(act==="copy"){ Catalog.copy(id).then(function(){ showToast("複製しました"); refreshCreations(); }).catch(function(){ showToast("複製に失敗"); }); }
-    else if(act==="del"){ if(confirm("このゲームを削除する？元に戻せません")){ Catalog.remove(id).then(function(){ showToast("削除しました"); refreshCreations(); }).catch(function(){ showToast("削除に失敗"); }); } }
+    else if(act==="copy"){
+      if(creationBusy) return;                       // 往復中は無視（連打ガード）
+      creationBusy=true; btn.disabled=true;
+      Catalog.copy(id).then(function(){ showToast("複製しました"); refreshCreations(); })
+        .catch(function(){ showToast("複製に失敗"); })
+        .then(function(){ creationBusy=false; });
+    }
+    else if(act==="del"){
+      if(creationBusy) return;
+      if(!confirm("このゲームを削除する？元に戻せません")) return;
+      creationBusy=true; btn.disabled=true;
+      Catalog.remove(id).then(function(){ showToast("削除しました"); refreshCreations(); })
+        .catch(function(){ showToast("削除に失敗"); })
+        .then(function(){ creationBusy=false; });
+    }
   }
 
   /* ---------- 作る：サブ画面ルーター ---------- */
