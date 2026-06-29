@@ -114,14 +114,24 @@ window.Catalog = (function () {
     },
 
     // 一覧（HTML本体は含めない・サムネは含む）
-    listGenerated: async function () {
+    //   opts.publishedOnly … 公開済みのみ（フィード/急上昇用。未公開の下書きで取得枠を食わない）
+    //   opts.owner          … 指定 owner のみ（マイページ用＝自分の作品だけ）
+    listGenerated: async function (opts) {
+      opts = opts || {};
       if (remote) {
         try {
-          var res = await getSel("games?select=id,title,author,accent,description,thumb,owner,created_at,updated_at,category,published&order=created_at.desc&limit=50");
+          var q = "games?select=id,title,author,accent,description,thumb,owner,created_at,updated_at,category,published&order=created_at.desc&limit=100";
+          if (opts.publishedOnly) q += "&published=eq.true";
+          if (opts.owner) q += "&owner=eq." + enc(opts.owner);
+          var res = await getSel(q);
           return await res.json();
         } catch (e) { console.warn("listGenerated failed", e); return []; }
       }
-      return loadLS().map(function (g) {
+      return loadLS().filter(function (g) {
+        if (opts.publishedOnly && g.published === false) return false;
+        if (opts.owner && g.owner !== opts.owner) return false;
+        return true;
+      }).map(function (g) {
         return { id: g.id, title: g.title, author: g.author, accent: g.accent, description: g.description, thumb: g.thumb, owner: g.owner, created_at: g.created_at, category: g.category, published: g.published };
       });
     },

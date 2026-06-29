@@ -32,7 +32,7 @@
 <script src="js/games.js?v=6"></script>
 <script src="js/config.js?v=4"></script>
 <script src="js/store.js?v=6"></script>
-<script src="js/catalog.js?v=9"></script>
+<script src="js/catalog.js?v=10"></script>
 <script src="js/seed-activity.js?v=2"></script>
 <script>
 (function(){
@@ -59,7 +59,7 @@
   }
   // シード＋生成ゲームをまとめて対象に
   all = (window.GAMES||[]).slice();
-  Catalog.listGenerated().then(function(gen){
+  Catalog.listGenerated({publishedOnly:true}).then(function(gen){
     (gen||[]).forEach(function(g){ if(g.published!==false) all.push({id:g.id,title:g.title||g.id,score:{type:"high"}}); });
     render();
   }).catch(render);
