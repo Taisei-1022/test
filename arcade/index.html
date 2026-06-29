@@ -198,7 +198,7 @@
 <script src="js/games.js?v=5"></script>
 <script src="js/assets.js?v=1"></script>
 <script src="js/config.js?v=4"></script>
-<script src="js/store.js?v=5"></script>
+<script src="js/store.js?v=6"></script>
 <script src="js/ai.js?v=13"></script>
 <script src="js/catalog.js?v=9"></script>
 <script src="js/share.js?v=5"></script>
@@ -209,7 +209,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.31";
+  var APP_VERSION = "0.9.32";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -299,7 +299,8 @@
   var catChips=document.getElementById("catChips"), sortSel=document.getElementById("sortSel");
   var feedRows=[], feedCat="all", feedSort="pop_week";
   var POP_LABEL={pop_today:"今日",pop_week:"週間",pop_year:"年間"};
-  function popOf(r){ return feedSort==="pop_today"?r.stats.today : feedSort==="pop_year"?r.stats.year : r.stats.week; }
+  var BATCH=8, feedSorted=[], feedShown=0, statsLoaded=false, feedIO=null, sentinel=null;
+  function popOf(r){ var s=r.stats||{}; return feedSort==="pop_today"?(s.today||0) : feedSort==="pop_year"?(s.year||0) : (s.week||0); }
   function thumbDiv(it){
     return it.thumb
       ? '<div class="thumb" style="background:url('+it.thumb+') center/cover"></div>'
@@ -315,55 +316,86 @@
     }).join("");
     catChips.innerHTML=html;
   }
-  function paintFeed(){
+  // 共有アイコンのタップは一度だけ委譲（再描画ごとに付け直さない）
+  grid.addEventListener("click", function(e){ var b=e.target.closest&&e.target.closest("[data-share]"); if(b&&window.Share){ Share.open({gameId:b.getAttribute("data-share"), gameTitle:b.getAttribute("data-title")}); } });
+  function cardHTML(row){
+    var it=row.it, topTxt=row.top?(row.top.score+it.score.unit+" / "+row.top.player):"まだ記録なし";
+    return '<div class="card" data-gid="'+esc(it.id)+'">'+
+      thumbDiv(it)+
+      '<span class="cat">'+esc(it.category)+'</span>'+
+      '<button class="shareic" data-share="'+it.id+'" data-title="'+esc(it.title)+'" aria-label="共有">'+SHARE_SVG+'</button>'+
+      '<div class="ttl">'+esc(it.title)+'</div>'+
+      '<div class="meta">作 '+esc(it.author)+' ・ <span class="m-plays">'+(row.plays||0)+'プレイ</span>'+(it.created?(' ・ 作成日 '+fmtYmd(it.created)):'')+'</div>'+
+      '<div class="blurb">'+esc(it.blurb)+'</div>'+
+      '<div class="meta m-top" style="margin-top:6px;color:var(--gold)">1位 '+esc(topTxt)+'</div>'+
+      '<div class="cardbtns">'+
+        '<a class="cbtn pri" href="play.html?game='+it.id+'">遊ぶ</a>'+
+        '<a class="cbtn" href="leaderboard.html?game='+it.id+'&from=home">ランキング</a>'+
+      '</div></div>';
+  }
+  function sortFeed(){
     var rows=feedRows.filter(function(r){ return feedCat==="all" || r.it.category===feedCat; });
     var isPop=/^pop_/.test(feedSort);
     rows.sort(function(a,b){
-      if(isPop) return popOf(b)-popOf(a) || (b.ts-a.ts);
+      if(isPop && statsLoaded) return popOf(b)-popOf(a) || (b.ts-a.ts);
       if(feedSort==="title") return String(a.it.title).localeCompare(String(b.it.title),"ja");
-      return b.ts-a.ts; // new
+      return b.ts-a.ts; // new（人気順でも統計未取得時はこれにフォールバック）
     });
-    if(!rows.length){ grid.innerHTML='<div class="emptybox" style="grid-column:1/-1;margin-top:30px">このカテゴリの作品はまだありません。</div>'; return; }
-    grid.innerHTML=rows.map(function(row){
-      var it=row.it, topTxt=row.top?(row.top.score+it.score.unit+" / "+row.top.player):"まだ記録なし";
-      var playsTxt=row.plays+"プレイ"; // 表示は累計（ランキング人数と矛盾しない）。並び替えだけ期間別。
-      return '<div class="card">'+
-        thumbDiv(it)+
-        '<span class="cat">'+esc(it.category)+'</span>'+
-        '<button class="shareic" data-share="'+it.id+'" data-title="'+esc(it.title)+'" aria-label="共有">'+SHARE_SVG+'</button>'+
-        '<div class="ttl">'+esc(it.title)+'</div>'+
-        '<div class="meta">作 '+esc(it.author)+' ・ '+playsTxt+(it.created?(' ・ 作成日 '+fmtYmd(it.created)):'')+'</div>'+
-        '<div class="blurb">'+esc(it.blurb)+'</div>'+
-        '<div class="meta" style="margin-top:6px;color:var(--gold)">1位 '+esc(topTxt)+'</div>'+
-        '<div class="cardbtns">'+
-          '<a class="cbtn pri" href="play.html?game='+it.id+'">遊ぶ</a>'+
-          '<a class="cbtn" href="leaderboard.html?game='+it.id+'&from=home">ランキング</a>'+
-        '</div></div>';
-    }).join("");
-    grid.onclick=function(e){ var b=e.target.closest&&e.target.closest("[data-share]"); if(!b)return;
-      if(window.Share) Share.open({gameId:b.getAttribute("data-share"), gameTitle:b.getAttribute("data-title")}); };
+    return rows;
+  }
+  // 統計が一括取得できていない時、表示中のカードぶんだけ個別に集計して埋める
+  function lazyFill(rows){
+    rows.forEach(function(row){ var it=row.it;
+      Promise.all([Store.playStats(it.id), Store.top(it.id, it.score.type, 1)]).then(function(r){
+        row.stats=r[0]; row.plays=r[0].total; row.top=r[1][0]||null;
+        var card=grid.querySelector('.card[data-gid="'+it.id+'"]'); if(!card) return;
+        var pe=card.querySelector(".m-plays"); if(pe) pe.textContent=(row.plays||0)+"プレイ";
+        var te=card.querySelector(".m-top"); if(te) te.textContent="1位 "+(row.top?(row.top.score+it.score.unit+" / "+row.top.player):"まだ記録なし");
+      }).catch(function(){});
+    });
+  }
+  function renderMore(){
+    if(feedShown>=feedSorted.length){ if(feedIO) feedIO.disconnect(); return; }
+    var next=feedSorted.slice(feedShown, feedShown+BATCH); feedShown+=next.length;
+    if(sentinel) sentinel.insertAdjacentHTML("beforebegin", next.map(cardHTML).join(""));
+    if(!statsLoaded) lazyFill(next);
+    if(feedShown>=feedSorted.length && feedIO) feedIO.disconnect();
+  }
+  function paintFeed(){
+    feedSorted=sortFeed(); feedShown=0;
+    if(feedIO){ feedIO.disconnect(); feedIO=null; }
+    if(!feedSorted.length){ grid.innerHTML='<div class="emptybox" style="grid-column:1/-1;margin-top:30px">このカテゴリの作品はまだありません。</div>'; return; }
+    grid.innerHTML="";
+    sentinel=document.createElement("div"); sentinel.style.cssText="grid-column:1/-1;height:1px"; grid.appendChild(sentinel);
+    var root=document.querySelector("#view-play .app")||null;
+    feedIO=new IntersectionObserver(function(es){ es.forEach(function(en){ if(en.isIntersecting) renderMore(); }); }, {root:root, rootMargin:"500px"});
+    feedIO.observe(sentinel);
+    renderMore();
   }
   function renderFeed(){
-    Catalog.listGenerated().then(function(gen){
+    // ① ゲーム一覧 と ② 全ゲームの統計(1リクエスト) を並行取得。個別の per-game 取得はしない。
+    Promise.all([
+      Catalog.listGenerated(),
+      (Store.feedStats ? Store.feedStats() : Promise.resolve(null))
+    ]).then(function(res){
+      var gen=res[0]||[], smap=res[1];
+      statsLoaded=!!smap;
       var items = GAMES.map(function(g){
-        // シードは新着順では下げる（ts=0）。日付は無し。
         return {id:g.id,title:g.title,author:g.author,category:g.category||"その他",accent:g.accent,blurb:g.blurb,
                 score:g.score,thumb:g.thumb||null,ts:0,created:null};
       }).concat(gen.filter(function(g){ return g.published!==false; }).map(function(g){
-        // 新着順＝最終更新時(updated_at)で並べる。無ければ作成日にフォールバック。
         var upd = g.updated_at || g.created_at;
         return {id:g.id,title:g.title,author:g.author||"ゲスト",category:g.category||"その他",accent:g.accent||"#e6b450",
                 thumb:g.thumb||null,blurb:(g.description||"AIで作られたゲーム"),score:{type:"high",unit:"点"},
                 ts:(upd?new Date(upd).getTime():0),created:(g.created_at||null)};
       }));
-      return Promise.all(items.map(function(it){
-        return Promise.all([Store.playStats(it.id),Store.top(it.id,it.score.type,1)]).then(function(r){
-          return {it:it,stats:r[0],plays:r[0].total,top:r[1][0]||null,ts:it.ts};
-        });
-      }));
-    }).then(function(rows){
-      feedRows=rows;
-      if(feedCat!=="all" && !rows.some(function(r){return r.it.category===feedCat;})) feedCat="all";
+      feedRows = items.map(function(it){
+        var s = smap && smap[it.id];
+        var stats = s ? {total:s.total,today:s.today,week:s.week,year:s.year} : {total:0,today:0,week:0,year:0};
+        var top = s ? (it.score.type==="low" ? s.lo : s.hi) : null;
+        return {it:it, stats:stats, plays:stats.total, top:top, ts:it.ts};
+      });
+      if(feedCat!=="all" && !feedRows.some(function(r){return r.it.category===feedCat;})) feedCat="all";
       renderTrending(); renderCatChips(); paintFeed();
     });
   }

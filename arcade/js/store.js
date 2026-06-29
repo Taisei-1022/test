@@ -123,6 +123,25 @@ window.Store = (function () {
           var times = (rows || []).map(function (r) { return new Date(r.created_at).getTime(); });
           return countWindows(times);
         } catch (e) { console.warn("playStats failed", e); return { total: 0, today: 0, week: 0, year: 0 }; }
+      },
+      // 全ゲームのプレイ数(今日/週/年/累計)＋1位を「1リクエスト」で取得（feed_stats RPC）。
+      // RPC未作成等で失敗したら null（呼び出し側は従来の個別取得にフォールバック）。
+      feedStats: async function () {
+        try {
+          var res = await rq("rpc/feed_stats", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+          if (!res.ok) return null;
+          var rows = await res.json();
+          if (!Array.isArray(rows)) return null;
+          var map = {};
+          rows.forEach(function (r) {
+            map[r.game_id] = {
+              total: +r.plays || 0, today: +r.d_today || 0, week: +r.d_week || 0, year: +r.d_year || 0,
+              hi: (r.hi_score != null ? { score: r.hi_score, player: r.hi_player } : null),
+              lo: (r.lo_score != null ? { score: r.lo_score, player: r.lo_player } : null)
+            };
+          });
+          return map;
+        } catch (e) { console.warn("feedStats failed", e); return null; }
       }
     });
   }
