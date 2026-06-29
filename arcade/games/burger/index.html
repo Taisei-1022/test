@@ -143,7 +143,7 @@
     this.contacts=merged;
   };
   Arbiter.prototype.preStep=function(invDt){
-    var b1=this.b1,b2=this.b2,SLOP=0.5,BIAS=0.2;
+    var b1=this.b1,b2=this.b2,SLOP=0.5,BIAS=0.1;   // 反発(跳ね)を抑えるため位置補正係数を低めに
     for(var i=0;i<this.contacts.length;i++){var c=this.contacts[i],n=c.normal;
       var r1=sub(c.position,{x:b1.px,y:b1.py}),r2=sub(c.position,{x:b2.px,y:b2.py});
       var rn1=dot(r1,n),rn2=dot(r2,n);
