@@ -80,8 +80,10 @@ window.Ai = (function () {
     available: function () { return !!(cfg.supabaseUrl && cfg.supabaseKey); },
     // 会話を送る（相談 or 生成）。prevHtml を渡すと既存ゲームの編集モード。
     // onBuild: 本生成が始まった（ジョブ受付）時に呼ぶコールバック（「生成中」表示用）。
-    send: function (messages, prevHtml, onBuild) {
-      return post({ messages: messages, prevHtml: prevHtml || "", token: token(), admin: adminCode() }).then(function (data) {
+    // force=true で「作り始める」＝サーバーで Opus ビルドを実行（生成カウント消費）。
+    // force無し（相談ターン）は Haiku で ask / ready を返すだけ。
+    send: function (messages, prevHtml, onBuild, force) {
+      return post({ messages: messages, prevHtml: prevHtml || "", token: token(), admin: adminCode(), build: !!force }).then(function (data) {
         if (data && data.action === "job") {
           if (onBuild) { try { onBuild(data.job_id); } catch (e) {} }
           return pollJob(data.job_id);

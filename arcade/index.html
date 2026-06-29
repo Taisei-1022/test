@@ -199,7 +199,7 @@
 <script src="js/assets.js?v=1"></script>
 <script src="js/config.js?v=4"></script>
 <script src="js/store.js?v=5"></script>
-<script src="js/ai.js?v=12"></script>
+<script src="js/ai.js?v=13"></script>
 <script src="js/catalog.js?v=9"></script>
 <script src="js/share.js?v=5"></script>
 <script src="js/arcade-embed.js?v=3"></script>
@@ -209,7 +209,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.30";
+  var APP_VERSION = "0.9.31";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -818,68 +818,99 @@
       pushScreen("create","publish");   // まずタグ・名前・説明・サムネを編集する画面へ
     });
   }
-  function sendChat(text){
-    text=(text||"").trim(); if(!text||busy) return;
-    clearOptions();
-    var note=assetNote(), full=note+text;
-    bubble("user",full); convo.push({role:"user",content:full}); input.value=""; input.style.height="auto"; busy=true; dirty=true; showStarters(false);
-    saveChatNow();   // 送信した瞬間に履歴を確実に保存（返信を待たない）
-    if(pickedAssets.length){ pickedAssets=[]; renderAssetTray(); if(!assetPanel.hidden) renderAssetPanel(); }
+  // エラーメッセージの組み立て（相談ターン・ビルド両方で共用）
+  function chatErrMsg(s){
+    if(/rate_limited/.test(s)){
+      var reason=s.split(":")[1]||"";
+      var sec=parseInt(s.split(":")[2],10);
+      return reason==="cooldown" ? ("少し待ってからもう一度送ってね"+(sec?("（あと約"+sec+"秒）"):""))
+          : reason==="daily_limit" ? "今日のあなたの作成上限（15本）に達しました。また明日試してね。"
+          : reason==="ip_limit" ? "この回線からの作成が多く、一時的に制限中です。時間をおくか、別のネットワークで試してね。"
+          : reason==="global_busy" ? "いま全体が混み合っています。少し時間をおいてね。"
+          : "リクエストが多すぎます。少し待ってからにしてね。";
+    }
+    return /not_configured/.test(s)
+      ? "AI生成が未設定です。SupabaseのEdge Functionとキーを設定してね。"
+      : /insufficient_credit/.test(s)
+      ? "AIの利用クレジットが不足しています。\nAnthropicの管理画面（Plans & Billing）でクレジットを追加すると、また作れるようになります。"
+      : /timeout/.test(s)
+      ? "ちょっと内容が複雑すぎたみたい。\nお題をもう少しシンプルにして、もう一度試してね（1メカニクスくらいが作りやすいよ）。"
+      : "うまくいかなかった…もう一度試してみて。\n("+s.slice(0,90)+")";
+  }
+  // 生成結果(ビルド)を画面と状態に反映
+  function applyBuild(res){
+    if(res.reply) bubble("bot", res.reply);
+    var k = lastGen || {};
+    lastGen={ title:(k.title && k.title!=="無題のゲーム") ? k.title : (res.title||"無題のゲーム"), html:res.html,
+      accent: k.accent || ACCENTS[Math.floor(Math.random()*ACCENTS.length)],
+      description: k.description || "", thumb: k.thumb || null, editingId: k.editingId || null,
+      category: res.category || k.category || "その他", published: k.published, author: k.author || null };
+    dirty=true;
+    convo.push({role:"assistant",content:"（ゲームを生成しました）"});
+    toPreviewBtn.classList.remove("off");
+    bubble("bot","「"+res.title+"」ができたよ！下のボタンか右上の「プレビュー」で遊んでみて。\nさらに直したい時はそのまま話してね。");
+    if(res.cost && window.Ai && Ai.getAdmin && Ai.getAdmin()){
+      var c=res.cost;
+      bubble("bot","💰 この生成：約 ¥"+c.jpy+"（"+(res.model||"")+"｜入力 "+c.in+" / 出力 "+c.out+" トークン）");
+    }
+    showGenCard();
+    saveChatNow();
+    var onChat = document.getElementById("view-create").classList.contains("active") && document.getElementById("cr-chat").classList.contains("on");
+    if(!onChat){ markNewBuild(lastGen&&lastGen.editingId); refreshCreations(); showToast("「"+res.title+"」ができたよ！"); }
+  }
+  function clearBuildBtn(){ chatlog.querySelectorAll(".buildrow").forEach(function(n){ n.remove(); }); }
+  // 「作り始める」ボタン（=ここを押すと初めてOpusが動く・生成カウント消費）
+  function showBuildButton(){
+    clearBuildBtn();
+    var row=document.createElement("div"); row.className="buildrow"; row.style.cssText="margin:8px 0 2px";
+    var b=document.createElement("button");
+    b.textContent= (lastGen && lastGen.html) ? "🛠 この内容で直し始める" : "✨ この内容で作り始める";
+    b.style.cssText="display:block;width:100%;font-weight:900;font-size:16px;padding:14px;border:0;border-radius:14px;background:var(--gold);color:#3a2a00;cursor:pointer;box-shadow:0 4px 0 rgba(0,0,0,.18)";
+    b.addEventListener("click", function(){ startBuild(); });
+    row.appendChild(b);
+    var note=document.createElement("div"); note.className="dim"; note.style.cssText="font-size:11px;font-weight:700;margin-top:6px;text-align:center";
+    note.textContent="※ここで生成が1回分始まります（まだ伝えたいことがあれば、続けて話してね）";
+    row.appendChild(note);
+    chatlog.appendChild(row); chatlog.scrollTop=chatlog.scrollHeight;
+  }
+  // 開始ボタン → Opus ビルド実行
+  function startBuild(){
+    if(busy) return;
+    clearOptions(); clearBuildBtn(); busy=true;
     var prev = (lastGen && lastGen.html) ? lastGen.html : "";
-    var typing=bubble("bot typing", prev?"直しているよ…":"考え中…");
-    Ai.send(convo, prev, function(jobId){ setGenerating(true); savePending(jobId, lastGen&&lastGen.editingId, lastGen&&lastGen.title); }).then(function(res){
+    var typing=bubble("bot typing","作っているよ…");
+    Ai.send(convo, prev, function(jobId){ setGenerating(true); savePending(jobId, lastGen&&lastGen.editingId, lastGen&&lastGen.title); }, true).then(function(res){
       typing.remove(); chatlog.querySelectorAll(".typing").forEach(function(n){n.remove();}); setGenerating(false); clearPending();
-      if(res.action==="ask"){
-        var reply=res.reply||"どんな感じにする？";
-        bubble("bot", reply); convo.push({role:"assistant",content:reply});
-        renderOptions(res.options||[]);
-        saveChatNow();   // 返信も履歴に保存
-        busy=false; return;
-      }
-      // build
-      if(res.reply) bubble("bot", res.reply);
-      var k = lastGen || {};
-      lastGen={ title:(k.title && k.title!=="無題のゲーム") ? k.title : (res.title||"無題のゲーム"), html:res.html,
-        accent: k.accent || ACCENTS[Math.floor(Math.random()*ACCENTS.length)],
-        description: k.description || "", thumb: k.thumb || null, editingId: k.editingId || null,
-        category: res.category || k.category || "その他", published: k.published, author: k.author || null };
-      dirty=true;
-      convo.push({role:"assistant",content:"（ゲームを生成しました）"});
-      toPreviewBtn.classList.remove("off");
-      bubble("bot","「"+res.title+"」ができたよ！下のボタンか右上の「プレビュー」で遊んでみて。\nさらに直したい時はそのまま話してね。");
-      // 管理者にだけ、この生成のコストを表示（res.cost はサーバーが算出）
-      if(res.cost && window.Ai && Ai.getAdmin && Ai.getAdmin()){
-        var c=res.cost;
-        bubble("bot","💰 この生成：約 ¥"+c.jpy+"（"+(res.model||"")+"｜入力 "+c.in+" / 出力 "+c.out+" トークン）");
-      }
-      showGenCard();
-      busy=false;
-      saveChatNow();   // 生成結果(HTML)＋会話履歴を確実に保存
-      // 生成中に他画面へ移動していたら、新着タグ＋通知
-      var onChat = document.getElementById("view-create").classList.contains("active") && document.getElementById("cr-chat").classList.contains("on");
-      if(!onChat){ markNewBuild(lastGen&&lastGen.editingId); refreshCreations(); showToast("「"+res.title+"」ができたよ！"); }
+      if(!res || res.action==="ask" || res.action==="ready"){ busy=false; return; }
+      applyBuild(res); busy=false;
     }).catch(function(err){
       typing.remove(); chatlog.querySelectorAll(".typing").forEach(function(n){n.remove();}); busy=false; setGenerating(false); clearPending();
-      var s=String(err&&err.message||err);
-      var msg;
-      if(/rate_limited/.test(s)){
-        var reason=s.split(":")[1]||"";
-        var sec=parseInt(s.split(":")[2],10);
-        msg = reason==="cooldown" ? ("少し待ってからもう一度送ってね"+(sec?("（あと約"+sec+"秒）"):""))
-            : reason==="daily_limit" ? "今日のあなたの作成上限（15本）に達しました。また明日試してね。"
-            : reason==="ip_limit" ? "この回線からの作成が多く、一時的に制限中です。時間をおくか、別のネットワークで試してね。"
-            : reason==="global_busy" ? "いま全体が混み合っています。少し時間をおいてね。"
-            : "リクエストが多すぎます。少し待ってからにしてね。";
-      } else {
-        msg = /not_configured/.test(s)
-          ? "AI生成が未設定です。SupabaseのEdge Functionとキーを設定してね。"
-          : /insufficient_credit/.test(s)
-          ? "AIの利用クレジットが不足しています。\nAnthropicの管理画面（Plans & Billing）でクレジットを追加すると、また作れるようになります。"
-          : /timeout/.test(s)
-          ? "ちょっと内容が複雑すぎたみたい。\nお題をもう少しシンプルにして、もう一度試してね（1メカニクスくらいが作りやすいよ）。"
-          : "うまくいかなかった…もう一度試してみて。\n("+s.slice(0,90)+")";
+      bubble("bot", chatErrMsg(String(err&&err.message||err)));
+    });
+  }
+  function sendChat(text){
+    text=(text||"").trim(); if(!text||busy) return;
+    clearOptions(); clearBuildBtn();
+    var note=assetNote(), full=note+text;
+    bubble("user",full); convo.push({role:"user",content:full}); input.value=""; input.style.height="auto"; busy=true; dirty=true; showStarters(false);
+    saveChatNow();   // 送信した瞬間に履歴を確実に保存
+    if(pickedAssets.length){ pickedAssets=[]; renderAssetTray(); if(!assetPanel.hidden) renderAssetPanel(); }
+    var prev = (lastGen && lastGen.html) ? lastGen.html : "";
+    var typing=bubble("bot typing","考え中…");
+    // 相談ターン（Haiku）。ここではまだ生成しない（カウント消費なし）。
+    Ai.send(convo, prev, null).then(function(res){
+      typing.remove(); chatlog.querySelectorAll(".typing").forEach(function(n){n.remove();}); setGenerating(false); clearPending();
+      var reply=res&&res.reply;
+      if(res && res.action==="ready"){
+        bubble("bot", reply||"準備OK！この内容で作り始めていい？"); convo.push({role:"assistant",content:reply||"準備OK！"});
+        showBuildButton(); saveChatNow(); busy=false; return;
       }
-      bubble("bot", msg);
+      // ask（既定）
+      bubble("bot", reply||"どんな感じにする？"); convo.push({role:"assistant",content:reply||"どんな感じにする？"});
+      renderOptions((res&&res.options)||[]); saveChatNow(); busy=false;
+    }).catch(function(err){
+      typing.remove(); chatlog.querySelectorAll(".typing").forEach(function(n){n.remove();}); busy=false; setGenerating(false); clearPending();
+      bubble("bot", chatErrMsg(String(err&&err.message||err)));
     });
   }
   function showGenCard(){

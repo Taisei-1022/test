@@ -34,6 +34,14 @@ Output (structured):
 - reply: a short Japanese message to the user (for "build", a brief line like "じゃあ作るね！")
 - options: 0–4 short Japanese choice strings the user can tap (for "ask"; empty for "build")`;
 
+// 編集時の相談役（既存ゲームを修正する前の確認。コードは見えない・書かない）
+const PLAN_EDIT_SYSTEM = `You are a friendly Japanese-speaking helper. The user already has a finished mini-game and wants to CHANGE it. You cannot see the code. In THIS step you only TALK — you do NOT write code.
+Rules:
+- Always answer in Japanese, short and friendly.
+- Edits are usually clear. Ask a brief clarifying question (action="ask", up to ~4 tappable options) ONLY if the request is genuinely ambiguous.
+- Otherwise set action="build" with a short reply confirming the change you'll apply (例：「"敵を速く" で直すね！」). Do NOT over-ask.
+Output (structured): action ("ask" or "build"), reply (short Japanese), options (0–4 short strings; empty for build).`;
+
 // 品質の手本（この構造・完成度を真似させる。丸写しはさせない）。
 // 状態管理 / resize / Arcadeフック＆フォールバック / touch+pointer入力 / ループ / スコア / 演出 を網羅。
 const GOLD_EXAMPLE = `<!DOCTYPE html>
@@ -401,30 +409,32 @@ async function callClaude(key: string, system: string, messages: Msg[], schema: 
 
 // 受付：レート制限＋相談（プランナー）。結果がすぐ返せるものは immediate、
 // 重いビルドへ進む場合は { build:true } を返す。
-async function startFlow(key: string, messages: Msg[], prevHtml: string, token: string, ip: string, isAdmin: boolean): Promise<{ immediate?: unknown; build?: boolean }> {
+async function startFlow(key: string, messages: Msg[], prevHtml: string, token: string, ip: string, isAdmin: boolean, forceBuild: boolean): Promise<{ immediate?: unknown; build?: boolean }> {
   const d = today();
-  // 管理者はレート制限を全スキップ（リクエスト上限もビルド上限も無視）。
+
+  // 「作り始める」ボタンが押された＝ここで初めて Opus ビルドへ進む（生成カウント消費）。
+  if (forceBuild) {
+    if (!isAdmin) {
+      const bgt = await gate("u:bld:" + token + ":" + d, "i:bld:" + ip + ":" + d, "g:bld:" + d, LIMITS.bldUser, LIMITS.bldIp, LIMITS.bldGlobal, 0);
+      if (bgt && bgt.allowed === false) return { immediate: { error: "rate_limited", reason: limitReason("bld", bgt) } };
+    }
+    return { build: true };
+  }
+
+  // 相談ターン（軽量）。管理者はレート制限スキップ。
   if (!isAdmin) {
     const rg = await gate("u:req:" + token + ":" + d, "i:req:" + ip + ":" + d, "g:req:" + d, LIMITS.reqUser, LIMITS.reqIp, LIMITS.reqGlobal, LIMITS.cooldownSec);
     if (rg && rg.allowed === false) return { immediate: { error: "rate_limited", reason: limitReason("req", rg), retry_sec: rg.retry_sec } };
   }
-
-  if (!prevHtml) {
-    // 相談（プランナー：軽量・速い）
-    let plan;
-    try { plan = await callClaude(key, PLAN_SYSTEM, messages, PLAN_SCHEMA, false); }
-    catch (e) { return { immediate: buildErr(e) }; }
-    if (plan.action !== "build") {
-      return { immediate: { action: "ask", reply: plan.reply || "どんな感じにする？", options: Array.isArray(plan.options) ? plan.options.slice(0, 4) : [] } };
-    }
+  // 新規も編集も、まずプランナー(Haiku)で相談。準備OKでも自動ではビルドしない。
+  let plan;
+  try { plan = await callClaude(key, prevHtml ? PLAN_EDIT_SYSTEM : PLAN_SYSTEM, messages, PLAN_SCHEMA, false); }
+  catch (e) { return { immediate: buildErr(e) }; }
+  if (plan.action === "build") {
+    // 準備完了。ここでは作らず、クライアントに「作り始める」ボタンを出させる。
+    return { immediate: { action: "ready", reply: plan.reply || "準備OK！この内容で作り始めていい？" } };
   }
-  // ビルドに進む前に作成上限チェック（管理者はスキップ）
-  if (!isAdmin) {
-    const d2 = today();
-    const bgt = await gate("u:bld:" + token + ":" + d2, "i:bld:" + ip + ":" + d2, "g:bld:" + d2, LIMITS.bldUser, LIMITS.bldIp, LIMITS.bldGlobal, 0);
-    if (bgt && bgt.allowed === false) return { immediate: { error: "rate_limited", reason: limitReason("bld", bgt) } };
-  }
-  return { build: true };
+  return { immediate: { action: "ask", reply: plan.reply || "どんな感じにする？", options: Array.isArray(plan.options) ? plan.options.slice(0, 4) : [] } };
 }
 
 Deno.serve(async (req) => {
@@ -434,11 +444,12 @@ Deno.serve(async (req) => {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) return json({ error: "missing_api_key" }, 500);
 
-  let messages: Msg[] = [], prevHtml = "", token = "?", jobId = "", wantUsage = false, isAdmin = false;
+  let messages: Msg[] = [], prevHtml = "", token = "?", jobId = "", wantUsage = false, isAdmin = false, forceBuild = false;
   try {
     const b = await req.json();
     if (typeof b?.job === "string") jobId = b.job;
     if (b?.usage === true) wantUsage = true;
+    if (b?.build === true) forceBuild = true;   // 「作り始める」ボタン＝ここでだけ Opus が動く
     // 管理者判定：コードが設定済みで、リクエストの admin と一致したときだけ true
     if (ADMIN_CODE && typeof b?.admin === "string" && b.admin === ADMIN_CODE) isAdmin = true;
     if (Array.isArray(b?.messages)) {
@@ -486,7 +497,7 @@ Deno.serve(async (req) => {
 
   // ---- 受付：ゲート＋相談（速い）----
   let flow;
-  try { flow = await startFlow(key, messages, prevHtml, token, ip, isAdmin); }
+  try { flow = await startFlow(key, messages, prevHtml, token, ip, isAdmin, forceBuild); }
   catch (e) { return json(buildErr(e)); }
   if (flow.immediate) return json(flow.immediate);
 
