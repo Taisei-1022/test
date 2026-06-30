@@ -2,10 +2,13 @@
   /* ブランド：ダーク×バイオレット（--gold はアクセント変数名のまま流用） */
   --bg:#141221; --ink:#f1eefb; --dim:#9a93b5; --rule:#2c2740; --plate:#1d1a2e; --gold:#8b5cf6;
 }
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
 html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);
   font-family:"Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
-  -webkit-user-select:none;user-select:none;overscroll-behavior:none;}
+  -webkit-user-select:none;user-select:none;overscroll-behavior:none;
+  /* iOSはuser-scalable=noを無視するため、ダブルタップ拡大(=2連続タップで固まる症状)をここで無効化。
+     スクロール/パンは維持しつつダブルタップズームと300msタップ遅延だけ消す。 */
+  touch-action:manipulation;}
 
 /* 画面切替を少しだけフェード（アプリっぽい滑らかさ） */
 @keyframes vfade{from{opacity:.35}to{opacity:1}}
