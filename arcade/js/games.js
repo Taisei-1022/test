@@ -9,6 +9,7 @@ window.GAMES = [
     thumb: "games/train/thumb.png?v=1",
     score: { type: "high", unit: "駅" },
     accent: "#2dd4bf",
+    created: "2026-06-30",
     blurb: "人をかき分け、ドアが閉まる前に降りろ。降りるほど超満員！"
   },
   {

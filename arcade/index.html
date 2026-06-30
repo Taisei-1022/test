@@ -207,9 +207,9 @@
   </div>
 </div>
 
-<script src="js/games.js?v=7"></script>
+<script src="js/games.js?v=8"></script>
 <script src="js/assets.js?v=1"></script>
-<script src="js/config.js?v=4"></script>
+<script src="js/config.js?v=5"></script>
 <script src="js/store.js?v=7"></script>
 <script src="js/ai.js?v=13"></script>
 <script src="js/catalog.js?v=10"></script>
@@ -221,7 +221,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.44";
+  var APP_VERSION = "0.9.45";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -411,8 +411,9 @@
       var gen=res[0]||[], smap=res[1];
       statsLoaded=!!smap;
       var items = GAMES.map(function(g){
+        // シードも created を持てば新着順に並び、カードに作成日が出る（無ければ従来通り末尾）
         return {id:g.id,title:g.title,author:g.author,category:g.category||"その他",accent:g.accent,blurb:g.blurb,
-                score:g.score,thumb:g.thumb||null,ts:0,created:null};
+                score:g.score,thumb:g.thumb||null,ts:(g.created?new Date(g.created).getTime():0),created:g.created||null};
       }).concat(gen.filter(function(g){ return g.published!==false; }).map(function(g){
         var upd = g.updated_at || g.created_at;
         return {id:g.id,title:g.title,author:g.author||"ゲスト",category:g.category||"その他",accent:g.accent||"#e6b450",
