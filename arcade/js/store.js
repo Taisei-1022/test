@@ -9,17 +9,28 @@ window.Store = (function () {
   var remote = !!(cfg.supabaseUrl && cfg.supabaseKey);
   var NAME = "arcade.name", GID = "arcade.guestid";
 
+  // 名前未設定のときの、かわいい自動ニックネーム（形容詞＋動物＋番号）。
+  // 末尾番号は端末ごとの一意性確保用（ランキング/自己ベストが他人と混ざらないように）。
+  // 以前は "ゲスト"+ランダム英字（例：ゲストhahn）で無機質だったのを置き換え。
+  var ADJ = ["すばやい", "のんびり", "げんきな", "ゆかいな", "おだやかな", "やさしい", "まじめな", "ゆうかんな",
+             "ほがらかな", "きまぐれな", "しずかな", "あかるい", "かしこい", "ねむそうな", "ちいさな", "おおきな",
+             "まるい", "ふわふわ", "にこにこ", "わくわく", "もぐもぐ", "ぴょんぴょん"];
+  var ANI = ["タヌキ", "コアラ", "パンダ", "キツネ", "ウサギ", "ネコ", "イヌ", "クマ", "ペンギン", "リス",
+             "カワウソ", "ハリネズミ", "アザラシ", "フクロウ", "カピバラ", "シマウマ", "カエル", "ヒヨコ", "ラッコ", "イルカ"];
+  function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
+  function genGuestName() { return pick(ADJ) + pick(ANI) + (Math.floor(Math.random() * 900) + 100); }
+
   // なまえは端末ごと（共有ランキングでも同じ）
   var nameApi = {
     name: function () { return localStorage.getItem(NAME) || ""; },
     setName: function (n) { localStorage.setItem(NAME, (n || "").slice(0, 16)); },
-    // スコア記録・本人判定に使うID。名前未設定でも端末ごとに固有のゲスト名を返す。
-    // （以前は全員 "ゲスト" で、自己ベスト/ランキングが他人と混ざっていた。その対策）
+    // スコア記録・本人判定に使うID。名前未設定でも端末ごとに固有のかわいいゲスト名を返す。
+    // （既存のゲスト端末IDは書き換えない＝過去の自己ベスト/記録との紐付けを壊さないため）
     player: function () {
       var n = (localStorage.getItem(NAME) || "").trim();
       if (n) return n;
       var g = localStorage.getItem(GID);
-      if (!g) { g = "ゲスト" + Math.random().toString(36).slice(2, 6); localStorage.setItem(GID, g); }
+      if (!g) { g = genGuestName(); localStorage.setItem(GID, g); }
       return g;
     }
   };
