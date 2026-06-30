@@ -196,6 +196,16 @@
   </div>
 </div>
 
+<!-- 初回：なまえ必須ゲート（入れるまで閉じない＝閉じる/背景タップ無し） -->
+<div class="howto" id="nameGate" hidden>
+  <div class="howtobox">
+    <h3>ようこそ Vappa へ！</h3>
+    <p class="lead">ランキングや作品に表示される<b>なまえ</b>を決めてね。<br>（あとからマイページで変更できます）</p>
+    <label class="name" style="display:block;margin:12px 0;"><input id="nameGateInput" maxlength="16" placeholder="例：たいせい" autocomplete="off" style="width:100%;box-sizing:border-box" /></label>
+    <button class="ok" id="nameGateOk" type="button">これではじめる</button>
+  </div>
+</div>
+
 <script src="js/games.js?v=6"></script>
 <script src="js/assets.js?v=1"></script>
 <script src="js/config.js?v=4"></script>
@@ -210,7 +220,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.39";
+  var APP_VERSION = "0.9.40";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -294,6 +304,22 @@
   document.getElementById("howtoBtn").addEventListener("click", openHowto);
   document.getElementById("howtoOk").addEventListener("click", closeHowto);
   howto.addEventListener("click", function(e){ if(e.target===howto) closeHowto(); });
+
+  /* ---------- 初回：なまえ必須ゲート ---------- */
+  // 名前未設定なら起動時にゲートを出し、入れるまで閉じない（自動の「やさしいクマ」等を強制で置き換える）。
+  var nameGate=document.getElementById("nameGate"), nameGateInput=document.getElementById("nameGateInput"), nameGateOk=document.getElementById("nameGateOk");
+  function needName(){ try{ return !((Store.name&&Store.name()||"").trim()); }catch(e){ return false; } }
+  function openNameGate(){ nameGate.hidden=false; setTimeout(function(){ try{nameGateInput.focus();}catch(e){} },80); }
+  function submitNameGate(){
+    var v=(nameGateInput.value||"").trim();
+    if(!v){ try{nameGateInput.focus();}catch(e){} return; }   // 空のままは不可＝必須
+    nameGateOk.disabled=true;
+    var done=function(){ nameGate.hidden=true; nameGateOk.disabled=false; if(typeof renderMypage==="function"){ try{renderMypage();}catch(e){} } };
+    // rename は名前保存＋既存ゲスト名の過去スコアを新名へ引き継ぐ
+    if(Store.rename){ Store.rename(v).then(done).catch(done); } else { Store.setName(v); done(); }
+  }
+  nameGateOk.addEventListener("click", submitNameGate);
+  nameGateInput.addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); submitNameGate(); } });
 
   /* ---------- 遊ぶ：フィード（フィルター・並び替え） ---------- */
   var grid=document.getElementById("grid");
@@ -1015,6 +1041,7 @@
   var start=(location.hash||"#play").slice(1);
   if(!/^(play|create|mypage)$/.test(start)) start="play";
   replaceScreen(start, start==="create"?"list":null);
+  if(needName()) openNameGate();   // 名前未設定なら最初に必ず名前を決めてもらう
   recoverPending();
 })();
 </script>
