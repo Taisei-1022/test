@@ -66,12 +66,14 @@
     if (tok !== runToken) return;
     t.remove(); bubble("bot", text);
   }
+  // 入力欄の高さを中身に合わせて伸ばす（本物と同じ。これが無いと2行目が隠れる）
+  function fit() { input.style.height = "auto"; input.style.height = Math.min(120, input.scrollHeight) + "px"; }
   // ユーザー入力欄にタイプして送信（最初の一言を“打ってる感”で見せる）
   async function userType(text, tok) {
-    input.value = "";
-    for (var i = 0; i < text.length; i++) { if (tok !== runToken) return; input.value += text[i]; await sleep(55); }
+    input.value = ""; fit();
+    for (var i = 0; i < text.length; i++) { if (tok !== runToken) return; input.value += text[i]; fit(); await sleep(55); }
     await sleep(450); if (tok !== runToken) return;
-    input.value = ""; bubble("user", text);
+    input.value = ""; fit(); bubble("user", text);
   }
   // 選択肢チップを出して、指定インデックスを自動で「押す」
   async function options(opts, pickIdx, tok) {
@@ -83,7 +85,7 @@
     await sleep(420); if (tok !== runToken) return;
     row.remove(); bubble("user", opts[pickIdx]);
   }
-  function clearAll() { chatlog.innerHTML = ""; modeltag.hidden = true; genBar.hidden = true; input.value = ""; }
+  function clearAll() { chatlog.innerHTML = ""; modeltag.hidden = true; genBar.hidden = true; input.value = ""; fit(); }
 
   async function run() {
     var tok = ++runToken; clearAll();
