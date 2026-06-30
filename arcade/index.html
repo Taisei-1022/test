@@ -221,7 +221,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.42";
+  var APP_VERSION = "0.9.43";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -395,7 +395,9 @@
     if(!feedSorted.length){ grid.innerHTML='<div class="emptybox" style="grid-column:1/-1;margin-top:30px">このカテゴリの作品はまだありません。</div>'; return; }
     grid.innerHTML="";
     sentinel=document.createElement("div"); sentinel.style.cssText="grid-column:1/-1;height:1px"; grid.appendChild(sentinel);
-    var root=document.querySelector("#view-play .app")||null;
+    // root は実際のスクロール要素（.view = #view-play）。内側の .app はスクロールしないので
+    // そこを root にすると、スクロールが監視に反映されず途中で止まる（無限スクロール不発の原因）。
+    var root=document.getElementById("view-play")||null;
     feedIO=new IntersectionObserver(function(es){ es.forEach(function(en){ if(en.isIntersecting) renderMore(); }); }, {root:root, rootMargin:"500px"});
     feedIO.observe(sentinel);
     renderMore();
