@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="robots" content="noindex" />
+<link rel="stylesheet" href="css/app.css?v=29" />
+<title>Vappa デモ（撮影用）</title>
+<style>
+  /* このページは撮影用のヤラセ再生。実際の生成は行わない。 */
+  body{height:100%;}
+  .demowrap{position:fixed;inset:0;display:flex;flex-direction:column;background:var(--bg);}
+  #genBar{bottom:88px;} /* タブが無いので位置調整 */
+  .democtl{position:fixed;top:calc(env(safe-area-inset-top) + 10px);right:12px;z-index:80;
+    background:rgba(20,18,33,.7);color:#fff;border:1px solid var(--rule);border-radius:999px;
+    padding:7px 14px;font:inherit;font-weight:800;font-size:13px;cursor:pointer;backdrop-filter:blur(4px);}
+  /* 自動選択されるチップが「押された」風に光る */
+  .optrow button.picked{background:var(--gold);color:#fff;}
+  .gencard{align-self:flex-start;max-width:88%;border:1px solid var(--rule);border-radius:16px;overflow:hidden;background:var(--plate);}
+  .gencard .gth{width:100%;aspect-ratio:4/3;background-size:cover;background-position:center;display:block;}
+  .gencard .gbody{padding:11px 13px;}
+  .gencard .gt{font-weight:900;font-size:15px;margin-bottom:8px;}
+  .gencard .gplay{display:inline-block;background:var(--gold);color:#fff;text-decoration:none;font-weight:900;
+    border-radius:11px;padding:9px 18px;font-size:14px;}
+</style>
+</head>
+<body>
+<div class="demowrap">
+  <div class="crbar">
+    <button class="back" aria-label="戻る">‹</button>
+    <div class="t">作る（AI）</div>
+    <button class="act off">プレビュー</button>
+  </div>
+  <div id="modeltag" class="dim" style="padding:4px 14px 0;font-size:11px;font-weight:700" hidden></div>
+  <div class="chatlog" id="chatlog"></div>
+  <div class="composer">
+    <textarea id="chatInput" placeholder="作りたいゲーム / 直したい所を書く…" rows="1" autocomplete="off" readonly></textarea>
+    <button id="chatSend">送信</button>
+  </div>
+</div>
+<div class="genbar" id="genBar" hidden><span class="genspin"></span>ゲームを生成中… 少し待ってね（他の画面に移動してもOK）</div>
+<button class="democtl" id="ctl">▶ 再生</button>
+
+<script>
+(function () {
+  "use strict";
+  var chatlog = document.getElementById("chatlog");
+  var input = document.getElementById("chatInput");
+  var genBar = document.getElementById("genBar");
+  var modeltag = document.getElementById("modeltag");
+  var ctl = document.getElementById("ctl");
+  var runToken = 0;
+
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function scroll() { chatlog.scrollTop = chatlog.scrollHeight; }
+  function bubble(cls, text) {
+    var d = document.createElement("div"); d.className = "msg " + cls; d.textContent = text;
+    chatlog.appendChild(d); scroll(); return d;
+  }
+
+  // ボットの「考え中…」表示→本文に置き換え
+  async function botSay(text, tok, thinkMs) {
+    var t = bubble("bot typing", "考え中…"); await sleep(thinkMs || 1100);
+    if (tok !== runToken) return;
+    t.remove(); bubble("bot", text);
+  }
+  // ユーザー入力欄にタイプして送信（最初の一言を“打ってる感”で見せる）
+  async function userType(text, tok) {
+    input.value = "";
+    for (var i = 0; i < text.length; i++) { if (tok !== runToken) return; input.value += text[i]; await sleep(55); }
+    await sleep(450); if (tok !== runToken) return;
+    input.value = ""; bubble("user", text);
+  }
+  // 選択肢チップを出して、指定インデックスを自動で「押す」
+  async function options(opts, pickIdx, tok) {
+    var row = document.createElement("div"); row.className = "optrow";
+    var btns = opts.map(function (o) { var b = document.createElement("button"); b.type = "button"; b.textContent = o; row.appendChild(b); return b; });
+    chatlog.appendChild(row); scroll();
+    await sleep(900); if (tok !== runToken) return;
+    btns[pickIdx].classList.add("picked");
+    await sleep(420); if (tok !== runToken) return;
+    row.remove(); bubble("user", opts[pickIdx]);
+  }
+  function clearAll() { chatlog.innerHTML = ""; modeltag.hidden = true; genBar.hidden = true; input.value = ""; }
+
+  async function run() {
+    var tok = ++runToken; clearAll();
+    ctl.style.opacity = "0"; ctl.style.pointerEvents = "none"; ctl.disabled = true;  // 撮影時に映らないよう再生中は隠す
+
+    bubble("bot", "どんなゲームを作る？ アイデアを教えてね 🎮"); await sleep(900);
+    if (tok !== runToken) return;
+
+    await userType("満員電車でなんとか降りるゲーム作りたい", tok); if (tok !== runToken) return;
+    await sleep(300);
+    await botSay("いいね！😄 “満員電車から降りる” は誰でも分かるし面白そう。\nどうやってキャラを動かしたい？", tok, 1300); if (tok !== runToken) return;
+    await options(["タップした方向に歩く", "スワイプで移動", "おまかせ"], 0, tok); if (tok !== runToken) return;
+
+    await botSay("了解！👍 むずかしさはどうする？\n降りるほど混雑して、制限時間も短くしていけるよ。", tok, 1300); if (tok !== runToken) return;
+    await options(["どんどん難しく！", "やさしめ", "おまかせ"], 0, tok); if (tok !== runToken) return;
+
+    await botSay("完璧！まとめるね📝\n【満員電車から降りるゲーム／タップで移動／降りるほど超満員＆時間短縮】\nこの内容で作り始めていい？", tok, 1500); if (tok !== runToken) return;
+
+    // 「作り始める」ボタン
+    var row = document.createElement("div"); row.className = "buildrow"; row.style.cssText = "margin:8px 0 2px";
+    var b = document.createElement("button");
+    b.textContent = "✨ この内容で作り始める";
+    b.style.cssText = "display:block;width:100%;font-weight:900;font-size:16px;padding:14px;border:0;border-radius:14px;background:var(--gold);color:#3a2a00;box-shadow:0 4px 0 rgba(0,0,0,.18)";
+    row.appendChild(b);
+    var note = document.createElement("div"); note.className = "dim"; note.style.cssText = "font-size:11px;font-weight:700;margin-top:6px;text-align:center";
+    note.textContent = "※ここで生成が1回分始まります（まだ伝えたいことがあれば、続けて話してね）";
+    row.appendChild(note);
+    chatlog.appendChild(row); scroll();
+    await sleep(1100); if (tok !== runToken) return;
+
+    // 自動で押す
+    b.style.transform = "translateY(2px)"; b.style.boxShadow = "0 2px 0 rgba(0,0,0,.18)";
+    await sleep(260); if (tok !== runToken) return;
+    row.remove();
+
+    // 生成中
+    modeltag.hidden = false; modeltag.textContent = "🤖 claude-opus-4-8 で生成中…";
+    var typing = bubble("bot typing", "作っているよ…");
+    genBar.hidden = false;
+    await sleep(3400); if (tok !== runToken) return;     // 動画では実時間ぶんカットすればOK
+    genBar.hidden = true; typing.remove();
+    modeltag.textContent = "🤖 claude-opus-4-8 で生成";
+
+    // できあがり
+    bubble("bot", "「満員電車、降ります！」ができたよ！🎉\n下のボタンか右上の「プレビュー」で遊んでみて。さらに直したい時はそのまま話してね。");
+    await sleep(500); if (tok !== runToken) return;
+    var card = document.createElement("div"); card.className = "gencard";
+    card.innerHTML = '<span class="gth" style="background-image:url(games/train/thumb.png?v=1)"></span>' +
+      '<div class="gbody"><div class="gt">満員電車、降ります！</div>' +
+      '<a class="gplay" href="play.html?game=train">▶ あそぶ</a></div>';
+    chatlog.appendChild(card); scroll();
+
+    ctl.textContent = "🔄 もう一度"; ctl.disabled = false;
+    ctl.style.opacity = "1"; ctl.style.pointerEvents = "auto";
+  }
+
+  ctl.addEventListener("click", function () { run(); });
+})();
+</script>
+</body>
+</html>
