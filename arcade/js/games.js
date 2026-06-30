@@ -1,6 +1,17 @@
 /* ゲーム登録（MVPは自分で仕込むシードのみ） */
 window.GAMES = [
   {
+    id: "train",
+    title: "満員電車、降ります！",
+    author: "Vappa公式",
+    category: "アクション",
+    path: "games/train/index.html?v=1",
+    thumb: "games/train/thumb.png?v=1",
+    score: { type: "high", unit: "駅" },
+    accent: "#2dd4bf",
+    blurb: "人をかき分け、ドアが閉まる前に降りろ。降りるほど超満員！"
+  },
+  {
     id: "railway",
     title: "新幹線 ポイント操作",
     author: "taisei",
