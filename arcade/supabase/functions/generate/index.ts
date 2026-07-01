@@ -333,13 +333,15 @@ function buildErr(e: unknown) {
 // フェーズごとのモデル（コスト最適化）：
 //   相談・質問役（think=false）→ Haiku（安い・速い）
 //   ゲーム本生成・修正（think=true）→ ★一時的に Opus（品質確認用・高コスト。後で sonnet に戻す）
-const MODELS = { plan: "claude-haiku-4-5-20251001", build: "claude-opus-4-8" };
+const MODELS = { plan: "claude-haiku-4-5-20251001", build: "claude-sonnet-5" };
 
 // 1ドル=円（コスト表示用の概算レート）
 const USD_JPY = 160;
 // モデル別の単価（1Mトークンあたり、入力/出力ドル）。cache_read=入力×0.1, cache_write=入力×1.25。
 const PRICES: Record<string, { in: number; out: number }> = {
   "claude-opus-4-8": { in: 5, out: 25 },
+  // Sonnet 5 は導入割引中：入力$2/出力$10（2026-08-31まで）。以降は $3/$15 に戻すこと。
+  "claude-sonnet-5": { in: 2, out: 10 },
   "claude-sonnet-4-6": { in: 3, out: 15 },
   "claude-haiku-4-5-20251001": { in: 1, out: 5 },
 };
