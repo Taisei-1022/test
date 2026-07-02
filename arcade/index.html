@@ -232,7 +232,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.48";
+  var APP_VERSION = "0.9.49";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -247,7 +247,7 @@
   function fmtYmd(t){ if(!t) return ""; try{ var d=new Date(t); if(isNaN(d)) return ""; var m=("0"+(d.getMonth()+1)).slice(-2), day=("0"+d.getDate()).slice(-2); return d.getFullYear()+"/"+m+"/"+day; }catch(e){ return ""; } }
   var SHARE_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>';
   var toast=document.getElementById("toast");
-  function showToast(m){ toast.textContent=m; toast.classList.add("show"); setTimeout(function(){toast.classList.remove("show");},1500); }
+  function showToast(m,ms){ toast.textContent=m; toast.classList.add("show"); setTimeout(function(){toast.classList.remove("show");},ms||1500); }
   var genBar=document.getElementById("genBar");
   function setGenerating(on){ if(genBar) genBar.hidden=!on; }
   // 生成中ジョブを端末に記録（離脱・再起動しても結果を取りこぼさないため）
@@ -944,7 +944,7 @@
   function costLine(res){
     if(!(res && res.cost)) return "";
     var c=res.cost;
-    return "💰 この生成：約 ¥"+c.jpy+"（"+(res.model||"")+"｜入力 "+(c.in||0)+" / 出力 "+(c.out||0)+" トークン）";
+    return "💰 この生成：約 ¥"+c.jpy+"（"+(res.model||"")+"｜入力 "+(c.in||0)+" / 出力 "+(c.out||0)+" トークン"+(res.sec?("｜⏱ "+res.sec+"秒"):"")+"）";
   }
   function showCostBubble(res){
     if(!(window.Ai&&Ai.getAdmin&&Ai.getAdmin())) return;
@@ -1049,7 +1049,8 @@
     if(!raw) return;
     var p; try{ p=JSON.parse(raw); }catch(e){ clearPending(); return; }
     if(!p||!p.job){ clearPending(); return; }
-    if(Date.now()-(p.ts||0) > 10*60*1000){ clearPending(); return; }   // 古すぎは破棄
+    // 1日以内なら結果を取りに行く（完成していれば遅れて開いても保存できる。失敗ならすぐ通知が返る）
+    if(Date.now()-(p.ts||0) > 24*60*60*1000){ clearPending(); return; }
     if(!(window.Ai&&Ai.available&&Ai.available()&&Ai.resumeJob)) return;
     setGenerating(true); showToast("前回の生成を確認中…");
     Ai.resumeJob(p.job).then(function(res){
@@ -1070,7 +1071,13 @@
       } else {
         Catalog.publish({ title:ttl, html:res.html, category:res.category||"その他", published:false }).then(done).catch(done);
       }
-    }).catch(function(){ setGenerating(false); clearPending(); });
+    }).catch(function(err){
+      // 失敗を黙って捨てない：何が起きたかを必ずユーザーに知らせる
+      setGenerating(false); clearPending();
+      var s=String(err&&err.message||err);
+      showToast(/timeout/.test(s) ? "⚠️ 前回の生成は時間切れで失敗したみたい。もう一度ためしてね"
+                                  : "⚠️ 前回の生成は完了できなかったよ。もう一度ためしてね", 4500);
+    });
   }
 
   /* ---------- 初期表示 ---------- */

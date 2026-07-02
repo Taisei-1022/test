@@ -191,6 +191,16 @@ const SUPA_SRV = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 // 未設定なら管理者機能は無効（誰も無制限にならない）。Secretで設定・変更する。
 const ADMIN_CODE = Deno.env.get("ADMIN_CODE") || "";
 
+// ---- インスタンス寿命 ----
+// Supabaseの実行上限(400秒)は「リクエストごと」ではなく「インスタンス起動から」の壁時計。
+// 相談ターンで温まったインスタンスがビルドを拾うと持ち時間が目減りしており、
+// 上限到達で黙って殺されると結果もエラーも書けない（=ユーザーに何も届かない）。
+// そこで残り寿命を常に把握し、(1)自前タイムアウトを残り寿命内に収めて必ずエラーを書く、
+// (2)ビルドは自己呼び出しで新しいインスタンスに回してフルの持ち時間を確保する。
+const BOOT = Date.now();
+const WALL_MS = 400000;
+function remainMs(buffer = 20000) { return WALL_MS - (Date.now() - BOOT) - buffer; }
+
 // Supabaseの ai_gate(RPC) を service_role で呼ぶ。テーブル/関数が無い等で失敗したら
 // null を返す（=フェイルオープン：保護は効かないがアプリは止めない）。
 async function gate(ub: string, ib: string, gb: string, umax: number, imax: number, gmax: number, cooldown: number) {
@@ -306,28 +316,32 @@ async function buildOnce(key: string, messages: Msg[], prevHtml: string, spec?: 
   }
   const t0 = Date.now();
   const acc: Array<{ model: string; usage: Usage }> = [];   // トークン使用量を集計（コスト算出用）
-  // Supabaseの実行上限は400秒。受付＋書き込みのバッファを引いて、本生成は最大380秒まで回す。
-  const g = await callBuild(key, mspec, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, 380000, acc);
+  // 実行上限(400秒)まで黙って殺される前に、インスタンスの残り寿命内で自前タイムアウトさせる。
+  // これで失敗時も必ずジョブにエラーが書き込まれ、クライアントに通知が届く。
+  const mainTmo = Math.max(30000, Math.min(380000, remainMs()));
+  const g = await callBuild(key, mspec, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, mainTmo, acc);
   if (!g.html) return { error: "empty_html" };
   let title = g.title || "無題のゲーム", html = g.html, category = g.category || "その他";
 
   // 自動チェック → 問題があれば1回だけAIに直させる。
   // ただし1回目が長かった時は自動修正をスキップ（合計が実行上限を超えてジョブ消失するのを防ぐ）。
   const problem = validateGame(html);
-  if (problem && (Date.now() - t0) < 180000) {
+  const fixTmo = Math.min(150000, remainMs());
+  if (problem && (Date.now() - t0) < 180000 && fixTmo > 45000) {
     try {
       const fixUser = "あなたが作った次のHTMLゲームに問題が見つかりました：「" + problem +
         "」。原因を必ず直し、最後まで完結した完全な単一HTMLだけを返してください（</html>まで）。タイトルは維持。\n\n【HTML】\n" + html;
-      const g2 = await callBuild(key, mspec, BUILD_SYSTEM, [{ role: "user", content: fixUser }], GAME_SCHEMA, 150000, acc);
+      const g2 = await callBuild(key, mspec, BUILD_SYSTEM, [{ role: "user", content: fixUser }], GAME_SCHEMA, fixTmo, acc);
       if (g2.html) { html = g2.html; title = g2.title || title; category = g2.category || category; }
     } catch { /* 修正に失敗したら元の生成結果をそのまま返す */ }
   }
-  return { action: "build", reply, title, html, category, model: mspec.model, cost: computeCost(acc) };
+  return { action: "build", reply, title, html, category, model: mspec.model, cost: computeCost(acc), sec: Math.round((Date.now() - t0) / 1000) };
 }
 // callClaude 例外をクライアント向けエラーへ変換
 function buildErr(e: unknown) {
   const s = String((e as Error)?.message || e);
   if (s.indexOf("refused") >= 0) return { error: "refused" };
+  if (s === "timeout") return { error: "timeout" };   // 自前タイムアウト＝時間切れとして通知
   if (/credit balance is too low/i.test(s)) return { error: "insufficient_credit" };
   // テストモデルのAPIキー未設定（管理者向け：Supabase Secrets に該当キーを追加する）
   if (s.indexOf("missing_env:") >= 0) return { error: "generate_error", detail: s.slice(0, 200) };
@@ -541,6 +555,24 @@ async function startFlow(key: string, messages: Msg[], prevHtml: string, token: 
   return { immediate: { action: "ask", reply: plan.reply || "どんな感じにする？", options: Array.isArray(plan.options) ? plan.options.slice(0, 4) : [] } };
 }
 
+// ---- ビルドの自己呼び出し（内部プロトコル）----
+// 受付インスタンスは相談ターンで寿命を消費していることが多いので、ビルド本体は
+// 自分自身をもう一度呼び出して新しいインスタンスに任せる（フルの持ち時間を確保）。
+// k にサービスロールキーを要求するので外部からは実行できない。
+type IRun = { k?: string; job?: string; messages?: Msg[]; prevHtml?: string; spec?: ModelSpec; hop?: number };
+const FN_SELF = SUPA_URL ? SUPA_URL.replace(/\/$/, "") + "/functions/v1/generate" : "";
+async function dispatchRun(payload: IRun): Promise<boolean> {
+  if (!FN_SELF || !SUPA_SRV) return false;
+  try {
+    const r = await fetch(FN_SELF, {
+      method: "POST",
+      headers: { "content-type": "application/json", apikey: SUPA_SRV, Authorization: "Bearer " + SUPA_SRV },
+      body: JSON.stringify({ irun: payload }),
+    });
+    return r.ok;
+  } catch { return false; }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
@@ -549,8 +581,10 @@ Deno.serve(async (req) => {
   if (!key) return json({ error: "missing_api_key" }, 500);
 
   let messages: Msg[] = [], prevHtml = "", token = "?", jobId = "", wantUsage = false, isAdmin = false, forceBuild = false, testModel = "";
+  let irun: IRun | null = null;
   try {
     const b = await req.json();
+    if (b && typeof b.irun === "object" && b.irun) irun = b.irun as IRun;
     if (typeof b?.job === "string") jobId = b.job;
     if (b?.usage === true) wantUsage = true;
     if (b?.build === true) forceBuild = true;   // 「作り始める」ボタン＝ここでだけ Opus が動く
@@ -568,6 +602,30 @@ Deno.serve(async (req) => {
   } catch { /* ignore */ }
 
   const ip = (req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "?").split(",")[0].trim() || "?";
+
+  // ---- 内部ラン：自己呼び出しされたビルド本体（サービスロールキー必須）----
+  if (irun) {
+    if (!SUPA_SRV || irun.k !== SUPA_SRV || typeof irun.job !== "string") return json({ error: "forbidden" }, 403);
+    const hop = irun.hop || 0;
+    // このインスタンスも寿命が残り少なければ、さらに新しいインスタンスへ回す（最大2回）
+    if (remainMs() < 330000 && hop < 2) {
+      const moved = await dispatchRun({ ...irun, hop: hop + 1 });
+      if (moved) return json({ ok: true, moved: true });
+    }
+    const rSpec = (irun.spec && typeof irun.spec === "object") ? irun.spec : specFor();
+    const rMsgs = Array.isArray(irun.messages) ? irun.messages : [];
+    const rPrev = typeof irun.prevHtml === "string" ? irun.prevHtml : "";
+    const rJob = irun.job;
+    const rWork = (async () => {
+      let r; try { r = await buildOnce(key, rMsgs, rPrev, rSpec); } catch (e) { r = buildErr(e); }
+      await finishJob(rJob, r);
+    })();
+    try {
+      const ER = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
+      if (ER && ER.waitUntil) ER.waitUntil(rWork); else await rWork;
+    } catch { await rWork; }
+    return json({ ok: true });
+  }
 
   // ---- 使用量の確認（加算しない・上限チェックもしない）----
   if (wantUsage) {
@@ -613,6 +671,10 @@ Deno.serve(async (req) => {
   const id = await createJob(token);
   if (id) {
     const work = (async () => {
+      // まず自己呼び出しで新しいインスタンスに任せる（受付までに消費した寿命を引き継がない）。
+      // 失敗したらこのインスタンスで従来どおり生成（残り寿命内のタイムアウトが守る）。
+      const moved = await dispatchRun({ k: SUPA_SRV, job: id, messages, prevHtml, spec: buildSpec });
+      if (moved) return;
       let r; try { r = await buildOnce(key, messages, prevHtml, buildSpec); } catch (e) { r = buildErr(e); }
       await finishJob(id, r);
     })();
