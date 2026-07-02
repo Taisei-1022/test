@@ -134,6 +134,17 @@
       <div id="usage" class="usagebox">—</div>
       <div class="section">管理者コード</div>
       <label class="name"><input id="admincode" maxlength="80" placeholder="（任意）" style="width:180px" /></label>
+      <!-- 生成テストモデル（管理者のみ表示。サーバー側でも admin 判定してから適用） -->
+      <div id="testmodelBox" hidden>
+        <div class="section">生成モデル（テスト）</div>
+        <label class="name"><select id="testmodel" style="width:240px;padding:.5rem;background:#1d1a2e;border:1px solid #2c2740;color:#fff;border-radius:8px;font:inherit">
+          <option value="">Opus 4.8（本番・既定）</option>
+          <option value="sonnet-x">Sonnet 5 × effort最高（安い）</option>
+          <option value="gemini">Gemini 2.5 Pro</option>
+          <option value="gpt">GPT-5.1（ChatGPT）</option>
+          <option value="deepseek">DeepSeek（激安・8K上限）</option>
+        </select></label>
+      </div>
       <div class="section">作ったゲーム</div>
       <div id="myCreations"></div>
       <div class="legal"><a href="privacy.html">プライバシーポリシー</a></div>
@@ -211,7 +222,7 @@
 <script src="js/assets.js?v=1"></script>
 <script src="js/config.js?v=5"></script>
 <script src="js/store.js?v=7"></script>
-<script src="js/ai.js?v=13"></script>
+<script src="js/ai.js?v=14"></script>
 <script src="js/catalog.js?v=10"></script>
 <script src="js/share.js?v=5"></script>
 <script src="js/arcade-embed.js?v=3"></script>
@@ -221,7 +232,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.45";
+  var APP_VERSION = "0.9.46";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -460,6 +471,8 @@
   });
   var adminEl=document.getElementById("admincode");
   if(adminEl){ adminEl.addEventListener("change", function(){ if(window.Ai&&Ai.setAdmin){ Ai.setAdmin(adminEl.value); } renderUsage(); }); }
+  var tmSel=document.getElementById("testmodel");
+  if(tmSel){ tmSel.addEventListener("change", function(){ if(window.Ai&&Ai.setTestModel) Ai.setTestModel(tmSel.value); }); }
   function renderMypage(){
     nameEl.value=Store.name();
     if(adminEl && window.Ai && Ai.getAdmin){ adminEl.value=Ai.getAdmin(); }
@@ -472,7 +485,14 @@
     el.textContent="確認中…";
     Ai.usage().then(function(u){
       if(!u){ el.textContent="—"; return; }
-      if(u.admin){ el.innerHTML='<b>管理者モード</b>：作成は無制限 🔓'; return; }
+      var tmb=document.getElementById("testmodelBox");
+      if(tmb) tmb.hidden = !u.admin;   // モデルセレクタは管理者にだけ見せる
+      if(u.admin){
+        el.innerHTML='<b>管理者モード</b>：作成は無制限 🔓';
+        var sel=document.getElementById("testmodel");
+        if(sel && window.Ai && Ai.getTestModel) sel.value=Ai.getTestModel();
+        return;
+      }
       if(u.enabled===false){ el.innerHTML='上限：<b>未設定</b>（いまは無制限）'; return; }
       var used=u.bldUsed||0, lim=u.bldLimit||0, rem=(u.bldRemaining==null?Math.max(0,lim-used):u.bldRemaining);
       var sub='';

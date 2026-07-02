@@ -36,6 +36,9 @@ window.Ai = (function () {
   // 管理者コード（端末に保存）。サーバーの ADMIN_CODE と一致するとレート制限が無制限になる。
   var ADMINKEY = "arcade.admincode";
   function adminCode() { try { return localStorage.getItem(ADMINKEY) || ""; } catch (e) { return ""; } }
+  // 生成テストモデル（管理者のみ有効。サーバー側で admin 判定してから適用される）
+  var TESTMODELKEY = "arcade.testmodel";
+  function testModel() { try { return localStorage.getItem(TESTMODELKEY) || ""; } catch (e) { return ""; } }
 
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
@@ -83,7 +86,7 @@ window.Ai = (function () {
     // force=true で「作り始める」＝サーバーで Opus ビルドを実行（生成カウント消費）。
     // force無し（相談ターン）は Haiku で ask / ready を返すだけ。
     send: function (messages, prevHtml, onBuild, force) {
-      return post({ messages: messages, prevHtml: prevHtml || "", token: token(), admin: adminCode(), build: !!force }).then(function (data) {
+      return post({ messages: messages, prevHtml: prevHtml || "", token: token(), admin: adminCode(), build: !!force, model: testModel() || undefined }).then(function (data) {
         if (data && data.action === "job") {
           if (onBuild) { try { onBuild(data.job_id); } catch (e) {} }
           return pollJob(data.job_id);
@@ -98,6 +101,9 @@ window.Ai = (function () {
     // 管理者コードの取得/設定（設定画面から呼ぶ）
     getAdmin: function () { return adminCode(); },
     setAdmin: function (v) { try { localStorage.setItem(ADMINKEY, (v || "").trim()); } catch (e) {} },
+    // 生成テストモデルの取得/設定（マイページの管理者用セレクタから呼ぶ）
+    getTestModel: function () { return testModel(); },
+    setTestModel: function (v) { try { localStorage.setItem(TESTMODELKEY, (v || "").trim()); } catch (e) {} },
     // 後方互換：一言からそのまま生成
     generate: async function (prompt, prevHtml) {
       var r = await post({ messages: [{ role: "user", content: prompt }], prevHtml: prevHtml || "", token: token(), admin: adminCode() });

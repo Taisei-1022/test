@@ -289,7 +289,9 @@ function validateGame(html: string): string | null {
 }
 
 // 本生成（重い1回）。生成→自動チェック→ダメなら1回だけ自動修正。
-async function buildOnce(key: string, messages: Msg[], prevHtml: string) {
+// spec で使用モデルを差し替え可能（管理者テスト用。既定は本番モデル）。
+async function buildOnce(key: string, messages: Msg[], prevHtml: string, spec?: ModelSpec) {
+  const mspec = spec || specFor();
   let userContent: string, reply: string;
   if (prevHtml) {
     const lastUser = [...messages].reverse().find((m) => m.role === "user");
@@ -305,7 +307,7 @@ async function buildOnce(key: string, messages: Msg[], prevHtml: string) {
   const t0 = Date.now();
   const acc: Array<{ model: string; usage: Usage }> = [];   // トークン使用量を集計（コスト算出用）
   // Supabaseの実行上限は400秒。受付＋書き込みのバッファを引いて、本生成は最大380秒まで回す。
-  const g = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, true, 380000, acc);
+  const g = await callBuild(key, mspec, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, 380000, acc);
   if (!g.html) return { error: "empty_html" };
   let title = g.title || "無題のゲーム", html = g.html, category = g.category || "その他";
 
@@ -316,17 +318,19 @@ async function buildOnce(key: string, messages: Msg[], prevHtml: string) {
     try {
       const fixUser = "あなたが作った次のHTMLゲームに問題が見つかりました：「" + problem +
         "」。原因を必ず直し、最後まで完結した完全な単一HTMLだけを返してください（</html>まで）。タイトルは維持。\n\n【HTML】\n" + html;
-      const g2 = await callClaude(key, BUILD_SYSTEM, [{ role: "user", content: fixUser }], GAME_SCHEMA, true, 150000, acc);
+      const g2 = await callBuild(key, mspec, BUILD_SYSTEM, [{ role: "user", content: fixUser }], GAME_SCHEMA, 150000, acc);
       if (g2.html) { html = g2.html; title = g2.title || title; category = g2.category || category; }
     } catch { /* 修正に失敗したら元の生成結果をそのまま返す */ }
   }
-  return { action: "build", reply, title, html, category, model: MODELS.build, cost: computeCost(acc) };
+  return { action: "build", reply, title, html, category, model: mspec.model, cost: computeCost(acc) };
 }
 // callClaude 例外をクライアント向けエラーへ変換
 function buildErr(e: unknown) {
   const s = String((e as Error)?.message || e);
   if (s.indexOf("refused") >= 0) return { error: "refused" };
   if (/credit balance is too low/i.test(s)) return { error: "insufficient_credit" };
+  // テストモデルのAPIキー未設定（管理者向け：Supabase Secrets に該当キーを追加する）
+  if (s.indexOf("missing_env:") >= 0) return { error: "generate_error", detail: s.slice(0, 200) };
   return { error: "generate_error", detail: s.slice(0, 200) };
 }
 
@@ -334,6 +338,23 @@ function buildErr(e: unknown) {
 //   相談・質問役（think=false）→ Haiku（安い・速い）
 //   ゲーム本生成・修正（think=true）→ ★一時的に Opus（品質確認用・高コスト。後で sonnet に戻す）
 const MODELS = { plan: "claude-haiku-4-5-20251001", build: "claude-opus-4-8" };
+
+// ---- 管理者用テストモデル（build のみ差替え・ライブ既定は MODELS.build のまま）----
+// provider ごとに呼び出しを実装（anthropic / openai / gemini / deepseek）。
+// anthropic 以外は envKey のシークレット（Supabase の Edge Function Secrets）が必要。
+// モデルIDが変わったらここを書き換えるだけでよい。
+type ModelSpec = { provider: "anthropic" | "openai" | "gemini" | "deepseek"; model: string; effort?: string; envKey?: string };
+const TEST_MODELS: Record<string, ModelSpec> = {
+  "opus":     { provider: "anthropic", model: "claude-opus-4-8", effort: "medium" },
+  "sonnet-x": { provider: "anthropic", model: "claude-sonnet-5", effort: "xhigh" },   // 安い×最高effortの検証用
+  "gemini":   { provider: "gemini",    model: "gemini-2.5-pro",  envKey: "GEMINI_API_KEY" },
+  "gpt":      { provider: "openai",    model: "gpt-5.1",         envKey: "OPENAI_API_KEY" },
+  "deepseek": { provider: "deepseek",  model: "deepseek-chat",   envKey: "DEEPSEEK_API_KEY" },
+};
+// 管理者の指定キーを ModelSpec に解決（未指定/不明/非管理者は本番モデル）
+function specFor(testModel?: string): ModelSpec {
+  return (testModel && TEST_MODELS[testModel]) || { provider: "anthropic", model: MODELS.build, effort: "medium" };
+}
 
 // 1ドル=円（コスト表示用の概算レート）
 const USD_JPY = 160;
@@ -344,6 +365,10 @@ const PRICES: Record<string, { in: number; out: number }> = {
   "claude-sonnet-5": { in: 2, out: 10 },
   "claude-sonnet-4-6": { in: 3, out: 15 },
   "claude-haiku-4-5-20251001": { in: 1, out: 5 },
+  // 他社モデル（概算単価。改定されたらここを更新）
+  "gemini-2.5-pro": { in: 1.25, out: 10 },
+  "gpt-5.1": { in: 1.25, out: 10 },
+  "deepseek-chat": { in: 0.27, out: 1.1 },
 };
 type Usage = { input_tokens?: number; output_tokens?: number; cache_creation_input_tokens?: number; cache_read_input_tokens?: number };
 function computeCost(acc: Array<{ model: string; usage: Usage }>) {
@@ -360,16 +385,17 @@ function computeCost(acc: Array<{ model: string; usage: Usage }>) {
 }
 
 // 429 / 5xx / ネットワーク断は一時的なので最大3回までリトライ（503 upstream connect error 対策）
-async function callClaude(key: string, system: string, messages: Msg[], schema: unknown, think: boolean, timeoutMs?: number, acc?: Array<{ model: string; usage: Usage }>) {
+// spec を渡すと think時のモデル/effort を差し替えられる（管理者テスト用）
+async function callClaude(key: string, system: string, messages: Msg[], schema: unknown, think: boolean, timeoutMs?: number, acc?: Array<{ model: string; usage: Usage }>, spec?: ModelSpec) {
   const tmo = timeoutMs || (think ? 100000 : 30000);
   const body: Record<string, unknown> = {
-    model: think ? MODELS.build : MODELS.plan,
+    model: think ? ((spec && spec.model) || MODELS.build) : MODELS.plan,
     max_tokens: think ? 16000 : 1024,
     // システムプロンプト（見本込みで長い）はプロンプトキャッシュに載せ、2回目以降の入力コストを大幅減
     system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
     messages,
     output_config: think
-      ? { effort: "medium", format: { type: "json_schema", schema } }
+      ? { effort: (spec && spec.effort) || "medium", format: { type: "json_schema", schema } }
       : { format: { type: "json_schema", schema } },
   };
   if (think) body.thinking = { type: "adaptive" };
@@ -409,6 +435,82 @@ async function callClaude(key: string, system: string, messages: Msg[], schema: 
   throw lastErr || new Error("ai_unavailable");
 }
 
+// ---- 他社プロバイダ用の共通部品 ----
+// マークダウンのフェンス等が混ざっても JSON を取り出せる緩いパーサ
+function parseJsonLoose(text: string) {
+  const t = String(text || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "");
+  const s = t.indexOf("{"), e = t.lastIndexOf("}");
+  if (s < 0 || e <= s) throw new Error("no_json_in_response");
+  return JSON.parse(t.slice(s, e + 1));
+}
+// スキーマ遵守の指示（他社はAnthropicの json_schema 相当が無い/形式が違うのでプロンプトで指定）
+function schemaNote(schema: unknown) {
+  return "\n\n【出力形式】必ず次のJSONスキーマに一致する単一のJSONオブジェクトのみを返すこと。マークダウンのコードフェンスや前置きは禁止。\n" + JSON.stringify(schema);
+}
+// 429/5xx を1回だけリトライする小さなfetch（テスト経路なのでシンプルに）
+async function postOnce(url: string, headers: Record<string, string>, body: unknown, tmo: number): Promise<Record<string, unknown>> {
+  let lastErr: Error | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => { try { ctrl.abort(); } catch { /* noop */ } }, tmo);
+    try {
+      const r = await fetch(url, { method: "POST", headers, body: JSON.stringify(body), signal: ctrl.signal });
+      if (r.status === 429 || r.status >= 500) { lastErr = new Error("upstream:" + r.status + ":" + (await r.text()).slice(0, 160)); await sleep(800); continue; }
+      if (!r.ok) throw new Error("upstream:" + r.status + ":" + (await r.text()).slice(0, 200));
+      return await r.json();
+    } catch (e) {
+      if ((e as Error)?.name === "AbortError") throw new Error("timeout");
+      if (String((e as Error)?.message || "").startsWith("upstream:4")) throw e;
+      lastErr = e as Error; await sleep(800);
+    } finally { clearTimeout(timer); }
+  }
+  throw lastErr || new Error("ai_unavailable");
+}
+
+// OpenAI / DeepSeek（chat completions 互換）
+async function callOpenAICompat(spec: ModelSpec, system: string, messages: Msg[], schema: unknown, timeoutMs: number, acc?: Array<{ model: string; usage: Usage }>) {
+  const key = Deno.env.get(spec.envKey || "");
+  if (!key) throw new Error("missing_env:" + spec.envKey);
+  const url = spec.provider === "deepseek" ? "https://api.deepseek.com/chat/completions" : "https://api.openai.com/v1/chat/completions";
+  const body: Record<string, unknown> = {
+    model: spec.model,
+    messages: [{ role: "system", content: system + schemaNote(schema) }, ...messages],
+    response_format: { type: "json_object" },
+  };
+  // DeepSeek(V3系)の出力上限は8K。長いゲームは途中で切れる可能性あり（検証用と割り切る）
+  if (spec.provider === "deepseek") body.max_tokens = 8000;
+  else body.max_completion_tokens = 16000;   // GPT-5系は max_completion_tokens（temperature等は送らない）
+  const data = await postOnce(url, { "content-type": "application/json", "authorization": "Bearer " + key }, body, timeoutMs);
+  const u = (data as { usage?: { prompt_tokens?: number; completion_tokens?: number } }).usage;
+  if (acc && u) acc.push({ model: spec.model, usage: { input_tokens: u.prompt_tokens || 0, output_tokens: u.completion_tokens || 0 } });
+  const choices = (data as { choices?: Array<{ message?: { content?: string } }> }).choices;
+  return parseJsonLoose(choices?.[0]?.message?.content || "");
+}
+
+// Google Gemini（generateContent）
+async function callGemini(spec: ModelSpec, system: string, messages: Msg[], schema: unknown, timeoutMs: number, acc?: Array<{ model: string; usage: Usage }>) {
+  const key = Deno.env.get(spec.envKey || "");
+  if (!key) throw new Error("missing_env:" + spec.envKey);
+  const url = "https://generativelanguage.googleapis.com/v1beta/models/" + spec.model + ":generateContent";
+  const body = {
+    systemInstruction: { parts: [{ text: system + schemaNote(schema) }] },
+    contents: messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
+    generationConfig: { responseMimeType: "application/json", maxOutputTokens: 32000 },
+  };
+  const data = await postOnce(url, { "content-type": "application/json", "x-goog-api-key": key }, body, timeoutMs);
+  const um = (data as { usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number } }).usageMetadata;
+  if (acc && um) acc.push({ model: spec.model, usage: { input_tokens: um.promptTokenCount || 0, output_tokens: (um.candidatesTokenCount || 0) + (um.thoughtsTokenCount || 0) } });
+  const cands = (data as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> }).candidates;
+  return parseJsonLoose((cands?.[0]?.content?.parts || []).map((p) => p.text || "").join(""));
+}
+
+// build 呼び出しのディスパッチ（provider ごとに振り分け）
+function callBuild(key: string, spec: ModelSpec, system: string, messages: Msg[], schema: unknown, timeoutMs: number, acc?: Array<{ model: string; usage: Usage }>) {
+  if (spec.provider === "gemini") return callGemini(spec, system, messages, schema, timeoutMs, acc);
+  if (spec.provider === "openai" || spec.provider === "deepseek") return callOpenAICompat(spec, system, messages, schema, timeoutMs, acc);
+  return callClaude(key, system, messages, schema, true, timeoutMs, acc, spec);
+}
+
 // 受付：レート制限＋相談（プランナー）。結果がすぐ返せるものは immediate、
 // 重いビルドへ進む場合は { build:true } を返す。
 async function startFlow(key: string, messages: Msg[], prevHtml: string, token: string, ip: string, isAdmin: boolean, forceBuild: boolean): Promise<{ immediate?: unknown; build?: boolean }> {
@@ -446,12 +548,13 @@ Deno.serve(async (req) => {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) return json({ error: "missing_api_key" }, 500);
 
-  let messages: Msg[] = [], prevHtml = "", token = "?", jobId = "", wantUsage = false, isAdmin = false, forceBuild = false;
+  let messages: Msg[] = [], prevHtml = "", token = "?", jobId = "", wantUsage = false, isAdmin = false, forceBuild = false, testModel = "";
   try {
     const b = await req.json();
     if (typeof b?.job === "string") jobId = b.job;
     if (b?.usage === true) wantUsage = true;
     if (b?.build === true) forceBuild = true;   // 「作り始める」ボタン＝ここでだけ Opus が動く
+    if (typeof b?.model === "string") testModel = b.model.slice(0, 30);   // 管理者のみ有効（下で判定）
     // 管理者判定：コードが設定済みで、リクエストの admin と一致したときだけ true
     if (ADMIN_CODE && typeof b?.admin === "string" && b.admin === ADMIN_CODE) isAdmin = true;
     if (Array.isArray(b?.messages)) {
@@ -504,10 +607,12 @@ Deno.serve(async (req) => {
   if (flow.immediate) return json(flow.immediate);
 
   // ---- ビルド：非同期ジョブで開始。テーブルが無ければ同期ストリーミングにフォールバック ----
+  // モデル差替えは管理者のみ（一般ユーザーの model 指定は無視して本番モデル）
+  const buildSpec = specFor(isAdmin ? testModel : undefined);
   const id = await createJob(token);
   if (id) {
     const work = (async () => {
-      let r; try { r = await buildOnce(key, messages, prevHtml); } catch (e) { r = buildErr(e); }
+      let r; try { r = await buildOnce(key, messages, prevHtml, buildSpec); } catch (e) { r = buildErr(e); }
       await finishJob(id, r);
     })();
     try {
@@ -525,7 +630,7 @@ Deno.serve(async (req) => {
       try { controller.enqueue(encoder.encode(" ")); } catch { /* closed */ }
       const hb = setInterval(() => { if (done) return; try { controller.enqueue(encoder.encode(" ")); } catch { /* closed */ } }, 2000);
       (async () => {
-        let result; try { result = await buildOnce(key, messages, prevHtml); } catch (e) { result = buildErr(e); }
+        let result; try { result = await buildOnce(key, messages, prevHtml, buildSpec); } catch (e) { result = buildErr(e); }
         done = true; clearInterval(hb);
         try { controller.enqueue(encoder.encode("\n" + JSON.stringify(result))); } catch { /* closed */ }
         try { controller.close(); } catch { /* closed */ }
