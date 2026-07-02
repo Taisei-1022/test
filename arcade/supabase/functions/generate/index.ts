@@ -571,7 +571,8 @@ Deno.serve(async (req) => {
 
   // ---- 使用量の確認（加算しない・上限チェックもしない）----
   if (wantUsage) {
-    if (isAdmin) return json({ enabled: true, admin: true, model: MODELS.build });   // 管理者は無制限表示
+    // 管理者はテストモデル選択を反映した「実際に使われるモデル」を返す（チャット画面の表記と実生成を一致させる）
+    if (isAdmin) return json({ enabled: true, admin: true, model: specFor(testModel).model });
     const d = today();
     const used = await readUsage("u:bld:" + token + ":" + d);
     if (used === null) return json({ enabled: false, model: MODELS.build });   // rate_limit.sql 未実行 = 無制限

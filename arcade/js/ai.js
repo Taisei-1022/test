@@ -96,8 +96,8 @@ window.Ai = (function () {
     },
     // 既存ジョブIDの完了を待つ（離脱→再起動後の復元用）
     resumeJob: function (jobId) { return pollJob(jobId); },
-    // 今日の作成上限の使用状況を取得（加算しない）
-    usage: function () { return post({ usage: true, token: token(), admin: adminCode() }); },
+    // 今日の作成上限の使用状況を取得（加算しない）。model を同送すると管理者は実効モデル名が返る
+    usage: function () { return post({ usage: true, token: token(), admin: adminCode(), model: testModel() || undefined }); },
     // 管理者コードの取得/設定（設定画面から呼ぶ）
     getAdmin: function () { return adminCode(); },
     setAdmin: function (v) { try { localStorage.setItem(ADMINKEY, (v || "").trim()); } catch (e) {} },
