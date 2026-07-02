@@ -232,7 +232,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.47";
+  var APP_VERSION = "0.9.48";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -940,6 +940,16 @@
       ? "ちょっと内容が複雑すぎたみたい。\nお題をもう少しシンプルにして、もう一度試してね（1メカニクスくらいが作りやすいよ）。"
       : "うまくいかなかった…もう一度試してみて。\n("+s.slice(0,90)+")";
   }
+  // 費用表示の共通化（管理者のみ）。全プロバイダ共通で res.cost があれば出す。
+  function costLine(res){
+    if(!(res && res.cost)) return "";
+    var c=res.cost;
+    return "💰 この生成：約 ¥"+c.jpy+"（"+(res.model||"")+"｜入力 "+(c.in||0)+" / 出力 "+(c.out||0)+" トークン）";
+  }
+  function showCostBubble(res){
+    if(!(window.Ai&&Ai.getAdmin&&Ai.getAdmin())) return;
+    var line=costLine(res); if(line) bubble("bot", line);
+  }
   // 生成結果(ビルド)を画面と状態に反映
   function applyBuild(res){
     if(res.reply) bubble("bot", res.reply);
@@ -952,10 +962,7 @@
     convo.push({role:"assistant",content:"（ゲームを生成しました）"});
     toPreviewBtn.classList.remove("off");
     bubble("bot","「"+res.title+"」ができたよ！下のボタンか右上の「プレビュー」で遊んでみて。\nさらに直したい時はそのまま話してね。");
-    if(res.cost && window.Ai && Ai.getAdmin && Ai.getAdmin()){
-      var c=res.cost;
-      bubble("bot","💰 この生成：約 ¥"+c.jpy+"（"+(res.model||"")+"｜入力 "+c.in+" / 出力 "+c.out+" トークン）");
-    }
+    showCostBubble(res);
     showGenCard();
     saveChatNow();
     var onChat = document.getElementById("view-create").classList.contains("active") && document.getElementById("cr-chat").classList.contains("on");
@@ -1049,6 +1056,8 @@
       setGenerating(false); clearPending();
       if(!res||res.action!=="build") return;
       var ttl=(p.title && p.title!=="無題のゲーム") ? p.title : (res.title||"無題のゲーム");
+      // 復元経路でも費用を出す（管理者のみ）。チャット未表示なのでトーストで通知。
+      if(window.Ai&&Ai.getAdmin&&Ai.getAdmin()){ var cl=costLine(res); if(cl) setTimeout(function(){ showToast(cl); }, 1800); }
       var done=function(){ markNewBuild(p.editingId); refreshCreations(); showToast("「"+ttl+"」ができたよ！（保存済み）"); };
       if(p.editingId){
         // 既存の作品にマージ（chat・説明・サムネを消さない。htmlとカテゴリだけ更新）
