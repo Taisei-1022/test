@@ -333,7 +333,7 @@ function buildErr(e: unknown) {
 // フェーズごとのモデル（コスト最適化）：
 //   相談・質問役（think=false）→ Haiku（安い・速い）
 //   ゲーム本生成・修正（think=true）→ ★一時的に Opus（品質確認用・高コスト。後で sonnet に戻す）
-const MODELS = { plan: "claude-haiku-4-5-20251001", build: "claude-sonnet-5" };
+const MODELS = { plan: "claude-haiku-4-5-20251001", build: "claude-opus-4-8" };
 
 // 1ドル=円（コスト表示用の概算レート）
 const USD_JPY = 160;
