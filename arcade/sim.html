@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#141221" />
+<meta name="robots" content="noindex,nofollow" />
+<title>Vappa 収益シミュレーター</title>
+<style>
+  :root{
+    --bg:#141221; --bg2:#0f0d18; --card:#1d1a2e; --card2:#242038;
+    --line:#2c2740; --fg:#f1eefb; --sub:#9a93b5; --dim:#6f6890;
+    --violet:#8b5cf6; --violet-soft:#a78bfa; --gold:#e6b450;
+    --good:#34d399; --bad:#f87171; --track:#332e4d;
+  }
+  *{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent;}
+  body{background:
+      radial-gradient(120% 60% at 50% -10%, rgba(139,92,246,.18), transparent 60%),
+      var(--bg);
+    color:var(--fg);
+    font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans",system-ui,-apple-system,sans-serif;
+    line-height:1.6;-webkit-text-size-adjust:100%;
+    font-variant-numeric:tabular-nums;}
+  .wrap{max-width:480px;margin:0 auto;padding:22px 16px 60px;}
+
+  .eyebrow{font-size:11px;font-weight:800;letter-spacing:.14em;color:var(--violet-soft);text-transform:uppercase;}
+  h1{font-size:23px;font-weight:900;line-height:1.25;margin:4px 0 3px;text-wrap:balance;}
+  .lede{font-size:13px;color:var(--sub);margin-bottom:20px;}
+
+  /* ---- 判定（サマリー）---- */
+  .verdict{border-radius:20px;padding:20px 18px;margin-bottom:8px;position:relative;overflow:hidden;
+    border:1px solid var(--line);background:linear-gradient(160deg,var(--card2),var(--card));}
+  .verdict.good{border-color:rgba(52,211,153,.4);box-shadow:0 0 0 1px rgba(52,211,153,.15),0 10px 30px -12px rgba(52,211,153,.35);}
+  .verdict.bad{border-color:rgba(248,113,113,.4);box-shadow:0 0 0 1px rgba(248,113,113,.15),0 10px 30px -12px rgba(248,113,113,.35);}
+  .verdict .vlab{font-size:12px;font-weight:800;color:var(--sub);letter-spacing:.04em;}
+  .verdict .vnum{font-size:42px;font-weight:900;line-height:1.05;letter-spacing:-.02em;margin:2px 0 2px;}
+  .verdict.good .vnum{color:var(--good);}
+  .verdict.bad .vnum{color:var(--bad);}
+  .verdict .vsub{font-size:12px;color:var(--sub);}
+  .vpill{position:absolute;top:16px;right:16px;font-size:11px;font-weight:900;padding:5px 11px;border-radius:999px;letter-spacing:.03em;}
+  .verdict.good .vpill{background:rgba(52,211,153,.16);color:var(--good);}
+  .verdict.bad .vpill{background:rgba(248,113,113,.16);color:var(--bad);}
+
+  /* ---- 1日の内訳 3枚 ---- */
+  .tiles{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:14px 0 4px;}
+  .tile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:11px 10px;text-align:center;}
+  .tile .tl{font-size:10.5px;font-weight:800;color:var(--sub);letter-spacing:.02em;}
+  .tile .tv{font-size:19px;font-weight:900;margin-top:3px;letter-spacing:-.01em;}
+  .tile.rev .tv{color:var(--gold);}
+  .tile.cost .tv{color:var(--violet-soft);}
+  .tile.prof .tv.g{color:var(--good);} .tile.prof .tv.b{color:var(--bad);}
+
+  /* ---- セクション ---- */
+  .sec{margin-top:26px;}
+  .sec-h{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px;padding-bottom:9px;border-bottom:1px solid var(--line);}
+  .sec-h .st{font-size:13px;font-weight:900;letter-spacing:.02em;}
+  .sec-h .sd{font-size:11px;color:var(--dim);font-weight:700;}
+
+  /* ---- スライダー行 ---- */
+  .ctrl{margin:0 0 16px;}
+  .ctrl .row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:7px;}
+  .ctrl .k{font-size:13px;font-weight:700;color:var(--fg);}
+  .ctrl .k small{display:block;font-size:10.5px;color:var(--dim);font-weight:600;margin-top:1px;}
+  .ctrl .v{font-size:15px;font-weight:900;color:var(--gold);white-space:nowrap;}
+  /* 自作スライダー（iOS Safari でも確実に指で動く。ネイティブ input[type=range] は埋め込みで掴めないため不使用） */
+  .sl{position:relative;height:44px;width:100%;touch-action:none;cursor:pointer;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;}
+  .sl .trk{position:absolute;top:50%;left:0;right:0;height:7px;transform:translateY(-50%);
+    border-radius:99px;background:var(--track);overflow:hidden;}
+  .sl .fil{position:absolute;inset:0;width:40%;background:var(--violet);border-radius:99px;}
+  .sl .thb{position:absolute;top:50%;left:40%;width:28px;height:28px;transform:translate(-50%,-50%);
+    border-radius:50%;background:#fff;border:3px solid var(--violet);box-shadow:0 2px 8px rgba(0,0,0,.4);
+    transition:transform .04s;}
+  .sl.drag .thb{transform:translate(-50%,-50%) scale(1.12);}
+  .sl:focus-visible{outline:none;}
+  .sl:focus-visible .thb{outline:2px solid var(--gold);outline-offset:2px;}
+
+  /* ---- モデル切替 ---- */
+  .seg{display:flex;gap:6px;background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:16px;}
+  .seg button{flex:1;border:0;background:transparent;color:var(--sub);font:inherit;font-weight:800;font-size:13px;
+    padding:9px 6px;border-radius:9px;cursor:pointer;transition:.12s;}
+  .seg button.on{background:var(--violet);color:#fff;}
+  .seg button small{display:block;font-size:10px;font-weight:700;opacity:.85;margin-top:1px;}
+
+  /* ---- 損益分岐カード ---- */
+  .be{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-top:4px;}
+  .be .bt{font-size:12px;font-weight:800;color:var(--sub);}
+  .be .bn{font-size:34px;font-weight:900;line-height:1.1;margin:4px 0;}
+  .be .bn .u{font-size:15px;color:var(--sub);font-weight:800;}
+  .be .bnote{font-size:12px;color:var(--sub);}
+  .be .bnote b{color:var(--fg);}
+
+  /* ---- 最大赤字（安全弁）---- */
+  .cap{background:linear-gradient(160deg,rgba(248,113,113,.09),var(--card));border:1px solid rgba(248,113,113,.28);
+    border-radius:16px;padding:16px;margin-top:12px;}
+  .cap .ct{font-size:12px;font-weight:800;color:#fca5a5;letter-spacing:.02em;}
+  .cap .cn{font-size:30px;font-weight:900;color:var(--bad);line-height:1.1;margin:3px 0;}
+  .cap .cnote{font-size:12px;color:var(--sub);}
+  .cap .cnote b{color:var(--fg);}
+
+  /* ---- KPI ---- */
+  .kpi{display:flex;flex-direction:column;gap:10px;}
+  .kpicard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 14px;}
+  .kpicard .kh{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:900;}
+  .kpicard .kh .dot{width:8px;height:8px;border-radius:50%;flex:none;}
+  .kpicard .kb{font-size:12px;color:var(--sub);margin-top:5px;}
+  .kpicard .kb b{color:var(--gold);font-weight:800;}
+  .tgt{font-size:11px;font-weight:800;color:var(--violet-soft);margin-top:6px;}
+
+  .foot{margin-top:26px;font-size:11px;color:var(--dim);line-height:1.7;border-top:1px solid var(--line);padding-top:14px;}
+  .foot b{color:var(--sub);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Vappa · 収益シミュレーター</div>
+  <h1>公開のGOを、数字で決める</h1>
+  <p class="lede">ドライバーを指で動かすと、1日の損益・元が取れるプレイ数・最悪の赤字額がその場で変わります。<b style="color:var(--sub)">やり直し（生成回数）</b>もコストと公開本数の両方に効くので、①で調整できます。初期値は実測コスト（Opus 約¥26／Sonnet 約¥11／1回あたり）と現在の上限設定です。</p>
+
+  <!-- 判定 -->
+  <div class="verdict" id="verdict">
+    <span class="vpill" id="vpill">黒字</span>
+    <div class="vlab">この設定なら 月間の手残り</div>
+    <div class="vnum" id="vmonth">＋¥12,960</div>
+    <div class="vsub" id="vday">1日あたり ＋¥432（収益¥864 − コスト¥432）</div>
+  </div>
+
+  <div class="tiles">
+    <div class="tile rev"><div class="tl">広告収益/日</div><div class="tv" id="tRev">¥864</div></div>
+    <div class="tile cost"><div class="tl">生成コスト/日</div><div class="tv" id="tCost">¥432</div></div>
+    <div class="tile prof"><div class="tl">損益/日</div><div class="tv g" id="tProf">＋¥432</div></div>
+  </div>
+
+  <!-- 生成モデル -->
+  <div class="sec">
+    <div class="sec-h"><span class="st">① 生成モデル</span><span class="sd">1本あたりのコスト</span></div>
+    <div class="seg" id="seg">
+      <button data-cost="11" class="on">Sonnet<small>安い 約¥11/本</small></button>
+      <button data-cost="26">Opus<small>高品質 約¥26/本</small></button>
+    </div>
+    <div class="ctrl" data-min="4" data-max="50" data-step="1" data-unit="¥" data-id="cost" data-suffix="/回">
+      <div class="row"><div class="k">1回の生成コスト<small>会話（Haiku）込みの実効値</small></div><div class="v"></div></div>
+      <div class="sl" tabindex="0" role="slider"><div class="trk"><div class="fil"></div></div><div class="thb"></div></div>
+    </div>
+    <div class="ctrl" data-min="1" data-max="6" data-step="0.1" data-id="rebuild" data-suffix=" 回">
+      <div class="row"><div class="k">1本公開までの平均生成回数<small>納得いくまで作り直す分。コストはここで効く</small></div><div class="v"></div></div>
+      <div class="sl" tabindex="0" role="slider"><div class="trk"><div class="fil"></div></div><div class="thb"></div></div>
+    </div>
+  </div>
+
+  <!-- 集客 -->
+  <div class="sec">
+    <div class="sec-h"><span class="st">② 集客</span><span class="sd">どれだけ遊ばれるか</span></div>
+    <div class="ctrl" data-min="50" data-max="20000" data-step="50" data-id="dau" data-suffix=" 人">
+      <div class="row"><div class="k">DAU<small>1日に遊びに来る人数</small></div><div class="v"></div></div>
+      <div class="sl" tabindex="0" role="slider"><div class="trk"><div class="fil"></div></div><div class="thb"></div></div>
+    </div>
+    <div class="ctrl" data-min="1" data-max="40" data-step="1" data-id="ppu" data-suffix=" 回">
+      <div class="row"><div class="k">1人あたりプレイ数/日<small>1回の来訪で何ゲーム遊ぶか</small></div><div class="v"></div></div>
+      <div class="sl" tabindex="0" role="slider"><div class="trk"><div class="fil"></div></div><div class="thb"></div></div>
+    </div>
+  </div>
+
+  <!-- 広告 -->
+  <div class="sec">
+    <div class="sec-h"><span class="st">③ 広告</span><span class="sd">1プレイの稼ぎ</span></div>
+    <div class="ctrl" data-min="0.5" data-max="4" data-step="0.1" data-id="imp" data-suffix=" 回">
+      <div class="row"><div class="k">1プレイの広告表示回数<small>終了時インタースティシャル＋フィード</small></div><div class="v"></div></div>
+      <div class="sl" tabindex="0" role="slider"><div class="trk"><div class="fil"></div></div><div class="thb"></div></div>
+    </div>
+    <div class="ctrl" data-min="50" data-max="1000" data-step="10" data-unit="¥" data-id="rpm">
+      <div class="row"><div class="k">RPM<small>広告1,000回表示あたりの収益</small></div><div class="v"></div></div>
+      <div class="sl" tabindex="0" role="slider"><div class="trk"><div class="fil"></div></div><div class="thb"></div></div>
+    </div>
+  </div>
+
+  <!-- 生成量 -->
+  <div class="sec">
+    <div class="sec-h"><span class="st">④ 生成の量</span><span class="sd">コストが出る側</span></div>
+    <div class="ctrl" data-min="1" data-max="40" data-step="1" data-id="crate" data-suffix=" %">
+      <div class="row"><div class="k">来訪者のうち作る人の割合<small>大半は遊ぶだけ。作る人だけコスト発生</small></div><div class="v"></div></div>
+      <div class="sl" tabindex="0" role="slider"><div class="trk"><div class="fil"></div></div><div class="thb"></div></div>
+    </div>
+    <div class="ctrl" data-min="0.5" data-max="6" data-step="0.5" data-id="gpc" data-suffix=" 本">
+      <div class="row"><div class="k">1人が公開する本数/日<small>遊んでもらう完成品の数（やり直しは別枠）</small></div><div class="v"></div></div>
+      <div class="sl" tabindex="0" role="slider"><div class="trk"><div class="fil"></div></div><div class="thb"></div></div>
+    </div>
+    <div class="ctrl" data-min="20" data-max="100" data-step="5" data-id="prate" data-suffix=" %">
+      <div class="row"><div class="k">公開率（生成→公開）<small>着手した中で実際に公開する割合。ボツはコストだけ発生</small></div><div class="v"></div></div>
+      <div class="sl" tabindex="0" role="slider"><div class="trk"><div class="fil"></div></div><div class="thb"></div></div>
+    </div>
+  </div>
+
+  <!-- 損益分岐 -->
+  <div class="sec">
+    <div class="sec-h"><span class="st">損益分岐</span><span class="sd">やり直し込みで回収するには</span></div>
+    <div class="tiles" style="margin-top:0">
+      <div class="tile cost"><div class="tl">実効コスト/公開1本</div><div class="tv" id="tEff">¥28</div></div>
+      <div class="tile rev"><div class="tl">新規公開/日</div><div class="tv" id="tNew" style="color:var(--fg)">36</div></div>
+    </div>
+    <div class="be">
+      <div class="bt">公開1本あたり…</div>
+      <div class="bn"><span id="beNum">76</span> <span class="u">プレイで元が取れる</span></div>
+      <div class="bnote" id="beNote">実効コスト <b>¥28</b>（¥11×2.5回）÷ 1プレイの稼ぎ <b>¥0.30</b>。これを超えて遊ばれた分が利益。</div>
+    </div>
+  </div>
+
+  <!-- 最大赤字 -->
+  <div class="sec">
+    <div class="sec-h"><span class="st">最大赤字（安全弁）</span><span class="sd">全体の生成上限で決まる</span></div>
+    <div class="ctrl" data-min="50" data-max="1000" data-step="10" data-id="gcap" data-suffix=" 回/日">
+      <div class="row"><div class="k">全体のビルド上限（1日）<small>やり直し含む総生成回数。現在は 250回/日</small></div><div class="v"></div></div>
+      <div class="sl" tabindex="0" role="slider"><div class="trk"><div class="fil"></div></div><div class="thb"></div></div>
+    </div>
+    <div class="cap">
+      <div class="ct">広告収益ゼロでも、損は最大でこれだけ</div>
+      <div class="cn" id="capNum">¥82,500 / 月</div>
+      <div class="cnote" id="capNote">上限 <b>250回/日</b> × <b>¥11</b> × 30日。実際の生成が少なければ、赤字はこれより小さくなります。</div>
+    </div>
+    <div class="cnote" id="throttle" style="font-size:12px;color:var(--sub);margin:10px 2px 0;line-height:1.65;">
+      この上限は<b style="color:var(--fg)">ビルド回数</b>への蓋。やり直しが多いほど、公開できる新作は減ります（＝遊ぶネタが減り収入にも影響）。
+    </div>
+  </div>
+
+  <!-- KPI -->
+  <div class="sec">
+    <div class="sec-h"><span class="st">見るべきKPI</span><span class="sd">この順で追う</span></div>
+    <div class="kpi">
+      <div class="kpicard">
+        <div class="kh"><span class="dot" style="background:var(--gold)"></span>1ゲーム平均プレイ数</div>
+        <div class="kb">最重要。これが<b id="kpiBe">損益分岐（37）</b>を超えれば1本ごとに黒字。下回るゲームは“作られるほど赤字”。</div>
+        <div class="tgt" id="kpiTgt">目標：1本あたり 37プレイ以上</div>
+      </div>
+      <div class="kpicard">
+        <div class="kh"><span class="dot" style="background:var(--gold)"></span>公開率（生成→公開）</div>
+        <div class="kb">遊ばれるのは公開された作品だけ。ボツ生成は<b>丸ごとコスト</b>。上の④で調整すると実効コストに直結します。目標 60%以上。</div>
+      </div>
+      <div class="kpicard">
+        <div class="kh"><span class="dot" style="background:var(--violet)"></span>リテンション D1 / D7</div>
+        <div class="kb">DAUを支える土台。D1 30% / D7 12%あたりが軽ゲーの健全ライン。低いと集客が穴の空いたバケツに。</div>
+      </div>
+      <div class="kpicard">
+        <div class="kh"><span class="dot" style="background:var(--violet)"></span>実測RPM</div>
+        <div class="kb">審査通過後の初値は読めない。実測¥が入ったらこの試算の仮定と差し替える。まず<b>¥150で回るか</b>を安全側で確認。</div>
+      </div>
+      <div class="kpicard">
+        <div class="kh"><span class="dot" style="background:var(--violet)"></span>集客に金を払うなら CAC &lt; LTV</div>
+        <div class="kb">動画・インフルエンサー費用は「1人獲得コスト」に換算。1人の生涯広告収益（LTV）を超えたら赤字集客。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <b>前提</b>：コストは実測（gen_jobs、Opus平均¥26／Sonnet平均¥11）。RPM・プレイ数・創作率は公開後に実測で置き換える仮の値。広告は「プレイ終了時インタースティシャル＋フィードのネイティブ」想定。<br>
+    数字はすべて概算。あなたの端末内だけで計算し、外部送信はありません。
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var S = { cost:11, rebuild:2.5, dau:300, ppu:8, imp:1.2, rpm:300, crate:8, gpc:1.5, prate:60, gcap:250 };
+
+  var yen = function(n){ var neg=n<0; n=Math.round(Math.abs(n));
+    return (neg?"−¥":"¥")+n.toLocaleString("ja-JP"); };
+  var yenP = function(n){ var s=n<0?"−":"＋"; return s+"¥"+Math.round(Math.abs(n)).toLocaleString("ja-JP"); };
+
+  var ctrls = {};
+  function isDec(id){ return id==="imp"||id==="gpc"||id==="rebuild"; }
+  document.querySelectorAll(".ctrl").forEach(function(c){
+    var id=c.dataset.id, vEl=c.querySelector(".v");
+    var sl=c.querySelector(".sl"), fil=c.querySelector(".fil"), thb=c.querySelector(".thb");
+    var min=+c.dataset.min, max=+c.dataset.max, step=+c.dataset.step||1, dec=isDec(id);
+    var unit=c.dataset.unit||"", suf=c.dataset.suffix||"";
+    sl.setAttribute("aria-valuemin",min); sl.setAttribute("aria-valuemax",max);
+
+    function snap(v){ v=Math.max(min,Math.min(max,v)); v=Math.round((v-min)/step)*step+min;
+      return dec ? Math.round(v*10)/10 : Math.round(v); }
+    function render(v){ S[id]=v;
+      var pct=(v-min)/(max-min)*100;
+      fil.style.width=pct+"%"; thb.style.left=pct+"%";
+      vEl.textContent = (unit==="¥") ? ("¥"+v.toLocaleString("ja-JP")) : ((dec?v.toFixed(1):v)+suf);
+      sl.setAttribute("aria-valuenow",v);
+    }
+    function setVal(v,recalc){ render(snap(v)); if(recalc!==false) recompute(); }
+    ctrls[id]={set:setVal};
+
+    function fromX(x){ var r=sl.getBoundingClientRect(); return snap(min+((x-r.left)/r.width)*(max-min)); }
+    var dragging=false;
+    function down(e){ dragging=true; sl.classList.add("drag");
+      var x=e.touches?e.touches[0].clientX:e.clientX; setVal(fromX(x));
+      if(e.pointerId!=null&&sl.setPointerCapture){ try{sl.setPointerCapture(e.pointerId);}catch(_){}}
+      if(e.cancelable) e.preventDefault();
+    }
+    function move(e){ if(!dragging) return; var x=e.touches?e.touches[0].clientX:e.clientX;
+      setVal(fromX(x)); if(e.cancelable) e.preventDefault(); }
+    function up(){ dragging=false; sl.classList.remove("drag"); }
+    if(window.PointerEvent){
+      sl.addEventListener("pointerdown",down);
+      sl.addEventListener("pointermove",move);
+      sl.addEventListener("pointerup",up);
+      sl.addEventListener("pointercancel",up);
+    } else {
+      sl.addEventListener("touchstart",down,{passive:false});
+      sl.addEventListener("touchmove",move,{passive:false});
+      sl.addEventListener("touchend",up);
+      sl.addEventListener("mousedown",down);
+      window.addEventListener("mousemove",move);
+      window.addEventListener("mouseup",up);
+    }
+    sl.addEventListener("keydown",function(e){
+      var d=0; if(e.key==="ArrowRight"||e.key==="ArrowUp")d=step;
+      else if(e.key==="ArrowLeft"||e.key==="ArrowDown")d=-step;
+      if(d){ setVal(S[id]+d); e.preventDefault(); }
+    });
+    render(snap(S[id]));
+  });
+
+  // モデル切替
+  document.querySelectorAll("#seg button").forEach(function(b){
+    b.addEventListener("click", function(){
+      document.querySelectorAll("#seg button").forEach(function(x){x.classList.remove("on");});
+      b.classList.add("on");
+      ctrls.cost.set(+b.dataset.cost);
+    });
+  });
+
+  function recompute(){
+    var pr       = S.prate/100;                     // 公開率
+    var pubRaw   = S.dau * (S.crate/100) * S.gpc;   // 作りたい公開本数
+    var projects = pubRaw / pr;                     // ボツ込みの着手プロジェクト数
+    var buildsRaw= projects * S.rebuild;            // 総ビルド回数（やり直し × ボツ）
+    var builds   = Math.min(buildsRaw, S.gcap);     // 全体上限（ビルド回数）で頭打ち
+    var pubActual= builds * pr / S.rebuild;         // 上限に当たると新規公開が目減り
+    var costDay  = builds * S.cost;
+    var effCost  = S.cost * S.rebuild / pr;         // 公開1本の実効コスト（やり直し＋ボツ込み）
+    var plays = S.dau * S.ppu;
+    var imps = plays * S.imp;
+    var revPerPlay = S.imp * (S.rpm/1000);
+    var revDay = imps * (S.rpm/1000);
+    var profDay = revDay - costDay;
+    var profMonth = profDay * 30;
+    var be = revPerPlay>0 ? Math.ceil(effCost / revPerPlay) : Infinity;
+    var capMonth = S.gcap * S.cost * 30;
+    var capPub = S.gcap * pr / S.rebuild;           // 上限いっぱいまで作った時の新規公開/日
+
+    // 判定
+    var v=document.getElementById("verdict"), good=profMonth>=0;
+    v.className="verdict "+(good?"good":"bad");
+    document.getElementById("vpill").textContent = good?"黒字":"赤字";
+    document.getElementById("vmonth").textContent = yenP(profMonth);
+    document.getElementById("vday").textContent =
+      "1日あたり "+yenP(profDay)+"（収益"+yen(revDay)+" − コスト"+yen(costDay)+"）";
+
+    document.getElementById("tRev").textContent = yen(revDay);
+    document.getElementById("tCost").textContent = yen(costDay);
+    var tp=document.getElementById("tProf");
+    tp.textContent = yenP(profDay); tp.className="tv "+(profDay>=0?"g":"b");
+
+    document.getElementById("tEff").textContent = yen(effCost);
+    document.getElementById("tNew").textContent = Math.round(pubActual);
+
+    document.getElementById("beNum").textContent = isFinite(be)?be:"—";
+    document.getElementById("beNote").innerHTML =
+      "実効コスト <b>¥"+Math.round(effCost)+"</b>（¥"+S.cost+"×"+S.rebuild.toFixed(1)+"回 ÷ 公開率"+S.prate+"%）÷ 1プレイの稼ぎ <b>¥"+revPerPlay.toFixed(2)+
+      "</b>。これを超えて遊ばれた分が利益。";
+    document.getElementById("kpiBe").textContent = "損益分岐（"+(isFinite(be)?be:"—")+"）";
+    document.getElementById("kpiTgt").textContent = "目標：公開1本あたり "+(isFinite(be)?be:"—")+"プレイ以上";
+
+    document.getElementById("capNum").textContent = yen(capMonth)+" / 月";
+    document.getElementById("capNote").innerHTML =
+      "上限 <b>"+S.gcap+"回/日</b> × <b>¥"+S.cost+"</b> × 30日。"+
+      (buildsRaw>S.gcap ? "今の需要だと上限に当たっています。" : "実際の生成は約"+Math.round(buildsRaw)+"回/日なので、赤字はこれより小さくなります。");
+
+    var thr=document.getElementById("throttle");
+    if(buildsRaw>S.gcap){
+      thr.innerHTML = "⚠️ 上限で頭打ち中：本当は約<b style='color:var(--fg)'>"+Math.round(pubRaw)+
+        "本/日</b>作りたいのに、やり直し込みだと<b style='color:#fca5a5'>"+Math.round(pubActual)+
+        "本/日</b>しか公開できていません。新作＝収入源が絞られています。上限を上げるか、やり直し回数を減らす工夫を。";
+    } else {
+      thr.innerHTML = "この上限は<b style='color:var(--fg)'>ビルド回数</b>への蓋。上限いっぱいまで使っても新規公開は<b style='color:var(--fg)'>約"+
+        Math.round(capPub)+"本/日</b>まで（やり直し"+S.rebuild.toFixed(1)+"回換算）。やり直しが多いほど、遊ぶネタが減り収入にも響きます。";
+    }
+  }
+  recompute();
+})();
+</script>
+</body>
+</html>
