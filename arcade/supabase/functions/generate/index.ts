@@ -270,13 +270,27 @@ function start(){
   window.Game.score(0);ov.hidden=true;hud.hidden=false;playing=true;last=performance.now();
 }
 document.getElementById("vpstart").addEventListener("click",start);
-function pt(fn){return function(e){
+function fire(fn,x,y,id){
   if(!playing||paused)return;
-  if(typeof window[fn]==="function"){try{window[fn](e.clientX,e.clientY,e.pointerId);}catch(err){crash(err);}}
+  if(typeof window[fn]==="function"){try{window[fn](x,y,id);}catch(err){crash(err);}}
+}
+// pointer と touch を両対応（iOSのiframe内などpointerが飛ばない環境へのフォールバック）。
+// pointerが一度でも来たらtouchは無視して二重発火を防ぐ。
+var seenPointer=false;
+window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",e.clientX,e.clientY,e.pointerId);});
+window.addEventListener("pointermove",function(e){fire("onMove",e.clientX,e.clientY,e.pointerId);});
+window.addEventListener("pointerup",function(e){fire("onUp",e.clientX,e.clientY,e.pointerId);});
+function tch(fn){return function(e){
+  if(seenPointer)return;
+  if(e.cancelable)e.preventDefault();
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,t.clientX,t.clientY,t.identifier);}
 };}
-window.addEventListener("pointerdown",pt("onDown"));
-window.addEventListener("pointermove",pt("onMove"));
-window.addEventListener("pointerup",pt("onUp"));
+window.addEventListener("touchstart",tch("onDown"),{passive:false});
+window.addEventListener("touchmove",tch("onMove"),{passive:false});
+window.addEventListener("touchend",tch("onUp"),{passive:false});
+window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",e.clientX,e.clientY,0);});
+window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",e.clientX,e.clientY,0);});
+window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",e.clientX,e.clientY,0);});
 window.Arcade.onPause(function(){paused=true;});
 window.Arcade.onResume(function(){paused=false;last=performance.now();});
 window.Arcade.onRestart(start);
@@ -336,7 +350,13 @@ function validateJs(js: string): string | null {
   if (!/function\s+update\s*\(/.test(s)) return "function update(dt) が定義されていません";
   if (!/function\s+draw\s*\(/.test(s)) return "function draw() が定義されていません";
   if (!/Game\s*\.\s*over\s*\(/.test(s)) return "Game.over(スコア) が呼ばれていません";
-  if (!/function\s+on(Down|Move|Up)\s*\(|addEventListener/.test(s)) return "操作の入力（onDown/onMove/onUp）が見当たりません";
+  const hasHook = /function\s+on(Down|Move|Up)\s*\(/.test(s);
+  const hasTouchListener = /addEventListener\s*\(\s*["'](click|pointer|touch|mouse)/.test(s);
+  if (!hasHook && !hasTouchListener) {
+    return /key(down|up)/.test(s)
+      ? "キーボード操作になっています。スマホでは操作できないので、onDown/onMove/onUp のタッチ操作に直してください"
+      : "操作の入力（onDown/onMove/onUp）が見当たりません";
+  }
   return null;
 }
 
@@ -411,6 +431,8 @@ Output fields (structured):
 
 Rules:
 - Mobile-first touch gameplay via onDown/onMove/onUp. Big touch targets. Portrait friendly.
+- INPUT IS TOUCH ONLY. Players are on phones: NEVER use keyboard events (keydown/keyup) as the primary control. Do NOT register your own pointer/touch listeners on window/canvas — the runtime already normalizes them into onDown/onMove/onUp (multi-touch: each finger calls the hook with its own id). DOM buttons you create may use click.
+- Continuous actions (auto-fire, holding to move) belong in update(dt) driven by state that onDown/onUp toggles — don't rely on event repetition.
 - Scoring uses the RANKING SCORE decided in the conversation; on-screen score and Game.over(score) must match.
 - No external resources, no network, no audio files, no imports. If the game is UI-heavy you MAY create DOM elements (position:fixed; z-index 1-4; create them in init() and remove stale ones first), but prefer canvas.
 - Characters/objects: do NOT use plain rectangles. Draw EMOJI sprites on canvas:
