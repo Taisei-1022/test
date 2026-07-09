@@ -1,6 +1,18 @@
 /* ゲーム登録（MVPは自分で仕込むシードのみ） */
 window.GAMES = [
   {
+    id: "city",
+    title: "ひとながれシティ",
+    author: "Vappa公式",
+    category: "シミュレーション",
+    path: "games/city/index.html?v=1",
+    thumb: "games/city/thumb.png?v=1",
+    score: { type: "high", unit: "人" },
+    accent: "#60a5fa",
+    created: "2026-07-09",
+    blurb: "道路をひいて人の流れをデザイン。渋滞したら拡張！クレーム10件で市長解任。"
+  },
+  {
     id: "train",
     title: "満員電車、降ります！",
     author: "Vappa公式",

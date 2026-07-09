@@ -11,6 +11,7 @@ window.ARCADE_CONFIG = {
    先頭から順に表示。seed は "burger" 等の固定ID、生成ゲームはDBのUUID。 */
 window.ARCADE_TRENDING = [
   "train",                                    // 満員電車、降ります！（公式・プロモ主役）
+  "city",                                     // ひとながれシティ（公式・人流シム）
   "926bc863-3c4f-4658-9cef-a935df2e9111",     // 学歴中
   "burger",                                   // バーガータワー（既定）
   "c7cb2ca9-e665-4e90-a1c7-5673dbdd4bba",     // ゴールド・フィッシャー：マーメイドの誘惑

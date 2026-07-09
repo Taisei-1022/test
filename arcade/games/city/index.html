@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
+<title>ひとながれシティ</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
+html,body{height:100%;background:#101528;overflow:hidden;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+#hud{position:fixed;top:0;left:0;right:0;padding:calc(env(safe-area-inset-top) + 10px) 14px 8px;
+  display:flex;justify-content:space-between;align-items:center;pointer-events:none;
+  font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6);z-index:5}
+#hud .pill{background:rgba(10,14,30,.55);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:4px 12px;backdrop-filter:blur(3px)}
+#hud b{font-size:17px}
+#claims.warn b{color:#f87171}
+#hint{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 10px);text-align:center;
+  pointer-events:none;font-size:12.5px;font-weight:700;color:#aeb6d8;text-shadow:0 2px 5px rgba(0,0,0,.7);z-index:5;
+  transition:opacity .4s}
+#toast{position:fixed;top:calc(env(safe-area-inset-top) + 54px);left:50%;transform:translateX(-50%);
+  background:rgba(20,26,48,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:8px 16px;
+  font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+#ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  background:rgba(8,10,20,.86);text-align:center;padding:26px;z-index:10}
+#ov h1{font-size:30px;letter-spacing:.02em}
+#ov p{color:#b9c1de;font-size:14.5px;line-height:1.85;max-width:340px}
+#ov .big{font-size:44px;font-weight:900;color:#ffd166}
+#ov .legend{display:flex;gap:14px;font-size:13px;color:#d5dbf2;font-weight:700;flex-wrap:wrap;justify-content:center}
+#ov button{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:17px;box-shadow:0 5px 0 rgba(0,0,0,.25)}
+#ov button:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
+#ov[hidden]{display:none}
+</style></head><body>
+<canvas id="c"></canvas>
+<div id="hud" hidden>
+  <span class="pill">🧍 <b id="hScore">0</b><small>人</small></span>
+  <span class="pill">🔨 <b id="hBudget">0</b></span>
+  <span class="pill" id="claims">💢 <b id="hClaims">0</b>/10</span>
+</div>
+<div id="hint" hidden></div>
+<div id="toast"></div>
+<div id="ov">
+  <h1>🏙️ ひとながれシティ</h1>
+  <p>あなたは市長。<b>あき地を指でなぞって道路</b>をつくり、<br>🏠の住民を目的地まで歩かせよう。<br>人の色＝行き先の色。</p>
+  <div class="legend"><span>🛣️ 道路 🔨1</span><span>👆 道をタップで拡張 🔨3</span><span>🚶 到着で 🔨+1</span></div>
+  <p>待たせすぎると💢クレーム。<b>10件で市長解任！</b><br>街はどんどん成長するよ。</p>
+  <button id="startBtn">まちづくり開始</button>
+</div>
+<script>
+window.Arcade = window.Arcade || {ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
+(function(){
+"use strict";
+var cv=document.getElementById("c"),ctx=cv.getContext("2d");
+var hud=document.getElementById("hud"),hintEl=document.getElementById("hint"),toastEl=document.getElementById("toast");
+var ov=document.getElementById("ov"),startBtn=document.getElementById("startBtn");
+var hScore=document.getElementById("hScore"),hBudget=document.getElementById("hBudget"),hClaims=document.getElementById("hClaims"),claimsPill=document.getElementById("claims");
+var W=0,H=0,DPR=Math.min(2,window.devicePixelRatio||1);
+
+/* ---- グリッド ---- */
+var COLS=11,ROWS=14,T=30,OX=0,OY=0,TOP=64,BOT=44;
+var EMPTY=0,ROAD=1,WIDE=2,BLDG=3;
+var grid=[],bAt={};                    // grid値 / セル→建物
+function idx(x,y){return y*COLS+x;}
+function inb(x,y){return x>=0&&y>=0&&x<COLS&&y<ROWS;}
+function resize(){
+  W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);
+  var availH=H-TOP-BOT;
+  T=Math.min(Math.floor(W/COLS),Math.floor(availH/ROWS));
+  OX=Math.floor((W-COLS*T)/2); OY=TOP+Math.floor((availH-ROWS*T)/2);
+}
+addEventListener("resize",resize);resize();
+function cx(x){return OX+x*T+T/2;} function cy(y){return OY+y*T+T/2;}
+function cellAt(px,py){var x=Math.floor((px-OX)/T),y=Math.floor((py-OY)/T);return inb(x,y)?{x:x,y:y}:null;}
+
+/* ---- 建物・住民の種類 ---- */
+var DESTS=[
+  {t:"work",  e:"🏢", c:"#60a5fa", n:"かいしゃ"},
+  {t:"shop",  e:"🏪", c:"#f472b6", n:"コンビニ"},
+  {t:"park",  e:"🌳", c:"#34d399", n:"こうえん"},
+  {t:"school",e:"🏫", c:"#fbbf24", n:"がっこう"},
+  {t:"hosp",  e:"🏥", c:"#f87171", n:"びょういん"},
+  {t:"shrine",e:"⛩️", c:"#c084fc", n:"じんじゃ"}
+];
+var HOME={t:"home",e:"🏠",c:"#94a3b8"};
+
+/* ---- 状態 ---- */
+var playing=false,over=false,paused=false;
+var buildings=[],homes=[],dests=[],people=[],floats=[],parts=[];
+var score=0,budget=0,claims=0,netV=0,time=0,spawnT=0,nextGrow=0,firstRoad=false,widenTold=false;
+
+function reset(){
+  grid=new Array(COLS*ROWS).fill(EMPTY); bAt={};
+  buildings=[];homes=[];dests=[];people=[];floats=[];parts=[];
+  score=0;budget=28;claims=0;netV=0;time=0;spawnT=2.0;nextGrow=5;
+  firstRoad=false;widenTold=false;over=false;
+  // 初期配置は固定（最初の体験を安定させる）
+  addB(HOME,2,ROWS-4); addB(HOME,3,3); addB(DESTS[0],COLS-3,Math.floor(ROWS/2));
+  syncHud(); setHint("👆 あき地を指でなぞって、🏠 と 🏢 を道路でつなごう");
+}
+function addB(kind,x,y){
+  var b={t:kind.t,e:kind.e,c:kind.c,x:x,y:y,born:time,wait:[]};
+  grid[idx(x,y)]=BLDG; bAt[idx(x,y)]=b; buildings.push(b);
+  (b.t==="home"?homes:dests).push(b);
+  return b;
+}
+
+/* ---- 経路探索（BFS・道路のみ通行可） ---- */
+function findPath(from,to){
+  var q=[],prev={},seen={},goal=-1;
+  var s=idx(from.x,from.y),g=idx(to.x,to.y);
+  var dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+  dirs.forEach(function(d){var nx=from.x+d[0],ny=from.y+d[1];
+    if(inb(nx,ny)&&(grid[idx(nx,ny)]===ROAD||grid[idx(nx,ny)]===WIDE)){var i=idx(nx,ny);if(!seen[i]){seen[i]=1;prev[i]=-1;q.push(i);}}});
+  while(q.length){
+    var cur=q.shift(),cxx=cur%COLS,cyy=(cur/COLS)|0;
+    if(Math.abs(cxx-to.x)+Math.abs(cyy-to.y)===1){goal=cur;break;}
+    for(var k=0;k<4;k++){var nx2=cxx+dirs[k][0],ny2=cyy+dirs[k][1];
+      if(!inb(nx2,ny2))continue;var ni=idx(nx2,ny2),gv=grid[ni];
+      if((gv===ROAD||gv===WIDE)&&!seen[ni]){seen[ni]=1;prev[ni]=cur;q.push(ni);}}
+  }
+  if(goal<0)return null;
+  var path=[g],p=goal;
+  while(p!==-1){path.unshift(p);p=prev[p];}
+  path.unshift(s);
+  return path;
+}
+
+/* ---- 住民 ---- */
+var PATIENCE=22;
+function spawnPerson(){
+  if(!homes.length||!dests.length)return;
+  var h=homes[(Math.random()*homes.length)|0];
+  var d=dests[(Math.random()*dests.length)|0];
+  var p={home:h,dest:d,c:d.c,state:"wait",pat:PATIENCE,path:null,pv:-1,seg:0,prog:0,
+         x:cx(h.x)+(Math.random()*10-5),y:cy(h.y)+T*0.42,retry:0};
+  people.push(p);h.wait.push(p);
+}
+function occOf(){ // 歩行者の現在セル占有数
+  var m={};
+  for(var i=0;i<people.length;i++){var p=people[i];
+    if(p.state!=="walk")continue;
+    var gx=Math.round((p.x-OX-T/2)/T),gy=Math.round((p.y-OY-T/2)/T);
+    if(inb(gx,gy)){var k=idx(gx,gy);m[k]=(m[k]||0)+1;}}
+  return m;
+}
+var SPEED=2.3; // タイル/秒
+function step(dt){
+  time+=dt;
+  // スポーン（だんだん速く）
+  var iv=Math.max(1.4,3.6-time*0.018);
+  spawnT-=dt;
+  if(spawnT<=0){spawnPerson();spawnT=iv;}
+  // 成長
+  if(score>=nextGrow){grow();nextGrow+=7;}
+  var occ=occOf();
+  for(var i=people.length-1;i>=0;i--){
+    var p=people[i];
+    if(p.state==="wait"){
+      p.retry-=dt;
+      if(p.pv!==netV&&p.retry<=0){ // 道が変わったら経路を再探索
+        p.path=findPath(p.home,p.dest);p.pv=netV;p.retry=0.4;
+        if(p.path){p.state="walk";p.seg=0;p.prog=0;
+          var wi=p.home.wait.indexOf(p);if(wi>=0)p.home.wait.splice(wi,1);}
+      }
+      p.pat-=dt;
+      if(p.pat<=0){ // 我慢の限界
+        var wi2=p.home.wait.indexOf(p);if(wi2>=0)p.home.wait.splice(wi2,1);
+        people.splice(i,1);claims++;syncHud();
+        floats.push({x:cx(p.home.x),y:cy(p.home.y)-T*0.6,t:"💢",age:0,big:1});
+        try{navigator.vibrate&&navigator.vibrate(60);}catch(e){}
+        if(claims>=10){gameOver();return;}
+      }
+      continue;
+    }
+    // 歩行
+    var a=p.path[p.seg],b=p.path[p.seg+1];
+    var ax=a%COLS,ay=(a/COLS)|0,bx=b%COLS,by=(b/COLS)|0;
+    var gxx=Math.round((p.x-OX-T/2)/T),gyy=Math.round((p.y-OY-T/2)/T);
+    var here=inb(gxx,gyy)?idx(gxx,gyy):-1;
+    var cap=grid[here]===WIDE?7:3;
+    var o=occ[here]||1;
+    var f=(grid[here]===WIDE?1.15:1)*Math.min(1,cap/o);
+    p.prog+=dt*SPEED*f;
+    while(p.prog>=1){
+      p.prog-=1;p.seg++;
+      if(p.seg>=p.path.length-1){ // 到着！
+        score++;budget++;syncHud();
+        floats.push({x:cx(p.dest.x),y:cy(p.dest.y)-T*0.55,t:"+1",age:0});
+        if(score%10===0){confetti(cx(p.dest.x),cy(p.dest.y));toast("🎉 "+score+"人達成！");}
+        people.splice(i,1);p=null;break;
+      }
+      a=p.path[p.seg];b=p.path[p.seg+1];ax=a%COLS;ay=(a/COLS)|0;bx=b%COLS;by=(b/COLS)|0;
+    }
+    if(p){p.x=cx(ax)+(cx(bx)-cx(ax))*p.prog;p.y=cy(ay)+(cy(by)-cy(ay))*p.prog;}
+  }
+  for(var j=floats.length-1;j>=0;j--){floats[j].age+=dt;if(floats[j].age>1.1)floats.splice(j,1);}
+  for(var q=parts.length-1;q>=0;q--){var pt=parts[q];pt.age+=dt;pt.x+=pt.vx*dt;pt.y+=pt.vy*dt;pt.vy+=260*dt;if(pt.age>0.9)parts.splice(q,1);}
+}
+function grow(){
+  var kind;
+  if(dests.length<=homes.length){
+    kind=DESTS[Math.min(dests.reduce(function(s,d){return Math.max(s,DESTS.findIndex(function(k){return k.t===d.t;}));},0)+1,DESTS.length-1)];
+    var have=dests.some(function(d){return d.t===kind.t;});
+    if(have)kind=DESTS[(Math.random()*Math.min(dests.length+1,DESTS.length))|0];
+  } else kind=HOME;
+  for(var tr=0;tr<80;tr++){
+    var x=1+((Math.random()*(COLS-2))|0),y=1+((Math.random()*(ROWS-2))|0);
+    if(grid[idx(x,y)]!==EMPTY)continue;
+    var ok=true;
+    for(var b=0;b<buildings.length;b++){if(Math.abs(buildings[b].x-x)+Math.abs(buildings[b].y-y)<2){ok=false;break;}}
+    if(!ok)continue;
+    var nb=addB(kind,x,y);nb.born=time;
+    budget+=6;syncHud();
+    toast("🏗️ "+(kind.t==="home"?"新しい家":kind.n)+"ができた！補助金 🔨+6");
+    return;
+  }
+}
+function confetti(x,y){
+  var cs=["#ffd166","#60a5fa","#f472b6","#34d399","#c084fc"];
+  for(var i=0;i<18;i++){var a=Math.random()*Math.PI*2,v=60+Math.random()*140;
+    parts.push({x:x,y:y,vx:Math.cos(a)*v,vy:Math.sin(a)*v-90,age:0,c:cs[i%5]});}
+}
+
+/* ---- 入力（なぞって道路・タップで拡張） ---- */
+var drawing=false,placedInDrag=0,downCell=null;
+function tryRoad(cell){
+  if(!cell||grid[idx(cell.x,cell.y)]!==EMPTY)return;
+  if(budget<1){toast("🔨が足りない！住民を運んで稼ごう");return;}
+  grid[idx(cell.x,cell.y)]=ROAD;budget--;netV++;placedInDrag++;syncHud();
+  if(!firstRoad){firstRoad=true;setHint("🚶 人の色＝行き先。渋滞したら道をタップで拡張（🔨3）");}
+}
+cv.addEventListener("pointerdown",function(e){
+  if(!playing||over||paused)return;
+  try{cv.setPointerCapture(e.pointerId);}catch(err){}
+  drawing=true;placedInDrag=0;downCell=cellAt(e.clientX,e.clientY);
+  tryRoad(downCell);
+});
+cv.addEventListener("pointermove",function(e){
+  if(!drawing||!playing||over||paused)return;
+  tryRoad(cellAt(e.clientX,e.clientY));
+});
+function endDrag(e){
+  if(!drawing)return;drawing=false;
+  if(placedInDrag===0&&downCell){ // タップ＝拡張
+    var g=grid[idx(downCell.x,downCell.y)];
+    if(g===ROAD){
+      if(budget>=3){grid[idx(downCell.x,downCell.y)]=WIDE;budget-=3;netV++;syncHud();
+        if(!widenTold){widenTold=true;toast("🛣️ 道路を拡張！人が詰まりにくくなるよ");}
+      } else toast("拡張には 🔨3 が必要");
+    }
+  }
+  downCell=null;
+}
+cv.addEventListener("pointerup",endDrag);
+cv.addEventListener("pointercancel",endDrag);
+
+/* ---- 描画 ---- */
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  var g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,"#141a33");g.addColorStop(1,"#0d1122");
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  // 芝生ドット
+  ctx.fillStyle="rgba(255,255,255,.05)";
+  for(var y=0;y<ROWS;y++)for(var x=0;x<COLS;x++){
+    if(grid[idx(x,y)]===EMPTY){ctx.beginPath();ctx.arc(cx(x),cy(y),1.4,0,7);ctx.fill();}
+  }
+  var occ=occOf();
+  // 道路
+  for(var y2=0;y2<ROWS;y2++)for(var x2=0;x2<COLS;x2++){
+    var v=grid[idx(x2,y2)];
+    if(v!==ROAD&&v!==WIDE)continue;
+    var px=OX+x2*T,py=OY+y2*T;
+    ctx.fillStyle=v===WIDE?"#3d4668":"#2b3147";
+    rr(px+1,py+1,T-2,T-2,5);ctx.fill();
+    if(v===WIDE){ctx.fillStyle="rgba(255,209,102,.5)";ctx.beginPath();ctx.arc(px+T/2,py+T/2,2.2,0,7);ctx.fill();}
+    var o=occ[idx(x2,y2)]||0,cap=v===WIDE?7:3;
+    if(o>cap){ctx.fillStyle="rgba(248,113,113,"+Math.min(0.45,(o-cap)*0.13)+")";rr(px+1,py+1,T-2,T-2,5);ctx.fill();}
+  }
+  // 建物
+  for(var b=0;b<buildings.length;b++){
+    var bd=buildings[b],bx=OX+bd.x*T,by=OY+bd.y*T;
+    var pop=Math.min(1,(time-bd.born)/0.35),s=0.7+0.3*pop;
+    ctx.save();ctx.translate(bx+T/2,by+T/2);ctx.scale(s,s);ctx.translate(-(bx+T/2),-(by+T/2));
+    ctx.fillStyle=hexA(bd.c,0.20);ctx.strokeStyle=hexA(bd.c,0.75);ctx.lineWidth=1.6;
+    rr(bx+1.5,by+1.5,T-3,T-3,7);ctx.fill();ctx.stroke();
+    ctx.font=Math.floor(T*0.58)+"px 'Apple Color Emoji','Noto Color Emoji',sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText(bd.e,bx+T/2,by+T/2+1);
+    ctx.restore();
+    // 待ち人数と我慢ゲージ
+    if(bd.t==="home"&&bd.wait.length){
+      var worst=bd.wait.reduce(function(m,p){return Math.min(m,p.pat/PATIENCE);},1);
+      ctx.fillStyle=worst<0.3?"#f87171":"#ffd166";
+      ctx.beginPath();ctx.arc(bx+T-4,by+4,7.5,0,7);ctx.fill();
+      ctx.fillStyle="#1b2036";ctx.font="bold 10px sans-serif";
+      ctx.fillText(bd.wait.length,bx+T-4,by+5);
+      ctx.strokeStyle=worst<0.3?"#f87171":"#ffd166";ctx.lineWidth=2.5;
+      ctx.beginPath();ctx.arc(bx+T/2,by+T/2,T*0.52,-Math.PI/2,-Math.PI/2+Math.PI*2*worst);ctx.stroke();
+    }
+  }
+  // 住民
+  for(var i=0;i<people.length;i++){
+    var p=people[i];
+    if(p.state==="wait")continue;
+    ctx.fillStyle=p.c;ctx.strokeStyle="rgba(255,255,255,.9)";ctx.lineWidth=1.4;
+    ctx.beginPath();ctx.arc(p.x,p.y,Math.max(3.4,T*0.17),0,7);ctx.fill();ctx.stroke();
+  }
+  // フロート・紙吹雪
+  for(var f=0;f<floats.length;f++){
+    var fl=floats[f],al=1-fl.age/1.1;
+    ctx.globalAlpha=Math.max(0,al);
+    ctx.font="bold "+(fl.big?22:15)+"px sans-serif";ctx.textAlign="center";
+    ctx.fillStyle="#fff";ctx.fillText(fl.t,fl.x,fl.y-fl.age*26);
+    ctx.globalAlpha=1;
+  }
+  for(var q=0;q<parts.length;q++){var pt=parts[q];
+    ctx.globalAlpha=Math.max(0,1-pt.age/0.9);ctx.fillStyle=pt.c;
+    ctx.fillRect(pt.x,pt.y,4,4);ctx.globalAlpha=1;}
+}
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function hexA(hex,a){var n=parseInt(hex.slice(1),16);return "rgba("+((n>>16)&255)+","+((n>>8)&255)+","+(n&255)+","+a+")";}
+
+/* ---- UI ---- */
+function syncHud(){hScore.textContent=score;hBudget.textContent=budget;hClaims.textContent=claims;
+  claimsPill.className="pill"+(claims>=7?" warn":"");}
+function setHint(t){hintEl.textContent=t;}
+var toastT=null;
+function toast(t){toastEl.textContent=t;toastEl.style.opacity=1;clearTimeout(toastT);toastT=setTimeout(function(){toastEl.style.opacity=0;},2200);}
+
+/* ---- ゲームフロー ---- */
+function start(){
+  reset();playing=true;ov.hidden=true;hud.hidden=false;hintEl.hidden=false;
+  last=performance.now();
+}
+function gameOver(){
+  over=true;playing=false;
+  ov.innerHTML='<h1>📉 市長解任…</h1>'+
+    '<p>クレームが10件たまってしまった。</p>'+
+    '<div class="big">'+score+'<small style="font-size:20px">人</small></div>'+
+    '<p>運んだ住民 '+score+'人 ・ 建物 '+buildings.length+'棟<br>みんなの暮らしをありがとう。</p>'+
+    '<button id="againBtn">もういちど</button>';
+  ov.hidden=false;
+  document.getElementById("againBtn").addEventListener("click",start);
+  Arcade.gameOver(score);
+}
+startBtn.addEventListener("click",start);
+Arcade.onPause(function(){paused=true;});
+Arcade.onResume(function(){paused=false;last=performance.now();});
+Arcade.onRestart(start);
+document.addEventListener("visibilitychange",function(){if(document.hidden)paused=true;else{paused=false;last=performance.now();}});
+
+var last=performance.now();
+function loop(now){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(now-last)/1000);last=now;
+  if(playing&&!paused&&!over)step(dt);
+  draw();
+}
+requestAnimationFrame(loop);
+Arcade.ready();
+
+/* デバッグ用フック（自動テストで使用。ゲームには影響しない） */
+window.__city={
+  cell:function(x,y){return {px:cx(x),py:cy(y)};},
+  road:function(x,y){tryRoad({x:x,y:y});},
+  info:function(){return {cols:COLS,rows:ROWS,score:score,claims:claims,budget:budget,
+    people:people.length,buildings:buildings.map(function(b){return {t:b.t,x:b.x,y:b.y};})};}
+};
+})();
+</script>
+</body></html>
