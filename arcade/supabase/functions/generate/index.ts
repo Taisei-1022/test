@@ -280,17 +280,18 @@ var seenPointer=false;
 window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",e.clientX,e.clientY,e.pointerId);fire("onMove",e.clientX,e.clientY,e.pointerId);});
 window.addEventListener("pointermove",function(e){fire("onMove",e.clientX,e.clientY,e.pointerId);});
 window.addEventListener("pointerup",function(e){fire("onUp",e.clientX,e.clientY,e.pointerId);});
-// preventDefault は seenPointer に関係なく常に行う：iOS(特にiframe内)がドラッグを
-// 「画面のパン」と解釈して move イベントを奪うのを防ぐ（発火だけ二重防止する）
-function tch(fn){return function(e){
-  if(e.cancelable)e.preventDefault();
+// タッチの扱い（iOS対策の要点）：
+//  - touchstart/touchend は preventDefault しない → ボタンの click 合成が生きる
+//  - touchmove だけ非passiveで preventDefault → パン/スクロール横取りはこれで止まる
+//  - pointerイベントが来る環境では発火だけ二重防止（seenPointer）
+function tfire(fn,e){
   if(seenPointer)return;
   for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,t.clientX,t.clientY,t.identifier);
     if(fn==="onDown")fire("onMove",t.clientX,t.clientY,t.identifier);}
-};}
-window.addEventListener("touchstart",tch("onDown"),{passive:false});
-window.addEventListener("touchmove",tch("onMove"),{passive:false});
-window.addEventListener("touchend",tch("onUp"),{passive:false});
+}
+window.addEventListener("touchstart",function(e){tfire("onDown",e);},{passive:true});
+window.addEventListener("touchmove",function(e){if(e.cancelable)e.preventDefault();tfire("onMove",e);},{passive:false});
+window.addEventListener("touchend",function(e){tfire("onUp",e);},{passive:true});
 document.addEventListener("gesturestart",function(e){e.preventDefault();});
 window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",e.clientX,e.clientY,0);});
 window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",e.clientX,e.clientY,0);});
