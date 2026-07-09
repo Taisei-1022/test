@@ -39,7 +39,7 @@ const PLAN_EDIT_SYSTEM = `You are a friendly Japanese-speaking helper. The user 
 Rules:
 - Always answer in Japanese, short and friendly.
 - If the user asks a QUESTION about the game (どういう仕組み？ 当たり判定は？ スコアの計算は？ なぜこう動く？), read the code and answer accurately in plain Japanese (action="ask", no options). Do not paste raw code; explain in words. Numbers from the code (speeds, timers, probabilities) are welcome.
-- If the user requests a CHANGE, edits are usually clear: set action="build" with a short reply confirming the change (例：「"敵を速く" で直すね！」). Ask a brief clarifying question (action="ask", up to ~4 tappable options) ONLY if genuinely ambiguous. Do NOT over-ask.
+- If the user requests a CHANGE or reports a BUG, default to action="build" with a short reply confirming what you'll do (例：「"敵を速く" で直すね！」「敵と弾を濃く見やすくするね！」). You can read the code, so do NOT interrogate the user about details you can figure out yourself. At most ONE clarifying question per topic, and only when the request is truly impossible to act on. Never ask a second follow-up — make a sensible call and build.
 - Never switch to build for a pure question.
 Output (structured): action ("ask" or "build"), reply (short Japanese), options (0–4 short strings; empty for build).`;
 
@@ -193,6 +193,253 @@ const GAME_SCHEMA = {
   additionalProperties: false,
 };
 
+// ===== v2: 共通ランタイム方式 =====
+// 定型部（キャンバス/ループ/オーバーレイ/入力/Arcade連携/エラー捕捉）はこちらが提供し、
+// AIはゲームロジック(js)だけを書く。バグの温床を排除しつつ出力トークンも減らす。
+const RUNTIME_TPL = `<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
+<title>__TITLE__</title>
+<!--VAPPA_TPL1 __META__-->
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
+html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
+#vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+.vp-hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top) + 10px) 14px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
+.vp-hud span:empty{display:none}
+.vp-ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
+.vp-ov h1{font-size:28px}
+.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:320px;white-space:pre-line}
+.vp-ov .vp-big{font-size:44px;font-weight:900;color:#ffd166}
+.vp-btn{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:17px;box-shadow:0 5px 0 rgba(0,0,0,.25)}
+.vp-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.vp-toast{position:fixed;top:calc(env(safe-area-inset-top) + 52px);left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+[hidden]{display:none!important}
+</style>
+<style id="vpcss">
+/*__VAPPA_CSS__*/
+__GAME_CSS__
+/*__VAPPA_CSS_END__*/
+</style>
+</head><body>
+<canvas id="vpc"></canvas>
+<div class="vp-hud" id="vphud" hidden><span id="vphl">0__UNIT__</span><span id="vphr"></span></div>
+<div class="vp-toast" id="vptoast"></div>
+<div class="vp-ov" id="vpov">
+  <h1>__TITLE__</h1>
+  <p>__HOWTO__</p>
+  <button class="vp-btn" id="vpstart">スタート</button>
+</div>
+<script>
+window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
+var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
+var W=0,H=0;
+(function(){
+"use strict";
+var DPR=Math.min(2,window.devicePixelRatio||1);
+function rs(){W=window.innerWidth;H=window.innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);
+  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}}
+window.addEventListener("resize",rs);rs();
+var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="__UNIT__";
+var hud=document.getElementById("vphud"),hl=document.getElementById("vphl"),hr=document.getElementById("vphr");
+var ov=document.getElementById("vpov"),toastEl=document.getElementById("vptoast"),tt=null,last=performance.now();
+window.Game={
+  score:function(n){hl.textContent=(n|0)+unit;},
+  hud:function(t){hr.textContent=t==null?"":String(t);},
+  float:function(x,y,t,c){floats.push({x:x,y:y,t:String(t),c:c||"#fff",age:0});},
+  toast:function(t){toastEl.textContent=t;toastEl.style.opacity=1;clearTimeout(tt);tt=setTimeout(function(){toastEl.style.opacity=0;},2000);},
+  over:function(s){
+    if(!playing||ended)return;ended=true;playing=false;s=Math.max(0,Math.floor(Number(s)||0));
+    ov.innerHTML='<h1>おわり！</h1><div class="vp-big">'+s+'<small style="font-size:20px">'+unit+'</small></div><button class="vp-btn" id="vpagain">もういちど</button>';
+    ov.hidden=false;
+    document.getElementById("vpagain").addEventListener("click",start);
+    try{window.Arcade.gameOver(s);}catch(e){}
+  }
+};
+function crash(e){
+  if(crashed)return;crashed=true;playing=false;
+  try{window.__VP_ERR=String(e&&(e.stack||e.message)||e).slice(0,600);}catch(x){}
+  ov.innerHTML='<h1>😢 エラーが発生</h1><p>ゲームにエラーが起きました。<br>作成チャットで「エラーを直して」と伝えると修理できるよ。</p><button class="vp-btn" id="vpagain">もういちど</button>';
+  ov.hidden=false;
+  document.getElementById("vpagain").addEventListener("click",start);
+}
+function start(){
+  floats=[];ended=false;crashed=false;
+  try{window.init();}catch(e){crash(e);return;}
+  window.Game.score(0);ov.hidden=true;hud.hidden=false;playing=true;last=performance.now();
+}
+document.getElementById("vpstart").addEventListener("click",start);
+function pt(fn){return function(e){
+  if(!playing||paused)return;
+  if(typeof window[fn]==="function"){try{window[fn](e.clientX,e.clientY,e.pointerId);}catch(err){crash(err);}}
+};}
+window.addEventListener("pointerdown",pt("onDown"));
+window.addEventListener("pointermove",pt("onMove"));
+window.addEventListener("pointerup",pt("onUp"));
+window.Arcade.onPause(function(){paused=true;});
+window.Arcade.onResume(function(){paused=false;last=performance.now();});
+window.Arcade.onRestart(start);
+document.addEventListener("visibilitychange",function(){if(document.hidden){paused=true;}else{paused=false;last=performance.now();}});
+function loop(now){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(now-last)/1000);last=now;
+  if(crashed)return;
+  if(playing&&!paused){try{window.update(dt);}catch(e){crash(e);return;}}
+  if(playing||ended){try{window.draw();}catch(e){crash(e);return;}}
+  for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.age+=dt;
+    if(f.age>1){floats.splice(i,1);continue;}
+    ctx.save();ctx.globalAlpha=Math.max(0,1-f.age);ctx.font="bold 16px sans-serif";ctx.textAlign="center";
+    ctx.fillStyle=f.c;ctx.fillText(f.t,f.x,f.y-f.age*30);ctx.restore();}
+}
+requestAnimationFrame(loop);
+window.Arcade.ready();
+})();
+</script>
+<script id="vpgame">
+/*__VAPPA_JS__*/
+__GAME_JS__
+/*__VAPPA_JS_END__*/
+</script>
+</body></html>`;
+
+// AIが返した部品を最終HTMLへ組み立てる
+function assembleGame(title: string, howto: string, unit: string, css: string, js: string): string {
+  const escH = (s: string) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const u = String(unit || "点").replace(/["'\\<>&]/g, "").slice(0, 6) || "点";
+  const meta = encodeURIComponent(JSON.stringify({ t: title, h: howto, u: u }));
+  return RUNTIME_TPL
+    .split("__META__").join(meta)
+    .split("__TITLE__").join(escH(title))
+    .split("__HOWTO__").join(escH(howto))
+    .split("__UNIT__").join(u)
+    .split("__GAME_CSS__").join(css || "")
+    .split("__GAME_JS__").join(js || "");
+}
+// テンプレ形式のHTMLから部品を取り出す（編集用）。テンプレ形式でなければ null（旧方式で編集）
+function extractTpl(html: string): { js: string; css: string; title: string; howto: string; unit: string } | null {
+  const j = /\/\*__VAPPA_JS__\*\/([\s\S]*?)\/\*__VAPPA_JS_END__\*\//.exec(html);
+  if (!j) return null;
+  const c = /\/\*__VAPPA_CSS__\*\/([\s\S]*?)\/\*__VAPPA_CSS_END__\*\//.exec(html);
+  let meta: { t?: string; h?: string; u?: string } = {};
+  const m = /<!--VAPPA_TPL1 ([^>]*?)-->/.exec(html);
+  if (m) { try { meta = JSON.parse(decodeURIComponent(m[1])); } catch { /* noop */ } }
+  return { js: j[1].trim(), css: c ? c[1].trim() : "", title: meta.t || "", howto: meta.h || "", unit: meta.u || "点" };
+}
+// ゲームロジック(js)の静的チェック
+function validateJs(js: string): string | null {
+  const s = (js || "").trim();
+  if (s.length < 300) return "ロジックが短すぎて未完成です";
+  if (/<\/?(script|html|body|head)\b/i.test(s)) return "jsフィールドにHTMLタグが混入しています（純粋なJSコードのみ）";
+  try { new Function(s); } catch (e) { return "JavaScriptの構文エラー: " + String((e as Error)?.message || e).slice(0, 120); }
+  if (!/function\s+init\s*\(/.test(s)) return "function init() が定義されていません";
+  if (!/function\s+update\s*\(/.test(s)) return "function update(dt) が定義されていません";
+  if (!/function\s+draw\s*\(/.test(s)) return "function draw() が定義されていません";
+  if (!/Game\s*\.\s*over\s*\(/.test(s)) return "Game.over(スコア) が呼ばれていません";
+  if (!/function\s+on(Down|Move|Up)\s*\(|addEventListener/.test(s)) return "操作の入力（onDown/onMove/onUp）が見当たりません";
+  return null;
+}
+
+const GOLD_JS = `/* Example game logic (a catch game). Study the structure & polish; make a DIFFERENT game. */
+var basket, items, lives, score, fallSpeed, spawnT, shake;
+function init(){
+  basket = { x: W/2, w: Math.max(70, W*0.2) };
+  items = []; lives = 3; score = 0; fallSpeed = 150; spawnT = 0.5; shake = 0;
+  Game.hud("❤️❤️❤️");
+}
+function update(dt){
+  spawnT -= dt;
+  if (spawnT <= 0){
+    items.push({ x: 30+Math.random()*(W-60), y: -20, r: 16, bad: Math.random() < 0.18 });
+    spawnT = Math.max(0.35, 0.9 - score*0.008);
+  }
+  fallSpeed += dt*7;
+  var by = H - 90;
+  for (var i = items.length-1; i >= 0; i--){
+    var it = items[i]; it.y += fallSpeed*dt;
+    if (it.y > by-14 && it.y < by+24 && Math.abs(it.x-basket.x) < basket.w/2 + it.r){
+      if (it.bad){ lives--; shake = 0.3; Game.hud("❤️".repeat(Math.max(0,lives)));
+        Game.float(it.x, by-22, "💥", "#f87171");
+        if (lives <= 0){ Game.over(score); return; } }
+      else { score++; Game.score(score); Game.float(it.x, by-24, "+1", "#ffd166"); }
+      items.splice(i,1); continue;
+    }
+    if (it.y > H+30) items.splice(i,1);
+  }
+  if (shake > 0) shake -= dt;
+}
+function draw(){
+  ctx.fillStyle = "#101528"; ctx.fillRect(0,0,W,H);
+  var ox = shake > 0 ? (Math.random()*6-3) : 0;
+  ctx.save(); ctx.translate(ox,0);
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.font = "28px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  for (var i = 0; i < items.length; i++){ var it = items[i]; ctx.fillText(it.bad ? "💣" : "🍎", it.x, it.y); }
+  ctx.font = "44px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  ctx.fillText("🧺", basket.x, H-78);
+  ctx.restore();
+}
+function onDown(x,y){ basket.x = x; }
+function onMove(x,y){ basket.x = Math.max(basket.w/2, Math.min(W-basket.w/2, x)); }`;
+
+const BUILD2_SYSTEM = `You write ONLY the game-specific logic for a mobile HTML5 mini-game. The platform runtime already provides everything else — fullscreen canvas with devicePixelRatio handling, resize, the requestAnimationFrame loop, start/game-over/restart screens, score HUD, pause/resume, unified touch input, error capture, and score submission. Do NOT write any of that boilerplate.
+
+Runtime globals you can use:
+- cv, ctx : the fullscreen <canvas> and its 2d context. Coordinates are CSS pixels.
+- W, H : current screen size in CSS pixels (kept updated on resize).
+- Game.score(n) : update the HUD score (non-negative integer).
+- Game.over(finalScore) : end the play. MUST eventually be called, exactly with the same integer score the player sees. Higher = better.
+- Game.hud(text) : right HUD slot for lives/level etc (e.g. "❤️❤️❤️"). Optional.
+- Game.float(x,y,text,color) : small rising feedback text like "+1". Optional juice.
+- Game.toast(text) : brief centered message. Optional.
+
+You MUST define these as top-level function declarations in "js":
+- function init() { }        // (re)set ALL game state; called on start AND every restart — assign initial values here, not only at declaration
+- function update(dt) { }    // advance simulation; dt is seconds (max 0.05)
+- function draw() { }        // render; paint the full background first (runtime does not clear)
+Optional hooks:
+- function onDown(x,y,id) / onMove(x,y,id) / onUp(x,y,id)   // unified pointer input (works for touch)
+- function onResize() { }    // recompute layout-dependent sizes
+
+Output fields (structured):
+- "title": short Japanese title
+- "howto": 1-2 short Japanese lines for the start screen (how to play, goal)
+- "unit": score unit shown in HUD/result, e.g. 点 / 秒 / 個 / 匹 / 人 / 段
+- "css": extra CSS if needed, or "". The page is already a dark fullscreen canvas (#0f1322).
+- "js": ONLY the game logic. No <script> tags, no HTML, no Arcade.* calls, no requestAnimationFrame, no canvas/resize setup, no start screens, no event registration for pointer (use the hooks). Plain ES5-compatible JavaScript.
+- "category": one of アクション / パズル / シューティング / 反射神経 / よける / タイミング / 記憶 / レース / その他
+
+Rules:
+- Mobile-first touch gameplay via onDown/onMove/onUp. Big touch targets. Portrait friendly.
+- Scoring uses the RANKING SCORE decided in the conversation; on-screen score and Game.over(score) must match.
+- No external resources, no network, no audio files, no imports. If the game is UI-heavy you MAY create DOM elements (position:fixed; z-index 1-4; create them in init() and remove stale ones first), but prefer canvas.
+- Characters/objects: do NOT use plain rectangles. Draw EMOJI sprites on canvas:
+    ctx.font = size + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("🐱", x, y);
+  If the conversation picked specific 素材 (emoji), use THOSE.
+- Make it genuinely fun and polished: clear goal, responsive controls, juicy feedback (Game.float / shake / particles), difficulty that ramps up.
+- Japanese in-game text. Keep performance smooth on phones (no huge object counts).
+- Self-check before finalizing: mentally run start → play → game over → restart. Every variable defined before use (restart calls init() again — stale state must be reset there). No undefined references. Balanced brackets.
+- When EDITING an existing game: keep what works, apply ONLY the requested change, and return ALL fields complete (full js, not a diff).
+
+` + "Example \"js\" field:\n```js\n" + GOLD_JS + "\n```";
+
+const GAME_SCHEMA2 = {
+  type: "object",
+  properties: {
+    title: { type: "string" },
+    howto: { type: "string" },
+    unit: { type: "string" },
+    css: { type: "string" },
+    js: { type: "string" },
+    category: {
+      type: "string",
+      enum: ["アクション", "パズル", "シューティング", "反射神経", "よける", "タイミング", "記憶", "レース", "その他"],
+    },
+  },
+  required: ["title", "howto", "unit", "css", "js", "category"],
+  additionalProperties: false,
+};
+
 function json(o: unknown, status = 200) {
   return new Response(JSON.stringify(o), { status, headers: { ...CORS, "content-type": "application/json" } });
 }
@@ -323,53 +570,83 @@ function validateGame(html: string): string | null {
 
 // 本生成（重い1回）。生成→自動チェック→ダメなら1回だけ自動修正。
 // spec で使用モデルを差し替え可能（管理者テスト用。既定は本番モデル）。
-async function buildOnce(key: string, messages: Msg[], prevHtml: string, spec?: ModelSpec) {
+async function buildOnce(key: string, messages: Msg[], prevHtml: string, spec?: ModelSpec, userSpec?: string) {
   const mspec = spec || specFor();
   const t0 = Date.now();
   const acc: Array<{ model: string; usage: Usage }> = [];   // トークン使用量を集計（コスト算出用）
-  let userContent: string, reply: string, specText = "";
-  if (prevHtml) {
-    const lastUser = [...messages].reverse().find((m) => m.role === "user");
-    const instruction = (lastUser?.content || "").trim();
-    userContent = "次の既存ゲーム(HTML)を、下の指示に従って修正してください。修正後の完全な単一HTMLだけを返し、タイトルも内容に合わせて更新してOKです。\n\n【指示】\n" +
+  const done = (reply: string, title: string, html: string, category: string, specText: string) => ({
+    action: "build", reply, title, html, category, model: specLabel(mspec), cost: computeCost(acc),
+    sec: Math.round((Date.now() - t0) / 1000), spec: specText || undefined,
+  });
+  // 実行上限(400秒)まで黙って殺される前に、インスタンスの残り寿命内で自前タイムアウトさせる。
+  const mainTmo = Math.max(30000, Math.min(380000, remainMs()));
+  const lastUser = [...messages].reverse().find((m) => m.role === "user");
+  const instruction = (lastUser?.content || "").trim();
+  const tpl = prevHtml ? extractTpl(prevHtml) : null;
+
+  // ---- 旧形式ゲーム（テンプレ導入前）の編集：従来どおりHTML全文を書き直す ----
+  if (prevHtml && !tpl) {
+    const uc = "次の既存ゲーム(HTML)を、下の指示に従って修正してください。修正後の完全な単一HTMLだけを返し、タイトルも内容に合わせて更新してOKです。\n\n【指示】\n" +
       instruction + "\n\n【既存HTML】\n" + prevHtml;
+    const g = await callBuild(key, mspec, BUILD_SYSTEM, [{ role: "user", content: uc }], GAME_SCHEMA, mainTmo, acc);
+    if (!g.html) return { error: "empty_html" };
+    let title = g.title || "無題のゲーム", html = g.html, category = g.category || "その他";
+    const problem = validateGame(html);
+    const fixTmo0 = Math.min(150000, remainMs());
+    if (problem && (Date.now() - t0) < 180000 && fixTmo0 > 45000) {
+      try {
+        const fixUser = "あなたが作った次のHTMLゲームに問題が見つかりました：「" + problem +
+          "」。原因を必ず直し、最後まで完結した完全な単一HTMLだけを返してください（</html>まで）。タイトルは維持。\n\n【HTML】\n" + html;
+        const g2 = await callBuild(key, mspec, BUILD_SYSTEM, [{ role: "user", content: fixUser }], GAME_SCHEMA, fixTmo0, acc);
+        if (g2.html) { html = g2.html; title = g2.title || title; category = g2.category || category; }
+      } catch { /* 修正に失敗したら元の生成結果をそのまま返す */ }
+    }
+    return done("直したよ！", title, html, category, "");
+  }
+
+  // ---- v2：共通ランタイム方式（新規作成／テンプレ形式ゲームの編集） ----
+  let userContent: string, reply: string, specText = "";
+  if (tpl) {
+    userContent = "プラットフォームのランタイム上で動く既存ミニゲームのロジックを、指示に従って修正してください。" +
+      "動いている部分は保ち、指示された変更だけを適用。全フィールド（title/howto/unit/css/js）を完全な形で返す。\n\n【指示】\n" + instruction +
+      "\n\n【現在のtitle】" + tpl.title + "\n【現在のhowto】" + tpl.howto + "\n【現在のunit】" + tpl.unit +
+      "\n\n【現在のcss】\n" + (tpl.css || "(なし)") + "\n\n【現在のjs】\n" + tpl.js;
     reply = "直したよ！";
   } else {
     const transcript = messages.map((mm) => (mm.role === "user" ? "ユーザー: " : "AI: ") + mm.content).join("\n");
-    // 相談ログを賢いモデルで仕様書に整理してからビルド（一発ヒット率を上げてやり直しを減らす）。
-    // 仕様化に失敗しても、従来どおり生ログで生成を続行する。
-    try {
-      const sres = await callClaude(key, SPEC_SYSTEM, [{ role: "user", content: transcript }], SPEC_SCHEMA, true, 60000, acc,
-        { provider: "anthropic", model: "claude-sonnet-5", effort: "low" });
-      specText = String(sres.spec || "").slice(0, 6000);
-    } catch { /* noop */ }
+    // 設計書：ユーザーが確認・編集済みのものがあればそれを最優先。
+    // 無ければ相談ログを賢いモデルで設計書に整理してからビルド（一発ヒット率を上げる）。
+    if (userSpec) { specText = userSpec; }
+    else {
+      try {
+        const sres = await callClaude(key, SPEC_SYSTEM, [{ role: "user", content: transcript }], SPEC_SCHEMA, true, 60000, acc,
+          { provider: "anthropic", model: "claude-sonnet-5", effort: "low" });
+        specText = String(sres.spec || "").slice(0, 6000);
+      } catch { /* noop */ }
+    }
     userContent = specText
-      ? "次の仕様書どおりに、ミニゲームを作ってください。完全な単一HTMLだけを返す。\n\n【仕様書】\n" + specText +
+      ? "次の仕様書どおりに、ミニゲームのロジックを作ってください。\n\n【仕様書】\n" + specText +
         "\n\n【元の相談ログ（仕様書に無い点の補足として参照）】\n" + transcript
-      : "次の相談で決まった内容で、ミニゲームを作ってください。完全な単一HTMLだけを返す。\n\n【相談ログ】\n" + transcript;
+      : "次の相談で決まった内容で、ミニゲームのロジックを作ってください。\n\n【相談ログ】\n" + transcript;
     reply = "作ったよ！";
   }
-  // 実行上限(400秒)まで黙って殺される前に、インスタンスの残り寿命内で自前タイムアウトさせる。
-  // これで失敗時も必ずジョブにエラーが書き込まれ、クライアントに通知が届く。
-  const mainTmo = Math.max(30000, Math.min(380000, remainMs()));
-  const g = await callBuild(key, mspec, BUILD_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA, mainTmo, acc);
-  if (!g.html) return { error: "empty_html" };
-  let title = g.title || "無題のゲーム", html = g.html, category = g.category || "その他";
-
-  // 自動チェック → 問題があれば1回だけAIに直させる。
-  // ただし1回目が長かった時は自動修正をスキップ（合計が実行上限を超えてジョブ消失するのを防ぐ）。
-  const problem = validateGame(html);
+  let g = await callBuild(key, mspec, BUILD2_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA2, mainTmo, acc);
+  if (!g || !g.js) return { error: "empty_html" };
+  // 自動チェック → 問題があれば1回だけAIに直させる（jsだけなので修正も安い）
+  const problem2 = validateJs(g.js);
   const fixTmo = Math.min(150000, remainMs());
-  if (problem && (Date.now() - t0) < 180000 && fixTmo > 45000) {
+  if (problem2 && (Date.now() - t0) < 180000 && fixTmo > 45000) {
     try {
-      const fixUser = "あなたが作った次のHTMLゲームに問題が見つかりました：「" + problem +
-        "」。原因を必ず直し、最後まで完結した完全な単一HTMLだけを返してください（</html>まで）。タイトルは維持。\n\n【HTML】\n" + html;
-      const g2 = await callBuild(key, mspec, BUILD_SYSTEM, [{ role: "user", content: fixUser }], GAME_SCHEMA, fixTmo, acc);
-      if (g2.html) { html = g2.html; title = g2.title || title; category = g2.category || category; }
+      const fixUser = "あなたが書いたゲームロジック(js)に問題が見つかりました：「" + problem2 +
+        "」。原因を必ず直し、全フィールド（title/howto/unit/css/js/category）を完全な形で返してください。\n\n【title】" + (g.title || "") +
+        "\n【howto】" + (g.howto || "") + "\n【unit】" + (g.unit || "") + "\n\n【css】\n" + (g.css || "") + "\n\n【js】\n" + g.js;
+      const g2 = await callBuild(key, mspec, BUILD2_SYSTEM, [{ role: "user", content: fixUser }], GAME_SCHEMA2, fixTmo, acc);
+      if (g2 && g2.js && !validateJs(g2.js)) g = g2;
     } catch { /* 修正に失敗したら元の生成結果をそのまま返す */ }
   }
-  return { action: "build", reply, title, html, category, model: specLabel(mspec), cost: computeCost(acc),
-    sec: Math.round((Date.now() - t0) / 1000), spec: specText || undefined };
+  const title2 = g.title || "無題のゲーム";
+  const html2 = assembleGame(title2, g.howto || "ハイスコアを目指そう！", g.unit || "点", g.css || "", g.js);
+  return done(reply, title2, html2, g.category || "その他", specText);
 }
 // callClaude 例外をクライアント向けエラーへ変換
 function buildErr(e: unknown) {
@@ -610,7 +887,7 @@ async function startFlow(key: string, messages: Msg[], prevHtml: string, token: 
 // 受付インスタンスは相談ターンで寿命を消費していることが多いので、ビルド本体は
 // 自分自身をもう一度呼び出して新しいインスタンスに任せる（フルの持ち時間を確保）。
 // k にサービスロールキーを要求するので外部からは実行できない。
-type IRun = { k?: string; job?: string; messages?: Msg[]; prevHtml?: string; spec?: ModelSpec; hop?: number };
+type IRun = { k?: string; job?: string; messages?: Msg[]; prevHtml?: string; spec?: ModelSpec; uspec?: string; hop?: number };
 const FN_SELF = SUPA_URL ? SUPA_URL.replace(/\/$/, "") + "/functions/v1/generate" : "";
 async function dispatchRun(payload: IRun): Promise<boolean> {
   if (!FN_SELF || !SUPA_SRV) return false;
@@ -632,10 +909,12 @@ Deno.serve(async (req) => {
   if (!key) return json({ error: "missing_api_key" }, 500);
 
   let messages: Msg[] = [], prevHtml = "", token = "?", jobId = "", wantUsage = false, isAdmin = false, forceBuild = false, testModel = "";
-  let irun: IRun | null = null;
+  let irun: IRun | null = null, wantSpec = false, uspec = "";
   try {
     const b = await req.json();
     if (b && typeof b.irun === "object" && b.irun) irun = b.irun as IRun;
+    if (b?.makeSpec === true) wantSpec = true;               // 設計書だけ作る（生成カウント消費なし）
+    if (typeof b?.spec === "string") uspec = b.spec.slice(0, 8000);   // ユーザー確認・編集済みの設計書
     if (typeof b?.job === "string") jobId = b.job;
     if (b?.usage === true) wantUsage = true;
     if (b?.build === true) forceBuild = true;   // 「作り始める」ボタン＝ここでだけ Opus が動く
@@ -666,9 +945,10 @@ Deno.serve(async (req) => {
     const rSpec = (irun.spec && typeof irun.spec === "object") ? irun.spec : specFor();
     const rMsgs = Array.isArray(irun.messages) ? irun.messages : [];
     const rPrev = typeof irun.prevHtml === "string" ? irun.prevHtml : "";
+    const rUspec = typeof irun.uspec === "string" ? irun.uspec : "";
     const rJob = irun.job;
     const rWork = (async () => {
-      let r; try { r = await buildOnce(key, rMsgs, rPrev, rSpec); } catch (e) { r = buildErr(e); }
+      let r; try { r = await buildOnce(key, rMsgs, rPrev, rSpec, rUspec); } catch (e) { r = buildErr(e); }
       await finishJob(rJob, r);
     })();
     try {
@@ -710,6 +990,21 @@ Deno.serve(async (req) => {
 
   if (!messages.length) return json({ error: "empty_prompt" }, 400);
 
+  // ---- 設計書のみ生成（ビルド前の確認・編集用。生成カウントは消費しない）----
+  if (wantSpec) {
+    if (!isAdmin) {
+      const d0 = today();
+      const rg = await gate("u:req:" + token + ":" + d0, "i:req:" + ip + ":" + d0, "g:req:" + d0, LIMITS.reqUser, LIMITS.reqIp, LIMITS.reqGlobal, LIMITS.cooldownSec);
+      if (rg && rg.allowed === false) return json({ error: "rate_limited", reason: limitReason("req", rg), retry_sec: rg.retry_sec });
+    }
+    const transcript = messages.map((mm) => (mm.role === "user" ? "ユーザー: " : "AI: ") + mm.content).join("\n");
+    try {
+      const sres = await callClaude(key, SPEC_SYSTEM, [{ role: "user", content: transcript }], SPEC_SCHEMA, true, 60000, undefined,
+        { provider: "anthropic", model: "claude-sonnet-5", effort: "low" });
+      return json({ spec: String(sres.spec || "").slice(0, 6000) });
+    } catch (e) { return json(buildErr(e)); }
+  }
+
   // ---- 受付：ゲート＋相談（速い）----
   let flow;
   try { flow = await startFlow(key, messages, prevHtml, token, ip, isAdmin, forceBuild); }
@@ -724,9 +1019,9 @@ Deno.serve(async (req) => {
     const work = (async () => {
       // まず自己呼び出しで新しいインスタンスに任せる（受付までに消費した寿命を引き継がない）。
       // 失敗したらこのインスタンスで従来どおり生成（残り寿命内のタイムアウトが守る）。
-      const moved = await dispatchRun({ k: SUPA_SRV, job: id, messages, prevHtml, spec: buildSpec });
+      const moved = await dispatchRun({ k: SUPA_SRV, job: id, messages, prevHtml, spec: buildSpec, uspec });
       if (moved) return;
-      let r; try { r = await buildOnce(key, messages, prevHtml, buildSpec); } catch (e) { r = buildErr(e); }
+      let r; try { r = await buildOnce(key, messages, prevHtml, buildSpec, uspec); } catch (e) { r = buildErr(e); }
       await finishJob(id, r);
     })();
     try {
@@ -744,7 +1039,7 @@ Deno.serve(async (req) => {
       try { controller.enqueue(encoder.encode(" ")); } catch { /* closed */ }
       const hb = setInterval(() => { if (done) return; try { controller.enqueue(encoder.encode(" ")); } catch { /* closed */ } }, 2000);
       (async () => {
-        let result; try { result = await buildOnce(key, messages, prevHtml, buildSpec); } catch (e) { result = buildErr(e); }
+        let result; try { result = await buildOnce(key, messages, prevHtml, buildSpec, uspec); } catch (e) { result = buildErr(e); }
         done = true; clearInterval(hb);
         try { controller.enqueue(encoder.encode("\n" + JSON.stringify(result))); } catch { /* closed */ }
         try { controller.close(); } catch { /* closed */ }

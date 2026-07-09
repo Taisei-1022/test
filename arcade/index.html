@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-180.png?v=3" />
 <link rel="icon" href="icon-192.png?v=3" />
-<link rel="stylesheet" href="css/app.css?v=29" />
+<link rel="stylesheet" href="css/app.css?v=30" />
 <title>Vappa</title>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6804943232069371" crossorigin="anonymous"></script>
 <meta property="og:type" content="website" />
@@ -224,11 +224,21 @@
   </div>
 </div>
 
+<!-- 設計書エディタ（ビルド前の確認・編集。誰でも使える） -->
+<div id="specov" hidden>
+  <div class="spechead">
+    <b>📐 設計書</b>
+    <span class="dim" style="font-size:11px;font-weight:700">自由に書き換えてOK。この内容でゲームが作られます</span>
+    <button id="specdone" type="button">保存して閉じる</button>
+  </div>
+  <textarea id="specta" spellcheck="false"></textarea>
+</div>
+
 <script src="js/games.js?v=9"></script>
 <script src="js/assets.js?v=1"></script>
 <script src="js/config.js?v=6"></script>
 <script src="js/store.js?v=7"></script>
-<script src="js/ai.js?v=15"></script>
+<script src="js/ai.js?v=16"></script>
 <script src="js/catalog.js?v=10"></script>
 <script src="js/share.js?v=5"></script>
 <script src="js/arcade-embed.js?v=3"></script>
@@ -238,7 +248,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.53";
+  var APP_VERSION = "0.9.54";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -991,15 +1001,59 @@
     row.appendChild(note);
     chatlog.appendChild(row); chatlog.scrollTop=chatlog.scrollHeight;
   }
-  // 開始ボタン → Opus ビルド実行
+  // 「作り始める」→ 新規作成なら、まず設計書を作って確認してもらう（編集は直接ビルド）
+  var pendingSpec=null;
+  function clearSpecRow(){ var r=document.getElementById("specrow"); if(r) r.remove(); }
   function startBuild(){
     if(busy) return;
-    clearOptions(); clearBuildBtn(); busy=true;
+    var prev = (lastGen && lastGen.html) ? lastGen.html : "";
+    if(prev){ beginBuild(null); return; }   // 修正ビルド＝既存コード＋指示で十分。設計書ステップなし
+    clearOptions(); clearBuildBtn(); clearSpecRow(); busy=true;
+    var typing=bubble("bot typing","設計書を書いているよ…");
+    Ai.makeSpec(convo).then(function(res){
+      typing.remove(); busy=false;
+      if(!(res&&res.spec)){ beginBuild(null); return; }   // 設計書に失敗しても生成は続行
+      pendingSpec=res.spec;
+      bubble("bot","📐 設計書ができたよ！ひらいて確認・編集できるよ。OKならそのまま生成開始してね。");
+      showSpecRow(); saveChatNow();
+    }).catch(function(){ typing.remove(); busy=false; beginBuild(null); });
+  }
+  function showSpecRow(){
+    clearSpecRow();
+    var row=document.createElement("div"); row.id="specrow"; row.className="buildrow"; row.style.cssText="margin:8px 0 2px";
+    var b1=document.createElement("button");
+    b1.textContent="📐 設計書をひらく（確認・編集）";
+    b1.style.cssText="display:block;width:100%;font-weight:800;font-size:14px;padding:12px;border:1px solid var(--rule);border-radius:12px;background:var(--plate);color:#fff;cursor:pointer;margin-bottom:8px";
+    b1.addEventListener("click", openSpecEditor);
+    var b2=document.createElement("button");
+    b2.textContent="🚀 この設計書で生成開始";
+    b2.style.cssText="display:block;width:100%;font-weight:900;font-size:16px;padding:14px;border:0;border-radius:14px;background:var(--gold);color:#fff;cursor:pointer;box-shadow:0 4px 0 rgba(0,0,0,.18)";
+    b2.addEventListener("click", function(){ beginBuild(pendingSpec); });
+    var note=document.createElement("div"); note.className="dim"; note.style.cssText="font-size:11px;font-weight:700;margin-top:6px;text-align:center";
+    note.textContent="※生成開始で1回分を消費します";
+    row.appendChild(b1); row.appendChild(b2); row.appendChild(note);
+    chatlog.appendChild(row); chatlog.scrollTop=chatlog.scrollHeight;
+  }
+  function openSpecEditor(){
+    var ov=document.getElementById("specov"), ta=document.getElementById("specta");
+    ta.value=pendingSpec||""; ov.hidden=false;
+  }
+  (function(){
+    var ov=document.getElementById("specov"), ta=document.getElementById("specta");
+    if(ov) document.getElementById("specdone").addEventListener("click", function(){
+      pendingSpec=ta.value; ov.hidden=true;
+    });
+  })();
+  // ビルド実行（specText があれば設計書として同送）
+  function beginBuild(specText){
+    if(busy) return;
+    clearOptions(); clearBuildBtn(); clearSpecRow(); busy=true;
     var prev = (lastGen && lastGen.html) ? lastGen.html : "";
     var typing=bubble("bot typing","作っているよ…");
-    Ai.send(convo, prev, function(jobId){ setGenerating(true); savePending(jobId, lastGen&&lastGen.editingId, lastGen&&lastGen.title); }, true).then(function(res){
+    Ai.send(convo, prev, function(jobId){ setGenerating(true); savePending(jobId, lastGen&&lastGen.editingId, lastGen&&lastGen.title); }, true, specText||undefined).then(function(res){
       typing.remove(); chatlog.querySelectorAll(".typing").forEach(function(n){n.remove();}); setGenerating(false); clearPending();
       if(!res || res.action==="ask" || res.action==="ready"){ busy=false; return; }
+      pendingSpec=null;
       applyBuild(res); busy=false;
     }).catch(function(err){
       typing.remove(); chatlog.querySelectorAll(".typing").forEach(function(n){n.remove();}); busy=false; setGenerating(false); clearPending();
@@ -1008,7 +1062,7 @@
   }
   function sendChat(text){
     text=(text||"").trim(); if(!text||busy) return;
-    clearOptions(); clearBuildBtn();
+    clearOptions(); clearBuildBtn(); clearSpecRow(); pendingSpec=null;   // 会話が続いたら設計書は作り直し
     var note=assetNote(), full=note+text;
     bubble("user",full); convo.push({role:"user",content:full}); input.value=""; input.style.height="auto"; busy=true; dirty=true; showStarters(false);
     saveChatNow();   // 送信した瞬間に履歴を確実に保存

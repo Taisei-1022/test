@@ -331,3 +331,15 @@ textarea.field{resize:vertical;line-height:1.5;}
 .legal{margin:26px 0 6px;text-align:center;}
 .legal a{color:var(--dim);font-size:12px;text-decoration:none;border-bottom:1px solid transparent;}
 .legal a:active{color:var(--ink);}
+
+/* ---- 設計書エディタ（ビルド前の確認・編集） ---- */
+#specov{position:fixed;inset:0;z-index:130;background:#12101f;display:flex;flex-direction:column;}
+#specov[hidden]{display:none;}
+#specov .spechead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:calc(env(safe-area-inset-top) + 12px) 14px 10px;border-bottom:1px solid var(--rule);}
+#specov .spechead b{font-size:16px;}
+#specov .spechead .dim{flex:1 1 100%;order:3;}
+#specov .spechead button{margin-left:auto;background:var(--gold);color:#fff;border:0;border-radius:10px;
+  padding:.5rem 1rem;font:inherit;font-weight:800;font-size:13px;cursor:pointer;}
+#specta{flex:1;background:#0f0d18;color:#e7e3f5;border:0;padding:14px 14px calc(env(safe-area-inset-bottom) + 14px);
+  font:13px/1.75 ui-monospace,Menlo,Consolas,monospace;resize:none;outline:none;-webkit-user-select:text;user-select:text;}

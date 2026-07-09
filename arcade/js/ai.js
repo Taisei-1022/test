@@ -85,8 +85,9 @@ window.Ai = (function () {
     // onBuild: 本生成が始まった（ジョブ受付）時に呼ぶコールバック（「生成中」表示用）。
     // force=true で「作り始める」＝サーバーで Opus ビルドを実行（生成カウント消費）。
     // force無し（相談ターン）は Haiku で ask / ready を返すだけ。
-    send: function (messages, prevHtml, onBuild, force) {
-      return post({ messages: messages, prevHtml: prevHtml || "", token: token(), admin: adminCode(), build: !!force, model: testModel() || undefined }).then(function (data) {
+    // specText: ユーザーが確認・編集した設計書（新規ビルド時のみ。サーバーはこれを最優先で使う）
+    send: function (messages, prevHtml, onBuild, force, specText) {
+      return post({ messages: messages, prevHtml: prevHtml || "", token: token(), admin: adminCode(), build: !!force, model: testModel() || undefined, spec: specText || undefined }).then(function (data) {
         if (data && data.action === "job") {
           if (onBuild) { try { onBuild(data.job_id); } catch (e) {} }
           return pollJob(data.job_id);
@@ -96,6 +97,8 @@ window.Ai = (function () {
     },
     // 既存ジョブIDの完了を待つ（離脱→再起動後の復元用）
     resumeJob: function (jobId) { return pollJob(jobId); },
+    // 設計書だけ作る（ビルド前の確認・編集用。生成カウントは消費しない）
+    makeSpec: function (messages) { return post({ makeSpec: true, messages: messages, token: token(), admin: adminCode() }); },
     // 今日の作成上限の使用状況を取得（加算しない）。model を同送すると管理者は実効モデル名が返る
     usage: function () { return post({ usage: true, token: token(), admin: adminCode(), model: testModel() || undefined }); },
     // 管理者コードの取得/設定（設定画面から呼ぶ）
