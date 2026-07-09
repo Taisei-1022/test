@@ -313,6 +313,10 @@ function loop(now){
 }
 requestAnimationFrame(loop);
 window.Arcade.ready();
+// 自動テストプレイ用フック：親(アプリ)がスモークテストで入力を一発流すのに使う
+window.__vpTap=function(){
+  fire("onDown",W/2,H/2,1);fire("onMove",W/2+40,H/2,1);fire("onUp",W/2+40,H/2,1);
+};
 })();
 </script>
 <script id="vpgame">

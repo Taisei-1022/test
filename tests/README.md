@@ -17,6 +17,16 @@ node tests/runtime-matrix.js   # 事前に scratchpad でテストページ組�
 7. 実行時エラーなし 8. touchのみ環境フォールバック 9-11. srcdoc iframe埋め込み（play.html相当）
 12. 実ゲーム（シューティング2のjs）
 
+# 自動テストプレイ→自動修理（A案）のE2E
+
+```
+python3 -m http.server 8099   # リポジトリ直下で
+node tests/smoke-autofix.js
+```
+生成直後の非表示iframeスモークテスト（arcade/index.html の smokeTest/handleBuildResult と
+RUNTIME_TPL の window.__vpTap）の回帰テスト。壊れたゲームで自動修理が1回だけ走ること、
+正常なゲームで余計な再ビルドが走らないことを確認する。
+
 ## 過去に踏んだ地雷（雛形をいじる時はここを再確認）
 - pointerイベントのみ依存 → iOSのiframeで死ぬ（touch/mouseフォールバック必須）
 - touchstart/touchend で preventDefault → **click合成が死んでボタンが押せなくなる**

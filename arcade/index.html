@@ -248,7 +248,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.55";
+  var APP_VERSION = "0.9.56";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -1061,6 +1061,54 @@
       setUiState("spec", pendingSpec);   // 編集内容も保存（閉じても消えない）
     });
   })();
+  // ---- 自動テストプレイ（スモークテスト）----
+  // 生成直後、非表示のiframeでゲームを約3秒実走させて実行時エラーを検出する。
+  // 検出したら実際のエラーメッセージ付きで1回だけ自動修理ビルドに回す（A案）。
+  function smokeTest(html){
+    return new Promise(function(resolve){
+      var f=document.createElement("iframe");
+      f.style.cssText="position:fixed;left:0;top:0;width:390px;height:700px;opacity:0;pointer-events:none;border:0";
+      f.setAttribute("aria-hidden","true");
+      document.body.appendChild(f);
+      var err=null, done=false;
+      function finish(){ if(done)return; done=true; try{f.remove();}catch(e){} resolve(err); }
+      f.addEventListener("load", function(){
+        try{
+          var w=f.contentWindow;
+          w.addEventListener("error", function(ev){ if(!err) err=String(ev&&ev.message||"error"); });
+          setTimeout(function(){ try{
+            var btn=w.document.getElementById("vpstart");
+            if(btn) btn.click(); else finish();       // 旧形式（自動開始ボタン不明）は起動確認のみ
+          }catch(e){} },400);
+          setTimeout(function(){ try{ if(w.__vpTap) w.__vpTap(); }catch(e){} },1200);
+          setTimeout(function(){ try{ if(!err) err=w.__VP_ERR||null; }catch(e){} finish(); },3000);
+        }catch(e){ finish(); }
+      });
+      setTimeout(finish, 6000);   // 保険（loadが来ない等）
+      try{ f.srcdoc = (window.buildSrcdoc? buildSrcdoc(html) : html); }catch(e){ finish(); }
+    });
+  }
+  // ビルド結果の受け入れ：テストプレイ→NGなら自動修理（1回だけ）→反映
+  function handleBuildResult(res, retried){
+    smokeTest(res.html).then(function(err){
+      if(err && !retried){
+        bubble("bot","🔍 テストプレイで実行時エラーを見つけたよ。自動で修理するね…");
+        var fixConvo = convo.concat([{role:"user",content:"テスト実行で実行時エラーが検出されました。原因を修正してください：\n"+String(err).slice(0,300)}]);
+        var typing=bubble("bot typing","修理しているよ…");
+        Ai.send(fixConvo, res.html, function(jobId){ setGenerating(true); savePending(jobId, lastGen&&lastGen.editingId, lastGen&&lastGen.title); }, true).then(function(res2){
+          typing.remove(); setGenerating(false); clearPending();
+          if(res2 && res2.action==="build"){ bubble("bot","🔧 修理できたよ！"); handleBuildResult(res2, true); }
+          else { applyBuild(res); busy=false; }
+        }).catch(function(){
+          typing.remove(); setGenerating(false); clearPending();
+          applyBuild(res); busy=false;   // 修理失敗でも元の結果は届ける（クラッシュ画面が最後の砦）
+        });
+        return;
+      }
+      if(err) bubble("bot","⚠️ まだ不安定な部分があるかも。遊んでみて変だったら「エラーを直して」と言ってね。");
+      applyBuild(res); busy=false;
+    });
+  }
   // ビルド実行（specText があれば設計書として同送）
   function beginBuild(specText){
     if(busy) return;
@@ -1071,7 +1119,7 @@
       typing.remove(); chatlog.querySelectorAll(".typing").forEach(function(n){n.remove();}); setGenerating(false); clearPending();
       if(!res || res.action==="ask" || res.action==="ready"){ busy=false; return; }
       pendingSpec=null;
-      applyBuild(res); busy=false;
+      handleBuildResult(res, false);
     }).catch(function(err){
       typing.remove(); chatlog.querySelectorAll(".typing").forEach(function(n){n.remove();}); busy=false; setGenerating(false); clearPending();
       bubble("bot", chatErrMsg(String(err&&err.message||err)));
