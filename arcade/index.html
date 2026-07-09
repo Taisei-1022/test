@@ -138,8 +138,14 @@
       <div id="testmodelBox" hidden>
         <div class="section">生成モデル（テスト）</div>
         <label class="name"><select id="testmodel" style="width:240px;padding:.5rem;background:#1d1a2e;border:1px solid #2c2740;color:#fff;border-radius:8px;font:inherit">
-          <option value="">Opus 4.8（本番・既定）</option>
-          <option value="sonnet-x">Sonnet 5 × effort最高（安い）</option>
+          <option value="">Opus 4.8・思考中（本番・既定）</option>
+          <option value="opus-h">Opus 4.8・思考高</option>
+          <option value="opus-x">Opus 4.8・思考最高</option>
+          <option value="sonnet-m">Sonnet 5・思考中（〜¥8）</option>
+          <option value="sonnet-h">Sonnet 5・思考高（〜¥12）</option>
+          <option value="sonnet-x">Sonnet 5・思考最高（〜¥15）</option>
+          <option value="deepseek">DeepSeek・思考なし（〜¥1）</option>
+          <option value="deepseek-r">DeepSeek R・思考あり（〜¥1）</option>
           <option value="gemini">Gemini 2.5 Pro</option>
           <option value="gpt">GPT-5.1（ChatGPT）</option>
           <option value="deepseek">DeepSeek（激安・8K上限）</option>
@@ -232,7 +238,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.50";
+  var APP_VERSION = "0.9.52";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -949,6 +955,8 @@
   function showCostBubble(res){
     if(!(window.Ai&&Ai.getAdmin&&Ai.getAdmin())) return;
     var line=costLine(res); if(line) bubble("bot", line);
+    // ビルドに使われた仕様書（AIが相談ログから起こしたもの）。プロンプト品質の確認用
+    if(res.spec) bubble("bot", "📝 ビルド仕様書（管理者のみ表示）：\n\n"+res.spec);
   }
   // 生成結果(ビルド)を画面と状態に反映
   function applyBuild(res){

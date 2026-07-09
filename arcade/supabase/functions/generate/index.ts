@@ -42,6 +42,28 @@ Rules:
 - Otherwise set action="build" with a short reply confirming the change you'll apply (例：「"敵を速く" で直すね！」). Do NOT over-ask.
 Output (structured): action ("ask" or "build"), reply (short Japanese), options (0–4 short strings; empty for build).`;
 
+// 相談ログ→仕様書（ビルド直前の1ステップ）。生ログをそのまま渡すと曖昧さが残るため、
+// 賢いモデルに要件を整理・補完させてからビルダーに渡す（一発ヒット率を上げてやり直しを減らす）。
+const SPEC_SYSTEM = `You are a senior mobile mini-game designer. You will receive a Japanese consultation log between a user and an assistant about a game idea. Write a clear, complete build specification IN JAPANESE for a single-file HTML mini-game based on what was decided.
+
+Include these sections:
+- ゲーム概要（1-2文）
+- 操作方法（モバイルのタッチ操作前提。具体的に）
+- コアメカニクス（何がどう動き、何をすると何が起きるか）
+- 難易度の進行（時間や進行度でどう難しくなるか）
+- スコア定義（ランキングに載る数値。高いほど良い形で明確に）
+- 終了条件
+- 見た目・テーマ（色、雰囲気、絵文字などの素材案）
+- 特殊ルール・こだわり（ユーザーが明示した要望は一言一句漏らさない）
+
+Rules: resolve ambiguities with sensible, fun choices yourself instead of leaving them open. Do NOT invent requirements that contradict the log. Do NOT write any code. Keep it concise but complete (aim ~300-600 Japanese characters per section max).`;
+const SPEC_SCHEMA = {
+  type: "object",
+  properties: { spec: { type: "string" } },
+  required: ["spec"],
+  additionalProperties: false,
+};
+
 // 品質の手本（この構造・完成度を真似させる。丸写しはさせない）。
 // 状態管理 / resize / Arcadeフック＆フォールバック / touch+pointer入力 / ループ / スコア / 演出 を網羅。
 const GOLD_EXAMPLE = `<!DOCTYPE html>
@@ -302,7 +324,9 @@ function validateGame(html: string): string | null {
 // spec で使用モデルを差し替え可能（管理者テスト用。既定は本番モデル）。
 async function buildOnce(key: string, messages: Msg[], prevHtml: string, spec?: ModelSpec) {
   const mspec = spec || specFor();
-  let userContent: string, reply: string;
+  const t0 = Date.now();
+  const acc: Array<{ model: string; usage: Usage }> = [];   // トークン使用量を集計（コスト算出用）
+  let userContent: string, reply: string, specText = "";
   if (prevHtml) {
     const lastUser = [...messages].reverse().find((m) => m.role === "user");
     const instruction = (lastUser?.content || "").trim();
@@ -311,11 +335,19 @@ async function buildOnce(key: string, messages: Msg[], prevHtml: string, spec?: 
     reply = "直したよ！";
   } else {
     const transcript = messages.map((mm) => (mm.role === "user" ? "ユーザー: " : "AI: ") + mm.content).join("\n");
-    userContent = "次の相談で決まった内容で、ミニゲームを作ってください。完全な単一HTMLだけを返す。\n\n【相談ログ】\n" + transcript;
+    // 相談ログを賢いモデルで仕様書に整理してからビルド（一発ヒット率を上げてやり直しを減らす）。
+    // 仕様化に失敗しても、従来どおり生ログで生成を続行する。
+    try {
+      const sres = await callClaude(key, SPEC_SYSTEM, [{ role: "user", content: transcript }], SPEC_SCHEMA, true, 60000, acc,
+        { provider: "anthropic", model: "claude-sonnet-5", effort: "low" });
+      specText = String(sres.spec || "").slice(0, 6000);
+    } catch { /* noop */ }
+    userContent = specText
+      ? "次の仕様書どおりに、ミニゲームを作ってください。完全な単一HTMLだけを返す。\n\n【仕様書】\n" + specText +
+        "\n\n【元の相談ログ（仕様書に無い点の補足として参照）】\n" + transcript
+      : "次の相談で決まった内容で、ミニゲームを作ってください。完全な単一HTMLだけを返す。\n\n【相談ログ】\n" + transcript;
     reply = "作ったよ！";
   }
-  const t0 = Date.now();
-  const acc: Array<{ model: string; usage: Usage }> = [];   // トークン使用量を集計（コスト算出用）
   // 実行上限(400秒)まで黙って殺される前に、インスタンスの残り寿命内で自前タイムアウトさせる。
   // これで失敗時も必ずジョブにエラーが書き込まれ、クライアントに通知が届く。
   const mainTmo = Math.max(30000, Math.min(380000, remainMs()));
@@ -335,7 +367,8 @@ async function buildOnce(key: string, messages: Msg[], prevHtml: string, spec?: 
       if (g2.html) { html = g2.html; title = g2.title || title; category = g2.category || category; }
     } catch { /* 修正に失敗したら元の生成結果をそのまま返す */ }
   }
-  return { action: "build", reply, title, html, category, model: mspec.model, cost: computeCost(acc), sec: Math.round((Date.now() - t0) / 1000) };
+  return { action: "build", reply, title, html, category, model: specLabel(mspec), cost: computeCost(acc),
+    sec: Math.round((Date.now() - t0) / 1000), spec: specText || undefined };
 }
 // callClaude 例外をクライアント向けエラーへ変換
 function buildErr(e: unknown) {
@@ -360,7 +393,12 @@ const MODELS = { plan: "claude-haiku-4-5-20251001", build: "claude-opus-4-8" };
 type ModelSpec = { provider: "anthropic" | "openai" | "gemini" | "deepseek"; model: string; effort?: string; envKey?: string };
 const TEST_MODELS: Record<string, ModelSpec> = {
   "opus":     { provider: "anthropic", model: "claude-opus-4-8", effort: "medium" },
+  "opus-h":   { provider: "anthropic", model: "claude-opus-4-8", effort: "high" },
+  "opus-x":   { provider: "anthropic", model: "claude-opus-4-8", effort: "xhigh" },
+  "sonnet-m": { provider: "anthropic", model: "claude-sonnet-5", effort: "medium" },
+  "sonnet-h": { provider: "anthropic", model: "claude-sonnet-5", effort: "high" },
   "sonnet-x": { provider: "anthropic", model: "claude-sonnet-5", effort: "xhigh" },   // 安い×最高effortの検証用
+  "deepseek-r": { provider: "deepseek", model: "deepseek-reasoner", envKey: "DEEPSEEK_API_KEY" },   // 思考あり
   "gemini":   { provider: "gemini",    model: "gemini-2.5-pro",  envKey: "GEMINI_API_KEY" },
   "gpt":      { provider: "openai",    model: "gpt-5.1",         envKey: "OPENAI_API_KEY" },
   "deepseek": { provider: "deepseek",  model: "deepseek-chat",   envKey: "DEEPSEEK_API_KEY" },
@@ -368,6 +406,10 @@ const TEST_MODELS: Record<string, ModelSpec> = {
 // 管理者の指定キーを ModelSpec に解決（未指定/不明/非管理者は本番モデル）
 function specFor(testModel?: string): ModelSpec {
   return (testModel && TEST_MODELS[testModel]) || { provider: "anthropic", model: MODELS.build, effort: "medium" };
+}
+// 表示用ラベル（モデル名＋思考レベル）。チャットのモデル表記と管理者のコスト表示に使う
+function specLabel(s: ModelSpec): string {
+  return s.model + (s.provider === "anthropic" && s.effort ? "（effort: " + s.effort + "）" : "");
 }
 
 // 1ドル=円（コスト表示用の概算レート）
@@ -383,6 +425,7 @@ const PRICES: Record<string, { in: number; out: number }> = {
   "gemini-2.5-pro": { in: 1.25, out: 10 },
   "gpt-5.1": { in: 1.25, out: 10 },
   "deepseek-chat": { in: 0.27, out: 1.1 },
+  "deepseek-reasoner": { in: 0.28, out: 0.42 },   // V3.2統一価格の概算
 };
 type Usage = { input_tokens?: number; output_tokens?: number; cache_creation_input_tokens?: number; cache_read_input_tokens?: number };
 function computeCost(acc: Array<{ model: string; usage: Usage }>) {
@@ -403,7 +446,7 @@ function computeCost(acc: Array<{ model: string; usage: Usage }>) {
 async function callClaude(key: string, system: string, messages: Msg[], schema: unknown, think: boolean, timeoutMs?: number, acc?: Array<{ model: string; usage: Usage }>, spec?: ModelSpec) {
   const tmo = timeoutMs || (think ? 100000 : 30000);
   const body: Record<string, unknown> = {
-    model: think ? ((spec && spec.model) || MODELS.build) : MODELS.plan,
+    model: (spec && spec.model) || (think ? MODELS.build : MODELS.plan),
     max_tokens: think ? 16000 : 1024,
     // システムプロンプト（見本込みで長い）はプロンプトキャッシュに載せ、2回目以降の入力コストを大幅減
     system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
@@ -486,13 +529,15 @@ async function callOpenAICompat(spec: ModelSpec, system: string, messages: Msg[]
   const key = Deno.env.get(spec.envKey || "");
   if (!key) throw new Error("missing_env:" + spec.envKey);
   const url = spec.provider === "deepseek" ? "https://api.deepseek.com/chat/completions" : "https://api.openai.com/v1/chat/completions";
+  const isReasoner = spec.model.indexOf("reasoner") >= 0;
   const body: Record<string, unknown> = {
     model: spec.model,
     messages: [{ role: "system", content: system + schemaNote(schema) }, ...messages],
-    response_format: { type: "json_object" },
   };
-  // DeepSeek(V3系)の出力上限は8K。長いゲームは途中で切れる可能性あり（検証用と割り切る）
-  if (spec.provider === "deepseek") body.max_tokens = 8000;
+  // deepseek-reasoner は response_format 非対応（思考モード）。プロンプト指示＋緩いJSONパースで拾う
+  if (!isReasoner) body.response_format = { type: "json_object" };
+  // DeepSeek: chatの出力上限は8K、reasonerは思考分も含むため広めに取る
+  if (spec.provider === "deepseek") body.max_tokens = isReasoner ? 16000 : 8000;
   else body.max_completion_tokens = 16000;   // GPT-5系は max_completion_tokens（temperature等は送らない）
   const data = await postOnce(url, { "content-type": "application/json", "authorization": "Bearer " + key }, body, timeoutMs);
   const u = (data as { usage?: { prompt_tokens?: number; completion_tokens?: number } }).usage;
@@ -630,7 +675,7 @@ Deno.serve(async (req) => {
   // ---- 使用量の確認（加算しない・上限チェックもしない）----
   if (wantUsage) {
     // 管理者はテストモデル選択を反映した「実際に使われるモデル」を返す（チャット画面の表記と実生成を一致させる）
-    if (isAdmin) return json({ enabled: true, admin: true, model: specFor(testModel).model });
+    if (isAdmin) return json({ enabled: true, admin: true, model: specLabel(specFor(testModel)) });
     const d = today();
     const used = await readUsage("u:bld:" + token + ":" + d);
     if (used === null) return json({ enabled: false, model: MODELS.build });   // rate_limit.sql 未実行 = 無制限
