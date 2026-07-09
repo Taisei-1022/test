@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-180.png?v=3" />
 <link rel="icon" href="icon-192.png?v=3" />
-<link rel="stylesheet" href="css/app.css?v=31" />
+<link rel="stylesheet" href="css/app.css?v=32" />
 <title>Vappa</title>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6804943232069371" crossorigin="anonymous"></script>
 <meta property="og:type" content="website" />
@@ -89,8 +89,20 @@
         <button class="act gold" id="pvPublish">公開</button>
       </div>
       <div class="crbody">
-        <div class="pvframe"><iframe id="pvFrame" title="preview"></iframe></div>
+        <div class="pvframe"><iframe id="pvFrame" title="preview"></iframe>
+          <button id="pvTune" hidden aria-label="難易度を調整">⚙️</button>
+        </div>
         <p class="pvnote" id="pvTitle"></p>
+      </div>
+      <!-- 難易度調整パネル（管理者のみ。ゲームのTUNEオブジェクトをスライダーで書き換える） -->
+      <div id="tunePanel" hidden>
+        <div class="tphead">
+          <b>⚙️ 難易度の調整</b>
+          <span class="tpnote">動かすとプレビューが最初からやり直しになるよ</span>
+          <button id="tuneReset" type="button">リセット</button>
+          <button id="tuneClose" type="button" aria-label="閉じる">✕</button>
+        </div>
+        <div id="tuneBody"></div>
       </div>
     </div>
     <!-- ④ 公開設定 -->
@@ -248,7 +260,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.56";
+  var APP_VERSION = "0.9.57";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -666,7 +678,114 @@
     // 毎回読み込み直す（非表示中にiframe中身が破棄されても黒のままにならないように）。
     // 戻る時の黒い中間は pushScreen の重複排除で解消済みなので、ここは確実さ優先。
     document.getElementById("pvFrame").srcdoc = buildSrcdoc(lastGen.html);
+    // 難易度調整（管理者＋TUNE入りゲームのみ）。画面に入り直すたびにパネルと基準値はリセット
+    var canTune = !!(window.Ai&&Ai.getAdmin&&Ai.getAdmin()) && !!parseTune(lastGen.html);
+    document.getElementById("pvTune").hidden = !canTune;
+    document.getElementById("tunePanel").hidden = true;
+    tuneInit = null;
   }
+
+  /* ---------- 難易度調整パネル（TUNEオブジェクトのスライダー編集） ----------
+     生成JSの先頭にある var TUNE={key:{v,label,min,max,step},...} を読み取り、
+     スライダーで v を書き換えて再組み立て→プレビュー即反映（AI呼び出しゼロ）。 */
+  function tuneRegion(html){
+    // 書き換え対象はテンプレのゲームJS部分だけ（誤爆防止）
+    var a=html.indexOf("/*__VAPPA_JS__*/"), b=html.indexOf("/*__VAPPA_JS_END__*/");
+    if(a<0||b<0) return null;
+    var js=html.slice(a,b);
+    var d=/(?:var|let|const)\s+TUNE\s*=\s*\{/.exec(js);
+    if(!d) return null;
+    // 宣言の { から波括弧の対応を数えてブロック終端を探す（1階層ネスト対応）
+    var start=d.index+d[0].length-1, depth=0, end=-1;
+    for(var i=start;i<js.length&&i<start+4000;i++){
+      var c=js[i];
+      if(c==="{")depth++; else if(c==="}"){depth--; if(depth===0){end=i+1;break;}}
+    }
+    if(end<0) return null;
+    return { pre:a+start, post:a+end, block:js.slice(start,end) };
+  }
+  function parseTune(html){
+    var r=tuneRegion(html||""); if(!r) return null;
+    var entries=[], re=/([A-Za-z_$][\w$]*)\s*:\s*\{([^{}]*)\}/g, m;
+    while((m=re.exec(r.block))){
+      var body=m[2];
+      var v=/(?:^|[,{\s])v\s*:\s*(-?[\d.]+)/.exec(body);
+      var mn=/min\s*:\s*(-?[\d.]+)/.exec(body), mx=/max\s*:\s*(-?[\d.]+)/.exec(body);
+      var st=/step\s*:\s*([\d.]+)/.exec(body), lb=/label\s*:\s*["']([^"']*)["']/.exec(body);
+      if(!v||!mn||!mx) continue;
+      entries.push({ key:m[1], v:+v[1], min:+mn[1], max:+mx[1], step:st?+st[1]:1, label:(lb&&lb[1])||m[1] });
+    }
+    return entries.length ? entries : null;
+  }
+  function patchTune(html,key,val){
+    var r=tuneRegion(html); if(!r) return html;
+    var re=new RegExp("(\\b"+key+"\\s*:\\s*\\{[^{}]*?\\bv\\s*:\\s*)(-?[\\d.]+)");
+    var nb=r.block.replace(re, function(_,p){ return p+val; });
+    return html.slice(0,r.pre)+nb+html.slice(r.post);
+  }
+  var tuneInit=null;   // パネルを開いた時点の値（リセット用）
+  function fmtTuneVal(v,step){ return step<1 ? (Math.round(v*100)/100).toString() : String(Math.round(v)); }
+  function applyTune(key,val){
+    lastGen.html=patchTune(lastGen.html,key,val); dirty=true;
+    document.getElementById("pvFrame").srcdoc = buildSrcdoc(lastGen.html);   // 反映＝最初から
+  }
+  function renderTunePanel(){
+    var entries=parseTune(lastGen.html); if(!entries) return;
+    if(!tuneInit){ tuneInit={}; entries.forEach(function(e){ tuneInit[e.key]=e.v; }); }
+    var body=document.getElementById("tuneBody"); body.innerHTML="";
+    entries.forEach(function(e){
+      var row=document.createElement("div"); row.className="tctrl";
+      row.innerHTML='<div class="row"><span class="k">'+esc(e.label)+'</span><span class="v"></span></div>'+
+        '<div class="tsl" tabindex="0" role="slider" aria-label="'+esc(e.label)+'"><div class="trk"><div class="fil"></div></div><div class="thb"></div></div>';
+      body.appendChild(row);
+      var vEl=row.querySelector(".v"), sl=row.querySelector(".tsl"), fil=row.querySelector(".fil"), thb=row.querySelector(".thb");
+      var cur=e.v;
+      function snap(v){ v=Math.max(e.min,Math.min(e.max,v)); v=Math.round((v-e.min)/e.step)*e.step+e.min; return Math.round(v*100)/100; }
+      function render(v){ cur=v;
+        var pct=e.max>e.min?((v-e.min)/(e.max-e.min)*100):0;
+        fil.style.width=pct+"%"; thb.style.left=pct+"%";
+        vEl.textContent=fmtTuneVal(v,e.step);
+        sl.setAttribute("aria-valuemin",e.min); sl.setAttribute("aria-valuemax",e.max); sl.setAttribute("aria-valuenow",v);
+      }
+      render(e.v);
+      function fromX(x){ var r=sl.getBoundingClientRect(); return snap(e.min+((x-r.left)/r.width)*(e.max-e.min)); }
+      var dragging=false;
+      function down(ev){ dragging=true; sl.classList.add("drag");
+        var x=ev.touches?ev.touches[0].clientX:ev.clientX; render(fromX(x));
+        if(ev.pointerId!=null&&sl.setPointerCapture){ try{sl.setPointerCapture(ev.pointerId);}catch(_){}}
+        if(ev.cancelable) ev.preventDefault(); }
+      function move(ev){ if(!dragging) return; var x=ev.touches?ev.touches[0].clientX:ev.clientX;
+        render(fromX(x)); if(ev.cancelable) ev.preventDefault(); }
+      function up(){ if(!dragging) return; dragging=false; sl.classList.remove("drag");
+        applyTune(e.key,cur); }   // 反映はドラッグを離した時だけ（毎フレームの再読込を防ぐ）
+      if(window.PointerEvent){
+        sl.addEventListener("pointerdown",down); sl.addEventListener("pointermove",move);
+        sl.addEventListener("pointerup",up); sl.addEventListener("pointercancel",up);
+      } else {
+        sl.addEventListener("touchstart",down,{passive:false});
+        sl.addEventListener("touchmove",move,{passive:false});
+        sl.addEventListener("touchend",up);
+        sl.addEventListener("mousedown",down);
+        window.addEventListener("mousemove",move); window.addEventListener("mouseup",up);
+      }
+      sl.addEventListener("keydown",function(ev){
+        var d=0; if(ev.key==="ArrowRight"||ev.key==="ArrowUp")d=e.step;
+        else if(ev.key==="ArrowLeft"||ev.key==="ArrowDown")d=-e.step;
+        if(d){ render(snap(cur+d)); applyTune(e.key,cur); ev.preventDefault(); }
+      });
+    });
+  }
+  document.getElementById("pvTune").addEventListener("click", function(){
+    var p=document.getElementById("tunePanel");
+    if(p.hidden){ renderTunePanel(); p.hidden=false; } else { p.hidden=true; }
+  });
+  document.getElementById("tuneClose").addEventListener("click", function(){ document.getElementById("tunePanel").hidden=true; });
+  document.getElementById("tuneReset").addEventListener("click", function(){
+    if(!tuneInit) return;
+    Object.keys(tuneInit).forEach(function(k){ lastGen.html=patchTune(lastGen.html,k,tuneInit[k]); });
+    dirty=true; document.getElementById("pvFrame").srcdoc = buildSrcdoc(lastGen.html);
+    renderTunePanel(); showToast("開いた時の値に戻したよ");
+  });
 
   /* ---------- 公開フォーム ---------- */
   function updateThumbPrev(){

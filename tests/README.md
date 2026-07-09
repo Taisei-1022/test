@@ -27,6 +27,15 @@ node tests/smoke-autofix.js
 RUNTIME_TPL の window.__vpTap）の回帰テスト。壊れたゲームで自動修理が1回だけ走ること、
 正常なゲームで余計な再ビルドが走らないことを確認する。
 
+# 難易度調整パネル（TUNEスライダー）のE2E
+
+```
+python3 -m http.server 8099   # リポジトリ直下で
+node tests/tune-panel.js
+```
+生成JS冒頭の TUNE オブジェクトをプレビューの⚙️パネル（管理者のみ）が読み取り、
+スライダーで値を書き換えて即反映・リセットできることの回帰テスト。
+
 ## 過去に踏んだ地雷（雛形をいじる時はここを再確認）
 - pointerイベントのみ依存 → iOSのiframeで死ぬ（touch/mouseフォールバック必須）
 - touchstart/touchend で preventDefault → **click合成が死んでボタンが押せなくなる**

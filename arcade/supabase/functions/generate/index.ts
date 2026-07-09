@@ -370,19 +370,26 @@ function validateJs(js: string): string | null {
 }
 
 const GOLD_JS = `/* Example game logic (a catch game). Study the structure & polish; make a DIFFERENT game. */
+var TUNE = {
+  fallSpeed: { v: 150,  label: "落下の速さ",   min: 60,   max: 400,  step: 10 },
+  accel:     { v: 7,    label: "加速ペース",   min: 0,    max: 30,   step: 1 },
+  badRate:   { v: 0.18, label: "爆弾の割合",   min: 0,    max: 0.6,  step: 0.02 },
+  spawnMin:  { v: 0.35, label: "出現間隔の下限", min: 0.15, max: 1,  step: 0.05 },
+  lives:     { v: 3,    label: "ライフ数",     min: 1,    max: 9,    step: 1 }
+};
 var basket, items, lives, score, fallSpeed, spawnT, shake;
 function init(){
   basket = { x: W/2, w: Math.max(70, W*0.2) };
-  items = []; lives = 3; score = 0; fallSpeed = 150; spawnT = 0.5; shake = 0;
-  Game.hud("❤️❤️❤️");
+  items = []; lives = TUNE.lives.v; score = 0; fallSpeed = TUNE.fallSpeed.v; spawnT = 0.5; shake = 0;
+  Game.hud("❤️".repeat(lives));
 }
 function update(dt){
   spawnT -= dt;
   if (spawnT <= 0){
-    items.push({ x: 30+Math.random()*(W-60), y: -20, r: 16, bad: Math.random() < 0.18 });
-    spawnT = Math.max(0.35, 0.9 - score*0.008);
+    items.push({ x: 30+Math.random()*(W-60), y: -20, r: 16, bad: Math.random() < TUNE.badRate.v });
+    spawnT = Math.max(TUNE.spawnMin.v, 0.9 - score*0.008);
   }
-  fallSpeed += dt*7;
+  fallSpeed += dt*TUNE.accel.v;
   var by = H - 90;
   for (var i = items.length-1; i >= 0; i--){
     var it = items[i]; it.y += fallSpeed*dt;
@@ -447,6 +454,9 @@ Rules:
 - Characters/objects: do NOT use plain rectangles. Draw EMOJI sprites on canvas:
     ctx.font = size + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("🐱", x, y);
   If the conversation picked specific 素材 (emoji), use THOSE.
+- Difficulty tuning: put EVERY gameplay-balance number (speeds, spawn intervals, lives, thresholds, ramp rates…) into ONE top-level TUNE object as the FIRST statement of "js":
+    var TUNE = { key: { v: 150, label: "日本語ラベル", min: 60, max: 400, step: 10 }, ... };
+  4-8 entries, label in Japanese, min/max = sensible playable range, step = adjustment granularity. Read values ONLY via TUNE.key.v (never repeat the literal elsewhere). The platform renders sliders from this object so humans can hand-tune difficulty without AI. When EDITING, keep the existing TUNE keys (current v values included) unless the request says otherwise.
 - Make it genuinely fun and polished: clear goal, responsive controls, juicy feedback (Game.float / shake / particles), difficulty that ramps up.
 - Japanese in-game text. Keep performance smooth on phones (no huge object counts).
 - Self-check before finalizing: mentally run start → play → game over → restart. Every variable defined before use (restart calls init() again — stale state must be reset there). No undefined references. Balanced brackets.
