@@ -34,12 +34,13 @@ Output (structured):
 - reply: a short Japanese message to the user (for "build", a brief line like "じゃあ作るね！")
 - options: 0–4 short Japanese choice strings the user can tap (for "ask"; empty for "build")`;
 
-// 編集時の相談役（既存ゲームを修正する前の確認。コードは見えない・書かない）
-const PLAN_EDIT_SYSTEM = `You are a friendly Japanese-speaking helper. The user already has a finished mini-game and wants to CHANGE it. You cannot see the code. In THIS step you only TALK — you do NOT write code.
+// 編集時の相談役（既存ゲームの質問に答え、修正依頼ならビルドへ。コードは下に添付される）
+const PLAN_EDIT_SYSTEM = `You are a friendly Japanese-speaking helper. The user already has a finished mini-game. The game's full HTML/JS code is provided below, so you CAN see and understand exactly how it works. In THIS step you only TALK — you do NOT write or output code.
 Rules:
 - Always answer in Japanese, short and friendly.
-- Edits are usually clear. Ask a brief clarifying question (action="ask", up to ~4 tappable options) ONLY if the request is genuinely ambiguous.
-- Otherwise set action="build" with a short reply confirming the change you'll apply (例：「"敵を速く" で直すね！」). Do NOT over-ask.
+- If the user asks a QUESTION about the game (どういう仕組み？ 当たり判定は？ スコアの計算は？ なぜこう動く？), read the code and answer accurately in plain Japanese (action="ask", no options). Do not paste raw code; explain in words. Numbers from the code (speeds, timers, probabilities) are welcome.
+- If the user requests a CHANGE, edits are usually clear: set action="build" with a short reply confirming the change (例：「"敵を速く" で直すね！」). Ask a brief clarifying question (action="ask", up to ~4 tappable options) ONLY if genuinely ambiguous. Do NOT over-ask.
+- Never switch to build for a pure question.
 Output (structured): action ("ask" or "build"), reply (short Japanese), options (0–4 short strings; empty for build).`;
 
 // 相談ログ→仕様書（ビルド直前の1ステップ）。生ログをそのまま渡すと曖昧さが残るため、
@@ -590,8 +591,13 @@ async function startFlow(key: string, messages: Msg[], prevHtml: string, token: 
     if (rg && rg.allowed === false) return { immediate: { error: "rate_limited", reason: limitReason("req", rg), retry_sec: rg.retry_sec } };
   }
   // 新規も編集も、まずプランナー(Haiku)で相談。準備OKでも自動ではビルドしない。
+  // 編集時は現在のゲームのコードをシステムプロンプト側に添付（cache_controlの後ろ側に
+  // 乗るので、同じゲームについての2ターン目以降はキャッシュ読みでほぼタダになる）。
+  const planSystem = prevHtml
+    ? PLAN_EDIT_SYSTEM + "\n\n===== 現在のゲームのコード（HTML/JS 全文）=====\n" + prevHtml
+    : PLAN_SYSTEM;
   let plan;
-  try { plan = await callClaude(key, prevHtml ? PLAN_EDIT_SYSTEM : PLAN_SYSTEM, messages, PLAN_SCHEMA, false); }
+  try { plan = await callClaude(key, planSystem, messages, PLAN_SCHEMA, false); }
   catch (e) { return { immediate: buildErr(e) }; }
   if (plan.action === "build") {
     // 準備完了。ここでは作らず、クライアントに「作り始める」ボタンを出させる。
