@@ -76,8 +76,8 @@
   .sl:focus-visible .thb{outline:2px solid var(--gold);outline-offset:2px;}
 
   /* ---- モデル切替 ---- */
-  .seg{display:flex;gap:6px;background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:16px;}
-  .seg button{flex:1;border:0;background:transparent;color:var(--sub);font:inherit;font-weight:800;font-size:13px;
+  .seg{display:flex;flex-wrap:wrap;gap:6px;background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:16px;}
+  .seg button{flex:1 1 40%;border:0;background:transparent;color:var(--sub);font:inherit;font-weight:800;font-size:13px;
     padding:9px 6px;border-radius:9px;cursor:pointer;transition:.12s;}
   .seg button.on{background:var(--violet);color:#fff;}
   .seg button small{display:block;font-size:10px;font-weight:700;opacity:.85;margin-top:1px;}
@@ -115,7 +115,7 @@
 <div class="wrap">
   <div class="eyebrow">Vappa · 収益シミュレーター</div>
   <h1>公開のGOを、数字で決める</h1>
-  <p class="lede">ドライバーを指で動かすと、1日の損益・元が取れるプレイ数・最悪の赤字額がその場で変わります。<b style="color:var(--sub)">やり直し（生成回数）</b>もコストと公開本数の両方に効くので、①で調整できます。初期値は実測コスト（Opus 約¥26／Sonnet 約¥11／1回あたり）と現在の上限設定です。</p>
+  <p class="lede">ドライバーを指で動かすと、1日の損益・元が取れるプレイ数・最悪の赤字額がその場で変わります。<b style="color:var(--sub)">やり直し（生成回数）</b>もコストと公開本数の両方に効くので、①で調整できます。初期値は実測コスト（Opus 約¥26／Sonnet 約¥11／DeepSeek 約¥1.5／1回あたり）と現在の上限設定です。モデルのボタンを押すとそのコストがセットされ、スライダーで微調整できます。</p>
 
   <!-- 判定 -->
   <div class="verdict" id="verdict">
@@ -135,10 +135,12 @@
   <div class="sec">
     <div class="sec-h"><span class="st">① 生成モデル</span><span class="sd">1本あたりのコスト</span></div>
     <div class="seg" id="seg">
-      <button data-cost="11" class="on">Sonnet<small>安い 約¥11/本</small></button>
+      <button data-cost="1.5">DeepSeek<small>激安 約¥1.5/本</small></button>
+      <button data-cost="3">DeepSeek-R<small>思考つき 約¥3/本</small></button>
+      <button data-cost="11" class="on">Sonnet<small>バランス 約¥11/本</small></button>
       <button data-cost="26">Opus<small>高品質 約¥26/本</small></button>
     </div>
-    <div class="ctrl" data-min="4" data-max="50" data-step="1" data-unit="¥" data-id="cost" data-suffix="/回">
+    <div class="ctrl" data-min="0.5" data-max="50" data-step="0.5" data-unit="¥" data-id="cost" data-suffix="/回">
       <div class="row"><div class="k">1回の生成コスト<small>会話（Haiku）込みの実効値</small></div><div class="v"></div></div>
       <div class="sl" tabindex="0" role="slider"><div class="trk"><div class="fil"></div></div><div class="thb"></div></div>
     </div>
@@ -266,7 +268,7 @@
   var yenP = function(n){ var s=n<0?"−":"＋"; return s+"¥"+Math.round(Math.abs(n)).toLocaleString("ja-JP"); };
 
   var ctrls = {};
-  function isDec(id){ return id==="imp"||id==="gpc"||id==="rebuild"; }
+  function isDec(id){ return id==="imp"||id==="gpc"||id==="rebuild"||id==="cost"; }
   document.querySelectorAll(".ctrl").forEach(function(c){
     var id=c.dataset.id, vEl=c.querySelector(".v");
     var sl=c.querySelector(".sl"), fil=c.querySelector(".fil"), thb=c.querySelector(".thb");
@@ -316,16 +318,21 @@
     render(snap(S[id]));
   });
 
-  // モデル切替
+  // モデル切替。スライダーで手動調整した時は、一致するボタンだけ点灯（なければ全消灯）
+  function syncSeg(){
+    document.querySelectorAll("#seg button").forEach(function(b){
+      b.classList.toggle("on", +b.dataset.cost === S.cost);
+    });
+  }
   document.querySelectorAll("#seg button").forEach(function(b){
     b.addEventListener("click", function(){
-      document.querySelectorAll("#seg button").forEach(function(x){x.classList.remove("on");});
-      b.classList.add("on");
       ctrls.cost.set(+b.dataset.cost);
+      syncSeg();
     });
   });
 
   function recompute(){
+    syncSeg();                                      // コスト⇄モデルボタンの点灯を同期
     var pr       = S.prate/100;                     // 公開率
     var pubRaw   = S.dau * (S.crate/100) * S.gpc;   // 作りたい公開本数
     var projects = pubRaw / pr;                     // ボツ込みの着手プロジェクト数
