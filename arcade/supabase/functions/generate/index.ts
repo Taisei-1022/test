@@ -709,7 +709,7 @@ const MODELS = { plan: "claude-haiku-4-5-20251001", build: "claude-opus-4-8" };
 // provider ごとに呼び出しを実装（anthropic / openai / gemini / deepseek）。
 // anthropic 以外は envKey のシークレット（Supabase の Edge Function Secrets）が必要。
 // モデルIDが変わったらここを書き換えるだけでよい。
-type ModelSpec = { provider: "anthropic" | "openai" | "gemini" | "deepseek"; model: string; effort?: string; envKey?: string };
+type ModelSpec = { provider: "anthropic" | "openai" | "gemini" | "deepseek" | "xai"; model: string; effort?: string; envKey?: string };
 const TEST_MODELS: Record<string, ModelSpec> = {
   "opus":     { provider: "anthropic", model: "claude-opus-4-8", effort: "medium" },
   "opus-h":   { provider: "anthropic", model: "claude-opus-4-8", effort: "high" },
@@ -721,6 +721,9 @@ const TEST_MODELS: Record<string, ModelSpec> = {
   "gemini":   { provider: "gemini",    model: "gemini-2.5-pro",  envKey: "GEMINI_API_KEY" },
   "gpt":      { provider: "openai",    model: "gpt-5.1",         envKey: "OPENAI_API_KEY" },
   "deepseek": { provider: "deepseek",  model: "deepseek-chat",   envKey: "DEEPSEEK_API_KEY" },
+  "grok":     { provider: "xai",       model: "grok-4.3",        envKey: "XAI_API_KEY" },   // フラッグシップ（$1.25/$2.5）
+  "grok-b":   { provider: "xai",       model: "grok-build-0.1",  envKey: "XAI_API_KEY" },   // アプリ構築特化（$1/$2）
+  "grok-45":  { provider: "xai",       model: "grok-4.5",        envKey: "XAI_API_KEY" },   // 最新上位（$2/$6）
 };
 // 管理者の指定キーを ModelSpec に解決（未指定/不明/非管理者は本番モデル）
 function specFor(testModel?: string): ModelSpec {
@@ -745,6 +748,10 @@ const PRICES: Record<string, { in: number; out: number }> = {
   "gpt-5.1": { in: 1.25, out: 10 },
   "deepseek-chat": { in: 0.27, out: 1.1 },
   "deepseek-reasoner": { in: 0.28, out: 0.42 },   // V3.2統一価格の概算
+  // xAI（/v1/models の実売単価。改定されたらここを更新）
+  "grok-4.3": { in: 1.25, out: 2.5 },
+  "grok-build-0.1": { in: 1, out: 2 },
+  "grok-4.5": { in: 2, out: 6 },
 };
 type Usage = { input_tokens?: number; output_tokens?: number; cache_creation_input_tokens?: number; cache_read_input_tokens?: number };
 function computeCost(acc: Array<{ model: string; usage: Usage }>) {
@@ -843,11 +850,13 @@ async function postOnce(url: string, headers: Record<string, string>, body: unkn
   throw lastErr || new Error("ai_unavailable");
 }
 
-// OpenAI / DeepSeek（chat completions 互換）
+// OpenAI / DeepSeek / xAI（chat completions 互換）
 async function callOpenAICompat(spec: ModelSpec, system: string, messages: Msg[], schema: unknown, timeoutMs: number, acc?: Array<{ model: string; usage: Usage }>) {
   const key = Deno.env.get(spec.envKey || "");
   if (!key) throw new Error("missing_env:" + spec.envKey);
-  const url = spec.provider === "deepseek" ? "https://api.deepseek.com/chat/completions" : "https://api.openai.com/v1/chat/completions";
+  const url = spec.provider === "deepseek" ? "https://api.deepseek.com/chat/completions"
+    : spec.provider === "xai" ? "https://api.x.ai/v1/chat/completions"
+    : "https://api.openai.com/v1/chat/completions";
   const isReasoner = spec.model.indexOf("reasoner") >= 0;
   const body: Record<string, unknown> = {
     model: spec.model,
@@ -857,6 +866,7 @@ async function callOpenAICompat(spec: ModelSpec, system: string, messages: Msg[]
   if (!isReasoner) body.response_format = { type: "json_object" };
   // DeepSeek: chatの出力上限は8K、reasonerは思考分も含むため広めに取る
   if (spec.provider === "deepseek") body.max_tokens = isReasoner ? 16000 : 8000;
+  else if (spec.provider === "xai") body.max_tokens = 16000;   // xAI は max_tokens（思考分も含む）
   else body.max_completion_tokens = 16000;   // GPT-5系は max_completion_tokens（temperature等は送らない）
   const data = await postOnce(url, { "content-type": "application/json", "authorization": "Bearer " + key }, body, timeoutMs);
   const u = (data as { usage?: { prompt_tokens?: number; completion_tokens?: number } }).usage;
@@ -885,7 +895,7 @@ async function callGemini(spec: ModelSpec, system: string, messages: Msg[], sche
 // build 呼び出しのディスパッチ（provider ごとに振り分け）
 function callBuild(key: string, spec: ModelSpec, system: string, messages: Msg[], schema: unknown, timeoutMs: number, acc?: Array<{ model: string; usage: Usage }>) {
   if (spec.provider === "gemini") return callGemini(spec, system, messages, schema, timeoutMs, acc);
-  if (spec.provider === "openai" || spec.provider === "deepseek") return callOpenAICompat(spec, system, messages, schema, timeoutMs, acc);
+  if (spec.provider === "openai" || spec.provider === "deepseek" || spec.provider === "xai") return callOpenAICompat(spec, system, messages, schema, timeoutMs, acc);
   return callClaude(key, system, messages, schema, true, timeoutMs, acc, spec);
 }
 
