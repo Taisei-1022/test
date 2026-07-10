@@ -43,7 +43,7 @@ async function runScenario(firstHtml) {
   const p = await b.newPage({ viewport: { width: 390, height: 844 } });
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   const buildBodies = [];
-  await p.addInitScript(() => { localStorage.setItem('arcade.player', JSON.stringify({ name: 'テスト太郎' })); localStorage.setItem('arcade.name.done', '1'); });
+  await p.addInitScript(() => { localStorage.setItem('arcade.player', JSON.stringify({ name: 'テスト太郎' })); localStorage.setItem('arcade.name.done', '1'); localStorage.setItem('arcade.specmode', '1'); });
   await p.route('**/functions/v1/generate', async r => {
     const body = JSON.parse(r.request().postData());
     if (body.makeSpec) return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ spec: '■概要\nテスト用の設計書' }) });

@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-180.png?v=3" />
 <link rel="icon" href="icon-192.png?v=3" />
-<link rel="stylesheet" href="css/app.css?v=35" />
+<link rel="stylesheet" href="css/app.css?v=36" />
 <title>Vappa</title>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6804943232069371" crossorigin="anonymous"></script>
 <meta property="og:type" content="website" />
@@ -146,6 +146,11 @@
       <label class="name"><input id="name" maxlength="16" placeholder="ゲスト" style="width:180px" /></label>
       <div class="section">今日のAI作成</div>
       <div id="usage" class="usagebox">—</div>
+      <div class="section">作り方</div>
+      <label class="prefrow" for="specModeToggle">
+        <span class="prefk">作る前に設計書を確認する<small>上級者向け。オフなら相談後すぐ生成します（既定）</small></span>
+        <input type="checkbox" id="specModeToggle" class="switch">
+      </label>
       <div class="section">管理者コード</div>
       <label class="name"><input id="admincode" maxlength="80" placeholder="（任意）" style="width:180px" /></label>
       <!-- 生成テストモデル（管理者のみ表示。サーバー側でも admin 判定してから適用） -->
@@ -268,7 +273,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.65";
+  var APP_VERSION = "0.9.66";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -514,6 +519,17 @@
     if(window.Ai&&Ai.setTestModel) Ai.setTestModel(tmSel.value);
     modelTagCache=null; showModelTag();   // 生成チャットのモデル表記も即座に一致させる
   }); }
+  // 作り方モード：ON=設計書を確認してから作る（上級者）／OFF=相談後すぐ生成（既定・一般向け）
+  var SPECMODE_KEY="arcade.specmode";
+  function specModeOn(){ try{ return localStorage.getItem(SPECMODE_KEY)==="1"; }catch(e){ return false; } }
+  var specToggle=document.getElementById("specModeToggle");
+  if(specToggle){
+    specToggle.checked=specModeOn();
+    specToggle.addEventListener("change", function(){
+      try{ localStorage.setItem(SPECMODE_KEY, specToggle.checked?"1":"0"); }catch(e){}
+      if(flow==="ready") renderFlow();   // チャットを開いたまま切り替えてもボタンが即追従
+    });
+  }
   function renderMypage(){
     nameEl.value=Store.name();
     if(adminEl && window.Ai && Ai.getAdmin){ adminEl.value=Ai.getAdmin(); }
@@ -1314,7 +1330,11 @@
   function mkHint(text){ var d=document.createElement("div"); d.className="dim"; d.style.cssText="font-size:11px;font-weight:700;margin-top:6px;text-align:center"; d.textContent=text; return d; }
   function actionRow(id){ var row=document.createElement("div"); if(id) row.id=id; row.className="buildrow"; row.style.cssText="margin:8px 0 2px"; return row; }
 
-  // "ready"：ゲームあり=直し始める／設計書あり=そのまま生成（作り直しは副）／どちらも無い=設計書を作る
+  // "ready" のボタンは「作り方モード」で変わる：
+  //   OFF（既定・一般向け）＝いきなり生成：新規はすぐビルド（設計書ステップなし）
+  //   ON（上級者）＝設計書確認を挟む：設計書を作る→確認・編集→生成
+  //   ・編集中（ゲームあり）はモードに関係なく直接ビルド
+  //   ・設計書が既にある（上級者が作った）ならそのまま再利用
   function renderReadyRow(){
     var editing=(lastGen && lastGen.html), row=actionRow();
     if(editing){
@@ -1325,9 +1345,12 @@
       row.appendChild(mkBtn("📐 設計書を見る／編集", VIEWBTN+";margin-top:8px", openSpecEditor));
       row.appendChild(mkBtn("設計書を作り直す", LINKBTN, makeSpecFlow));
       row.appendChild(mkHint("※前に作った設計書をそのまま使います（作り直しは下ボタン）"));
-    } else {
+    } else if(specModeOn()){
       row.appendChild(mkBtn("📐 設計書を作る", GOLDBTN, makeSpecFlow));
       row.appendChild(mkHint("※設計書の作成はまだ生成枠を使いません（内容を確認してから生成開始）"));
+    } else {
+      row.appendChild(mkBtn("🚀 この内容で作る", GOLDBTN, function(){ beginBuild(null); }));
+      row.appendChild(mkHint("※押すとすぐ生成が始まります（1回分）"));
     }
     chatlog.appendChild(row); chatlog.scrollTop=chatlog.scrollHeight;
   }

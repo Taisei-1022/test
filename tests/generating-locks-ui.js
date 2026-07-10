@@ -31,7 +31,7 @@ const GAME = (function () {
   const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
   const p = await b.newPage({ viewport: { width: 390, height: 844 } });
   const errs = []; p.on('pageerror', e => errs.push(e.message));
-  await p.addInitScript(() => { localStorage.setItem('arcade.player', JSON.stringify({ name: 'テスト太郎' })); localStorage.setItem('arcade.name.done', '1'); });
+  await p.addInitScript(() => { localStorage.setItem('arcade.player', JSON.stringify({ name: 'テスト太郎' })); localStorage.setItem('arcade.name.done', '1'); localStorage.setItem('arcade.specmode', '1'); });
 
   let polls = 0;
   await p.route('**/functions/v1/generate', async r => {

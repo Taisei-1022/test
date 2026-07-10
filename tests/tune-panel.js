@@ -43,7 +43,7 @@ async function boot(admin) {
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   await p.addInitScript(a => {
     localStorage.setItem('arcade.player', JSON.stringify({ name: 'テスト太郎' }));
-    localStorage.setItem('arcade.name.done', '1');
+    localStorage.setItem('arcade.name.done', '1'); localStorage.setItem('arcade.specmode', '1');
     if (a) localStorage.setItem('arcade.admincode', 'test-admin');
   }, admin);
   await p.route('**/functions/v1/generate', async r => {

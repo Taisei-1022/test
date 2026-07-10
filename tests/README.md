@@ -37,6 +37,16 @@ node tests/user-images.js
 クライアントがdataURLをマーカーへ注入→Game.imgで実描画→編集ビルドでも画像が
 往復して残る、の一連を検証。
 
+# 作り方モード（既定＝いきなり生成 / 上級者＝設計書確認）E2E
+
+```
+python3 -m http.server 8099   # リポジトリ直下で
+node tests/direct-generate-default.js
+```
+既定（specmode未設定）で相談後に「🚀 この内容で作る」が出て makeSpec を呼ばず
+いきなり生成すること、マイページのトグルをONにすると「📐 設計書を作る」ステップが
+出ることを検証。※他のspec系テストは addInitScript で arcade.specmode='1' を立てている。
+
 # 生成フローの状態機械（失敗後に設計書を作り直さない）E2E
 
 ```
