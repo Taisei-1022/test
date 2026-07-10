@@ -268,7 +268,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.64";
+  var APP_VERSION = "0.9.65";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -285,7 +285,9 @@
   var toast=document.getElementById("toast");
   function showToast(m,ms){ toast.textContent=m; toast.classList.add("show"); setTimeout(function(){toast.classList.remove("show");},ms||1500); }
   var genBar=document.getElementById("genBar");
-  function setGenerating(on){ if(genBar) genBar.hidden=!on; }
+  var generating=false;   // 生成ジョブ進行中（ページ再読込で busy は消えるが、これは pending 連動で残す）
+  function setGenerating(on){ generating=!!on; if(genBar) genBar.hidden=!on;
+    try{ if(typeof renderFlow==="function") renderFlow(); }catch(e){} }   // 生成中はアクション行を隠す
   // 生成中ジョブを端末に記録（離脱・再起動しても結果を取りこぼさないため）
   var PENDING="arcade.pendingGen";
   function savePending(jobId,editingId,title){ try{ localStorage.setItem(PENDING, JSON.stringify({job:jobId, editingId:editingId||null, title:title||"", ts:Date.now()})); }catch(e){} }
@@ -1202,6 +1204,9 @@
       if(!hadHistory) bubble("bot","「"+g.title+"」を編集中。直したい所を言ってね（例：もっと速く／敵を増やして／色を青に）。");
       // 既に生成済みなら「できあがり」カード＋プレビューを復元（別画面から戻っても残るように）
       if(lastGen.html) showGenCard();
+      // 進行中の生成があるかを先に判定（renderFlow が生成中はボタンを隠すため）
+      var pend=isPendingFor(g.id);
+      setGenerating(pend);
       // フロー状態＋設計書の復元。curSpec は specsave（無ければ旧ui.spec）から。flow は ui.state。
       pendingSpec=null; curSpec=null; flow="chat";
       var ui=null, saved=null;
@@ -1209,9 +1214,8 @@
       if(saved&&saved.spec) curSpec=saved.spec; else if(ui&&ui.spec) curSpec=ui.spec;   // 旧形式は spec が ui に入っていた
       if(ui&&ui.state) flow=ui.state;
       if(flow==="chat" && lastGen.html) flow="done";   // 旧データ救済：ゲームがあるのに状態未記録
-      renderFlow();
-      // このゲームの生成/更新がまだ進行中なら「生成中…」表示も復元する
-      if(isPendingFor(g.id)){ setGenerating(true); bubble("bot typing", lastGen.html?"直しているよ…":"考え中…"); }
+      renderFlow();   // pend の時は generating=true なのでボタンは出ない
+      if(pend) bubble("bot typing", lastGen.html?"直しているよ…":"考え中…");
       pushScreen("create","publish");   // まずタグ・名前・説明・サムネを編集する画面へ
     });
   }
@@ -1288,6 +1292,7 @@
   }
   function renderFlow(){
     clearBuildBtn();   // 全アクション行を消してから状態に応じて出し直す
+    if(generating) return;   // ★生成中はどのボタンも出さない（生成中に押させない・重複防止）
     if(flow==="ready") renderReadyRow();
     else if(flow==="spec") renderSpecRow();
     else if(flow==="done"){ if(curSpec) showSpecViewRow(); }
@@ -1345,7 +1350,7 @@
   }
   // 設計書を作る（Sonnet呼び出し・生成枠は使わない）→ 成功で "spec"
   function makeSpecFlow(){
-    if(busy) return;
+    if(busy||generating){ showToast("生成中だよ。終わるまで少し待ってね"); return; }
     clearBuildBtn(); busy=true;
     var typing=bubble("bot typing","設計書を書いているよ…");
     Ai.makeSpec(withAssetNote(convo)).then(function(res){
@@ -1419,7 +1424,7 @@
   }
   // ビルド実行（specText があれば設計書として同送）
   function beginBuild(specText){
-    if(busy) return;
+    if(busy||generating){ showToast("生成中だよ。終わるまで少し待ってね"); return; }
     if(specText){ curSpec=specText; syncSpecSave(specText); }   // 生成に使う設計書は永続保存
     clearOptions(); busy=true; setFlow("building");
     var prev = (lastGen && lastGen.html) ? lastGen.html : "";
@@ -1436,7 +1441,8 @@
     });
   }
   function sendChat(text){
-    text=(text||"").trim(); if(!text||busy) return;
+    text=(text||"").trim(); if(!text) return;
+    if(busy||generating){ showToast("生成中だよ。終わるまで少し待ってね"); return; }   // 生成中の並行操作を止める
     clearOptions(); clearBuildBtn();   // ★設計書(curSpec)は消さない：失敗後の再生成でそのまま使える
     var note=assetNote(), full=note+text;
     bubble("user",full); convo.push({role:"user",content:full}); input.value=""; input.style.height="auto"; busy=true; dirty=true; showStarters(false);
@@ -1496,7 +1502,15 @@
       var ttl=(p.title && p.title!=="無題のゲーム") ? p.title : (res.title||"無題のゲーム");
       // 復元経路でも費用を出す（管理者のみ）。チャット未表示なのでトーストで通知。
       if(window.Ai&&Ai.getAdmin&&Ai.getAdmin()){ var cl=costLine(res); if(cl) setTimeout(function(){ showToast(cl); }, 1800); }
-      var done=function(){ markNewBuild(p.editingId); refreshCreations(); showToast("「"+ttl+"」ができたよ！（保存済み）"); };
+      var done=function(){ markNewBuild(p.editingId); refreshCreations(); showToast("「"+ttl+"」ができたよ！（保存済み）");
+        // その作品のチャットを今開いているなら、画面も「できあがり」状態へ更新する
+        if(lastGen && p.editingId && lastGen.editingId===p.editingId){
+          lastGen.html=res.html; lastGen.category=res.category||lastGen.category;
+          toPreviewBtn.classList.remove("off");
+          if(!chatlog.querySelector(".gencard")) showGenCard();
+          setFlow("done");
+        }
+      };
       if(p.editingId){
         // 既存の作品にマージ（chat・説明・サムネを消さない。htmlとカテゴリだけ更新）
         Catalog.getGenerated(p.editingId).then(function(g){
