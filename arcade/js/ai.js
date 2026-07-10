@@ -9,6 +9,11 @@ window.Ai = (function () {
   async function post(payload) {
     var url = fnUrl();
     if (!url || !cfg.supabaseKey) throw new Error("not_configured");
+    // アプリ専用マーカー（role:"ui"=ボタン状態, role:"imgs"=素材画像base64）はサーバーに送らない。
+    // 特に画像はここで確実に落とす（通信量とプロンプト汚染の防止）。
+    if (Array.isArray(payload.messages)) {
+      payload.messages = payload.messages.filter(function (m) { return m && (m.role === "user" || m.role === "assistant"); });
+    }
     // 生成は時間がかかる。サーバーはストリームで隙間にスペースを送って接続を維持し、
     // 最後にJSONを流す。ここでは本文を全部受け取り、trim()してからparseする。
     var ctrl = (typeof AbortController !== "undefined") ? new AbortController() : null;

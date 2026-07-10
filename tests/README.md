@@ -27,6 +27,16 @@ node tests/smoke-autofix.js
 RUNTIME_TPL の window.__vpTap）の回帰テスト。壊れたゲームで自動修理が1回だけ走ること、
 正常なゲームで余計な再ビルドが走らないことを確認する。
 
+# 素材画像アップロードのE2E
+
+```
+python3 -m http.server 8099   # リポジトリ直下で
+node tests/user-images.js
+```
+画像追加→AIには名前と説明だけ渡る（base64がmessagesに混ざらない）→ビルド後に
+クライアントがdataURLをマーカーへ注入→Game.imgで実描画→編集ビルドでも画像が
+往復して残る、の一連を検証。
+
 # 難易度調整パネル（TUNEスライダー）のE2E
 
 ```

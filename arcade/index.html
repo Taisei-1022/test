@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-180.png?v=3" />
 <link rel="icon" href="icon-192.png?v=3" />
-<link rel="stylesheet" href="css/app.css?v=32" />
+<link rel="stylesheet" href="css/app.css?v=33" />
 <title>Vappa</title>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6804943232069371" crossorigin="anonymous"></script>
 <meta property="og:type" content="website" />
@@ -252,7 +252,7 @@
 <script src="js/assets.js?v=1"></script>
 <script src="js/config.js?v=6"></script>
 <script src="js/store.js?v=7"></script>
-<script src="js/ai.js?v=16"></script>
+<script src="js/ai.js?v=17"></script>
 <script src="js/catalog.js?v=10"></script>
 <script src="js/share.js?v=5"></script>
 <script src="js/arcade-embed.js?v=3"></script>
@@ -262,7 +262,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.58";
+  var APP_VERSION = "0.9.59";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -645,7 +645,7 @@
     autosaveDraft();   // 直前に編集中があれば保存
     // チャットを白紙に（resetChatと同等だがlastGenは新プロジェクトにする）
     chatlog.innerHTML=""; chatInit=false; busy=false; convo=[];
-    pickedAssets=[]; renderAssetTray(); setAssetOpen(false); showStarters(true);
+    pickedAssets=[]; userImgs=[]; renderAssetTray(); setAssetOpen(false); showStarters(true);
     toPreviewBtn.classList.add("off");
     lastGen={ title:title, html:"", accent:ACCENTS[Math.floor(Math.random()*ACCENTS.length)], description:"", thumb:null, editingId:null, category:"その他", published:false, chat:"[]" };
     dirty=false;
@@ -921,10 +921,74 @@
   var assetToggle=document.getElementById("assetToggle"), assetPanel=document.getElementById("assetPanel"),
       assetTray=document.getElementById("assetTray"), pickedAssets=[];
   var EMOJI_NAME={}; (window.ARCADE_EMOJI||[]).forEach(function(a){ EMOJI_NAME[a.e]=a.name; });
+
+  /* ---- 素材画像（ユーザーアップロード） ----
+     AIには「名前＋説明」だけ渡し、画像本体(base64)はビルド後にHTMLのマーカーへ
+     機械的に注入する（プロンプトのトークン消費ゼロ）。ゲームは自己完結のまま。 */
+  var userImgs=[];   // [{n:"img1", label:"主人公のねこ", d:"data:image/..."}]
+  var IMG_MAX=4, IMG_MAXCHARS=64000;
+  function imgsMarkerSync(){   // convoの {role:"imgs"} マーカーに保存（画面を閉じても残る。サーバーへは送られない）
+    for(var i=convo.length-1;i>=0;i--){ if(convo[i]&&convo[i].role==="imgs") convo.splice(i,1); }
+    if(userImgs.length) convo.push({role:"imgs", imgs:userImgs});
+    saveChatNow();
+  }
+  function nextImgName(){ for(var i=1;i<=IMG_MAX;i++){ var n="img"+i; var used=userImgs.some(function(u){return u.n===n;}); if(!used) return n; } return null; }
+  function shrinkImage(file, cb){   // 縮小＋圧縮してdataURLに（webp→png→jpegの順に軽い形式を試す）
+    var fr=new FileReader();
+    fr.onload=function(){
+      var im=new Image();
+      im.onload=function(){
+        function attempt(dim){
+          var sc=Math.min(1, dim/Math.max(im.width, im.height));
+          var c=document.createElement("canvas");
+          c.width=Math.max(1,Math.round(im.width*sc)); c.height=Math.max(1,Math.round(im.height*sc));
+          c.getContext("2d").drawImage(im,0,0,c.width,c.height);
+          var d=c.toDataURL("image/webp",0.85);
+          if(d.indexOf("data:image/webp")!==0) d=c.toDataURL("image/png");   // webp非対応環境
+          if(d.length>IMG_MAXCHARS){ var j=c.toDataURL("image/jpeg",0.8); if(j.length<d.length) d=j; }
+          return d;
+        }
+        var d=attempt(192); if(d.length>IMG_MAXCHARS) d=attempt(128); if(d.length>IMG_MAXCHARS) d=attempt(96);
+        cb(d.length>IMG_MAXCHARS?null:d);
+      };
+      im.onerror=function(){ cb(null); };
+      im.src=fr.result;
+    };
+    fr.onerror=function(){ cb(null); };
+    fr.readAsDataURL(file);
+  }
+  // ビルド結果HTMLのマーカーに画像JSONを注入（マーカーが無い旧形式はそのまま）
+  function injectImgs(html){
+    if(!userImgs.length || !html || html.indexOf("/*__VAPPA_IMGS__*/")<0) return html;
+    var o={}; userImgs.forEach(function(u){ o[u.n]=u.d; });
+    return html.replace(/\/\*__VAPPA_IMGS__\*\/[\s\S]*?\/\*__VAPPA_IMGS_END__\*\//,
+      "/*__VAPPA_IMGS__*/"+JSON.stringify(o)+"/*__VAPPA_IMGS_END__*/");
+  }
+  // 既存ゲームのHTMLから画像を取り出してパネルに復元（説明ラベルは残らない）
+  function restoreImgsFromHtml(html){
+    try{
+      var m=/\/\*__VAPPA_IMGS__\*\/([\s\S]*?)\/\*__VAPPA_IMGS_END__\*\//.exec(html||""); if(!m) return;
+      var o=JSON.parse(m[1]);
+      Object.keys(o).forEach(function(n){
+        if(userImgs.length<IMG_MAX && String(o[n]).indexOf("data:image/")===0 && !userImgs.some(function(u){return u.n===n;}))
+          userImgs.push({n:n, label:"", d:o[n]});
+      });
+    }catch(e){}
+  }
   function renderAssetPanel(){
-    var head='<div class="assethead"><span>キャラに使う絵文字をえらぶ</span>'+
+    var head='<div class="assethead"><span>キャラに使う素材をえらぶ</span>'+
       '<button type="button" class="assetclose">✕ 閉じる</button></div>';
-    assetPanel.innerHTML=head+(window.ARCADE_EMOJI||[]).map(function(a){
+    // 画像アップロード（自分の画像をスプライトとして使える）
+    var up='<div class="imgsec"><label class="assetup">📷 画像を追加（'+userImgs.length+'/'+IMG_MAX+'）'+
+      '<input type="file" id="imgUp" accept="image/*" hidden></label>'+
+      userImgs.map(function(u){
+        return '<div class="imgcell"><img src="'+u.d+'" alt="">'+
+          '<input class="imglabel" data-n="'+u.n+'" maxlength="20" placeholder="なんの画像？（例：主人公）" value="'+esc(u.label||"")+'">'+
+          '<button type="button" class="imgdel" data-n="'+u.n+'" aria-label="削除">✕</button></div>';
+      }).join("")+
+      (userImgs.length?'<div class="imghint">説明を書くとAIが上手に使えるよ。画像はこのゲーム専用の素材になる</div>':'')+
+      '</div>';
+    assetPanel.innerHTML=head+up+(window.ARCADE_EMOJI||[]).map(function(a){
       var on=pickedAssets.indexOf(a.e)>=0;
       return '<button type="button" class="assetcell'+(on?" on":"")+'" data-e="'+a.e+'"><span class="em">'+a.e+'</span><span class="nm">'+esc(a.name)+'</span></button>';
     }).join("");
@@ -936,23 +1000,59 @@
     if(open) renderAssetPanel();
   }
   function renderAssetTray(){
-    if(!pickedAssets.length){ assetTray.innerHTML='<span class="hint">キャラに使いたい絵文字を選べます（任意）</span>'; return; }
-    assetTray.innerHTML=pickedAssets.map(function(e){ return '<button type="button" class="traychip" data-e="'+e+'">'+e+' ✕</button>'; }).join("");
+    if(!pickedAssets.length && !userImgs.length){ assetTray.innerHTML='<span class="hint">キャラに使う絵文字や画像を選べます（任意）</span>'; return; }
+    assetTray.innerHTML=
+      userImgs.map(function(u){ return '<button type="button" class="traychip imgchip" data-img="'+u.n+'"><img src="'+u.d+'" alt="">'+esc(u.label||u.n)+' ✕</button>'; }).join("")+
+      pickedAssets.map(function(e){ return '<button type="button" class="traychip" data-e="'+e+'">'+e+' ✕</button>'; }).join("");
   }
   function assetNote(){
-    if(!pickedAssets.length) return "";
-    return "（使いたい素材: "+pickedAssets.map(function(e){ return e+(EMOJI_NAME[e]||""); }).join("、")+"）\n";
+    var s="";
+    if(pickedAssets.length) s+="（使いたい素材: "+pickedAssets.map(function(e){ return e+(EMOJI_NAME[e]||""); }).join("、")+"）\n";
+    if(userImgs.length) s+="（素材画像: "+userImgs.map(function(u){ return u.n+"＝"+(u.label||"アップロード画像"); }).join("、")+
+      "。ゲーム内では Game.img(\"img1\") のように名前で参照して描画する）\n";
+    return s;
   }
   assetToggle.addEventListener("click", function(){ setAssetOpen(assetPanel.hidden); });
   assetPanel.addEventListener("click", function(e){
     if(e.target.closest(".assetclose")){ setAssetOpen(false); return; }
+    var del=e.target.closest(".imgdel");
+    if(del){
+      var dn=del.getAttribute("data-n");
+      userImgs=userImgs.filter(function(u){ return u.n!==dn; });
+      imgsMarkerSync(); renderAssetPanel(); renderAssetTray(); return;
+    }
     var b=e.target.closest("button[data-e]"); if(!b) return;
     var em=b.getAttribute("data-e"), i=pickedAssets.indexOf(em);
     if(i>=0) pickedAssets.splice(i,1);
     else { if(pickedAssets.length>=6){ showToast("素材は6個まで"); return; } pickedAssets.push(em); }
     renderAssetPanel(); renderAssetTray();
   });
+  // 画像アップロード（パネルは都度innerHTML再生成なので委譲で拾う）
+  assetPanel.addEventListener("change", function(e){
+    if(e.target && e.target.id==="imgUp"){
+      var f=e.target.files && e.target.files[0]; if(!f) return;
+      if(userImgs.length>=IMG_MAX){ showToast("画像は"+IMG_MAX+"枚まで"); return; }
+      shrinkImage(f, function(d){
+        if(!d){ showToast("この画像は使えなかった（大きすぎ・形式）"); return; }
+        userImgs.push({ n:nextImgName(), label:"", d:d });
+        imgsMarkerSync(); renderAssetPanel(); renderAssetTray();
+      });
+      return;
+    }
+    if(e.target && e.target.classList.contains("imglabel")){
+      var n=e.target.getAttribute("data-n");
+      userImgs.forEach(function(u){ if(u.n===n) u.label=e.target.value.trim(); });
+      imgsMarkerSync(); renderAssetTray();
+    }
+  });
   assetTray.addEventListener("click", function(e){
+    var bi=e.target.closest("button[data-img]");
+    if(bi){
+      var n2=bi.getAttribute("data-img");
+      userImgs=userImgs.filter(function(u){ return u.n!==n2; });
+      imgsMarkerSync(); renderAssetTray(); if(!assetPanel.hidden) renderAssetPanel();
+      return;
+    }
     var b=e.target.closest("button[data-e]"); if(!b) return;
     var i=pickedAssets.indexOf(b.getAttribute("data-e"));
     if(i>=0){ pickedAssets.splice(i,1); renderAssetTray(); renderAssetPanel(); }
@@ -1015,7 +1115,7 @@
   }
   function resetChat(){
     chatlog.innerHTML=""; chatInit=false; busy=false; lastGen=null; convo=[];
-    pickedAssets=[]; renderAssetTray(); setAssetOpen(false); showStarters(true);
+    pickedAssets=[]; userImgs=[]; renderAssetTray(); setAssetOpen(false); showStarters(true);
     toPreviewBtn.classList.add("off"); initChat();
   }
   function initChat(){
@@ -1047,6 +1147,11 @@
         hadHistory=true; bubble(m.role==="user"?"user":"bot", t);
       });
       lastGen={ title:g.title, html:g.html, accent:g.accent||"#e6b450", description:g.description||"", thumb:g.thumb||null, editingId:g.id, category:g.category||"その他", published:g.published, chat:g.chat||null, author:g.author||null };
+      // 素材画像の復元（チャットのマーカー優先。無ければゲームHTML内の注入済み画像から）
+      userImgs=[];
+      convo.forEach(function(m){ if(m&&m.role==="imgs"&&Array.isArray(m.imgs)) userImgs=m.imgs.slice(0,IMG_MAX); });
+      if(!userImgs.length) restoreImgsFromHtml(g.html);
+      renderAssetTray();
       toPreviewBtn.classList.remove("off");
       showModelTag();
       // 履歴がある時は前置きを出さない（重複するので）。履歴が無い時だけ案内を表示。
@@ -1209,8 +1314,9 @@
       try{ f.srcdoc = (window.buildSrcdoc? buildSrcdoc(html) : html); }catch(e){ finish(); }
     });
   }
-  // ビルド結果の受け入れ：テストプレイ→NGなら自動修理（1回だけ）→反映
+  // ビルド結果の受け入れ：素材画像を注入→テストプレイ→NGなら自動修理（1回だけ）→反映
   function handleBuildResult(res, retried){
+    res.html = injectImgs(res.html);   // base64はここで初めて合流（AIは名前しか見ていない）
     smokeTest(res.html).then(function(err){
       if(err && !retried){
         bubble("bot","🔍 テストプレイで実行時エラーを見つけたよ。自動で修理するね…");

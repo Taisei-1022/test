@@ -231,6 +231,10 @@ __GAME_CSS__
   <p>__HOWTO__</p>
   <button class="vp-btn" id="vpstart">スタート</button>
 </div>
+<script id="vpimgs">
+/* ユーザー素材画像 {名前:dataURL}。中身はビルド後にアプリが注入（AIには名前だけ渡る） */
+window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
+</script>
 <script>
 window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
 var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
@@ -242,9 +246,12 @@ function rs(){W=window.innerWidth;H=window.innerHeight;cv.width=W*DPR;cv.height=
   if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}}
 window.addEventListener("resize",rs);rs();
 var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="__UNIT__";
+// ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
+var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
 var hud=document.getElementById("vphud"),hl=document.getElementById("vphl"),hr=document.getElementById("vphr");
 var ov=document.getElementById("vpov"),toastEl=document.getElementById("vptoast"),tt=null,last=performance.now();
 window.Game={
+  img:function(n){return IMGS[n]||null;},
   score:function(n){hl.textContent=(n|0)+unit;},
   hud:function(t){hr.textContent=t==null?"":String(t);},
   float:function(x,y,t,c){floats.push({x:x,y:y,t:String(t),c:c||"#fff",age:0});},
@@ -329,28 +336,34 @@ __GAME_JS__
 </script>
 </body></html>`;
 
-// AIが返した部品を最終HTMLへ組み立てる
-function assembleGame(title: string, howto: string, unit: string, css: string, js: string): string {
+// AIが返した部品を最終HTMLへ組み立てる。imgs はユーザー素材画像のJSON文字列（編集時に前の版から引き継ぐ）
+function assembleGame(title: string, howto: string, unit: string, css: string, js: string, imgs?: string): string {
   const escH = (s: string) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const u = String(unit || "点").replace(/["'\\<>&]/g, "").slice(0, 6) || "点";
   const meta = encodeURIComponent(JSON.stringify({ t: title, h: howto, u: u }));
-  return RUNTIME_TPL
+  let out = RUNTIME_TPL
     .split("__META__").join(meta)
     .split("__TITLE__").join(escH(title))
     .split("__HOWTO__").join(escH(howto))
     .split("__UNIT__").join(u)
     .split("__GAME_CSS__").join(css || "")
     .split("__GAME_JS__").join(js || "");
+  // 画像JSONの差し込み（dataURLはbase64なので </script> 等は含まれ得ない。念のため検査）
+  if (imgs && imgs !== "{}" && imgs.indexOf("</") < 0) {
+    out = out.replace(/\/\*__VAPPA_IMGS__\*\/[\s\S]*?\/\*__VAPPA_IMGS_END__\*\//, "/*__VAPPA_IMGS__*/" + imgs + "/*__VAPPA_IMGS_END__*/");
+  }
+  return out;
 }
 // テンプレ形式のHTMLから部品を取り出す（編集用）。テンプレ形式でなければ null（旧方式で編集）
-function extractTpl(html: string): { js: string; css: string; title: string; howto: string; unit: string } | null {
+function extractTpl(html: string): { js: string; css: string; title: string; howto: string; unit: string; imgs: string } | null {
   const j = /\/\*__VAPPA_JS__\*\/([\s\S]*?)\/\*__VAPPA_JS_END__\*\//.exec(html);
   if (!j) return null;
   const c = /\/\*__VAPPA_CSS__\*\/([\s\S]*?)\/\*__VAPPA_CSS_END__\*\//.exec(html);
+  const im = /\/\*__VAPPA_IMGS__\*\/([\s\S]*?)\/\*__VAPPA_IMGS_END__\*\//.exec(html);
   let meta: { t?: string; h?: string; u?: string } = {};
   const m = /<!--VAPPA_TPL1 ([^>]*?)-->/.exec(html);
   if (m) { try { meta = JSON.parse(decodeURIComponent(m[1])); } catch { /* noop */ } }
-  return { js: j[1].trim(), css: c ? c[1].trim() : "", title: meta.t || "", howto: meta.h || "", unit: meta.u || "点" };
+  return { js: j[1].trim(), css: c ? c[1].trim() : "", title: meta.t || "", howto: meta.h || "", unit: meta.u || "点", imgs: im ? im[1].trim() : "{}" };
 }
 // ゲームロジック(js)の静的チェック
 function validateJs(js: string): string | null {
@@ -431,6 +444,9 @@ Runtime globals you can use:
 - Game.hud(text) : right HUD slot for lives/level etc (e.g. "❤️❤️❤️"). Optional.
 - Game.float(x,y,text,color) : small rising feedback text like "+1". Optional juice.
 - Game.toast(text) : brief centered message. Optional.
+- Game.img(name) : user-supplied image sprite as an <img> element, or null. ONLY when the conversation lists 素材画像 names (e.g. img1＝主人公の猫), draw them like:
+    var m = Game.img("img1"); if (m) { ctx.drawImage(m, x-24, y-24, 48, 48); } else { /* emoji fallback */ }
+  Use EXACTLY the listed names — never invent names. Keep aspect ratio sensible; images are square-ish sprites.
 
 You MUST define these as top-level function declarations in "js":
 - function init() { }        // (re)set ALL game state; called on start AND every restart — assign initial values here, not only at declaration
@@ -689,7 +705,7 @@ async function buildOnce(key: string, messages: Msg[], prevHtml: string, spec?: 
     } catch { /* 修正に失敗したら元の生成結果をそのまま返す */ }
   }
   const title2 = g.title || "無題のゲーム";
-  const html2 = assembleGame(title2, g.howto || "ハイスコアを目指そう！", g.unit || "点", g.css || "", g.js);
+  const html2 = assembleGame(title2, g.howto || "ハイスコアを目指そう！", g.unit || "点", g.css || "", g.js, tpl ? tpl.imgs : "{}");
   return done(reply, title2, html2, g.category || "その他", specText);
 }
 // callClaude 例外をクライアント向けエラーへ変換
