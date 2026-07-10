@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-180.png?v=3" />
 <link rel="icon" href="icon-192.png?v=3" />
-<link rel="stylesheet" href="css/app.css?v=33" />
+<link rel="stylesheet" href="css/app.css?v=34" />
 <title>Vappa</title>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6804943232069371" crossorigin="anonymous"></script>
 <meta property="og:type" content="website" />
@@ -75,6 +75,7 @@
       </div>
       <div class="assetpanel" id="assetPanel" hidden></div>
       <div class="composer">
+        <button id="assetBtn" type="button" aria-label="素材（画像・絵文字）を追加">📷</button>
         <textarea id="chatInput" placeholder="作りたいゲーム / 直したい所を書く…" rows="1" autocomplete="off"></textarea>
         <button id="chatSend">送信</button>
       </div>
@@ -262,7 +263,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.59";
+  var APP_VERSION = "0.9.60";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -927,6 +928,20 @@
      機械的に注入する（プロンプトのトークン消費ゼロ）。ゲームは自己完結のまま。 */
   var userImgs=[];   // [{n:"img1", label:"主人公のねこ", d:"data:image/..."}]
   var IMG_MAX=4, IMG_MAXCHARS=64000;
+  var startersOn=true;   // スターター（チップ・素材バー）表示中か
+  // 素材バーは「開始前」or「素材を選択中」or「パネルを開いている間」に表示（途中からでも見えるように）
+  function syncAssetbar(){
+    var el=document.querySelector(".assetbar"); if(!el) return;
+    el.style.display = (startersOn || pickedAssets.length || userImgs.length || !assetPanel.hidden) ? "" : "none";
+  }
+  // ビルド/設計書に素材メモを添える（途中アップロードでもAIに名前が伝わるように）。
+  // 直近のユーザー発言に同じメモが含まれていれば重複させない。
+  function withAssetNote(msgs){
+    var note=assetNote().trim(); if(!note) return msgs;
+    for(var i=msgs.length-1;i>=0;i--){ var m=msgs[i];
+      if(m&&m.role==="user"){ if(m.content&&m.content.indexOf(note)>=0) return msgs; break; } }
+    return msgs.concat([{role:"user",content:note}]);
+  }
   function imgsMarkerSync(){   // convoの {role:"imgs"} マーカーに保存（画面を閉じても残る。サーバーへは送られない）
     for(var i=convo.length-1;i>=0;i--){ if(convo[i]&&convo[i].role==="imgs") convo.splice(i,1); }
     if(userImgs.length) convo.push({role:"imgs", imgs:userImgs});
@@ -998,12 +1013,14 @@
     assetToggle.classList.toggle("on", open);
     assetToggle.textContent = open ? "🎨 素材を閉じる" : "🎨 素材をえらぶ";
     if(open) renderAssetPanel();
+    syncAssetbar();
   }
   function renderAssetTray(){
-    if(!pickedAssets.length && !userImgs.length){ assetTray.innerHTML='<span class="hint">キャラに使う絵文字や画像を選べます（任意）</span>'; return; }
+    if(!pickedAssets.length && !userImgs.length){ assetTray.innerHTML='<span class="hint">キャラに使う絵文字や画像を選べます（任意）</span>'; syncAssetbar(); return; }
     assetTray.innerHTML=
       userImgs.map(function(u){ return '<button type="button" class="traychip imgchip" data-img="'+u.n+'"><img src="'+u.d+'" alt="">'+esc(u.label||u.n)+' ✕</button>'; }).join("")+
       pickedAssets.map(function(e){ return '<button type="button" class="traychip" data-e="'+e+'">'+e+' ✕</button>'; }).join("");
+    syncAssetbar();
   }
   function assetNote(){
     var s="";
@@ -1013,6 +1030,11 @@
     return s;
   }
   assetToggle.addEventListener("click", function(){ setAssetOpen(assetPanel.hidden); });
+  // チャット入力横の📷（会話が進んでからでも素材を追加できる入口）
+  document.getElementById("assetBtn").addEventListener("click", function(){
+    setAssetOpen(assetPanel.hidden);
+    if(!assetPanel.hidden) assetPanel.scrollIntoView({block:"nearest"});
+  });
   assetPanel.addEventListener("click", function(e){
     if(e.target.closest(".assetclose")){ setAssetOpen(false); return; }
     var del=e.target.closest(".imgdel");
@@ -1094,11 +1116,13 @@
       chatInit=false, busy=false, convo=[];
   var ACCENTS=["#e6b450","#4c8dff","#3fb950","#e5484d","#b07cf0","#39c5bb"];
   var assetbarEl=document.querySelector(".assetbar");
-  // お題チップと素材ピッカーは最初のアイデア出し用。会話が始まったら隠す。
+  // お題チップは最初のアイデア出し用。会話が始まったら隠す。
+  // 素材バーは syncAssetbar が管理（素材選択中やパネルを開いた時は途中でも出る）。
   function showStarters(b){
     chipsEl.style.display = b ? "" : "none";
-    if(assetbarEl) assetbarEl.style.display = b ? "" : "none";
+    startersOn=b;
     if(!b) setAssetOpen(false);
+    syncAssetbar();
   }
   function bubble(cls,text){ var d=document.createElement("div"); d.className="msg "+cls; d.textContent=text;
     chatlog.appendChild(d); chatlog.scrollTop=chatlog.scrollHeight; return d; }
@@ -1251,7 +1275,7 @@
     if(prev){ beginBuild(null); return; }   // 修正ビルド＝既存コード＋指示で十分。設計書ステップなし
     clearOptions(); clearBuildBtn(); clearSpecRow(); busy=true;
     var typing=bubble("bot typing","設計書を書いているよ…");
-    Ai.makeSpec(convo).then(function(res){
+    Ai.makeSpec(withAssetNote(convo)).then(function(res){
       typing.remove(); busy=false;
       if(!(res&&res.spec)){ beginBuild(null); return; }   // 設計書に失敗しても生成は続行
       pendingSpec=res.spec;
@@ -1342,7 +1366,7 @@
     clearOptions(); clearBuildBtn(); clearSpecRow(); setUiState(null); busy=true;
     var prev = (lastGen && lastGen.html) ? lastGen.html : "";
     var typing=bubble("bot typing","作っているよ…");
-    Ai.send(convo, prev, function(jobId){ setGenerating(true); savePending(jobId, lastGen&&lastGen.editingId, lastGen&&lastGen.title); }, true, specText||undefined).then(function(res){
+    Ai.send(withAssetNote(convo), prev, function(jobId){ setGenerating(true); savePending(jobId, lastGen&&lastGen.editingId, lastGen&&lastGen.title); }, true, specText||undefined).then(function(res){
       typing.remove(); chatlog.querySelectorAll(".typing").forEach(function(n){n.remove();}); setGenerating(false); clearPending();
       if(!res || res.action==="ask" || res.action==="ready"){ busy=false; return; }
       pendingSpec=null;

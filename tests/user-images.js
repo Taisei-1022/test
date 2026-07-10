@@ -58,8 +58,14 @@ const RED_PNG = Buffer.from(
   await p.evaluate(() => { const b = [...document.querySelectorAll('button')].find(x => /作成してはじめる/.test(x.textContent)); if (b) b.click(); });
   await p.waitForTimeout(800);
 
-  // 1. 素材パネルを開いて画像をアップロード＋説明
-  await p.click('#assetToggle');
+  // 1. まず会話を始める（スターターが消えて素材バーも隠れる状態を作る）
+  await p.fill('#chatInput', 'ねこが走るゲーム');
+  await p.click('#chatSend');
+  await p.waitForTimeout(800);
+  const barHidden = await p.evaluate(() => document.querySelector('.assetbar').style.display === 'none');
+
+  // 2. 途中からチャット入力横の📷で素材パネルを開き、画像をアップロード＋説明
+  await p.click('#assetBtn');
   await p.waitForTimeout(200);
   await p.setInputFiles('#imgUp', { name: 'neko.png', mimeType: 'image/png', buffer: RED_PNG });
   await p.waitForTimeout(600);
@@ -68,17 +74,20 @@ const RED_PNG = Buffer.from(
   await p.evaluate(() => { document.querySelector('.imglabel').dispatchEvent(new Event('change', { bubbles: true })); });
   await p.waitForTimeout(200);
   const trayShown = await p.evaluate(() => !!document.querySelector('.traychip.imgchip'));
+  // 素材を選んだので、パネルを閉じてもトレイ（素材バー）は見えたまま
+  await p.evaluate(() => { const b = document.querySelector('.assetclose'); if (b) b.click(); });
+  await p.waitForTimeout(200);
+  const barBack = await p.evaluate(() => document.querySelector('.assetbar').style.display !== 'none');
 
-  // 2. チャット送信 → 設計書 → 生成開始
-  await p.fill('#chatInput', 'ねこが走るゲーム');
-  await p.click('#chatSend');
-  await p.waitForTimeout(800);
+  // 3. 設計書 → 生成開始（チャットには画像の話を書いていないが、素材メモが自動で添付される）
   await p.evaluate(() => { const b = [...document.querySelectorAll('.buildrow button')].find(x => /設計書を作る/.test(x.textContent)); if (b) b.click(); });
   await p.waitForTimeout(800);
   await p.evaluate(() => { const b = [...document.querySelectorAll('#specrow button')].find(x => /生成開始/.test(x.textContent)); if (b) b.click(); });
   for (let i = 0; i < 24; i++) { await p.waitForTimeout(500); if (await p.evaluate(() => !!document.querySelector('.gencard'))) break; }
 
-  const noteSent = posts.some(x => (x.messages || []).some(m => m.role === 'user' && /素材画像: img1＝主人公のねこ/.test(m.content)));
+  const noteInSpec = posts.some(x => x.makeSpec && (x.messages || []).some(m => m.role === 'user' && /素材画像: img1＝主人公のねこ/.test(m.content)));
+  const noteInBuild = posts.some(x => x.build && (x.messages || []).some(m => m.role === 'user' && /素材画像: img1＝主人公のねこ/.test(m.content)));
+  const noteSent = noteInSpec && noteInBuild;
   const noImgsRole = posts.every(x => !(x.messages || []).some(m => m.role !== 'user' && m.role !== 'assistant'));
   const noBase64InMsgs = posts.every(x => !(x.messages || []).some(m => /data:image/.test(m.content || '')));
 
@@ -109,8 +118,8 @@ const RED_PNG = Buffer.from(
   const prevHasImg = !!(editPost && /data:image\/(png|webp|jpeg)/.test(editPost.prevHtml));
 
   await b.close();
-  const checks = { cellShown, trayShown, noteSent, noImgsRole, noBase64InMsgs, injected, drew, prevHasImg, pageErrors: errs };
-  const ok = cellShown && trayShown && noteSent && noImgsRole && noBase64InMsgs && injected && drew === 'ok' && prevHasImg && errs.length === 0;
+  const checks = { barHidden, barBack, cellShown, trayShown, noteSent, noImgsRole, noBase64InMsgs, injected, drew, prevHasImg, pageErrors: errs };
+  const ok = barHidden && barBack && cellShown && trayShown && noteSent && noImgsRole && noBase64InMsgs && injected && drew === 'ok' && prevHasImg && errs.length === 0;
   console.log(JSON.stringify(checks, null, 1));
   console.log(ok ? 'ALL PASS' : 'FAIL');
   process.exit(ok ? 0 : 1);
