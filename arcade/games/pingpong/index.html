@@ -116,5 +116,13 @@
   resize(); reset(); draw();
 })();
 </script>
+<script>
+/* iOSダブルタップズーム対策：touch-action:noneでは止まらない端末があるため、
+   ボタン類以外のtouchendをpreventDefault（ボタンはclick合成を守るため触らない） */
+document.addEventListener("touchend",function(e){
+  var t=e.target;
+  if(e.cancelable && !(t&&t.closest&&t.closest("button,a,input,select,label"))) e.preventDefault();
+},{passive:false});
+</script>
 </body>
 </html>

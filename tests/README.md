@@ -42,3 +42,6 @@ node tests/tune-panel.js
   → preventDefault は touchmove だけ（パン横取り防止はこれで十分）
 - pointer環境では touch の発火だけ二重防止（seenPointerフラグ）。preventDefaultの
   判断とは分離すること
+- **touch-action:none ではiOSのダブルタップズームを止められない**（manipulationなら
+  止まるというWebKitの癖）→ ボタン類（button,a,input,select,label）以外の touchend
+  だけ preventDefault する。ボタンまで preventDefault すると click合成が死ぬ（上の地雷）

@@ -212,7 +212,7 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
 .vp-ov h1{font-size:28px}
 .vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:320px;white-space:pre-line}
 .vp-ov .vp-big{font-size:44px;font-weight:900;color:#ffd166}
-.vp-btn{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:17px;box-shadow:0 5px 0 rgba(0,0,0,.25)}
+.vp-btn{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:17px;box-shadow:0 5px 0 rgba(0,0,0,.25);touch-action:manipulation}
 .vp-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
 .vp-toast{position:fixed;top:calc(env(safe-area-inset-top) + 52px);left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
 [hidden]{display:none!important}
@@ -281,17 +281,20 @@ window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown"
 window.addEventListener("pointermove",function(e){fire("onMove",e.clientX,e.clientY,e.pointerId);});
 window.addEventListener("pointerup",function(e){fire("onUp",e.clientX,e.clientY,e.pointerId);});
 // タッチの扱い（iOS対策の要点）：
-//  - touchstart/touchend は preventDefault しない → ボタンの click 合成が生きる
-//  - touchmove だけ非passiveで preventDefault → パン/スクロール横取りはこれで止まる
+//  - touchstart は preventDefault しない
+//  - touchmove は非passiveで preventDefault → パン/スクロール横取りはこれで止まる
+//  - touchend はボタン類「以外」でだけ preventDefault → iOSのダブルタップズーム
+//    （touch-action:noneでは止まらない端末がある）を殺しつつ、ボタンの click 合成は守る
 //  - pointerイベントが来る環境では発火だけ二重防止（seenPointer）
 function tfire(fn,e){
   if(seenPointer)return;
   for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,t.clientX,t.clientY,t.identifier);
     if(fn==="onDown")fire("onMove",t.clientX,t.clientY,t.identifier);}
 }
+function uiTouch(e){var t=e.target;return !!(t&&t.closest&&t.closest("button,a,input,select,label"));}
 window.addEventListener("touchstart",function(e){tfire("onDown",e);},{passive:true});
 window.addEventListener("touchmove",function(e){if(e.cancelable)e.preventDefault();tfire("onMove",e);},{passive:false});
-window.addEventListener("touchend",function(e){tfire("onUp",e);},{passive:true});
+window.addEventListener("touchend",function(e){if(e.cancelable&&!uiTouch(e))e.preventDefault();tfire("onUp",e);},{passive:false});
 document.addEventListener("gesturestart",function(e){e.preventDefault();});
 window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",e.clientX,e.clientY,0);});
 window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",e.clientX,e.clientY,0);});
@@ -450,7 +453,7 @@ Rules:
 - INPUT IS TOUCH ONLY. Players are on phones: NEVER use keyboard events (keydown/keyup) as the primary control. Do NOT register your own pointer/touch listeners on window/canvas — the runtime already normalizes them into onDown/onMove/onUp (multi-touch: each finger calls the hook with its own id). DOM buttons you create may use click.
 - Continuous actions (auto-fire, holding to move) belong in update(dt) driven by state that onDown/onUp toggles — don't rely on event repetition.
 - Scoring uses the RANKING SCORE decided in the conversation; on-screen score and Game.over(score) must match.
-- No external resources, no network, no audio files, no imports. If the game is UI-heavy you MAY create DOM elements (position:fixed; z-index 1-4; create them in init() and remove stale ones first), but prefer canvas.
+- No external resources, no network, no audio files, no imports. If the game is UI-heavy you MAY create DOM elements (position:fixed; z-index 1-4; create them in init() and remove stale ones first), but prefer canvas. Anything clickable MUST be a real <button> element (click on other elements is suppressed on touch devices).
 - Characters/objects: do NOT use plain rectangles. Draw EMOJI sprites on canvas:
     ctx.font = size + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("🐱", x, y);
   If the conversation picked specific 素材 (emoji), use THOSE.
