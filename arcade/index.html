@@ -158,8 +158,12 @@
           <option value="sonnet-m">Sonnet 5・思考中（〜¥8）</option>
           <option value="sonnet-h">Sonnet 5・思考高（〜¥12）</option>
           <option value="sonnet-x">Sonnet 5・思考最高（〜¥15）</option>
-          <option value="deepseek">DeepSeek・思考なし（〜¥1）</option>
-          <option value="deepseek-r">DeepSeek R・思考あり（〜¥1）</option>
+          <option value="ds-flash">DeepSeek V4 Flash・思考オフ（〜¥1）</option>
+          <option value="ds-flash-h">DeepSeek V4 Flash・思考high（〜¥1）</option>
+          <option value="ds-flash-x">DeepSeek V4 Flash・思考max（〜¥2）</option>
+          <option value="ds-pro">DeepSeek V4 Pro・思考オフ（〜¥2）</option>
+          <option value="ds-pro-h">DeepSeek V4 Pro・思考high（〜¥3）</option>
+          <option value="ds-pro-x">DeepSeek V4 Pro・思考max（〜¥5）</option>
           <option value="grok">Grok 4.3（〜¥4）</option>
           <option value="grok-b">Grok Build 0.1・構築特化（〜¥3）</option>
           <option value="grok-45">Grok 4.5（〜¥8）</option>
@@ -264,7 +268,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.61";
+  var APP_VERSION = "0.9.62";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)

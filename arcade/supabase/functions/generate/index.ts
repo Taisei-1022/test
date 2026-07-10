@@ -736,10 +736,16 @@ const TEST_MODELS: Record<string, ModelSpec> = {
   "sonnet-m": { provider: "anthropic", model: "claude-sonnet-5", effort: "medium" },
   "sonnet-h": { provider: "anthropic", model: "claude-sonnet-5", effort: "high" },
   "sonnet-x": { provider: "anthropic", model: "claude-sonnet-5", effort: "xhigh" },   // 安い×最高effortの検証用
-  "deepseek-r": { provider: "deepseek", model: "deepseek-reasoner", envKey: "DEEPSEEK_API_KEY" },   // 思考あり
+  // DeepSeek V4：2モデル（flash 激安 / pro 上位）× 思考オフ・high・max の6択。
+  // effort 未指定＝思考オフ（thinking disabled）、effort ありは reasoning_effort として送る。
+  "ds-flash":   { provider: "deepseek", model: "deepseek-v4-flash", envKey: "DEEPSEEK_API_KEY" },                    // Flash・思考オフ（最速最安）
+  "ds-flash-h": { provider: "deepseek", model: "deepseek-v4-flash", effort: "high", envKey: "DEEPSEEK_API_KEY" },   // Flash・思考high
+  "ds-flash-x": { provider: "deepseek", model: "deepseek-v4-flash", effort: "max",  envKey: "DEEPSEEK_API_KEY" },   // Flash・思考max
+  "ds-pro":     { provider: "deepseek", model: "deepseek-v4-pro",   envKey: "DEEPSEEK_API_KEY" },                    // Pro・思考オフ
+  "ds-pro-h":   { provider: "deepseek", model: "deepseek-v4-pro",   effort: "high", envKey: "DEEPSEEK_API_KEY" },   // Pro・思考high
+  "ds-pro-x":   { provider: "deepseek", model: "deepseek-v4-pro",   effort: "max",  envKey: "DEEPSEEK_API_KEY" },   // Pro・思考max（全力）
   "gemini":   { provider: "gemini",    model: "gemini-2.5-pro",  envKey: "GEMINI_API_KEY" },
   "gpt":      { provider: "openai",    model: "gpt-5.1",         envKey: "OPENAI_API_KEY" },
-  "deepseek": { provider: "deepseek",  model: "deepseek-chat",   envKey: "DEEPSEEK_API_KEY" },
   "grok":     { provider: "xai",       model: "grok-4.3",        envKey: "XAI_API_KEY" },   // フラッグシップ（$1.25/$2.5）
   "grok-b":   { provider: "xai",       model: "grok-build-0.1",  envKey: "XAI_API_KEY" },   // アプリ構築特化（$1/$2）
   "grok-45":  { provider: "xai",       model: "grok-4.5",        envKey: "XAI_API_KEY" },   // 最新上位（$2/$6）
@@ -750,7 +756,9 @@ function specFor(testModel?: string): ModelSpec {
 }
 // 表示用ラベル（モデル名＋思考レベル）。チャットのモデル表記と管理者のコスト表示に使う
 function specLabel(s: ModelSpec): string {
-  return s.model + (s.provider === "anthropic" && s.effort ? "（effort: " + s.effort + "）" : "");
+  if (s.provider === "anthropic" && s.effort) return s.model + "（effort: " + s.effort + "）";
+  if (s.provider === "deepseek") return s.model + (s.effort ? "（思考: " + s.effort + "）" : "（思考なし）");
+  return s.model;
 }
 
 // 1ドル=円（コスト表示用の概算レート）
@@ -765,8 +773,9 @@ const PRICES: Record<string, { in: number; out: number }> = {
   // 他社モデル（概算単価。改定されたらここを更新）
   "gemini-2.5-pro": { in: 1.25, out: 10 },
   "gpt-5.1": { in: 1.25, out: 10 },
-  "deepseek-chat": { in: 0.27, out: 1.1 },
-  "deepseek-reasoner": { in: 0.28, out: 0.42 },   // V3.2統一価格の概算
+  // DeepSeek V4（公式 pricing。cache_read は入力×0.02 相当だが概算は cache_read=入力×0.1 の共通式に委ねる）
+  "deepseek-v4-flash": { in: 0.14, out: 0.28 },
+  "deepseek-v4-pro": { in: 0.435, out: 0.87 },
   // xAI（/v1/models の実売単価。改定されたらここを更新）
   "grok-4.3": { in: 1.25, out: 2.5 },
   "grok-build-0.1": { in: 1, out: 2 },
@@ -876,17 +885,21 @@ async function callOpenAICompat(spec: ModelSpec, system: string, messages: Msg[]
   const url = spec.provider === "deepseek" ? "https://api.deepseek.com/chat/completions"
     : spec.provider === "xai" ? "https://api.x.ai/v1/chat/completions"
     : "https://api.openai.com/v1/chat/completions";
-  const isReasoner = spec.model.indexOf("reasoner") >= 0;
   const body: Record<string, unknown> = {
     model: spec.model,
     messages: [{ role: "system", content: system + schemaNote(schema) }, ...messages],
+    response_format: { type: "json_object" },   // DeepSeek V4・xAI・GPT いずれも JSON 構造化出力に対応
   };
-  // deepseek-reasoner は response_format 非対応（思考モード）。プロンプト指示＋緩いJSONパースで拾う
-  if (!isReasoner) body.response_format = { type: "json_object" };
-  // DeepSeek: chatの出力上限は8K、reasonerは思考分も含むため広めに取る
-  if (spec.provider === "deepseek") body.max_tokens = isReasoner ? 16000 : 8000;
-  else if (spec.provider === "xai") body.max_tokens = 16000;   // xAI は max_tokens（思考分も含む）
-  else body.max_completion_tokens = 16000;   // GPT-5系は max_completion_tokens（temperature等は送らない）
+  if (spec.provider === "deepseek") {
+    // V4：effort ありは思考ON（reasoning_effort）、なしは思考OFF。どちらも response_format 対応。
+    if (spec.effort) body.reasoning_effort = spec.effort;
+    else body.thinking = { type: "disabled" };
+    body.max_tokens = 16000;   // 思考分も含むので広めに
+  } else if (spec.provider === "xai") {
+    body.max_tokens = 16000;   // xAI は max_tokens（思考分も含む）
+  } else {
+    body.max_completion_tokens = 16000;   // GPT-5系は max_completion_tokens（temperature等は送らない）
+  }
   const data = await postOnce(url, { "content-type": "application/json", "authorization": "Bearer " + key }, body, timeoutMs);
   const u = (data as { usage?: { prompt_tokens?: number; completion_tokens?: number } }).usage;
   if (acc && u) acc.push({ model: spec.model, usage: { input_tokens: u.prompt_tokens || 0, output_tokens: u.completion_tokens || 0 } });
