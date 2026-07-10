@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-180.png?v=3" />
 <link rel="icon" href="icon-192.png?v=3" />
-<link rel="stylesheet" href="css/app.css?v=34" />
+<link rel="stylesheet" href="css/app.css?v=35" />
 <title>Vappa</title>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6804943232069371" crossorigin="anonymous"></script>
 <meta property="og:type" content="website" />
@@ -73,6 +73,7 @@
         <button class="assettoggle" id="assetToggle" type="button">🎨 素材をえらぶ</button>
         <div class="assettray" id="assetTray"></div>
       </div>
+      <div class="assetshade" id="assetShade" hidden></div>
       <div class="assetpanel" id="assetPanel" hidden></div>
       <div class="composer">
         <button id="assetBtn" type="button" aria-label="素材（画像・絵文字）を追加">📷</button>
@@ -263,7 +264,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.60";
+  var APP_VERSION = "0.9.61";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -991,18 +992,20 @@
     }catch(e){}
   }
   function renderAssetPanel(){
-    var head='<div class="assethead"><span>キャラに使う素材をえらぶ</span>'+
-      '<button type="button" class="assetclose">✕ 閉じる</button></div>';
+    var head='<div class="assethead"><span>🎨 素材</span>'+
+      '<button type="button" class="assetclose" aria-label="閉じる">✕</button></div>';
     // 画像アップロード（自分の画像をスプライトとして使える）
-    var up='<div class="imgsec"><label class="assetup">📷 画像を追加（'+userImgs.length+'/'+IMG_MAX+'）'+
+    var up='<div class="assetsec">📷 画像素材（このゲーム専用）</div>'+
+      '<div class="imgsec"><label class="assetup">＋ 画像を追加（'+userImgs.length+'/'+IMG_MAX+'）'+
       '<input type="file" id="imgUp" accept="image/*" hidden></label>'+
       userImgs.map(function(u){
         return '<div class="imgcell"><img src="'+u.d+'" alt="">'+
           '<input class="imglabel" data-n="'+u.n+'" maxlength="20" placeholder="なんの画像？（例：主人公）" value="'+esc(u.label||"")+'">'+
           '<button type="button" class="imgdel" data-n="'+u.n+'" aria-label="削除">✕</button></div>';
       }).join("")+
-      (userImgs.length?'<div class="imghint">説明を書くとAIが上手に使えるよ。画像はこのゲーム専用の素材になる</div>':'')+
-      '</div>';
+      (userImgs.length?'<div class="imghint">説明を書くとAIが上手に使えるよ</div>':'')+
+      '</div>'+
+      '<div class="assetsec">😊 絵文字素材</div>';
     assetPanel.innerHTML=head+up+(window.ARCADE_EMOJI||[]).map(function(a){
       var on=pickedAssets.indexOf(a.e)>=0;
       return '<button type="button" class="assetcell'+(on?" on":"")+'" data-e="'+a.e+'"><span class="em">'+a.e+'</span><span class="nm">'+esc(a.name)+'</span></button>';
@@ -1010,8 +1013,8 @@
   }
   function setAssetOpen(open){
     assetPanel.hidden=!open;
+    var sh=document.getElementById("assetShade"); if(sh) sh.hidden=!open;
     assetToggle.classList.toggle("on", open);
-    assetToggle.textContent = open ? "🎨 素材を閉じる" : "🎨 素材をえらぶ";
     if(open) renderAssetPanel();
     syncAssetbar();
   }
@@ -1031,10 +1034,8 @@
   }
   assetToggle.addEventListener("click", function(){ setAssetOpen(assetPanel.hidden); });
   // チャット入力横の📷（会話が進んでからでも素材を追加できる入口）
-  document.getElementById("assetBtn").addEventListener("click", function(){
-    setAssetOpen(assetPanel.hidden);
-    if(!assetPanel.hidden) assetPanel.scrollIntoView({block:"nearest"});
-  });
+  document.getElementById("assetBtn").addEventListener("click", function(){ setAssetOpen(assetPanel.hidden); });
+  document.getElementById("assetShade").addEventListener("click", function(){ setAssetOpen(false); });
   assetPanel.addEventListener("click", function(e){
     if(e.target.closest(".assetclose")){ setAssetOpen(false); return; }
     var del=e.target.closest(".imgdel");
