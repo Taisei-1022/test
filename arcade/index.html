@@ -268,7 +268,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.62";
+  var APP_VERSION = "0.9.63";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -598,7 +598,7 @@
   }
 
   /* ---------- 作る：サブ画面ルーター ---------- */
-  var createEntered=false, lastGen=null, dirty=false;
+  var createEntered=false, lastGen=null, dirty=false, savingRow=false;
   var toPreviewBtn=document.getElementById("toPreview");
   // 作成中に別画面へ移ると、未保存の作品を自動で一時保存（非公開）して後で再開できるようにする。
   function autosaveDraft(){
@@ -625,7 +625,17 @@
     if(!lastGen) return;
     lastGen.chat=JSON.stringify(convo);
     var editing=lastGen.editingId;
-    if(!editing){ dirty=true; return; }   // まだ行が無い→確定待ち（createProjectの.thenで拾う）
+    if(!editing){
+      // 行がまだ無い（初回publishのレース or 失敗）→ ここで作成を試みて以後の保存が効くようにする。
+      // これをやらないと、初回作成が一度失敗しただけでセッション中の会話が一切保存されなくなる。
+      if(savingRow){ dirty=true; return; }
+      savingRow=true;
+      Catalog.publish(Object.assign({}, lastGen, {published:lastGen.published===true})).then(function(row){
+        savingRow=false;
+        if(row&&row.id){ lastGen.editingId=row.id; dirty=false; refreshCreations(); } else { dirty=true; }
+      }).catch(function(){ savingRow=false; dirty=true; });
+      return;
+    }
     var keepPublic = lastGen.published===true;
     var payload=Object.assign({}, lastGen, {published:keepPublic});
     Catalog.update(editing, payload).then(function(){ dirty=false; }).catch(function(){ dirty=true; });
@@ -651,6 +661,7 @@
     autosaveDraft();   // 直前に編集中があれば保存
     // チャットを白紙に（resetChatと同等だがlastGenは新プロジェクトにする）
     chatlog.innerHTML=""; chatInit=false; busy=false; convo=[];
+    pendingSpec=null; curSpec=null;
     pickedAssets=[]; userImgs=[]; renderAssetTray(); setAssetOpen(false); showStarters(true);
     toPreviewBtn.classList.add("off");
     lastGen={ title:title, html:"", accent:ACCENTS[Math.floor(Math.random()*ACCENTS.length)], description:"", thumb:null, editingId:null, category:"その他", published:false, chat:"[]" };
@@ -1131,6 +1142,9 @@
   }
   function bubble(cls,text){ var d=document.createElement("div"); d.className="msg "+cls; d.textContent=text;
     chatlog.appendChild(d); chatlog.scrollTop=chatlog.scrollHeight; return d; }
+  // 表示するボットの発言を「履歴にも必ず残す」版（生成結果・ステータス・エラー等）。
+  // role:"note" はサーバー送信時に除外されるアプリ専用（AIの文脈は汚さない）が、復元時はそのまま表示される。
+  function note(text){ bubble("bot", text); convo.push({role:"note", content:text}); saveChatNow(); }
   function clearOptions(){ chatlog.querySelectorAll(".optrow").forEach(function(r){ r.remove(); }); }
   function renderOptions(opts){
     if(!opts||!opts.length) return;
@@ -1144,6 +1158,7 @@
   }
   function resetChat(){
     chatlog.innerHTML=""; chatInit=false; busy=false; lastGen=null; convo=[];
+    pendingSpec=null; curSpec=null;
     pickedAssets=[]; userImgs=[]; renderAssetTray(); setAssetOpen(false); showStarters(true);
     toPreviewBtn.classList.add("off"); initChat();
   }
@@ -1187,12 +1202,15 @@
       if(!hadHistory) bubble("bot","「"+g.title+"」を編集中。直したい所を言ってね（例：もっと速く／敵を増やして／色を青に）。");
       // 既に生成済みなら「できあがり」カード＋プレビューを復元（別画面から戻っても残るように）
       if(lastGen.html) showGenCard();
+      // 設計書の復元（永続マーカー specsave から。ビルド後もずっと閲覧・編集できる）
+      pendingSpec=null; curSpec=null;
+      var ui=null, saved=null;
+      convo.forEach(function(m){ if(m&&m.role==="ui") ui=m; if(m&&m.role==="specsave") saved=m; });
+      if(saved&&saved.spec) curSpec=saved.spec;
       // ボタン/設計書カードの復元（role:"ui" マーカーから）
-      var ui=null; convo.forEach(function(m){ if(m&&m.role==="ui") ui=m; });
-      if(ui){
-        if(ui.state==="spec"&&ui.spec){ pendingSpec=ui.spec; showSpecRow(); }
-        else if(ui.state==="ready"){ showBuildButton(); }
-      }
+      if(ui && ui.state==="spec" && ui.spec){ pendingSpec=ui.spec; curSpec=ui.spec; showSpecRow(); }
+      else if(ui && ui.state==="ready"){ showBuildButton(); if(curSpec) showSpecViewRow(); }
+      else if(curSpec){ showSpecViewRow(); }   // ビルド済みなど：設計書ビューだけ残す
       // このゲームの生成/更新がまだ進行中なら「生成中…」表示も復元する
       if(isPendingFor(g.id)){ setGenerating(true); bubble("bot typing", lastGen.html?"直しているよ…":"考え中…"); }
       pushScreen("create","publish");   // まずタグ・名前・説明・サムネを編集する画面へ
@@ -1231,7 +1249,6 @@
   }
   // 生成結果(ビルド)を画面と状態に反映
   function applyBuild(res){
-    if(res.reply) bubble("bot", res.reply);
     var k = lastGen || {};
     lastGen={ title:(k.title && k.title!=="無題のゲーム") ? k.title : (res.title||"無題のゲーム"), html:res.html,
       accent: k.accent || ACCENTS[Math.floor(Math.random()*ACCENTS.length)],
@@ -1240,7 +1257,8 @@
     dirty=true;
     convo.push({role:"assistant",content:"（ゲームを生成しました）"});
     toPreviewBtn.classList.remove("off");
-    bubble("bot","「"+res.title+"」ができたよ！下のボタンか右上の「プレビュー」で遊んでみて。\nさらに直したい時はそのまま話してね。");
+    if(res.reply) note(res.reply);
+    note("「"+res.title+"」ができたよ！下のボタンか右上の「プレビュー」で遊んでみて。\nさらに直したい時はそのまま話してね。");
     showCostBubble(res);
     showGenCard();
     saveChatNow();
@@ -1265,8 +1283,27 @@
     chatlog.appendChild(row); chatlog.scrollTop=chatlog.scrollHeight;
   }
   // 「作り始める」→ 新規作成なら、まず設計書を作って確認してもらう（編集は直接ビルド）
-  var pendingSpec=null;
-  function clearSpecRow(){ var r=document.getElementById("specrow"); if(r) r.remove(); }
+  var pendingSpec=null;   // ビルド前の設計書（生成開始で使う）
+  var curSpec=null;       // 直近の設計書（ビルド後もずっと閲覧・編集できるよう保持）
+  function clearSpecRow(){ var r=document.getElementById("specrow"); if(r) r.remove(); }   // ※ #specviewrow は消さない（設計書はずっと残す）
+  // 設計書を履歴に永続保存（画面を閉じても、ビルドが終わっても消えない）。サーバーへは送られない。
+  function syncSpecSave(spec){
+    for(var i=convo.length-1;i>=0;i--){ if(convo[i]&&convo[i].role==="specsave") convo.splice(i,1); }
+    if(spec) convo.push({role:"specsave", spec:spec});
+    saveChatNow();
+  }
+  // 「設計書を見る」ボタン（作成後もずっと残る）。開くと確認・編集できる。
+  function showSpecViewRow(){
+    var old=document.getElementById("specviewrow"); if(old) old.remove();
+    if(!curSpec) return;
+    var row=document.createElement("div"); row.id="specviewrow"; row.className="buildrow"; row.style.cssText="margin:8px 0 2px";
+    var b=document.createElement("button");
+    b.textContent="📐 設計書を見る（確認・編集）";
+    b.style.cssText="display:block;width:100%;font-weight:800;font-size:14px;padding:12px;border:1px solid var(--rule);border-radius:12px;background:var(--plate);color:#fff;cursor:pointer";
+    b.addEventListener("click", openSpecEditor);
+    row.appendChild(b);
+    chatlog.appendChild(row); chatlog.scrollTop=chatlog.scrollHeight;
+  }
   // ボタン/設計書カードの状態をチャット履歴に保存（画面を閉じても復元できるように）。
   // role:"ui" はサーバー送信時に除外されるアプリ専用マーカー。
   function setUiState(state, spec){
@@ -1283,10 +1320,9 @@
     Ai.makeSpec(withAssetNote(convo)).then(function(res){
       typing.remove(); busy=false;
       if(!(res&&res.spec)){ beginBuild(null); return; }   // 設計書に失敗しても生成は続行
-      pendingSpec=res.spec;
-      bubble("bot","📐 設計書ができたよ！ひらいて確認・編集できるよ。OKならそのまま生成開始してね。");
-      convo.push({role:"assistant",content:"📐 設計書ができました"});
-      showSpecRow(); setUiState("spec", pendingSpec);
+      pendingSpec=res.spec; curSpec=res.spec;
+      note("📐 設計書ができたよ！ひらいて確認・編集できるよ。OKならそのまま生成開始してね。");
+      showSpecRow(); setUiState("spec", pendingSpec); syncSpecSave(curSpec);
     }).catch(function(){ typing.remove(); busy=false; beginBuild(null); });
   }
   function showSpecRow(){
@@ -1307,13 +1343,16 @@
   }
   function openSpecEditor(){
     var ov=document.getElementById("specov"), ta=document.getElementById("specta");
-    ta.value=pendingSpec||""; ov.hidden=false;
+    ta.value=curSpec||pendingSpec||""; ov.hidden=false;
   }
   (function(){
     var ov=document.getElementById("specov"), ta=document.getElementById("specta");
     if(ov) document.getElementById("specdone").addEventListener("click", function(){
-      pendingSpec=ta.value; ov.hidden=true;
-      setUiState("spec", pendingSpec);   // 編集内容も保存（閉じても消えない）
+      curSpec=ta.value; ov.hidden=true;
+      var preBuild=!!document.getElementById("specrow");
+      if(preBuild){ pendingSpec=ta.value; setUiState("spec", pendingSpec); }   // ビルド前：生成に使う設計書も更新
+      syncSpecSave(curSpec);   // 編集内容を永続保存（閉じても・ビルド後も消えない）
+      if(!preBuild) showSpecViewRow();
     });
   })();
   // ---- 自動テストプレイ（スモークテスト）----
@@ -1348,12 +1387,12 @@
     res.html = injectImgs(res.html);   // base64はここで初めて合流（AIは名前しか見ていない）
     smokeTest(res.html).then(function(err){
       if(err && !retried){
-        bubble("bot","🔍 テストプレイで実行時エラーを見つけたよ。自動で修理するね…");
+        note("🔍 テストプレイで実行時エラーを見つけたよ。自動で修理するね…");
         var fixConvo = convo.concat([{role:"user",content:"テスト実行で実行時エラーが検出されました。原因を修正してください：\n"+String(err).slice(0,300)}]);
         var typing=bubble("bot typing","修理しているよ…");
         Ai.send(fixConvo, res.html, function(jobId){ setGenerating(true); savePending(jobId, lastGen&&lastGen.editingId, lastGen&&lastGen.title); }, true).then(function(res2){
           typing.remove(); setGenerating(false); clearPending();
-          if(res2 && res2.action==="build"){ bubble("bot","🔧 修理できたよ！"); handleBuildResult(res2, true); }
+          if(res2 && res2.action==="build"){ note("🔧 修理できたよ！"); handleBuildResult(res2, true); }
           else { applyBuild(res); busy=false; }
         }).catch(function(){
           typing.remove(); setGenerating(false); clearPending();
@@ -1361,14 +1400,16 @@
         });
         return;
       }
-      if(err) bubble("bot","⚠️ まだ不安定な部分があるかも。遊んでみて変だったら「エラーを直して」と言ってね。");
+      if(err) note("⚠️ まだ不安定な部分があるかも。遊んでみて変だったら「エラーを直して」と言ってね。");
       applyBuild(res); busy=false;
     });
   }
   // ビルド実行（specText があれば設計書として同送）
   function beginBuild(specText){
     if(busy) return;
+    if(specText){ curSpec=specText; syncSpecSave(specText); }   // 生成に使う設計書は永続保存
     clearOptions(); clearBuildBtn(); clearSpecRow(); setUiState(null); busy=true;
+    if(curSpec) showSpecViewRow();   // ビルド中〜後も「設計書を見る」を残す
     var prev = (lastGen && lastGen.html) ? lastGen.html : "";
     var typing=bubble("bot typing","作っているよ…");
     Ai.send(withAssetNote(convo), prev, function(jobId){ setGenerating(true); savePending(jobId, lastGen&&lastGen.editingId, lastGen&&lastGen.title); }, true, specText||undefined).then(function(res){
@@ -1378,7 +1419,7 @@
       handleBuildResult(res, false);
     }).catch(function(err){
       typing.remove(); chatlog.querySelectorAll(".typing").forEach(function(n){n.remove();}); busy=false; setGenerating(false); clearPending();
-      bubble("bot", chatErrMsg(String(err&&err.message||err)));
+      note(chatErrMsg(String(err&&err.message||err)));
     });
   }
   function sendChat(text){
@@ -1403,7 +1444,7 @@
       renderOptions((res&&res.options)||[]); saveChatNow(); busy=false;
     }).catch(function(err){
       typing.remove(); chatlog.querySelectorAll(".typing").forEach(function(n){n.remove();}); busy=false; setGenerating(false); clearPending();
-      bubble("bot", chatErrMsg(String(err&&err.message||err)));
+      note(chatErrMsg(String(err&&err.message||err)));
     });
   }
   function showGenCard(){
