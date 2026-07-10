@@ -68,7 +68,7 @@ async function boot(admin) {
   await p.waitForTimeout(800);
   await p.evaluate(() => { const b = [...document.querySelectorAll('.buildrow button')].find(x => /設計書を作る/.test(x.textContent)); if (b) b.click(); });
   await p.waitForTimeout(800);
-  await p.evaluate(() => { const b = [...document.querySelectorAll('#specrow button')].find(x => /生成開始/.test(x.textContent)); if (b) b.click(); });
+  await p.evaluate(() => { const b = [...document.querySelectorAll('#specrow button')].find(x => /設計書で生成/.test(x.textContent)); if (b) b.click(); });
   for (let i = 0; i < 24; i++) { await p.waitForTimeout(500); if (await p.evaluate(() => !!document.querySelector('.gencard'))) break; }
   await p.evaluate(() => { document.querySelector('.gencard .toPv').click(); });
   await p.waitForTimeout(600);

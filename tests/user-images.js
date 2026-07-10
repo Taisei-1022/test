@@ -82,7 +82,7 @@ const RED_PNG = Buffer.from(
   // 3. 設計書 → 生成開始（チャットには画像の話を書いていないが、素材メモが自動で添付される）
   await p.evaluate(() => { const b = [...document.querySelectorAll('.buildrow button')].find(x => /設計書を作る/.test(x.textContent)); if (b) b.click(); });
   await p.waitForTimeout(800);
-  await p.evaluate(() => { const b = [...document.querySelectorAll('#specrow button')].find(x => /生成開始/.test(x.textContent)); if (b) b.click(); });
+  await p.evaluate(() => { const b = [...document.querySelectorAll('#specrow button')].find(x => /設計書で生成/.test(x.textContent)); if (b) b.click(); });
   for (let i = 0; i < 24; i++) { await p.waitForTimeout(500); if (await p.evaluate(() => !!document.querySelector('.gencard'))) break; }
 
   const noteInSpec = posts.some(x => x.makeSpec && (x.messages || []).some(m => m.role === 'user' && /素材画像: img1＝主人公のねこ/.test(m.content)));

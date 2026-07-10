@@ -37,6 +37,16 @@ node tests/user-images.js
 クライアントがdataURLをマーカーへ注入→Game.imgで実描画→編集ビルドでも画像が
 往復して残る、の一連を検証。
 
+# 生成フローの状態機械（失敗後に設計書を作り直さない）E2E
+
+```
+python3 -m http.server 8099   # リポジトリ直下で
+node tests/build-fail-reuse-spec.js
+```
+設計書作成→生成失敗→再生成 で、makeSpec（設計書作成）が1回しか呼ばれない
+（＝失敗しても設計書を無駄に作り直さない）ことを検証。状態機械 chat/ready/spec/
+building/done の遷移と、curSpec が失敗・会話をまたいで保持されることの回帰。
+
 # チャット・設計書の永続化E2E
 
 ```
