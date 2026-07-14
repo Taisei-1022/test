@@ -861,13 +861,23 @@ function parseJsonLoose(text: string) {
   // 有効なエスケープ(\\ \" \/ \b \f \n \r \t \uXXXX)はそのまま残す。
   let fixed = body.replace(/\\(?![\\"/bfnrtu])/g, "\\\\");
   try { return JSON.parse(fixed); } catch { /* 修復2へ */ }
-  // 修復2: 文字列リテラル内の生の改行/タブ（JSONでは不正）をエスケープする
+  // 修復2: 文字列内の生改行/タブをエスケープ ＋ 修復3: エスケープ漏れの内側クォート
+  // （例: コメントに "跳び越えると+1点" と生の二重引用符で引用してくる）。
+  // 文字列中の " は、直後の非空白が , } ] : か終端なら「閉じ」、それ以外は内側の生クォートとみなして \" に直す。
   let out = "", inStr = false, esc = false;
   for (let i = 0; i < fixed.length; i++) {
     const ch = fixed[i];
     if (esc) { out += ch; esc = false; continue; }
     if (ch === "\\") { out += ch; esc = true; continue; }
-    if (ch === '"') { inStr = !inStr; out += ch; continue; }
+    if (ch === '"') {
+      if (!inStr) { inStr = true; out += ch; continue; }
+      let j = i + 1;
+      while (j < fixed.length && (fixed[j] === " " || fixed[j] === "\n" || fixed[j] === "\r" || fixed[j] === "\t")) j++;
+      const nx = j < fixed.length ? fixed[j] : "";
+      if (nx === "," || nx === "}" || nx === "]" || nx === ":" || nx === "") { inStr = false; out += ch; }
+      else { out += '\\"'; }   // 内側の生クォート
+      continue;
+    }
     if (inStr && ch === "\n") { out += "\\n"; continue; }
     if (inStr && ch === "\r") { out += "\\r"; continue; }
     if (inStr && ch === "\t") { out += "\\t"; continue; }

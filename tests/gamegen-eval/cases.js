@@ -186,7 +186,7 @@ module.exports = [
   },
   {
     id: "balloon", title: "ふうせんチキンレース", category: "タイミング",
-    over: { mode: "spam", sec: 40 }, play: "holdRelease", probe: "holdGrows",
+    over: { mode: "spam", sec: 40 }, play: "holdRelease", probe: "holdGrows", staticOk: true,
     spec: `■ゲーム概要
 風船を割れるギリギリまで膨らませて得点を稼ぐチキンレース。
 ■操作方法

@@ -102,7 +102,15 @@ function parseJsonLoose(text) {
     const ch = fixed[i];
     if (esc) { out += ch; esc = false; continue; }
     if (ch === '\\') { out += ch; esc = true; continue; }
-    if (ch === '"') { inStr = !inStr; out += ch; continue; }
+    if (ch === '"') {
+      if (!inStr) { inStr = true; out += ch; continue; }
+      let j = i + 1;
+      while (j < fixed.length && (fixed[j] === ' ' || fixed[j] === '\n' || fixed[j] === '\r' || fixed[j] === '\t')) j++;
+      const nx = j < fixed.length ? fixed[j] : '';
+      if (nx === ',' || nx === '}' || nx === ']' || nx === ':' || nx === '') { inStr = false; out += ch; }
+      else { out += '\\"'; }
+      continue;
+    }
     if (inStr && ch === '\n') { out += '\\n'; continue; }
     if (inStr && ch === '\r') { out += '\\r'; continue; }
     if (inStr && ch === '\t') { out += '\\t'; continue; }
@@ -142,7 +150,7 @@ async function score(browser, c, html, genMeta) {
     const cv = document.getElementById('vpc'); if (!cv) return 'x';
     const g = cv.getContext('2d'); let h = 0;
     try { const d = g.getImageData(0, 0, cv.width, cv.height).data;
-      for (let i = 0; i < d.length; i += 997) h = (h * 31 + d[i] + d[i + 1] * 3 + d[i + 2] * 7) >>> 0;
+      for (let i = 0; i < d.length; i += 397) h = (h * 31 + d[i] + d[i + 1] * 3 + d[i + 2] * 7) >>> 0;
     } catch (e) { return 'e'; }
     return String(h);
   });
@@ -166,7 +174,7 @@ async function score(browser, c, html, genMeta) {
     for (const k of Object.keys(window)) {
       try { const v = window[k];
         if (Array.isArray(v) && v.length && typeof v[0] === 'object' && v[0] && typeof v[0].x === 'number')
-          out[k] = v.map(o => Object.keys(o).map(p2 => { const val = o[p2]; return (typeof val === 'number') ? Math.round(val * 10) : (typeof val === 'boolean' ? val : ''); }).join(',')).join('|');
+          out[k] = v.map(o => Object.keys(o).map(p2 => { const val = o[p2]; return (typeof val === 'number') ? Math.round(val * 10) : (typeof val === 'boolean' ? val : (typeof val === 'string' ? val.slice(0, 6) : '')); }).join(',')).join('|');
       } catch (e) {}
     }
     return JSON.stringify(out);
@@ -205,10 +213,12 @@ async function score(browser, c, html, genMeta) {
     const h2 = await canvasHash(); await p.waitForTimeout(600);
     const h3 = await canvasHash();
     checks.animates = (h1 !== h2) || (h2 !== h3);
+    if (!checks.animates && c.staticOk) checks.animates = 'defer-input';   // 入力があって初めて動くゲーム
     // input（操作で描画/HUDが変わるか）
     const hudBefore = await hud(); const hBefore = await canvasHash();
     await playAction(c.play, 4);
     checks.input = (await canvasHash()) !== hBefore || (await hud()) !== hudBefore;
+    if (checks.animates === 'defer-input') checks.animates = checks.input;
     // probe（ケース固有）※ゲームがまだ生きているうちに実行する（採点順が後ろだと
     // 即死系ゲームでは死後の静止画面を測ってしまい不当に落ちる）
     try {
