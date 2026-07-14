@@ -213,7 +213,7 @@ async function score(browser, c, html, genMeta) {
     // 即死系ゲームでは死後の静止画面を測ってしまい不当に落ちる）
     try {
       if (c.probe === 'spawnCycle') { const a1 = await arraysSnapshot(); await p.waitForTimeout(1500); checks.probe = (await arraysSnapshot()) !== a1; }
-      else if (c.probe === 'hudScoreGrows') { checks.probe = (await hudNum()) > 0; }
+      else if (c.probe === 'hudScoreGrows') { checks.probe = 'defer-hud'; }   // 追加プレイ後に判定（序盤4操作では稼げないことがある）
       else if (c.probe === 'reactsFast') { const hb = await canvasHash(); await playAction(c.play, 1); await p.waitForTimeout(250); checks.probe = (await canvasHash()) !== hb; }
       else if (c.probe === 'gridCells') {
         checks.probe = await p.evaluate(() => {
@@ -235,7 +235,10 @@ async function score(browser, c, html, genMeta) {
     } catch (e) { checks.probe = false; }
     // score（もう少し遊んでHUDのスコアが動くか）
     await playAction(c.play, 6);
-    checks.score = (await hudNum()) > 0 || (await hud()) !== hudBefore;
+    // scoreLoose: ボットが正しい手順を踏めないゲーム（記憶系）はスコア表示の存在だけ確認
+    checks.score = c.scoreLoose ? /\d/.test(await hud())
+      : ((await hudNum()) > 0 || (await hud()) !== hudBefore);
+    if (checks.probe === 'defer-hud') checks.probe = (await hudNum()) > 0;
     // errors（ここまでの実プレイでエラーが出ていないか）
     const vperr = await p.evaluate(() => window.__VP_ERR || null);
     checks.errors = !vperr && errs.length === 0;

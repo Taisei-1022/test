@@ -387,17 +387,17 @@ function validateJs(js: string): string | null {
 
 const GOLD_JS = `/* Example game logic (a catch game). Study the structure & polish; make a DIFFERENT game. */
 var TUNE = {
-  fallSpeed: { v: 150,  label: "落下の速さ",   min: 60,   max: 400,  step: 10 },
-  accel:     { v: 7,    label: "加速ペース",   min: 0,    max: 30,   step: 1 },
-  badRate:   { v: 0.18, label: "爆弾の割合",   min: 0,    max: 0.6,  step: 0.02 },
-  spawnMin:  { v: 0.35, label: "出現間隔の下限", min: 0.15, max: 1,  step: 0.05 },
-  lives:     { v: 3,    label: "ライフ数",     min: 1,    max: 9,    step: 1 }
+  fallSpeed: { v: 150,  label: '落下の速さ',   min: 60,   max: 400,  step: 10 },
+  accel:     { v: 7,    label: '加速ペース',   min: 0,    max: 30,   step: 1 },
+  badRate:   { v: 0.18, label: '爆弾の割合',   min: 0,    max: 0.6,  step: 0.02 },
+  spawnMin:  { v: 0.35, label: '出現間隔の下限', min: 0.15, max: 1,  step: 0.05 },
+  lives:     { v: 3,    label: 'ライフ数',     min: 1,    max: 9,    step: 1 }
 };
 var basket, items, lives, score, fallSpeed, spawnT, shake;
 function init(){
   basket = { x: W/2, w: Math.max(70, W*0.2) };
   items = []; lives = TUNE.lives.v; score = 0; fallSpeed = TUNE.fallSpeed.v; spawnT = 0.5; shake = 0;
-  Game.hud("❤️".repeat(lives));
+  Game.hud('❤️'.repeat(lives));
 }
 function update(dt){
   spawnT -= dt;
@@ -410,10 +410,10 @@ function update(dt){
   for (var i = items.length-1; i >= 0; i--){
     var it = items[i]; it.y += fallSpeed*dt;
     if (it.y > by-14 && it.y < by+24 && Math.abs(it.x-basket.x) < basket.w/2 + it.r){
-      if (it.bad){ lives--; shake = 0.3; Game.hud("❤️".repeat(Math.max(0,lives)));
-        Game.float(it.x, by-22, "💥", "#f87171");
+      if (it.bad){ lives--; shake = 0.3; Game.hud('❤️'.repeat(Math.max(0,lives)));
+        Game.float(it.x, by-22, '💥', '#f87171');
         if (lives <= 0){ Game.over(score); return; } }
-      else { score++; Game.score(score); Game.float(it.x, by-24, "+1", "#ffd166"); }
+      else { score++; Game.score(score); Game.float(it.x, by-24, '+1', '#ffd166'); }
       items.splice(i,1); continue;
     }
     if (it.y > H+30) items.splice(i,1);
@@ -421,14 +421,14 @@ function update(dt){
   if (shake > 0) shake -= dt;
 }
 function draw(){
-  ctx.fillStyle = "#101528"; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = '#101528'; ctx.fillRect(0,0,W,H);
   var ox = shake > 0 ? (Math.random()*6-3) : 0;
   ctx.save(); ctx.translate(ox,0);
-  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = "28px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-  for (var i = 0; i < items.length; i++){ var it = items[i]; ctx.fillText(it.bad ? "💣" : "🍎", it.x, it.y); }
+  for (var i = 0; i < items.length; i++){ var it = items[i]; ctx.fillText(it.bad ? '💣' : '🍎', it.x, it.y); }
   ctx.font = "44px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-  ctx.fillText("🧺", basket.x, H-78);
+  ctx.fillText('🧺', basket.x, H-78);
   ctx.restore();
 }
 function onDown(x,y){ basket.x = x; }
@@ -478,7 +478,9 @@ Rules:
   4-8 entries, label in Japanese, min/max = sensible playable range, step = adjustment granularity. Read values ONLY via TUNE.key.v (never repeat the literal elsewhere). The platform renders sliders from this object so humans can hand-tune difficulty without AI. When EDITING, keep the existing TUNE keys (current v values included) unless the request says otherwise.
 - Make it genuinely fun and polished: clear goal, responsive controls, juicy feedback (Game.float / shake / particles), difficulty that ramps up.
 - Japanese in-game text. Keep performance smooth on phones (no huge object counts).
-- JSON safety: your ENTIRE output is one JSON object and "js" is a JSON string value. Keep the code JSON-friendly: do NOT use regex literals or backslash escapes like \\d \\( in code (find another way); no literal newlines inside JS string literals. Emoji are fine.
+- JSON safety: your ENTIRE output is one JSON object and "js" is a JSON string value. Keep the code JSON-friendly:
+  - Use SINGLE quotes (') for every JS string literal — e.g. ctx.fillStyle = 'hsl(330,80%,' + l + '%)'. Then you never need to escape quotes inside the JSON. Only exception: a string that itself contains single quotes (font lists) may use double quotes.
+  - Do NOT use regex literals or backslash escapes like \\d \\( in code (find another way); no literal newlines inside JS string literals. Emoji are fine.
 - Self-check before finalizing: mentally run start → play → game over → restart. Every variable defined before use (restart calls init() again — stale state must be reset there). No undefined references. Balanced brackets.
 - When EDITING an existing game: keep what works, apply ONLY the requested change, and return ALL fields complete (full js, not a diff).
 

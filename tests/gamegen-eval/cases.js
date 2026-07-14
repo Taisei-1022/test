@@ -106,7 +106,7 @@ module.exports = [
   },
   {
     id: "memory", title: "ひかりの記憶", category: "記憶",
-    over: { mode: "spam", sec: 30 }, play: "tapGrid", probe: "gridCells",
+    over: { mode: "spam", sec: 30 }, play: "tapGrid", probe: "gridCells", scoreLoose: true,
     spec: `■ゲーム概要
 光ったパネルの順番を覚えて、同じ順にタップする記憶ゲーム（サイモン系）。
 ■操作方法
