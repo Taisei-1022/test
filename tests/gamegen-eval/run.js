@@ -161,8 +161,9 @@ async function score(browser, c, html, genMeta) {
     const out = [];
     for (const k of Object.keys(window)) {
       try { const v = window[k];
-        if (Array.isArray(v) && v.length && typeof v[0] === 'object' && v[0] && typeof v[0].x === 'number' && typeof v[0].y === 'number') {
-          for (const o of v) { if (o.y > 60 && o.y < innerHeight - 40 && o.x > 10 && o.x < innerWidth - 10 && !o.bad && !o.bomb && o.type !== 'bomb') out.push({ x: o.x, y: o.y }); }
+        if (Array.isArray(v) && v.length && typeof v[0] === 'object' && v[0]) {
+          for (const o of v) { const ox = (typeof o.x === 'number') ? o.x : o.cx, oy = (typeof o.y === 'number') ? o.y : o.cy;
+            if (typeof ox === 'number' && typeof oy === 'number' && oy > 60 && oy < innerHeight - 40 && ox > 10 && ox < innerWidth - 10 && !o.bad && !o.bomb && o.type !== 'bomb') out.push({ x: ox, y: oy }); }
         }
       } catch (e) {}
     }
@@ -197,7 +198,7 @@ async function score(browser, c, html, genMeta) {
       } else if (kind === 'holdRelease') {
         await hold(195, 400, 700);
       }
-      await p.waitForTimeout(kind === 'holdRelease' ? 700 : 380);
+      await p.waitForTimeout(kind === 'holdRelease' ? 1200 : 380);
     }
   }
   try {

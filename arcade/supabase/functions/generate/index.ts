@@ -479,7 +479,8 @@ Rules:
 - Make it genuinely fun and polished: clear goal, responsive controls, juicy feedback (Game.float / shake / particles), difficulty that ramps up.
 - Japanese in-game text. Keep performance smooth on phones (no huge object counts).
 - JSON safety: your ENTIRE output is one JSON object and "js" is a JSON string value. Keep the code JSON-friendly:
-  - Use SINGLE quotes (') for every JS string literal — e.g. ctx.fillStyle = 'hsl(330,80%,' + l + '%)'. Then you never need to escape quotes inside the JSON. Only exception: a string that itself contains single quotes (font lists) may use double quotes.
+  - Use SINGLE quotes (') for every JS string literal — e.g. ctx.fillStyle = 'hsl(330,80%,' + l + '%)'. Then you never need to escape quotes inside the JSON.
+  - The ONLY exception is the emoji font. Copy it EXACTLY like this (outer double quotes, escaped as \" in your JSON): ctx.font = "28px 'Apple Color Emoji','Noto Color Emoji',sans-serif"; — NEVER nest single quotes inside a single-quoted string.
   - Do NOT use regex literals or backslash escapes like \\d \\( in code (find another way); no literal newlines inside JS string literals. Emoji are fine.
 - Self-check before finalizing: mentally run start → play → game over → restart. Every variable defined before use (restart calls init() again — stale state must be reset there). No undefined references. Balanced brackets.
 - When EDITING an existing game: keep what works, apply ONLY the requested change, and return ALL fields complete (full js, not a diff).
