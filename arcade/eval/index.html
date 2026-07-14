@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>生成品質チェック（cycle4）| Vappa</title>
+<style>
+:root{--bg:#141221;--ink:#f1eefb;--dim:#9a93b5;--rule:#2c2740;--plate:#1d1a2e;--gold:#8b5cf6}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Hiragino Maru Gothic ProN","Hiragino Sans",system-ui,sans-serif;padding:18px 14px 40px}
+h1{font-size:20px;margin:4px 0 2px} .sub{color:var(--dim);font-size:12.5px;line-height:1.7;margin-bottom:14px}
+.total{display:inline-block;background:var(--gold);color:#fff;font-weight:900;border-radius:99px;padding:4px 14px;font-size:15px;margin-bottom:14px}
+.card{background:var(--plate);border:1px solid var(--rule);border-radius:14px;padding:12px 14px;margin-bottom:12px}
+.hd{display:flex;align-items:center;gap:8px} .hd b{font-size:15px;flex:1}
+.cat{font-size:10.5px;color:var(--dim);border:1px solid var(--rule);border-radius:99px;padding:2px 8px;flex:none}
+.sc{font-weight:900;font-size:15px;color:#fbbf24;flex:none} .sc.full{color:#34d399}
+.badges{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0 6px}
+.b{font-size:10px;font-weight:700;border-radius:6px;padding:2px 6px}
+.b.ok{background:rgba(52,211,153,.13);color:#34d399} .b.ng{background:rgba(248,113,113,.15);color:#f87171}
+.meta{font-size:11px;color:var(--dim);margin-bottom:8px}
+.acts{display:flex;flex-direction:column;gap:8px}
+.play{display:block;text-align:center;background:var(--gold);color:#fff;text-decoration:none;font-weight:900;border-radius:12px;padding:11px;font-size:15px}
+.play.off{background:var(--rule);color:var(--dim)}
+details summary{font-size:12.5px;color:var(--dim);cursor:pointer;font-weight:700}
+pre{white-space:pre-wrap;font-size:11.5px;line-height:1.7;color:var(--ink);background:var(--bg);border:1px solid var(--rule);border-radius:10px;padding:10px;margin:8px 0 0}
+.note{font-size:11.5px;color:var(--dim);line-height:1.8;border-top:1px solid var(--rule);padding-top:12px;margin-top:18px}
+</style></head><body>
+<h1>🔬 生成品質チェック（管理者用）</h1>
+<p class="sub">DeepSeek V4 Flash（思考high・1本約¥1）が設計書から自動生成した10本。バッジは自動テストプレイの採点内訳。数字だけでなく、実際に遊んで品質を確かめる用のページ。</p>
+<div class="total">総合 96/100</div>
+<div class="card">
+  <div class="hd"><b>もぐらたたき</b><span class="cat">反射神経</span><span class="sc ">9/10</span></div>
+  <div class="badges"><span class="b ok">✓ 構造</span><span class="b ok">✓ 起動</span><span class="b ok">✓ スタート</span><span class="b ok">✓ 動き</span><span class="b ok">✓ 操作反応</span><span class="b ng">✗ スコア</span><span class="b ok">✓ エラー無</span><span class="b ok">✓ 終了到達</span><span class="b ok">✓ 再開</span><span class="b ok">✓ 固有挙動</span></div>
+  <div class="meta">DeepSeek V4 Flash・思考high／生成 28秒</div>
+  <div class="acts"><a class="play" href="mole.html">▶ 遊んでみる</a>
+    <details><summary>📐 入力した設計書</summary><pre>■ゲーム概要
+穴から顔を出すモグラをタップして叩く定番の反射神経ゲーム。爆弾が混ざるので見極めが必要。
+■操作方法
+画面のモグラを直接タップ。それ以外の操作は無い。
+■コアメカニクス
+3x3の9つの穴からモグラ🐹がランダムに顔を出し、約1秒で引っ込む。タップで+1点。たまに爆弾💣が顔を出し、叩くとライフが1減る。ライフは3。
+■難易度の進行
+時間経過でモグラの出現間隔が短く、引っ込みも速くなる。
+■スコア定義
+叩いたモグラの数（1匹=1点）。高いほど良い。
+■終了条件
+制限時間30秒が経過するか、ライフが0になったら終了。
+■見た目・テーマ
+芝生の緑背景、茶色い穴、絵文字🐹💣を大きく描く。叩いた時に⭐のエフェクト。
+■特殊ルール・こだわり
+爆弾を叩いた時は画面を赤くフラッシュさせる。</pre></details></div>
+</div><div class="card">
+  <div class="hd"><b>隕石よけ</b><span class="cat">よける</span><span class="sc full">10/10</span></div>
+  <div class="badges"><span class="b ok">✓ 構造</span><span class="b ok">✓ 起動</span><span class="b ok">✓ スタート</span><span class="b ok">✓ 動き</span><span class="b ok">✓ 操作反応</span><span class="b ok">✓ スコア</span><span class="b ok">✓ エラー無</span><span class="b ok">✓ 終了到達</span><span class="b ok">✓ 再開</span><span class="b ok">✓ 固有挙動</span></div>
+  <div class="meta">DeepSeek V4 Flash・思考high／生成 17秒</div>
+  <div class="acts"><a class="play" href="meteor.html">▶ 遊んでみる</a>
+    <details><summary>📐 入力した設計書</summary><pre>■ゲーム概要
+宇宙船を指で動かして降り注ぐ隕石をよけ続けるサバイバルゲーム。
+■操作方法
+画面のどこでもドラッグすると宇宙船🚀が指の横位置に追従する（画面下部を左右移動）。
+■コアメカニクス
+上から隕石☄️が落ちてくる。宇宙船に当たるとゲームオーバー。隕石は大小あり、速度もばらつく。
+■難易度の進行
+時間とともに隕石の数と速度が増える。
+■スコア定義
+生き残った秒数（1秒=1点）。高いほど良い。HUDに常時表示。
+■終了条件
+隕石に1回当たったら即終了。
+■見た目・テーマ
+黒い宇宙背景に星を流す。宇宙船と隕石は絵文字で大きく。
+■特殊ルール・こだわり
+当たった瞬間に💥を表示して画面を揺らす。</pre></details></div>
+</div><div class="card">
+  <div class="hd"><b>エイリアンシューター</b><span class="cat">シューティング</span><span class="sc full">10/10</span></div>
+  <div class="badges"><span class="b ok">✓ 構造</span><span class="b ok">✓ 起動</span><span class="b ok">✓ スタート</span><span class="b ok">✓ 動き</span><span class="b ok">✓ 操作反応</span><span class="b ok">✓ スコア</span><span class="b ok">✓ エラー無</span><span class="b ok">✓ 終了到達</span><span class="b ok">✓ 再開</span><span class="b ok">✓ 固有挙動</span></div>
+  <div class="meta">DeepSeek V4 Flash・思考high／生成 42秒</div>
+  <div class="acts"><a class="play" href="shooter.html">▶ 遊んでみる</a>
+    <details><summary>📐 入力した設計書</summary><pre>■ゲーム概要
+自動で弾を撃つ自機を左右に動かして、降りてくるエイリアンを撃ち落とすシューティング。
+■操作方法
+ドラッグで自機🛸を左右に移動。弾は自動で連射される（タップ連打は不要）。
+■コアメカニクス
+上からエイリアン👾が編隊で降りてくる。弾が当たると倒れて+10点。エイリアンが自機に触れるか画面下端に到達するとライフが1減る。ライフ3。
+■難易度の進行
+ウェーブが進むごとにエイリアンの数と速度が増える。
+■スコア定義
+倒したエイリアン×10点。高いほど良い。
+■終了条件
+ライフが0になったら終了。
+■見た目・テーマ
+深い紺の宇宙、ネオン風の弾、👾の編隊。倒すと小さな爆発。
+■特殊ルール・こだわり
+10体倒すごとに「WAVE +1」の表示を出す。</pre></details></div>
+</div><div class="card">
+  <div class="hd"><b>寿司キャッチ</b><span class="cat">アクション</span><span class="sc full">10/10</span></div>
+  <div class="badges"><span class="b ok">✓ 構造</span><span class="b ok">✓ 起動</span><span class="b ok">✓ スタート</span><span class="b ok">✓ 動き</span><span class="b ok">✓ 操作反応</span><span class="b ok">✓ スコア</span><span class="b ok">✓ エラー無</span><span class="b ok">✓ 終了到達</span><span class="b ok">✓ 再開</span><span class="b ok">✓ 固有挙動</span></div>
+  <div class="meta">DeepSeek V4 Flash・思考high／生成 27秒</div>
+  <div class="acts"><a class="play" href="sushi.html">▶ 遊んでみる</a>
+    <details><summary>📐 入力した設計書</summary><pre>■ゲーム概要
+落ちてくる寿司をお皿でキャッチする。ワサビは取ってはいけない。
+■操作方法
+ドラッグでお皿🍽️を左右に動かす。
+■コアメカニクス
+上から寿司🍣🍤🍙がランダムに落ちる。皿で受けると+1点。ワサビ🟢（絵文字は🥦でも可）を受けるとライフが1減る。ライフ3。取り逃した寿司は消えるだけ。
+■難易度の進行
+時間で落下速度と出現頻度が上がる。
+■スコア定義
+キャッチした寿司の数。高いほど良い。
+■終了条件
+30秒経過、またはライフ0で終了。
+■見た目・テーマ
+和風。木目カウンター色の背景。キャッチ時に「+1」を浮かせる。
+■特殊ルール・こだわり
+同じ種類の寿司を3連続でキャッチしたらボーナス+5点と「コンボ！」表示。</pre></details></div>
+</div><div class="card">
+  <div class="hd"><b>ジャンプランナー</b><span class="cat">タイミング</span><span class="sc ">9/10</span></div>
+  <div class="badges"><span class="b ok">✓ 構造</span><span class="b ok">✓ 起動</span><span class="b ok">✓ スタート</span><span class="b ok">✓ 動き</span><span class="b ok">✓ 操作反応</span><span class="b ng">✗ スコア</span><span class="b ok">✓ エラー無</span><span class="b ok">✓ 終了到達</span><span class="b ok">✓ 再開</span><span class="b ok">✓ 固有挙動</span></div>
+  <div class="meta">DeepSeek V4 Flash・思考high／生成 33秒</div>
+  <div class="acts"><a class="play" href="jump.html">▶ 遊んでみる</a>
+    <details><summary>📐 入力した設計書</summary><pre>■ゲーム概要
+走り続けるキャラをタップでジャンプさせ、迫ってくる障害物を跳び越えるランゲーム。
+■操作方法
+画面のどこかをタップするとジャンプ。空中では再ジャンプ不可。
+■コアメカニクス
+キャラ🦖は画面左側に固定され、地面を走る。右から障害物🌵が流れてくる。ぶつかったらゲームオーバー。跳び越えると+1点。
+■難易度の進行
+時間とともにスクロール速度が上がり、障害物の間隔が不規則になる。
+■スコア定義
+跳び越えた障害物の数。高いほど良い。
+■終了条件
+障害物に1回当たったら即終了。
+■見た目・テーマ
+夕焼けのグラデーション背景、地平線、シンプルな地面ライン。
+■特殊ルール・こだわり
+ジャンプ中はキャラを少し回転させる。</pre></details></div>
+</div><div class="card">
+  <div class="hd"><b>ひかりの記憶</b><span class="cat">記憶</span><span class="sc full">10/10</span></div>
+  <div class="badges"><span class="b ok">✓ 構造</span><span class="b ok">✓ 起動</span><span class="b ok">✓ スタート</span><span class="b ok">✓ 動き</span><span class="b ok">✓ 操作反応</span><span class="b ok">✓ スコア</span><span class="b ok">✓ エラー無</span><span class="b ok">✓ 終了到達</span><span class="b ok">✓ 再開</span><span class="b ok">✓ 固有挙動</span></div>
+  <div class="meta">DeepSeek V4 Flash・思考high／生成 102秒</div>
+  <div class="acts"><a class="play" href="memory.html">▶ 遊んでみる</a>
+    <details><summary>📐 入力した設計書</summary><pre>■ゲーム概要
+光ったパネルの順番を覚えて、同じ順にタップする記憶ゲーム（サイモン系）。
+■操作方法
+2x2の4枚の大きなパネルをタップ。
+■コアメカニクス
+ラウンド開始時にパネルが順番に光る（最初は2枚）。光り終わったらプレイヤーが同じ順にタップ。正解で+ラウンド数×1点、次のラウンドは1枚増える。間違えたら即終了。
+■難易度の進行
+ラウンドごとに光る枚数が1つ増え、光る速度も少し速くなる。
+■スコア定義
+クリアしたラウンドの合計点。高いほど良い。
+■終了条件
+タップの順番を間違えたら終了。
+■見た目・テーマ
+ダーク背景に4色（赤・青・緑・黄）の角丸パネル。光る時は明るく、押した時に少し沈む。
+■特殊ルール・こだわり
+お手本の再生中はタップを受け付けない（見てるだけ）。再生中は「みてね…」、入力受付中は「どうぞ！」の表示を出す。</pre></details></div>
+</div><div class="card">
+  <div class="hd"><b>3レーンカーレース</b><span class="cat">レース</span><span class="sc full">10/10</span></div>
+  <div class="badges"><span class="b ok">✓ 構造</span><span class="b ok">✓ 起動</span><span class="b ok">✓ スタート</span><span class="b ok">✓ 動き</span><span class="b ok">✓ 操作反応</span><span class="b ok">✓ スコア</span><span class="b ok">✓ エラー無</span><span class="b ok">✓ 終了到達</span><span class="b ok">✓ 再開</span><span class="b ok">✓ 固有挙動</span></div>
+  <div class="meta">DeepSeek V4 Flash・思考high／生成 36秒</div>
+  <div class="acts"><a class="play" href="lane.html">▶ 遊んでみる</a>
+    <details><summary>📐 入力した設計書</summary><pre>■ゲーム概要
+3車線の道路を走る車を左右タップで車線変更させ、前方の障害物をよけるレース。
+■操作方法
+画面の左半分をタップで1つ左の車線へ、右半分タップで1つ右の車線へ移動。
+■コアメカニクス
+自車🚗は画面下部。前から他の車🚙や障害物🚧が3つの車線を流れてくる。ぶつかったらゲームオーバー。よけた分だけ距離が伸びる。
+■難易度の進行
+時間とともにスピードと交通量が増える。
+■スコア定義
+走行距離（メートル、1秒=10m換算）。高いほど良い。
+■終了条件
+障害物に当たったら即終了。
+■見た目・テーマ
+グレーの道路に白い車線ライン（動かして疾走感を出す）、緑の路肩。
+■特殊ルール・こだわり
+車線変更はスパッと瞬間移動ではなく、素早くスライドさせる。</pre></details></div>
+</div><div class="card">
+  <div class="hd"><b>コインあつめ</b><span class="cat">アクション</span><span class="sc full">10/10</span></div>
+  <div class="badges"><span class="b ok">✓ 構造</span><span class="b ok">✓ 起動</span><span class="b ok">✓ スタート</span><span class="b ok">✓ 動き</span><span class="b ok">✓ 操作反応</span><span class="b ok">✓ スコア</span><span class="b ok">✓ エラー無</span><span class="b ok">✓ 終了到達</span><span class="b ok">✓ 再開</span><span class="b ok">✓ 固有挙動</span></div>
+  <div class="meta">DeepSeek V4 Flash・思考high／生成 39秒</div>
+  <div class="acts"><a class="play" href="coins.html">▶ 遊んでみる</a>
+    <details><summary>📐 入力した設計書</summary><pre>■ゲーム概要
+画面を泳ぎ回るコインをタップで集めまくる30秒のスコアアタック。
+■操作方法
+コインを直接タップ。
+■コアメカニクス
+コイン🪙が画面内をふわふわ動き回る（常に3〜5枚）。タップすると+1点で消え、すぐ別の場所に新しいコインが湧く。たまに出る虹コイン🌈は+5点で小さく速い。
+■難易度の進行
+残り10秒からコインの動きが速くなる。
+■スコア定義
+集めたコインの合計点。高いほど良い。
+■終了条件
+30秒経過で終了。
+■見た目・テーマ
+明るい空色の背景に雲。タップ時にコインがはじけるエフェクト。
+■特殊ルール・こだわり
+虹コインを取ったら画面上部に「+5!」を大きく出す。</pre></details></div>
+</div><div class="card">
+  <div class="hd"><b>キャッスルディフェンス</b><span class="cat">アクション</span><span class="sc full">10/10</span></div>
+  <div class="badges"><span class="b ok">✓ 構造</span><span class="b ok">✓ 起動</span><span class="b ok">✓ スタート</span><span class="b ok">✓ 動き</span><span class="b ok">✓ 操作反応</span><span class="b ok">✓ スコア</span><span class="b ok">✓ エラー無</span><span class="b ok">✓ 終了到達</span><span class="b ok">✓ 再開</span><span class="b ok">✓ 固有挙動</span></div>
+  <div class="meta">DeepSeek V4 Flash・思考high／生成 17秒</div>
+  <div class="acts"><a class="play" href="castle.html">▶ 遊んでみる</a>
+    <details><summary>📐 入力した設計書</summary><pre>■ゲーム概要
+左の城に迫ってくる敵をタップで撃退するディフェンスゲーム。
+■操作方法
+敵を直接タップすると倒せる。
+■コアメカニクス
+右から敵👹がゆっくり歩いてくる。タップ1回で倒れて+1点。城🏰に到達されると城のHPが1減る（HP5）。複数の敵が同時に来る。
+■難易度の進行
+時間とともに敵の速度・数が増え、2回タップが必要なタフな敵🧌も出る。
+■スコア定義
+倒した敵の数。高いほど良い。
+■終了条件
+城のHPが0になったら終了。
+■見た目・テーマ
+草原と青空、左端に城。HPはハート❤️で表示。
+■特殊ルール・こだわり
+タフな敵は1回目のタップで色が変わる（怒り顔）。</pre></details></div>
+</div><div class="card">
+  <div class="hd"><b>ふうせんチキンレース</b><span class="cat">タイミング</span><span class="sc ">8/10</span></div>
+  <div class="badges"><span class="b ok">✓ 構造</span><span class="b ok">✓ 起動</span><span class="b ok">✓ スタート</span><span class="b ok">✓ 動き</span><span class="b ok">✓ 操作反応</span><span class="b ok">✓ スコア</span><span class="b ok">✓ エラー無</span><span class="b ng">✗ 終了到達</span><span class="b ng">✗ 再開</span><span class="b ok">✓ 固有挙動</span></div>
+  <div class="meta">DeepSeek V4 Flash・思考high／生成 74秒</div>
+  <div class="acts"><a class="play" href="balloon.html">▶ 遊んでみる</a>
+    <details><summary>📐 入力した設計書</summary><pre>■ゲーム概要
+風船を割れるギリギリまで膨らませて得点を稼ぐチキンレース。
+■操作方法
+画面を押している間だけ風船🎈が膨らむ。指を離すとその大きさで確定。
+■コアメカニクス
+風船には見えない破裂ポイントがある（毎回ランダム）。離した時の大きさが大きいほど高得点（1〜100点）。押しすぎて破裂したらその風船は0点。風船は全部で5個。
+■難易度の進行
+後半の風船ほど破裂ポイントのばらつきが大きくなる。
+■スコア定義
+5個の風船の合計点。高いほど良い。
+■終了条件
+5個の風船を終えたら終了。
+■見た目・テーマ
+パステル調。風船は膨らむほど色が濃く、限界が近いと小刻みに震える。
+■特殊ルール・こだわり
+破裂したら💥と「パンッ！」の文字。確定時は得点を風船の位置に表示。</pre></details></div>
+</div>
+<p class="note">※ このページは検索除外（noindex）。採点の✗は「自動プレイのボットが下手」なだけのものも含む（もぐらの命中・ジャンプのタイミング・風船5個完走など）。テンプレ改善の推移: 74 → 88 → 86 → 83 → 96 点。</p>
+</body></html>

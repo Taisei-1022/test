@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
+<title>ひかりの記憶</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%81%B2%E3%81%8B%E3%82%8A%E3%81%AE%E8%A8%98%E6%86%B6%22%2C%22h%22%3A%22%E5%85%89%E3%82%8B%E9%A0%86%E7%95%AA%E3%82%92%E8%A6%9A%E3%81%88%E3%81%A6%E3%80%81%E5%90%8C%E3%81%98%E9%A0%86%E3%81%AB%E3%82%BF%E3%83%83%E3%83%97%E3%81%97%E3%82%88%E3%81%86%EF%BC%81%E9%96%93%E9%81%95%E3%81%88%E3%81%9F%E3%82%89%E7%B5%82%E4%BA%86%E3%80%82%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
+html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
+#vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+.vp-hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top) + 10px) 14px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
+.vp-hud span:empty{display:none}
+.vp-ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
+.vp-ov h1{font-size:28px}
+.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:320px;white-space:pre-line}
+.vp-ov .vp-big{font-size:44px;font-weight:900;color:#ffd166}
+.vp-btn{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:17px;box-shadow:0 5px 0 rgba(0,0,0,.25);touch-action:manipulation}
+.vp-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.vp-toast{position:fixed;top:calc(env(safe-area-inset-top) + 52px);left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+[hidden]{display:none!important}
+</style>
+<style id="vpcss">
+/*__VAPPA_CSS__*/
+
+/*__VAPPA_CSS_END__*/
+</style>
+</head><body>
+<canvas id="vpc"></canvas>
+<div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
+<div class="vp-toast" id="vptoast"></div>
+<div class="vp-ov" id="vpov">
+  <h1>ひかりの記憶</h1>
+  <p>光る順番を覚えて、同じ順にタップしよう！間違えたら終了。</p>
+  <button class="vp-btn" id="vpstart">スタート</button>
+</div>
+<script id="vpimgs">
+/* ユーザー素材画像 {名前:dataURL}。中身はビルド後にアプリが注入（AIには名前だけ渡る） */
+window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
+</script>
+<script>
+window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
+var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
+var W=0,H=0;
+(function(){
+"use strict";
+var DPR=Math.min(2,window.devicePixelRatio||1);
+function rs(){W=window.innerWidth;H=window.innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);
+  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}}
+window.addEventListener("resize",rs);rs();
+var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="点";
+// ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
+var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
+var hud=document.getElementById("vphud"),hl=document.getElementById("vphl"),hr=document.getElementById("vphr");
+var ov=document.getElementById("vpov"),toastEl=document.getElementById("vptoast"),tt=null,last=performance.now();
+window.Game={
+  img:function(n){return IMGS[n]||null;},
+  score:function(n){hl.textContent=(n|0)+unit;},
+  hud:function(t){hr.textContent=t==null?"":String(t);},
+  float:function(x,y,t,c){floats.push({x:x,y:y,t:String(t),c:c||"#fff",age:0});},
+  toast:function(t){toastEl.textContent=t;toastEl.style.opacity=1;clearTimeout(tt);tt=setTimeout(function(){toastEl.style.opacity=0;},2000);},
+  over:function(s){
+    if(!playing||ended)return;ended=true;playing=false;s=Math.max(0,Math.floor(Number(s)||0));
+    ov.innerHTML='<h1>おわり！</h1><div class="vp-big">'+s+'<small style="font-size:20px">'+unit+'</small></div><button class="vp-btn" id="vpagain">もういちど</button>';
+    ov.hidden=false;
+    document.getElementById("vpagain").addEventListener("click",start);
+    try{window.Arcade.gameOver(s);}catch(e){}
+  }
+};
+function crash(e){
+  if(crashed)return;crashed=true;playing=false;
+  try{window.__VP_ERR=String(e&&(e.stack||e.message)||e).slice(0,600);}catch(x){}
+  ov.innerHTML='<h1>😢 エラーが発生</h1><p>ゲームにエラーが起きました。<br>作成チャットで「エラーを直して」と伝えると修理できるよ。</p><button class="vp-btn" id="vpagain">もういちど</button>';
+  ov.hidden=false;
+  document.getElementById("vpagain").addEventListener("click",start);
+}
+function start(){
+  floats=[];ended=false;crashed=false;
+  try{window.init();}catch(e){crash(e);return;}
+  window.Game.score(0);ov.hidden=true;hud.hidden=false;playing=true;last=performance.now();
+}
+document.getElementById("vpstart").addEventListener("click",start);
+function fire(fn,x,y,id){
+  if(!playing||paused)return;
+  if(typeof window[fn]==="function"){try{window[fn](x,y,id);}catch(err){crash(err);}}
+}
+// pointer と touch を両対応（iOSのiframe内などpointerが飛ばない環境へのフォールバック）。
+// pointerが一度でも来たらtouchは無視して二重発火を防ぐ。
+var seenPointer=false;
+window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",e.clientX,e.clientY,e.pointerId);fire("onMove",e.clientX,e.clientY,e.pointerId);});
+window.addEventListener("pointermove",function(e){fire("onMove",e.clientX,e.clientY,e.pointerId);});
+window.addEventListener("pointerup",function(e){fire("onUp",e.clientX,e.clientY,e.pointerId);});
+// タッチの扱い（iOS対策の要点）：
+//  - touchstart は preventDefault しない
+//  - touchmove は非passiveで preventDefault → パン/スクロール横取りはこれで止まる
+//  - touchend はボタン類「以外」でだけ preventDefault → iOSのダブルタップズーム
+//    （touch-action:noneでは止まらない端末がある）を殺しつつ、ボタンの click 合成は守る
+//  - pointerイベントが来る環境では発火だけ二重防止（seenPointer）
+function tfire(fn,e){
+  if(seenPointer)return;
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,t.clientX,t.clientY,t.identifier);
+    if(fn==="onDown")fire("onMove",t.clientX,t.clientY,t.identifier);}
+}
+function uiTouch(e){var t=e.target;return !!(t&&t.closest&&t.closest("button,a,input,select,label"));}
+window.addEventListener("touchstart",function(e){tfire("onDown",e);},{passive:true});
+window.addEventListener("touchmove",function(e){if(e.cancelable)e.preventDefault();tfire("onMove",e);},{passive:false});
+window.addEventListener("touchend",function(e){if(e.cancelable&&!uiTouch(e))e.preventDefault();tfire("onUp",e);},{passive:false});
+document.addEventListener("gesturestart",function(e){e.preventDefault();});
+window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",e.clientX,e.clientY,0);});
+window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",e.clientX,e.clientY,0);});
+window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",e.clientX,e.clientY,0);});
+window.Arcade.onPause(function(){paused=true;});
+window.Arcade.onResume(function(){paused=false;last=performance.now();});
+window.Arcade.onRestart(start);
+document.addEventListener("visibilitychange",function(){if(document.hidden){paused=true;}else{paused=false;last=performance.now();}});
+function loop(now){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(now-last)/1000);last=now;
+  if(crashed)return;
+  if(playing&&!paused){try{window.update(dt);}catch(e){crash(e);return;}}
+  if(playing||ended){try{window.draw();}catch(e){crash(e);return;}}
+  for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.age+=dt;
+    if(f.age>1){floats.splice(i,1);continue;}
+    ctx.save();ctx.globalAlpha=Math.max(0,1-f.age);ctx.font="bold 16px sans-serif";ctx.textAlign="center";
+    ctx.fillStyle=f.c;ctx.fillText(f.t,f.x,f.y-f.age*30);ctx.restore();}
+}
+requestAnimationFrame(loop);
+window.Arcade.ready();
+// 自動テストプレイ用フック：親(アプリ)がスモークテストで入力を一発流すのに使う
+window.__vpTap=function(){
+  fire("onDown",W/2,H/2,1);fire("onMove",W/2+40,H/2,1);fire("onUp",W/2+40,H/2,1);
+};
+})();
+</script>
+<script id="vpgame">
+/*__VAPPA_JS__*/
+var TUNE = {
+  flashDuration: { v: 0.6, label: '光る時間(秒)', min: 0.2, max: 1.5, step: 0.1 },
+  pauseDuration: { v: 0.3, label: '間隔(秒)', min: 0.1, max: 1, step: 0.05 },
+  speedUp: { v: 0.05, label: '毎ラウンド短縮(秒)', min: 0, max: 0.2, step: 0.01 },
+  panelR: { v: 12, label: '角丸半径', min: 4, max: 30, step: 2 }
+};
+var colors = ['#ff4444', '#4488ff', '#44ff44', '#ffdd44'];
+var colorsBright = ['#ff8888', '#88bbff', '#88ff88', '#ffee88'];
+var colorsDark = ['#cc3333', '#3366cc', '#33cc33', '#ccaa33'];
+var phase, sequence, round, score, showIndex, showSubState, showSubTimer, inputIndex, pressTimers, currentFlashDur, currentPauseDur, panelRects;
+
+function init() {
+  sequence = [];
+  round = 0;
+  score = 0;
+  phase = 'showing';
+  showIndex = 0;
+  showSubState = 'flash';
+  pressTimers = [0, 0, 0, 0];
+  recomputePanelRects();
+  for (var i = 0; i < 2; i++) {
+    sequence.push(Math.floor(Math.random() * 4));
+  }
+  round = 1;
+  currentFlashDur = Math.max(0.15, TUNE.flashDuration.v - (round - 1) * TUNE.speedUp.v);
+  currentPauseDur = Math.max(0.1, TUNE.pauseDuration.v - (round - 1) * TUNE.speedUp.v * 0.5);
+  showSubTimer = currentFlashDur;
+  inputIndex = 0;
+  Game.hud('第' + round + 'ラウンド');
+}
+
+function recomputePanelRects() {
+  panelRects = [];
+  var margin = 20;
+  var gap = 10;
+  var panelW = (W - 2 * margin - gap) / 2;
+  var panelH = (H - 2 * margin - gap) / 2;
+  panelW = Math.max(panelW, 80);
+  panelH = Math.max(panelH, 80);
+  var totalW = panelW * 2 + gap;
+  var totalH = panelH * 2 + gap;
+  var startX = (W - totalW) / 2;
+  var startY = (H - totalH) / 2;
+  if (startY < 50) startY = 50;
+  for (var row = 0; row < 2; row++) {
+    for (var col = 0; col < 2; col++) {
+      var idx = row * 2 + col;
+      panelRects.push({
+        x: startX + col * (panelW + gap),
+        y: startY + row * (panelH + gap),
+        w: panelW,
+        h: panelH
+      });
+    }
+  }
+}
+
+function update(dt) {
+  for (var i = 0; i < 4; i++) {
+    if (pressTimers[i] > 0) {
+      pressTimers[i] -= dt;
+      if (pressTimers[i] < 0) pressTimers[i] = 0;
+    }
+  }
+  if (phase === 'showing') {
+    showSubTimer -= dt;
+    if (showSubTimer <= 0) {
+      if (showSubState === 'flash') {
+        showSubState = 'pause';
+        showSubTimer = currentPauseDur;
+      } else {
+        showIndex++;
+        if (showIndex >= round) {
+          phase = 'input';
+          inputIndex = 0;
+        } else {
+          showSubState = 'flash';
+          showSubTimer = currentFlashDur;
+        }
+      }
+    }
+  }
+}
+
+function draw() {
+  ctx.fillStyle = '#0f1322';
+  ctx.fillRect(0, 0, W, H);
+  for (var i = 0; i < 4; i++) {
+    var rect = panelRects[i];
+    if (!rect) continue;
+    var color;
+    var isHighlight = false;
+    if (phase === 'showing' && showSubState === 'flash' && showIndex === i) {
+      isHighlight = true;
+      color = colorsBright[i];
+    } else if (pressTimers[i] > 0) {
+      color = colorsDark[i];
+    } else {
+      color = colors[i];
+    }
+    var r = TUNE.panelR.v;
+    ctx.beginPath();
+    ctx.moveTo(rect.x + r, rect.y);
+    ctx.lineTo(rect.x + rect.w - r, rect.y);
+    ctx.quadraticCurveTo(rect.x + rect.w, rect.y, rect.x + rect.w, rect.y + r);
+    ctx.lineTo(rect.x + rect.w, rect.y + rect.h - r);
+    ctx.quadraticCurveTo(rect.x + rect.w, rect.y + rect.h, rect.x + rect.w - r, rect.y + rect.h);
+    ctx.lineTo(rect.x + r, rect.y + rect.h);
+    ctx.quadraticCurveTo(rect.x, rect.y + rect.h, rect.x, rect.y + rect.h - r);
+    ctx.lineTo(rect.x, rect.y + r);
+    ctx.quadraticCurveTo(rect.x, rect.y, rect.x + r, rect.y);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+    if (isHighlight) {
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 4;
+      ctx.stroke();
+    }
+  }
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '26px sans-serif';
+  ctx.fillStyle = '#fff';
+  var textY = 30;
+  if (panelRects[0]) textY = panelRects[0].y - 20;
+  if (textY < 15) textY = 15;
+  if (phase === 'showing') {
+    ctx.fillText('みてね…', W / 2, textY);
+  } else if (phase === 'input') {
+    ctx.fillText('どうぞ！', W / 2, textY);
+  }
+}
+
+function onDown(x, y, id) {
+  if (phase !== 'input') return;
+  for (var i = 0; i < 4; i++) {
+    var rect = panelRects[i];
+    if (x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h) {
+      pressTimers[i] = 0.15;
+      if (i === sequence[inputIndex]) {
+        inputIndex++;
+        if (inputIndex >= round) {
+          score += round;
+          Game.score(score);
+          Game.float(rect.x + rect.w / 2, rect.y, '+' + round, '#ffd166');
+          round++;
+          sequence.push(Math.floor(Math.random() * 4));
+          phase = 'showing';
+          showIndex = 0;
+          showSubState = 'flash';
+          currentFlashDur = Math.max(0.15, TUNE.flashDuration.v - (round - 1) * TUNE.speedUp.v);
+          currentPauseDur = Math.max(0.1, TUNE.pauseDuration.v - (round - 1) * TUNE.speedUp.v * 0.5);
+          showSubTimer = currentFlashDur;
+          Game.hud('第' + round + 'ラウンド');
+        }
+      } else {
+        Game.float(rect.x + rect.w / 2, rect.y, '✗', '#f87171');
+        Game.over(score);
+      }
+      return;
+    }
+  }
+}
+
+function onMove(x, y, id) {}
+function onUp(x, y, id) {}
+function onResize() {
+  recomputePanelRects();
+}
+/*__VAPPA_JS_END__*/
+</script>
+</body></html>

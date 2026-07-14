@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
+<title>ふうせんチキンレース</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%81%B5%E3%81%86%E3%81%9B%E3%82%93%E3%83%81%E3%82%AD%E3%83%B3%E3%83%AC%E3%83%BC%E3%82%B9%22%2C%22h%22%3A%22%E9%A2%A8%E8%88%B9%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%E3%81%97%E7%B6%9A%E3%81%91%E3%81%A6%E8%86%A8%E3%82%89%E3%81%BE%E3%81%9B%E3%80%81%E3%82%AE%E3%83%AA%E3%82%AE%E3%83%AA%E3%81%A7%E9%9B%A2%E3%81%97%E3%81%A6%E9%AB%98%E5%BE%97%E7%82%B9%E3%82%92%E7%8B%99%E3%81%88%EF%BC%81%E7%A0%B4%E8%A3%82%E3%81%99%E3%82%8B%E3%81%A80%E7%82%B9%E3%80%825%E5%80%8B%E6%8C%91%E6%88%A6%E3%80%82%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
+html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
+#vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+.vp-hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top) + 10px) 14px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
+.vp-hud span:empty{display:none}
+.vp-ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
+.vp-ov h1{font-size:28px}
+.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:320px;white-space:pre-line}
+.vp-ov .vp-big{font-size:44px;font-weight:900;color:#ffd166}
+.vp-btn{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:17px;box-shadow:0 5px 0 rgba(0,0,0,.25);touch-action:manipulation}
+.vp-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.vp-toast{position:fixed;top:calc(env(safe-area-inset-top) + 52px);left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+[hidden]{display:none!important}
+</style>
+<style id="vpcss">
+/*__VAPPA_CSS__*/
+
+/*__VAPPA_CSS_END__*/
+</style>
+</head><body>
+<canvas id="vpc"></canvas>
+<div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
+<div class="vp-toast" id="vptoast"></div>
+<div class="vp-ov" id="vpov">
+  <h1>ふうせんチキンレース</h1>
+  <p>風船をタップし続けて膨らませ、ギリギリで離して高得点を狙え！破裂すると0点。5個挑戦。</p>
+  <button class="vp-btn" id="vpstart">スタート</button>
+</div>
+<script id="vpimgs">
+/* ユーザー素材画像 {名前:dataURL}。中身はビルド後にアプリが注入（AIには名前だけ渡る） */
+window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
+</script>
+<script>
+window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
+var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
+var W=0,H=0;
+(function(){
+"use strict";
+var DPR=Math.min(2,window.devicePixelRatio||1);
+function rs(){W=window.innerWidth;H=window.innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);
+  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}}
+window.addEventListener("resize",rs);rs();
+var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="点";
+// ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
+var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
+var hud=document.getElementById("vphud"),hl=document.getElementById("vphl"),hr=document.getElementById("vphr");
+var ov=document.getElementById("vpov"),toastEl=document.getElementById("vptoast"),tt=null,last=performance.now();
+window.Game={
+  img:function(n){return IMGS[n]||null;},
+  score:function(n){hl.textContent=(n|0)+unit;},
+  hud:function(t){hr.textContent=t==null?"":String(t);},
+  float:function(x,y,t,c){floats.push({x:x,y:y,t:String(t),c:c||"#fff",age:0});},
+  toast:function(t){toastEl.textContent=t;toastEl.style.opacity=1;clearTimeout(tt);tt=setTimeout(function(){toastEl.style.opacity=0;},2000);},
+  over:function(s){
+    if(!playing||ended)return;ended=true;playing=false;s=Math.max(0,Math.floor(Number(s)||0));
+    ov.innerHTML='<h1>おわり！</h1><div class="vp-big">'+s+'<small style="font-size:20px">'+unit+'</small></div><button class="vp-btn" id="vpagain">もういちど</button>';
+    ov.hidden=false;
+    document.getElementById("vpagain").addEventListener("click",start);
+    try{window.Arcade.gameOver(s);}catch(e){}
+  }
+};
+function crash(e){
+  if(crashed)return;crashed=true;playing=false;
+  try{window.__VP_ERR=String(e&&(e.stack||e.message)||e).slice(0,600);}catch(x){}
+  ov.innerHTML='<h1>😢 エラーが発生</h1><p>ゲームにエラーが起きました。<br>作成チャットで「エラーを直して」と伝えると修理できるよ。</p><button class="vp-btn" id="vpagain">もういちど</button>';
+  ov.hidden=false;
+  document.getElementById("vpagain").addEventListener("click",start);
+}
+function start(){
+  floats=[];ended=false;crashed=false;
+  try{window.init();}catch(e){crash(e);return;}
+  window.Game.score(0);ov.hidden=true;hud.hidden=false;playing=true;last=performance.now();
+}
+document.getElementById("vpstart").addEventListener("click",start);
+function fire(fn,x,y,id){
+  if(!playing||paused)return;
+  if(typeof window[fn]==="function"){try{window[fn](x,y,id);}catch(err){crash(err);}}
+}
+// pointer と touch を両対応（iOSのiframe内などpointerが飛ばない環境へのフォールバック）。
+// pointerが一度でも来たらtouchは無視して二重発火を防ぐ。
+var seenPointer=false;
+window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",e.clientX,e.clientY,e.pointerId);fire("onMove",e.clientX,e.clientY,e.pointerId);});
+window.addEventListener("pointermove",function(e){fire("onMove",e.clientX,e.clientY,e.pointerId);});
+window.addEventListener("pointerup",function(e){fire("onUp",e.clientX,e.clientY,e.pointerId);});
+// タッチの扱い（iOS対策の要点）：
+//  - touchstart は preventDefault しない
+//  - touchmove は非passiveで preventDefault → パン/スクロール横取りはこれで止まる
+//  - touchend はボタン類「以外」でだけ preventDefault → iOSのダブルタップズーム
+//    （touch-action:noneでは止まらない端末がある）を殺しつつ、ボタンの click 合成は守る
+//  - pointerイベントが来る環境では発火だけ二重防止（seenPointer）
+function tfire(fn,e){
+  if(seenPointer)return;
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,t.clientX,t.clientY,t.identifier);
+    if(fn==="onDown")fire("onMove",t.clientX,t.clientY,t.identifier);}
+}
+function uiTouch(e){var t=e.target;return !!(t&&t.closest&&t.closest("button,a,input,select,label"));}
+window.addEventListener("touchstart",function(e){tfire("onDown",e);},{passive:true});
+window.addEventListener("touchmove",function(e){if(e.cancelable)e.preventDefault();tfire("onMove",e);},{passive:false});
+window.addEventListener("touchend",function(e){if(e.cancelable&&!uiTouch(e))e.preventDefault();tfire("onUp",e);},{passive:false});
+document.addEventListener("gesturestart",function(e){e.preventDefault();});
+window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",e.clientX,e.clientY,0);});
+window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",e.clientX,e.clientY,0);});
+window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",e.clientX,e.clientY,0);});
+window.Arcade.onPause(function(){paused=true;});
+window.Arcade.onResume(function(){paused=false;last=performance.now();});
+window.Arcade.onRestart(start);
+document.addEventListener("visibilitychange",function(){if(document.hidden){paused=true;}else{paused=false;last=performance.now();}});
+function loop(now){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(now-last)/1000);last=now;
+  if(crashed)return;
+  if(playing&&!paused){try{window.update(dt);}catch(e){crash(e);return;}}
+  if(playing||ended){try{window.draw();}catch(e){crash(e);return;}}
+  for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.age+=dt;
+    if(f.age>1){floats.splice(i,1);continue;}
+    ctx.save();ctx.globalAlpha=Math.max(0,1-f.age);ctx.font="bold 16px sans-serif";ctx.textAlign="center";
+    ctx.fillStyle=f.c;ctx.fillText(f.t,f.x,f.y-f.age*30);ctx.restore();}
+}
+requestAnimationFrame(loop);
+window.Arcade.ready();
+// 自動テストプレイ用フック：親(アプリ)がスモークテストで入力を一発流すのに使う
+window.__vpTap=function(){
+  fire("onDown",W/2,H/2,1);fire("onMove",W/2+40,H/2,1);fire("onUp",W/2+40,H/2,1);
+};
+})();
+</script>
+<script id="vpgame">
+/*__VAPPA_JS__*/
+var TUNE = {
+  baseRadius: { v: 70, label: '基本破裂半径', min: 40, max: 120, step: 5 },
+  rangeBase: { v: 15, label: '範囲ベース', min: 5, max: 30, step: 5 },
+  rangeIncrease: { v: 10, label: '範囲増加/個', min: 0, max: 20, step: 2 },
+  growSpeed: { v: 60, label: '膨張速度(半径/秒)', min: 30, max: 120, step: 10 },
+  shakeThreshold: { v: 0.9, label: '震え開始割合', min: 0.7, max: 1.0, step: 0.05 },
+  resultDisplayTime: { v: 0.8, label: '結果表示時間(秒)', min: 0.3, max: 2.0, step: 0.1 }
+};
+var totalScore, currentBalloon, state, resultTimer, burstFlag, currentRadius, burstRadius, resultScore, balloonPositions;
+function init(){
+  totalScore = 0;
+  currentBalloon = 0;
+  state = 'ready';
+  resultTimer = 0;
+  burstFlag = false;
+  currentRadius = 0;
+  balloonPositions = [];
+  for (var i = 0; i < 5; i++){
+    balloonPositions.push({ x: W * (i+1) / 6, y: H * 0.4 });
+  }
+  Game.hud('\ud83c\udf88 1/5');
+  Game.score(0);
+}
+function update(dt){
+  if (state === 'inflating'){
+    currentRadius += TUNE.growSpeed.v * dt;
+    if (currentRadius >= burstRadius){
+      state = 'result';
+      resultTimer = TUNE.resultDisplayTime.v;
+      burstFlag = true;
+      resultScore = 0;
+    }
+  } else if (state === 'result'){
+    resultTimer -= dt;
+    if (resultTimer <= 0){
+      if (currentBalloon < 4){
+        currentBalloon++;
+        state = 'ready';
+        Game.hud('\ud83c\udf88 ' + (currentBalloon+1) + '/5');
+      } else {
+        Game.over(totalScore);
+      }
+    }
+  }
+}
+function draw(){
+  ctx.fillStyle = '#fce4ec';
+  ctx.fillRect(0, 0, W, H);
+  var pos = balloonPositions[currentBalloon];
+  if (state === 'ready'){
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '16px sans-serif';
+    ctx.fillStyle = '#888';
+    ctx.fillText('\u30bf\u30c3\u30d7\u3057\u3066\u86a8\u3089\u307e\u305b\u308b', pos.x, pos.y);
+  } else if (state === 'inflating'){
+    var r = currentRadius;
+    var shake = 0;
+    if (currentRadius > burstRadius * TUNE.shakeThreshold.v){
+      shake = 3;
+    }
+    var dx = (Math.random() - 0.5) * 2 * shake;
+    var dy = (Math.random() - 0.5) * 2 * shake;
+    var x = pos.x + dx;
+    var y = pos.y + dy;
+    ctx.beginPath();
+    ctx.moveTo(x, y + r);
+    ctx.lineTo(x, y + r + 40);
+    ctx.strokeStyle = '#999';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = '#ff6b6b';
+    ctx.beginPath();
+    ctx.moveTo(x - 5, y + r - 2);
+    ctx.lineTo(x + 5, y + r - 2);
+    ctx.lineTo(x, y + r + 5);
+    ctx.closePath();
+    ctx.fill();
+    var grad = ctx.createRadialGradient(x - 10, y - 10, 0, x, y, r);
+    grad.addColorStop(0, 'rgba(255,255,255,0.9)');
+    var saturation = 30 + (currentRadius / burstRadius) * 70;
+    var lightness = 70;
+    var color = 'hsl(0, ' + saturation + '%, ' + lightness + '%)';
+    grad.addColorStop(0.7, color);
+    grad.addColorStop(1, 'hsl(0, 80%, 50%)');
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  } else if (state === 'result'){
+    if (burstFlag){
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = "60px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+      ctx.fillText('\ud83d\udca5', pos.x, pos.y - 20);
+      ctx.font = '24px sans-serif';
+      ctx.fillStyle = '#ff6b6b';
+      ctx.fillText('\u30d1\u30f3\u30c3\uff01', pos.x, pos.y + 30);
+    } else {
+      var r = currentRadius;
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y + r);
+      ctx.lineTo(pos.x, pos.y + r + 40);
+      ctx.strokeStyle = '#999';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = '#ff6b6b';
+      ctx.beginPath();
+      ctx.moveTo(pos.x - 5, pos.y + r - 2);
+      ctx.lineTo(pos.x + 5, pos.y + r - 2);
+      ctx.lineTo(pos.x, pos.y + r + 5);
+      ctx.closePath();
+      ctx.fill();
+      var grad = ctx.createRadialGradient(pos.x - 10, pos.y - 10, 0, pos.x, pos.y, r);
+      grad.addColorStop(0, 'rgba(255,255,255,0.9)');
+      var saturation = 30 + (currentRadius / burstRadius) * 70;
+      var color = 'hsl(0, ' + saturation + '%, 70%)';
+      grad.addColorStop(0.7, color);
+      grad.addColorStop(1, 'hsl(0, 80%, 50%)');
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = '36px sans-serif';
+      ctx.fillStyle = '#333';
+      ctx.fillText('+' + resultScore, pos.x, pos.y);
+    }
+  }
+}
+function onDown(x, y){
+  if (state === 'ready'){
+    state = 'inflating';
+    currentRadius = 0;
+    var variance = TUNE.rangeBase.v + currentBalloon * TUNE.rangeIncrease.v;
+    burstRadius = TUNE.baseRadius.v + (Math.random() * 2 - 1) * variance;
+    if (burstRadius < 10) burstRadius = 10;
+    burstFlag = false;
+  }
+}
+function onUp(x, y){
+  if (state === 'inflating'){
+    if (currentRadius >= burstRadius){
+      state = 'result';
+      resultTimer = TUNE.resultDisplayTime.v;
+      burstFlag = true;
+      resultScore = 0;
+    } else {
+      state = 'result';
+      resultTimer = TUNE.resultDisplayTime.v;
+      burstFlag = false;
+      resultScore = Math.min(Math.floor((currentRadius / burstRadius) * 100), 100);
+      if (resultScore < 1) resultScore = 1;
+      totalScore += resultScore;
+      Game.score(totalScore);
+      Game.float(balloonPositions[currentBalloon].x, balloonPositions[currentBalloon].y - 30, '+' + resultScore + '\u70b9', '#ff6b6b');
+    }
+  }
+}
+
+/*__VAPPA_JS_END__*/
+</script>
+</body></html>
