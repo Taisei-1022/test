@@ -37,6 +37,27 @@ node tests/user-images.js
 クライアントがdataURLをマーカーへ注入→Game.imgで実描画→編集ビルドでも画像が
 往復して残る、の一連を検証。
 
+# DeepSeek生成品質の評価ハーネス（PDCA用）
+
+```
+node tests/gamegen-eval/run.js --tag=名前 [--cases=mole,jump] [--model=deepseek-v4-flash]
+  [--effort=high] [--conc=3] [--reuse=旧タグ] [--score-only]
+```
+10ジャンルの設計書からDeepSeekで実生成→Playwright実プレイで10項目×10本=100点満点の
+自動採点。プロンプト（BUILD2_SYSTEM/GOLD_JS）はindex.tsから毎回抽出されるので、
+プロンプト改善→再実行で効果を数字で確認できる。
+スコア推移: baseline 74 → cycle1 88 → cycle2 86 → cycle3 83 → **cycle4 96**
+（残る減点はボットのプレイスキル起因。生成失敗は4サイクルでゼロに）
+主な学び: ①JSON修復パーサ必須（不正エスケープ・生改行・内側生クォートの3段修復）
+②JS文字列はシングルクォート統一ルール ③絵文字フォント指定は正確な例文を提示。
+
+# ナビゲーション履歴（スワイプ戻る）E2E
+
+```
+node tests/nav-history.js
+```
+タブ切替が履歴に積まれないこと／ドリルダウンからのbackが同タブの1つ上に戻ること。
+
 # 作り方モード（既定＝いきなり生成 / 上級者＝設計書確認）E2E
 
 ```
