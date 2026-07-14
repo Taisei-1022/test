@@ -82,11 +82,33 @@ function callDeepSeek(c) {
   const d = JSON.parse(raw);
   if (d.error) throw new Error('api: ' + JSON.stringify(d.error).slice(0, 150));
   const content = d.choices[0].message.content || '';
-  const t = content.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
-  const s = t.indexOf('{'), e = t.lastIndexOf('}');
-  const g = JSON.parse(t.slice(s, e + 1));
+  let g;
+  try { g = parseJsonLoose(content); }
+  catch (e) { fs.writeFileSync(path.join(OUT, c.id + '.raw.txt'), content); throw e; }
   const u = d.usage || {};
   return { g, sec, tokens: { in: u.prompt_tokens || 0, out: u.completion_tokens || 0 } };
+}
+// サーバー(index.ts)の parseJsonLoose と同等（修復ロジック込み）。乖離したらサーバー側に合わせること。
+function parseJsonLoose(text) {
+  const t = String(text || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
+  const s = t.indexOf('{'), e = t.lastIndexOf('}');
+  if (s < 0 || e <= s) throw new Error('no_json_in_response');
+  const body = t.slice(s, e + 1);
+  try { return JSON.parse(body); } catch (e2) {}
+  let fixed = body.replace(/\\(?![\\"/bfnrtu])/g, '\\\\');
+  try { return JSON.parse(fixed); } catch (e2) {}
+  let out = '', inStr = false, esc = false;
+  for (let i = 0; i < fixed.length; i++) {
+    const ch = fixed[i];
+    if (esc) { out += ch; esc = false; continue; }
+    if (ch === '\\') { out += ch; esc = true; continue; }
+    if (ch === '"') { inStr = !inStr; out += ch; continue; }
+    if (inStr && ch === '\n') { out += '\\n'; continue; }
+    if (inStr && ch === '\r') { out += '\\r'; continue; }
+    if (inStr && ch === '\t') { out += '\\t'; continue; }
+    out += ch;
+  }
+  return JSON.parse(out);
 }
 
 async function pool(items, n, fn) {
@@ -139,10 +161,12 @@ async function score(browser, c, html, genMeta) {
     return out.slice(0, 30);
   });
   const arraysSnapshot = () => p.evaluate(() => {
+    // 位置が固定のゲーム（もぐらたたき等）でも変化を捉えられるよう、全スカラー値を含める
     const out = {};
     for (const k of Object.keys(window)) {
       try { const v = window[k];
-        if (Array.isArray(v) && v.length && typeof v[0] === 'object' && v[0] && typeof v[0].x === 'number') out[k] = v.map(o => Math.round(o.x) + ',' + Math.round(o.y || 0)).join('|');
+        if (Array.isArray(v) && v.length && typeof v[0] === 'object' && v[0] && typeof v[0].x === 'number')
+          out[k] = v.map(o => Object.keys(o).map(p2 => { const val = o[p2]; return (typeof val === 'number') ? Math.round(val * 10) : (typeof val === 'boolean' ? val : ''); }).join(',')).join('|');
       } catch (e) {}
     }
     return JSON.stringify(out);
@@ -185,10 +209,8 @@ async function score(browser, c, html, genMeta) {
     const hudBefore = await hud(); const hBefore = await canvasHash();
     await playAction(c.play, 4);
     checks.input = (await canvasHash()) !== hBefore || (await hud()) !== hudBefore;
-    // score（もう少し遊んでHUDのスコアが動くか）
-    await playAction(c.play, 6);
-    checks.score = (await hudNum()) > 0 || (await hud()) !== hudBefore;
-    // probe（ケース固有）
+    // probe（ケース固有）※ゲームがまだ生きているうちに実行する（採点順が後ろだと
+    // 即死系ゲームでは死後の静止画面を測ってしまい不当に落ちる）
     try {
       if (c.probe === 'spawnCycle') { const a1 = await arraysSnapshot(); await p.waitForTimeout(1500); checks.probe = (await arraysSnapshot()) !== a1; }
       else if (c.probe === 'hudScoreGrows') { checks.probe = (await hudNum()) > 0; }
@@ -211,6 +233,9 @@ async function score(browser, c, html, genMeta) {
       else if (c.probe === 'surviveScore') { checks.probe = 'defer'; }   // ゲームオーバー後に判定
       else checks.probe = true;
     } catch (e) { checks.probe = false; }
+    // score（もう少し遊んでHUDのスコアが動くか）
+    await playAction(c.play, 6);
+    checks.score = (await hudNum()) > 0 || (await hud()) !== hudBefore;
     // errors（ここまでの実プレイでエラーが出ていないか）
     const vperr = await p.evaluate(() => window.__VP_ERR || null);
     checks.errors = !vperr && errs.length === 0;
@@ -224,11 +249,13 @@ async function score(browser, c, html, genMeta) {
     }
     checks.gameover = over;
     if (checks.probe === 'defer') { checks.probe = over && (await p.evaluate(() => { const b = document.querySelector('.vp-big'); return b ? parseInt(b.textContent, 10) || 0 : 0; })) > 0; }
-    // restart
+    // restart（時間加算スコアのゲームは再開直後から増え始めるので、しきい値で「リセットされた」を判定）
     if (over) {
+      const finalScore = await p.evaluate(() => { const b = document.querySelector('.vp-big'); return b ? (parseInt(b.textContent, 10) || 0) : 0; });
       try { await p.tap('#vpagain', { timeout: 2500 }); } catch (e) { try { await p.evaluate(() => { const b = document.getElementById('vpagain'); if (b) b.click(); }); } catch (e2) {} }
       await p.waitForTimeout(700);
-      checks.restart = await p.evaluate(() => document.getElementById('vpov').hidden) && (await hudNum()) === 0;
+      const hn = await hudNum();
+      checks.restart = await p.evaluate(() => document.getElementById('vpov').hidden) && (hn <= Math.max(15, finalScore * 0.5));
     } else checks.restart = false;
   } catch (e) {
     checks.fatal = String(e.message).slice(0, 120);

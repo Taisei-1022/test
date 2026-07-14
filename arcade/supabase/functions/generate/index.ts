@@ -478,6 +478,7 @@ Rules:
   4-8 entries, label in Japanese, min/max = sensible playable range, step = adjustment granularity. Read values ONLY via TUNE.key.v (never repeat the literal elsewhere). The platform renders sliders from this object so humans can hand-tune difficulty without AI. When EDITING, keep the existing TUNE keys (current v values included) unless the request says otherwise.
 - Make it genuinely fun and polished: clear goal, responsive controls, juicy feedback (Game.float / shake / particles), difficulty that ramps up.
 - Japanese in-game text. Keep performance smooth on phones (no huge object counts).
+- JSON safety: your ENTIRE output is one JSON object and "js" is a JSON string value. Keep the code JSON-friendly: do NOT use regex literals or backslash escapes like \\d \\( in code (find another way); no literal newlines inside JS string literals. Emoji are fine.
 - Self-check before finalizing: mentally run start → play → game over → restart. Every variable defined before use (restart calls init() again — stale state must be reset there). No undefined references. Balanced brackets.
 - When EDITING an existing game: keep what works, apply ONLY the requested change, and return ALL fields complete (full js, not a diff).
 
@@ -852,7 +853,25 @@ function parseJsonLoose(text: string) {
   const t = String(text || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "");
   const s = t.indexOf("{"), e = t.lastIndexOf("}");
   if (s < 0 || e <= s) throw new Error("no_json_in_response");
-  return JSON.parse(t.slice(s, e + 1));
+  const body = t.slice(s, e + 1);
+  try { return JSON.parse(body); } catch { /* 下で修復を試みる */ }
+  // 修復1: 不正なバックスラッシュエスケープ（例: コード中の \d \( 等をそのまま出してくる）を \\ に直す。
+  // 有効なエスケープ(\\ \" \/ \b \f \n \r \t \uXXXX)はそのまま残す。
+  let fixed = body.replace(/\\(?![\\"/bfnrtu])/g, "\\\\");
+  try { return JSON.parse(fixed); } catch { /* 修復2へ */ }
+  // 修復2: 文字列リテラル内の生の改行/タブ（JSONでは不正）をエスケープする
+  let out = "", inStr = false, esc = false;
+  for (let i = 0; i < fixed.length; i++) {
+    const ch = fixed[i];
+    if (esc) { out += ch; esc = false; continue; }
+    if (ch === "\\") { out += ch; esc = true; continue; }
+    if (ch === '"') { inStr = !inStr; out += ch; continue; }
+    if (inStr && ch === "\n") { out += "\\n"; continue; }
+    if (inStr && ch === "\r") { out += "\\r"; continue; }
+    if (inStr && ch === "\t") { out += "\\t"; continue; }
+    out += ch;
+  }
+  return JSON.parse(out);
 }
 // スキーマ遵守の指示（他社はAnthropicの json_schema 相当が無い/形式が違うのでプロンプトで指定）
 function schemaNote(schema: unknown) {
