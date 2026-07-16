@@ -492,6 +492,7 @@ Rules:
   - Keep ALL content inside x:0-390, y:70-800. The top 70px belongs to the HUD; the bottom 44px may sit under the home bar. NEVER place anything above y=70.
   - The playfield must actually USE the screen: spread content across at least 85% of the width and center it horizontally ((390-totalWidth)/2). Grids/panels: compute cell size from the available box, e.g. 3 columns → cell = (390 - margins*2 - gaps) / 3. Don't leave the bottom half empty — either extend the playfield or center the content block vertically.
   - Text: min font 14px, keep at least 16px from every edge.
+  - NEVER draw your own score/time/lives readout on the canvas — the HUD already shows them (Game.score for score, Game.hud for time/lives). Hand-drawn digit displays are the #1 cause of broken-looking screens.
 - No external resources, no network, no audio files, no imports. If the game is UI-heavy you MAY create DOM elements, but prefer canvas. DOM rules: append them to document.getElementById('vpdom') (a fixed 390x844 layer that scales with the canvas), position:absolute with coordinates in the SAME 390x844 space, z-index 1-4, create in init() and remove stale ones first (vpdom.innerHTML=''). Anything clickable MUST be a real <button> element (click on other elements is suppressed on touch devices).
 - Characters/objects: do NOT use plain rectangles. Draw EMOJI sprites on canvas:
     ctx.font = size + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("🐱", x, y);
