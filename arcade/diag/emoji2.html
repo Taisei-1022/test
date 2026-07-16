@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>絵文字canvas診断 その2（iframe編）</title>
+<style>
+body{margin:0;padding:16px;background:#141221;color:#f1eefb;font-family:system-ui,sans-serif}
+h1{font-size:16px;margin:0 0 4px}
+#sum{font-size:15px;font-weight:900;background:#1d1a2e;border:1px solid #2c2740;border-radius:10px;padding:10px;margin:10px 0;line-height:1.9}
+.sec{background:#1d1a2e;border:1px solid #2c2740;border-radius:10px;padding:10px;margin-bottom:10px}
+.sec b{font-size:13px}
+.sec p{font-size:11.5px;color:#9a93b5;margin:4px 0 8px;line-height:1.6}
+iframe{width:100%;border:0;border-radius:8px;background:#000;display:block}
+#fE{height:120px}#fC{height:300px}#fA{height:420px}
+.v{font-weight:900;font-size:15px;margin-top:6px}
+.ok{color:#34d399}.ng{color:#f87171}.wait{color:#fbbf24}
+a{color:#cdbcff;font-size:13px;font-weight:700}
+</style></head><body>
+<h1>🔬 絵文字canvas診断 その2（iframe編）</h1>
+<div id="sum">計測中…（3秒ほど待ってね）</div>
+
+<div class="sec"><b>E. srcdoc iframe内の最小テスト（自動判定）</b>
+<p>診断1と同じ最小コードを、アプリと同じ「srcdoc iframe」の中で実行。</p>
+<iframe id="fE"></iframe>
+<div class="v wait" id="vE">計測中…</div>
+</div>
+
+<div class="sec"><b>C. 本物ランタイム＋最小ゲーム in srcdoc iframe（自動判定）</b>
+<p>実際のゲームと同じランタイム（480×720ステージ・変換・クリップ・毎フレーム描画）で🚢を1個だけ描く。自動でスタートを押して2.4秒後にピクセル判定。</p>
+<iframe id="fC"></iframe>
+<div class="v wait" id="vC">計測中…</div>
+</div>
+
+<div class="sec"><b>A. 本物の「船操作」 in srcdoc iframe（目視）</b>
+<p>スタートを押して、自艦🚢と敵🚤が見えるか目で確認してください。</p>
+<iframe id="fA"></iframe>
+</div>
+
+<div class="sec"><b>直接開く版（iframe無し・目視）</b>
+<p><a href="./mini.html">D. ミニランタイムを直接開く</a>（上部に自動判定が出ます）<br><br>
+<a href="./ship.html">B. 「船操作」を直接開く</a>（スタート後、船が見えるか）</p>
+</div>
+
+<script>
+(function(){
+var results={E:null,C:null};
+function upd(){
+  var t=[];
+  for(var k in results)t.push(k+": "+(results[k]===null?"…":results[k]?"✓":"✗"));
+  document.getElementById("sum").textContent="自動判定 "+t.join("  ")+"（Aは目視で確認→全部スクショして送ってね）";
+}
+function setV(id,ok,extra){
+  var el=document.getElementById(id);
+  el.textContent=(ok?"✓ 描けている":"✗ 描けていない")+(extra?" "+extra:"");
+  el.className="v "+(ok?"ok":"ng");
+}
+// --- E: 最小srcdocテスト ---
+var eDoc='<body style="margin:0;background:#2a5a7c">'
+ +'<canvas id="c" width="320" height="200" style="width:160px;height:100px"></canvas>'
+ +'<script>var c=document.getElementById("c").getContext("2d");'
+ +'c.setTransform(2,0,0,2,0,0);c.beginPath();c.rect(0,0,160,100);c.clip();'
+ +'c.font="40px \'Apple Color Emoji\',\'Noto Color Emoji\',sans-serif";'
+ +'c.textAlign="center";c.textBaseline="middle";c.fillText("🚢",80,50);'
+ +'<\/script></body>';
+var fE=document.getElementById("fE");
+fE.srcdoc=eDoc;
+setTimeout(function(){
+  try{
+    var d=fE.contentDocument.getElementById("c").getContext("2d").getImageData(0,0,320,200).data,n=0;
+    for(var p=0;p<d.length;p+=4){if(Math.abs(d[p]-42)>24||Math.abs(d[p+1]-90)>24||Math.abs(d[p+2]-124)>24)n++;}
+    results.E=n>60;setV("vE",results.E,"(px="+n+")");
+  }catch(e){results.E=false;setV("vE",false,"ERR:"+e.message);}
+  upd();
+},1500);
+// --- C: 本物ランタイム最小ゲーム ---
+fetch("./mini.html").then(function(r){return r.text();}).then(function(h){
+  var fC=document.getElementById("fC");
+  fC.srcdoc=h;
+  var tries=0;
+  var timer=setInterval(function(){
+    tries++;
+    try{
+      var v=fC.contentDocument.getElementById("verdict");
+      if(v){
+        clearInterval(timer);
+        results.C=v.textContent.indexOf("✅")===0;
+        setV("vC",results.C,v.textContent);
+        upd();
+        return;
+      }
+    }catch(e){}
+    if(tries>16){clearInterval(timer);results.C=false;setV("vC",false,"(判定が出ない)");upd();}
+  },500);
+});
+// --- A: 本物のゲーム ---
+fetch("./ship.html").then(function(r){return r.text();}).then(function(h){
+  document.getElementById("fA").srcdoc=h;
+});
+upd();
+})();
+</script>
+</body></html>
