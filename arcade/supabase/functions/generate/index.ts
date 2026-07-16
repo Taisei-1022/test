@@ -761,8 +761,12 @@ async function buildOnce(key: string, messages: Msg[], prevHtml: string, spec?: 
     if (userSpec) { specText = userSpec; }
     else {
       try {
-        const sres = await callClaude(key, SPEC_SYSTEM, [{ role: "user", content: transcript }], SPEC_SCHEMA, true, 60000, acc,
-          { provider: "anthropic", model: "claude-sonnet-5", effort: "low" });
+        let sres;
+        try { sres = await callOpenAICompat(TEST_MODELS["ds-flash-h"], SPEC_SYSTEM, [{ role: "user", content: transcript }], SPEC_SCHEMA, 60000, acc); }
+        catch {
+          sres = await callClaude(key, SPEC_SYSTEM, [{ role: "user", content: transcript }], SPEC_SCHEMA, true, 60000, acc,
+            { provider: "anthropic", model: "claude-sonnet-5", effort: "low" });
+        }
         specText = String(sres.spec || "").slice(0, 6000);
       } catch { /* noop */ }
     }
@@ -1068,9 +1072,14 @@ async function startFlow(key: string, messages: Msg[], prevHtml: string, token: 
   const planSystem = prevHtml
     ? PLAN_EDIT_SYSTEM + "\n\n===== 現在のゲームのコード（HTML/JS 全文）=====\n" + prevHtml
     : PLAN_SYSTEM;
+  // 相談役も DeepSeek Flash（思考オフ＝速い・激安）を第一候補に。失敗時のみ Haiku へフォールバック
+  // （Anthropic残高切れでチャットが全滅した事故の再発防止：どちらか片方が生きていれば動く）
   let plan;
-  try { plan = await callClaude(key, planSystem, messages, PLAN_SCHEMA, false); }
-  catch (e) { return { immediate: buildErr(e) }; }
+  try { plan = await callOpenAICompat(TEST_MODELS["ds-flash"], planSystem, messages, PLAN_SCHEMA, 30000); }
+  catch {
+    try { plan = await callClaude(key, planSystem, messages, PLAN_SCHEMA, false); }
+    catch (e) { return { immediate: buildErr(e) }; }
+  }
   if (plan.action === "build") {
     // 準備完了。ここでは作らず、クライアントに「作り始める」ボタンを出させる。
     return { immediate: { action: "ready", reply: plan.reply || "準備OK！この内容で作り始めていい？" } };
@@ -1194,8 +1203,12 @@ Deno.serve(async (req) => {
     }
     const transcript = messages.map((mm) => (mm.role === "user" ? "ユーザー: " : "AI: ") + mm.content).join("\n");
     try {
-      const sres = await callClaude(key, SPEC_SYSTEM, [{ role: "user", content: transcript }], SPEC_SCHEMA, true, 60000, undefined,
-        { provider: "anthropic", model: "claude-sonnet-5", effort: "low" });
+      let sres;
+      try { sres = await callOpenAICompat(TEST_MODELS["ds-flash-h"], SPEC_SYSTEM, [{ role: "user", content: transcript }], SPEC_SCHEMA, 60000); }
+      catch {
+        sres = await callClaude(key, SPEC_SYSTEM, [{ role: "user", content: transcript }], SPEC_SCHEMA, true, 60000, undefined,
+          { provider: "anthropic", model: "claude-sonnet-5", effort: "low" });
+      }
       return json({ spec: String(sres.spec || "").slice(0, 6000) });
     } catch (e) { return json(buildErr(e)); }
   }
