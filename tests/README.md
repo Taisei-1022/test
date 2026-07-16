@@ -119,3 +119,9 @@ node tests/tune-panel.js
   どれか1つでも素通しにすると「canvasだけ帯付き・HUDだけ等倍」のズレが再発する
 - テスト側の物理座標が要る時は window.__SC/__OX/__OY を使う（user-images.js の
   ピクセル検査が論理座標のままだとスケール導入で壊れた実績あり）
+- **iOS Safariは fillStyle がグラデーション/パターンのままだとカラー絵文字を
+  fillTextできない**（何も描かれない。普通の文字は描ける）。AIは「背景グラデ→
+  そのまま絵文字」を高頻度で書くため実機で船や敵が全部消える。Chromiumは
+  fillStyleを無視して色付き絵文字を描くので**自動テストでは検出不可能**。
+  → RUNTIME_TPL の fillText ラッパ（絵文字を含む時だけ単色に退避→復元）で
+  恒久ガード済み。実機切り分けは arcade/diag/emoji*.html（3段の二分探索）参照
