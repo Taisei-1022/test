@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>クラロワ リアルタイム分析</title>
+<style>
+  :root{
+    --bg:#0b1220; --card:#111827; --card2:#0f1a2e; --text:#e5e7eb; --muted:#9ca3af;
+    --accent:#60a5fa; --pink:#e23bd0; --purple:#a855f7; --good:#34d399; --warn:#fbbf24; --bad:#f87171;
+    --line:#1f2937;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+       background:linear-gradient(180deg,#0b1220,#0f172a 20%,#0b1220);color:var(--text)}
+  .wrap{max-width:1100px;margin:24px auto;padding:0 16px}
+  h1{font-size:clamp(20px,3vw,26px);margin:0 0 2px}
+  .version{color:var(--muted);font-size:13px;margin-bottom:16px}
+  .grid{display:grid;grid-template-columns:1fr;gap:16px}
+  @media(min-width:900px){.grid{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:0 10px 25px rgba(0,0,0,.25)}
+  h2{font-size:15px;margin:0 0 10px;letter-spacing:.02em}
+  h3{font-size:13px;margin:14px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+  button{font:inherit;color:var(--text);background:#1e293b;border:1px solid var(--line);
+         border-radius:10px;padding:.5rem .8rem;cursor:pointer;transition:.15s}
+  button:hover{border-color:var(--accent)}
+  button.primary{background:var(--accent);color:#04101f;border-color:transparent;font-weight:700}
+  button.ghost{background:transparent}
+  button.sm{padding:.3rem .55rem;font-size:12px;border-radius:8px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .stagearea{position:relative;background:#000;border-radius:12px;overflow:hidden;aspect-ratio:16/9}
+  video{display:block;width:100%;height:100%;object-fit:contain;background:#000}
+  #overlay{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+  .hint{color:var(--muted);font-size:12px;line-height:1.5}
+  .pill{background:#0b1220;border:1px solid var(--line);border-radius:999px;padding:.25rem .7rem;font-weight:600}
+  .stat{display:flex;align-items:baseline;gap:8px}
+  .stat .big{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums}
+  .stat .unit{color:var(--muted);font-size:13px}
+  .elixbar{height:16px;border-radius:8px;background:#1e293b;overflow:hidden;border:1px solid var(--line);position:relative}
+  .elixbar > span{position:absolute;inset:0;width:0;background:linear-gradient(90deg,var(--purple),var(--pink));transition:width .2s}
+  .ticks{position:absolute;inset:0;display:grid;grid-template-columns:repeat(10,1fr)}
+  .ticks i{border-right:1px solid rgba(0,0,0,.45)}
+  .ticks i:last-child{border-right:none}
+  .phasechip{font-size:12px;padding:.2rem .55rem;border-radius:999px;font-weight:700}
+  .p1{background:#1e293b;color:var(--muted)}
+  .p2{background:#3b0764;color:#e9d5ff}
+  .p3{background:#7c2d12;color:#fed7aa}
+  table{width:100%;border-collapse:collapse}
+  td,th{padding:6px 6px;border-bottom:1px dashed var(--line);text-align:left;font-size:13px}
+  th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase}
+  .cost{display:inline-flex;min-width:20px;height:20px;align-items:center;justify-content:center;
+        background:var(--purple);color:#fff;border-radius:50%;font-size:11px;font-weight:800;padding:0 2px}
+  .deckgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .slot{background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:8px 6px;text-align:center;min-height:56px;display:flex;flex-direction:column;gap:4px;justify-content:center}
+  .slot small{color:var(--muted);font-size:11px}
+  .slot.empty{opacity:.4}
+  .slot.cd{border-color:#7c2d12}
+  .slot.hand{border-color:var(--good)}
+  input[type="text"],input[type="number"]{font:inherit;background:#0b1220;color:var(--text);
+        border:1px solid var(--line);border-radius:10px;padding:.5rem .6rem}
+  input[type="text"]{flex:1;min-width:120px}
+  .log{max-height:150px;overflow:auto;font-size:12px}
+  .log div{padding:3px 0;border-bottom:1px dashed var(--line);display:flex;justify-content:space-between;gap:8px}
+  .muted{color:var(--muted)}
+  .warnbox{background:#0f1a2e;border:1px solid var(--line);border-left:3px solid var(--warn);padding:10px 12px;border-radius:8px;font-size:12.5px;line-height:1.55}
+  .tabbar{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+  .tabbar button{border-radius:999px}
+  .tabbar button.active{background:var(--accent);color:#04101f;border-color:transparent;font-weight:700}
+  .kbd{font-family:ui-monospace,Menlo,Consolas,monospace;background:#0b1220;border:1px solid var(--line);border-radius:6px;padding:0 5px}
+  details{margin-top:8px}
+  summary{cursor:pointer;color:var(--accent);font-size:13px}
+  .flexspace{flex:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>クラロワ リアルタイム分析</h1>
+  <div class="version">v0.1.0 — PCミラーリング＋ブラウザ画面共有で動作</div>
+
+  <div class="warnbox" style="margin-bottom:16px">
+    <b>使い方（概要）</b><br>
+    1) スマホ画面をPCにミラーリング（Android=scrcpy / iPhone=QuickTime有線 or AirPlay受信アプリ）。<br>
+    2) 下の「画面共有を開始」でミラー画面のウィンドウ/タブを選択。<br>
+    3) 「エリクサーバー位置を設定」で自分のエリクサーバーを枠選択 → 自動でエリクサー量を読み取り。<br>
+    4) 試合開始と同時に「試合スタート」。相手がカードを出したら右のリストからタップ → デッキ/サイクル/相手エリクサーを自動追跡。
+  </div>
+
+  <div class="grid">
+    <!-- ===== 左：キャプチャ＆自動トラッキング ===== -->
+    <div>
+      <div class="card">
+        <div class="row" style="margin-bottom:10px">
+          <button id="btnShare" class="primary">画面共有を開始</button>
+          <button id="btnStop" class="ghost sm" disabled>停止</button>
+          <span class="flexspace"></span>
+          <label class="hint">解析FPS <input id="fps" type="number" min="1" max="15" value="6" style="width:56px"></label>
+        </div>
+        <div class="stagearea">
+          <video id="video" playsinline muted></video>
+          <canvas id="overlay"></canvas>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button id="btnCalib" class="sm" disabled>エリクサーバー位置を設定</button>
+          <button id="btnCalibClear" class="sm ghost" disabled>枠クリア</button>
+          <span id="calibState" class="hint">未設定：自分のエリクサーバー（画面下の紫バー）を枠で囲ってください</span>
+        </div>
+        <canvas id="work" style="display:none"></canvas>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h2>自動トラッキング</h2>
+        <div class="row" style="gap:20px;align-items:flex-start">
+          <div style="flex:1;min-width:180px">
+            <h3>自分のエリクサー（画面から検出）</h3>
+            <div class="stat"><span id="myElix" class="big">–</span><span class="unit">/ 10</span>
+              <span id="myElixSrc" class="hint"></span></div>
+            <div class="elixbar" style="margin-top:6px"><span id="myElixFill"></span>
+              <div class="ticks"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+          </div>
+          <div style="flex:1;min-width:180px">
+            <h3>相手のエリクサー（推定）</h3>
+            <div class="stat"><span id="opElix" class="big">–</span><span class="unit">/ 10</span></div>
+            <div class="elixbar" style="margin-top:6px"><span id="opElixFill"></span>
+              <div class="ticks"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+            <div class="hint" style="margin-top:4px">相手が出したカードを記録すると精度が上がります</div>
+          </div>
+        </div>
+
+        <h3>試合タイマー / エリクサー倍率</h3>
+        <div class="row">
+          <button id="btnMatch" class="primary sm">試合スタート</button>
+          <span class="stat"><span id="clock" class="big" style="font-size:24px">3:00</span></span>
+          <span id="phase" class="phasechip p1">シングル ×1</span>
+          <span class="flexspace"></span>
+          <button id="btnMatchReset" class="sm ghost">リセット</button>
+        </div>
+        <div class="hint" style="margin-top:6px">通常3分（残り1:00からダブル）→ タイなら延長2分（ダブル）。回復: ×1=2.8s/1、×2=1.4s/1。</div>
+      </div>
+    </div>
+
+    <!-- ===== 右：相手デッキ / サイクル ===== -->
+    <div>
+      <div class="card">
+        <h2>相手のカードを記録</h2>
+        <div class="row">
+          <input id="cardInput" type="text" list="cardlist" placeholder="カード名を入力（例: ホグ / Hog）… Enterで記録" autocomplete="off">
+          <button id="btnAdd" class="primary sm">記録</button>
+          <button id="btnUndo" class="ghost sm">取消</button>
+        </div>
+        <datalist id="cardlist"></datalist>
+        <div id="quick" class="row" style="margin-top:8px;gap:6px"></div>
+
+        <h3>相手デッキ（判明 <span id="knownCount">0</span>/8） 平均コスト <span id="avgCost">–</span></h3>
+        <div id="deckTable"></div>
+
+        <h3>推定：相手の手札（今使える4枚）</h3>
+        <div id="hand" class="deckgrid"></div>
+
+        <h3>クールダウン（直近に出した4枚 = 手札にない）</h3>
+        <div id="cooldown" class="deckgrid"></div>
+
+        <details>
+          <summary>プレイ履歴</summary>
+          <div id="log" class="log"></div>
+        </details>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h2>メモ</h2>
+        <div class="hint">
+          <b>自動化の範囲</b>：エリクサーバー読取り・タイマー・サイクル計算は自動。カードの<b>完全自動認識</b>は学習済みモデルが必要なため、現状は「ワンタップ記録」の半自動です。<br><br>
+          記録した「相手デッキ / サイクル / エリクサー」はこのブラウザに保存され、画面共有を止めても残ります（<span class="kbd">リセット</span>で消去）。
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   クラロワ リアルタイム分析 — 単一ファイル / 外部依存なし
+   ========================================================================= */
+
+/* ---------- カードデータ（コストは主要カード。無い場合はカスタム追加） ---------- */
+const CARDS = [
+  // 1
+  ["スケルトン",1,"skeletons"],["アイススピリット",1,"ice spirit"],["エレクトロスピリット",1,"electro spirit"],
+  ["ヒールスピリット",1,"heal spirit"],["ファイアスピリット",1,"fire spirit"],
+  // 2
+  ["ゴブリン",2,"goblins"],["槍ゴブリン",2,"spear goblins"],["コウモリ",2,"bats"],["ザップ",2,"zap"],
+  ["スノーボール",2,"giant snowball snowball"],["アイスゴーレム",2,"ice golem"],["ボンバー",2,"bomber"],
+  ["ローリングバーバリアン",2,"barbarian barrel"],["ウォールブレイカー",2,"wall breakers"],["レイジ",2,"rage"],
+  // 3
+  ["アーチャー",3,"archers"],["ナイト",3,"knight"],["ガーゴイル",3,"minions"],["大砲",3,"cannon"],
+  ["ゴブリンの小屋なし…",3,"tombstone"],["墓石",3,"tombstone"],["ゴブリンギャング",3,"goblin gang"],
+  ["スケルトン部隊",3,"skeleton army"],["ガード",3,"guards"],["プリンセス",3,"princess"],
+  ["アイスウィザード",3,"ice wizard"],["ライトニングドラゴン…",3,""],["メガガーゴイル",3,"mega minion"],
+  ["ダートゴブリン",3,"dart goblin"],["マイナー",3,"miner"],["バンダイ…",3,""],["盗賊",3,"bandit"],
+  ["ファイアクラッカー",3,"firecracker"],["スケルトンバレル",3,"skeleton barrel"],["エリクサーゴーレム",3,"elixir golem"],
+  ["ゴブリンバレル",3,"goblin barrel"],["トルネード",3,"tornado"],["矢の雨",3,"arrows"],["クローン",3,"clone"],
+  ["漁師",3,"fisherman"],["リトルプリンス",3,"little prince"],["ヒールスピ…",3,""],
+  // 4
+  ["ファイアボール",4,"fireball"],["ザッピー",4,"zappies"],["バトルラム",4,"battle ram"],["ホグライダー",4,"hog rider"],
+  ["ババ…",4,""],["ヴァルキリー",4,"valkyrie"],["ミニペッカ",4,"mini pekka"],["マスケット銃士",4,"musketeer"],
+  ["ベビードラゴン",4,"baby dragon"],["ダークプリンス",4,"dark prince"],["ハンター",4,"hunter"],
+  ["マジックアーチャー",4,"magic archer"],["エレクトロウィザード",4,"electro wizard"],["インフェルノドラゴン",4,"inferno dragon"],
+  ["フライングマシン",4,"flying machine"],["テスラ",4,"tesla"],["ポイズン",4,"poison"],["フリーズ",4,"freeze"],
+  ["ボムタワー",4,"bomb tower"],["ナイトウィッチ",4,"night witch"],["バトルヒーラー",4,"battle healer"],
+  ["ゴブリンドリル",4,"goblin drill"],["マザーウィッチ",4,"mother witch"],["ゴールドナイト",4,"golden knight"],
+  ["スケルトンキング",4,"skeleton king"],["マイティマイナー",4,"mighty miner"],["フェニックス",4,"phoenix"],
+  // 5
+  ["ウィザード",5,"wizard"],["ウィッチ",5,"witch"],["エクゼキューショナー",5,"executioner"],["ボウラー",5,"bowler"],
+  ["プリンス",5,"prince"],["ジャイアント",5,"giant"],["バルーン",5,"balloon"],["エレクトロドラゴン",5,"electro dragon"],
+  ["キャノンカート",5,"cannon cart"],["ラムライダー",5,"ram rider"],["バーバリアン",5,"barbarians"],
+  ["ガーゴイルの群れ",5,"minion horde"],["ゴブリンの小屋",5,"goblin hut"],["インフェルノタワー",5,"inferno tower"],
+  ["ロイヤルホグ",5,"royal hogs"],["墓地",5,"graveyard"],["ラスカルズ",5,"rascals"],["アーチャークイーン",5,"archer queen"],
+  ["モンク",5,"monk"],["ゴブリンマシン",5,"goblin machine"],["エリクサーポンプ",6,"elixir collector"],
+  // 6
+  ["ロケット",6,"rocket"],[" eliteババ…",6,""],["ガーゴイルの巨人",6,"goblin giant"],["スパーキー",6,"sparky"],
+  ["ジャイアントスケルトン",6,"giant skeleton"],["ロイヤルジャイアント",6,"royal giant"],["クロスボウ",6,"x-bow"],
+  ["ライトニング",6,"lightning"],["エリートバーバリアン",6,"elite barbarians"],
+  // 7
+  ["ペッカ",7,"pekka"],["ラヴァハウンド",7,"lava hound"],["メガナイト",7,"mega knight"],
+  ["エレクトロジャイアント",7,"electro giant"],["ロイヤルジャイ…",7,""],["ロイヤルリクルート",7,"royal recruits"],
+  ["バーバリアンの小屋",7,"barbarian hut"],
+  // 8+
+  ["ゴーレム",8,"golem"],["トリトン…",9,""],["スリーマスケット",9,"three musketeers"],
+];
+// クリーンアップ（プレースホルダ除去）
+const CARD_DB = CARDS.filter(c=>c[0] && !c[0].includes("…")).map(c=>({name:c[0],cost:c[1],alias:c[2]||""}));
+
+/* ---------- 状態 ---------- */
+const LS_KEY="crlz_state_v1", LS_CAL="crlz_calib_v1";
+let state = load(LS_KEY, { plays:[] }); // plays: [{name,cost,t}]
+let calib = load(LS_CAL, null);         // {x,y,w,h} normalized 0..1
+
+function load(k,def){try{const v=JSON.parse(localStorage.getItem(k));return v??def;}catch(e){return def;}}
+function save(){localStorage.setItem(LS_KEY,JSON.stringify(state));}
+function saveCal(){localStorage.setItem(LS_CAL,JSON.stringify(calib));}
+
+/* ---------- DOM ---------- */
+const $=id=>document.getElementById(id);
+const video=$("video"), overlay=$("overlay"), octx=overlay.getContext("2d");
+const work=$("work"), wctx=work.getContext("2d",{willReadFrequently:true});
+
+/* ============================ 画面共有 ============================ */
+let stream=null, rafId=null, lastTick=0;
+$("btnShare").onclick=async()=>{
+  try{
+    stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:30},audio:false});
+    video.srcObject=stream; await video.play();
+    stream.getVideoTracks()[0].addEventListener("ended",stopShare);
+    $("btnStop").disabled=false; $("btnShare").disabled=true;
+    $("btnCalib").disabled=false; $("btnCalibClear").disabled=false;
+    loop();
+  }catch(e){ alert("画面共有を開始できませんでした: "+e.message); }
+};
+$("btnStop").onclick=stopShare;
+function stopShare(){
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
+  if(rafId)cancelAnimationFrame(rafId);
+  $("btnStop").disabled=true; $("btnShare").disabled=false;
+  $("btnCalib").disabled=true; $("btnCalibClear").disabled=true;
+}
+
+function loop(){
+  rafId=requestAnimationFrame(loop);
+  const fps=Math.max(1,Math.min(15,+$("fps").value||6));
+  const now=performance.now();
+  if(now-lastTick < 1000/fps) return;
+  lastTick=now;
+  fitOverlay();
+  drawOverlay();
+  if(calib && video.videoWidth) readElixir();
+}
+
+/* overlayをvideoの表示領域に合わせる */
+function fitOverlay(){
+  const r=video.getBoundingClientRect();
+  if(overlay.width!==r.width||overlay.height!==r.height){
+    overlay.width=r.width; overlay.height=r.height;
+  }
+}
+
+/* videoは object-fit:contain。実映像の描画矩形を求める */
+function contentRect(){
+  const cw=overlay.width, ch=overlay.height, vw=video.videoWidth, vh=video.videoHeight;
+  if(!vw||!vh) return {x:0,y:0,w:cw,h:ch};
+  const s=Math.min(cw/vw, ch/vh);
+  const w=vw*s, h=vh*s;
+  return {x:(cw-w)/2, y:(ch-h)/2, w, h};
+}
+
+/* ============================ キャリブレーション ============================ */
+let calibMode=false, dragStart=null, dragCur=null;
+$("btnCalib").onclick=()=>{ calibMode=true; $("calibState").textContent="ドラッグでエリクサーバーを囲ってください"; };
+$("btnCalibClear").onclick=()=>{ calib=null; saveCal(); $("calibState").textContent="未設定：自分のエリクサーバーを枠で囲ってください"; };
+
+overlay.addEventListener("pointerdown",e=>{
+  if(!calibMode)return;
+  overlay.setPointerCapture(e.pointerId);
+  dragStart=evPos(e); dragCur=dragStart;
+});
+overlay.addEventListener("pointermove",e=>{ if(calibMode&&dragStart) dragCur=evPos(e); });
+overlay.addEventListener("pointerup",e=>{
+  if(!calibMode||!dragStart)return;
+  const a=dragStart,b=evPos(e), cr=contentRect();
+  const x0=Math.min(a.x,b.x),y0=Math.min(a.y,b.y),x1=Math.max(a.x,b.x),y1=Math.max(a.y,b.y);
+  // 表示座標 → 映像正規化座標
+  const nx=(x0-cr.x)/cr.w, ny=(y0-cr.y)/cr.h, nw=(x1-x0)/cr.w, nh=(y1-y0)/cr.h;
+  if(nw>0.02&&nh>0.005){
+    calib={x:clamp01(nx),y:clamp01(ny),w:Math.min(nw,1),h:Math.min(nh,1)};
+    saveCal();
+    $("calibState").textContent="設定済み：バーからエリクサーを読取り中（枠クリアで再設定）";
+  }
+  calibMode=false; dragStart=null; dragCur=null;
+});
+function evPos(e){const r=overlay.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}
+const clamp01=v=>Math.max(0,Math.min(1,v));
+
+function drawOverlay(){
+  octx.clearRect(0,0,overlay.width,overlay.height);
+  const cr=contentRect();
+  // ドラッグ中の枠
+  if(calibMode&&dragStart&&dragCur){
+    octx.strokeStyle="#60a5fa"; octx.lineWidth=2; octx.setLineDash([6,4]);
+    octx.strokeRect(dragStart.x,dragStart.y,dragCur.x-dragStart.x,dragCur.y-dragStart.y);
+    octx.setLineDash([]);
+  }
+  // 設定済みエリクサー枠
+  if(calib){
+    const x=cr.x+calib.x*cr.w, y=cr.y+calib.y*cr.h, w=calib.w*cr.w, h=calib.h*cr.h;
+    octx.strokeStyle="#e23bd0"; octx.lineWidth=2; octx.strokeRect(x,y,w,h);
+    // 10分割ガイド
+    octx.strokeStyle="rgba(226,59,208,.35)"; octx.lineWidth=1;
+    for(let i=1;i<10;i++){octx.beginPath();octx.moveTo(x+w*i/10,y);octx.lineTo(x+w*i/10,y+h);octx.stroke();}
+  }
+}
+
+/* ============================ エリクサー読取り ============================ */
+let myElix=null;
+function readElixir(){
+  const vw=video.videoWidth, vh=video.videoHeight;
+  work.width=vw; work.height=vh;
+  wctx.drawImage(video,0,0,vw,vh);
+  const rx=Math.floor(calib.x*vw), ry=Math.floor(calib.y*vh);
+  const rw=Math.max(10,Math.floor(calib.w*vw)), rh=Math.max(4,Math.floor(calib.h*vh));
+  let img;
+  try{ img=wctx.getImageData(rx,ry,rw,rh).data; }catch(e){ return; }
+  // 10セルごとに「エリクサー色(マゼンタ/紫)」の充填率を測る
+  let filled=0, partial=0, prevFull=true;
+  for(let c=0;c<10;c++){
+    const cx0=Math.floor(rw*c/10), cx1=Math.floor(rw*(c+1)/10);
+    let hit=0,total=0;
+    for(let y=0;y<rh;y+=Math.max(1,Math.floor(rh/6))){
+      for(let x=cx0+1;x<cx1-1;x+=Math.max(1,Math.floor((cx1-cx0)/6))){
+        const i=(y*rw+x)*4, R=img[i],G=img[i+1],B=img[i+2];
+        total++;
+        if(isElixirColor(R,G,B)) hit++;
+      }
+    }
+    const frac= total? hit/total : 0;
+    if(frac>0.45){ filled++; }
+    else { if(prevFull){partial=frac;} prevFull=false; }
+  }
+  // 整数の充填セル数 + 先頭の部分セル
+  myElix = filled + (filled<10 ? Math.min(0.99, Math.max(0,partial)) : 0);
+  renderMyElix();
+}
+function isElixirColor(R,G,B){
+  // エリクサーバーは明るいマゼンタ〜紫。R高・B高・Gは中〜低、かつ明るい
+  const mx=Math.max(R,G,B), mn=Math.min(R,G,B);
+  const sat=mx? (mx-mn)/mx:0;
+  const magenta = R>110 && B>90 && G < Math.max(R,B)-15;
+  return mx>90 && sat>0.25 && magenta;
+}
+function renderMyElix(){
+  if(myElix==null){$("myElix").textContent="–";return;}
+  const v=Math.round(myElix*10)/10;
+  $("myElix").textContent=v.toFixed(1);
+  $("myElixFill").style.width=(v/10*100)+"%";
+  $("myElixSrc").textContent="（画面検出）";
+}
+
+/* ============================ 試合タイマー / 相手エリクサー ============================ */
+let match=null; // {start:performance.now, triple:false}
+let matchTimer=null;
+$("btnMatch").onclick=()=>{ match={start:performance.now()}; if(!matchTimer)matchTimer=setInterval(tickMatch,200); tickMatch(); };
+$("btnMatchReset").onclick=()=>{ match=null; if(matchTimer){clearInterval(matchTimer);matchTimer=null;} $("clock").textContent="3:00"; setPhaseChip(1); renderOpElix(); };
+
+function elapsed(){ return match? (performance.now()-match.start)/1000 : 0; }
+// フェーズ：0-120s ×1, 120-180 ×2, 180-300(延長) ×2
+function phaseInfo(t){
+  if(t<120) return {mult:1,label:"シングル ×1",cls:1,regen:2.8};
+  if(t<180) return {mult:2,label:"ダブル ×2",cls:2,regen:1.4};
+  return {mult:2,label:"延長 ×2",cls:3,regen:1.4};
+}
+function tickMatch(){
+  const t=elapsed();
+  const remaining = t<180 ? 180-t : Math.max(0, 300-t); // 本戦残り→延長残り
+  const mm=Math.floor(Math.max(0,remaining)/60), ss=Math.floor(Math.max(0,remaining)%60);
+  $("clock").textContent = (t>=180?"OT ":"")+mm+":"+String(ss).padStart(2,"0");
+  const ph=phaseInfo(t); setPhaseChip(ph.cls,ph.label);
+  renderOpElix();
+}
+function setPhaseChip(cls,label){
+  const el=$("phase"); el.className="phasechip p"+cls; el.textContent=label|| (cls===1?"シングル ×1":cls===2?"ダブル ×2":"延長 ×2");
+}
+
+// 相手エリクサー推定：開始5から回復、カード記録でコスト分減算
+function opElixNow(){
+  if(!match) return null;
+  const t=elapsed();
+  // 区間ごとの回復量を積分（×1: 2.8s/1, ×2: 1.4s/1）
+  let gained=0;
+  const seg=(a,b,regen)=>{ const lo=Math.max(a,0),hi=Math.min(b,t); if(hi>lo)gained+=(hi-lo)/regen; };
+  seg(0,120,2.8); seg(120,300,1.4);
+  let e = 5 + gained;
+  // 記録済みプレイのコストを試合開始後のものだけ減算
+  for(const p of state.plays){ if(p.t>=match.start) e -= p.cost; }
+  return Math.max(0, Math.min(10, e));
+}
+function renderOpElix(){
+  const e=opElixNow();
+  if(e==null){$("opElix").textContent="–";$("opElixFill").style.width="0";return;}
+  $("opElix").textContent=(Math.round(e*10)/10).toFixed(1);
+  $("opElixFill").style.width=(e/10*100)+"%";
+}
+
+/* ============================ 相手デッキ / サイクル ============================ */
+const cardInput=$("cardInput");
+// datalist
+$("cardlist").innerHTML = CARD_DB.map(c=>`<option value="${c.name}">`).join("");
+
+function findCard(q){
+  q=q.trim().toLowerCase(); if(!q)return null;
+  let c=CARD_DB.find(c=>c.name.toLowerCase()===q);
+  if(c)return c;
+  c=CARD_DB.find(c=>c.name.toLowerCase().includes(q)||(c.alias&&c.alias.toLowerCase().includes(q)));
+  return c||null;
+}
+function addPlay(name,cost){
+  state.plays.push({name,cost,t:performance.now()});
+  save(); renderAll();
+}
+$("btnAdd").onclick=submitCard;
+cardInput.addEventListener("keydown",e=>{ if(e.key==="Enter"){e.preventDefault();submitCard();} });
+function submitCard(){
+  const raw=cardInput.value.trim(); if(!raw)return;
+  let c=findCard(raw);
+  if(!c){
+    const cost=prompt(`「${raw}」のコスト（1〜9）を入力（不明カードをカスタム登録）`,"4");
+    if(cost===null)return;
+    c={name:raw,cost:Math.max(1,Math.min(12,parseInt(cost)||4))};
+  }
+  addPlay(c.name,c.cost);
+  cardInput.value=""; cardInput.focus();
+}
+$("btnUndo").onclick=()=>{ state.plays.pop(); save(); renderAll(); };
+
+/* デッキ集計 */
+function deckSummary(){
+  const seen=new Map(); // name -> {name,cost,count,lastIdx}
+  state.plays.forEach((p,i)=>{
+    const e=seen.get(p.name)||{name:p.name,cost:p.cost,count:0,lastIdx:-1};
+    e.count++; e.lastIdx=i; seen.set(p.name,e);
+  });
+  const known=[...seen.values()].sort((a,b)=>a.cost-b.cost||a.name.localeCompare(b.name));
+  // 直近に出した“異なる”カード最大4枚 = クールダウン(手札にない)
+  const cooldown=[]; const distinct=new Set();
+  for(let i=state.plays.length-1;i>=0 && cooldown.length<4;i--){
+    const n=state.plays[i].name;
+    if(!distinct.has(n)){distinct.add(n);cooldown.push(seen.get(n));}
+  }
+  const hand=known.filter(k=>!distinct.has(k.name)); // 手札候補
+  const avg = known.length? (known.reduce((s,k)=>s+k.cost,0)/known.length):null;
+  return {known,cooldown,hand,avg};
+}
+
+/* クイックボタン：クールダウン中でない=次に来やすい既知カード */
+function renderQuick(){
+  const {hand}=deckSummary();
+  const q=$("quick");
+  const items=hand.slice(0,8);
+  q.innerHTML = items.length? "" : `<span class="hint">よく使うカードはここに表示されます</span>`;
+  items.forEach(c=>{
+    const b=document.createElement("button"); b.className="sm";
+    b.innerHTML=`<span class="cost">${c.cost}</span> ${c.name}`;
+    b.onclick=()=>addPlay(c.name,c.cost);
+    q.appendChild(b);
+  });
+}
+function slotHTML(c,cls){
+  if(!c) return `<div class="slot empty"><small>–</small></div>`;
+  return `<div class="slot ${cls}"><b style="font-size:12.5px">${c.name}</b><small><span class="cost">${c.cost}</span></small></div>`;
+}
+function renderDeck(){
+  const {known,cooldown,hand,avg}=deckSummary();
+  $("knownCount").textContent=known.length;
+  $("avgCost").textContent=avg? avg.toFixed(1):"–";
+  $("deckTable").innerHTML = known.length?
+    `<table><tr><th>カード</th><th>コスト</th><th>回数</th></tr>`+
+    known.map(k=>`<tr><td>${k.name}</td><td><span class="cost">${k.cost}</span></td><td>${k.count}</td></tr>`).join("")+`</table>`
+    : `<div class="hint">まだ記録がありません</div>`;
+  // 手札4枠
+  const handSlots=hand.slice(0,4); while(handSlots.length<4)handSlots.push(null);
+  $("hand").innerHTML=handSlots.map(c=>slotHTML(c,"hand")).join("");
+  // クールダウン4枠（新しい順）
+  const cdSlots=cooldown.slice(0,4); while(cdSlots.length<4)cdSlots.push(null);
+  $("cooldown").innerHTML=cdSlots.map(c=>slotHTML(c,"cd")).join("");
+}
+function renderLog(){
+  const el=$("log");
+  el.innerHTML = state.plays.slice().reverse().map((p,ri)=>{
+    return `<div><span>${p.name} <span class="cost">${p.cost}</span></span><span class="muted">#${state.plays.length-ri}</span></div>`;
+  }).join("") || `<div class="hint">履歴なし</div>`;
+}
+function renderAll(){ renderDeck(); renderQuick(); renderLog(); renderOpElix(); }
+
+/* 初期描画 */
+renderAll();
+setPhaseChip(1);
+</script>
+</body>
+</html>
