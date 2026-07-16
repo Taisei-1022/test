@@ -230,7 +230,9 @@ textarea.field{resize:vertical;line-height:1.5;}
 
 .bigpv{height:200px;border-radius:16px;display:flex;align-items:center;justify-content:center;
   color:rgba(0,0,0,.72);font-weight:800;font-size:18px;text-align:center;padding:0 16px;margin-bottom:14px;}
-.pvframe{position:relative;height:58vh;border:1px solid var(--rule);border-radius:14px;overflow:hidden;background:#000;margin-bottom:12px;}
+/* プレビュー枠＝ゲームの論理比率(2:3)に固定。ゲームが余白なくピッタリ収まる */
+.pvframe{position:relative;width:min(100%,calc(62vh * 2 / 3));aspect-ratio:2/3;
+  border:1px solid var(--rule);border-radius:14px;overflow:hidden;background:#000;margin:0 auto 12px;}
 .pvframe iframe{width:100%;height:100%;border:0;display:block;touch-action:none;}
 .pvnote{color:var(--dim);font-size:13px;line-height:1.7;margin:0 0 16px;}
 

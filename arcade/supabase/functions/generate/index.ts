@@ -205,19 +205,21 @@ const RUNTIME_TPL = `<!DOCTYPE html>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
 #vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
-/* ゲームが作るDOM UIの器。論理390x844座標系のまま実画面へ拡縮される */
-#vpdom{position:fixed;left:0;top:0;width:390px;height:844px;z-index:2;pointer-events:none;transform-origin:0 0;overflow:hidden}
+/* vpstage＝論理480x720（2:3）の箱。HUD・オーバーレイ・ゲームDOMを全部この中に入れ、
+   箱ごと実画面へ拡縮する（座標系はゲーム内で常に1つ） */
+#vpstage{position:fixed;left:0;top:0;width:480px;height:720px;transform-origin:0 0;z-index:1;overflow:hidden}
+#vpdom{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
 #vpdom *{pointer-events:auto}
-.vp-hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top) + 10px) 14px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.vp-hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
 .vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
 .vp-hud span:empty{display:none}
-.vp-ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
+.vp-ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
 .vp-ov h1{font-size:28px}
-.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:320px;white-space:pre-line}
+.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:340px;white-space:pre-line}
 .vp-ov .vp-big{font-size:44px;font-weight:900;color:#ffd166}
 .vp-btn{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:17px;box-shadow:0 5px 0 rgba(0,0,0,.25);touch-action:manipulation}
 .vp-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
-.vp-toast{position:fixed;top:calc(env(safe-area-inset-top) + 52px);left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+.vp-toast{position:absolute;top:52px;left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
 [hidden]{display:none!important}
 </style>
 <style id="vpcss">
@@ -227,13 +229,15 @@ __GAME_CSS__
 </style>
 </head><body>
 <canvas id="vpc"></canvas>
-<div id="vpdom"></div>
-<div class="vp-hud" id="vphud" hidden><span id="vphl">0__UNIT__</span><span id="vphr"></span></div>
-<div class="vp-toast" id="vptoast"></div>
-<div class="vp-ov" id="vpov">
-  <h1>__TITLE__</h1>
-  <p>__HOWTO__</p>
-  <button class="vp-btn" id="vpstart">スタート</button>
+<div id="vpstage">
+  <div id="vpdom"></div>
+  <div class="vp-hud" id="vphud" hidden><span id="vphl">0__UNIT__</span><span id="vphr"></span></div>
+  <div class="vp-toast" id="vptoast"></div>
+  <div class="vp-ov" id="vpov">
+    <h1>__TITLE__</h1>
+    <p>__HOWTO__</p>
+    <button class="vp-btn" id="vpstart">スタート</button>
+  </div>
 </div>
 <script id="vpimgs">
 /* ユーザー素材画像 {名前:dataURL}。中身はビルド後にアプリが注入（AIには名前だけ渡る） */
@@ -242,9 +246,10 @@ window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
 <script>
 window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
 var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
-// 論理画面は 390x844 固定。全端末でこのサイズとして描き、ランタイムが実画面へ拡縮する
-// （レターボックス）。ゲームコードは端末差を一切考えなくてよい。
-var W=390,H=844;
+// 論理画面は 480x720（2:3）固定。全端末でこのサイズとして描き、ランタイムが
+// vpstage（HUD・オーバーレイ・ゲームDOMを含む箱）ごと実画面へ拡縮する。
+// ゲームコードは端末差を一切考えなくてよい（入力座標も論理系で届く）。
+var W=480,H=720;
 var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
 (function(){
 "use strict";
@@ -256,8 +261,8 @@ function rs(){
   cv.width=vw*DPR;cv.height=vh*DPR;
   ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
   ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
-  var dom=document.getElementById("vpdom");
-  if(dom){dom.style.transform="scale("+__SC+")";dom.style.left=__OX+"px";dom.style.top=__OY+"px";}
+  var st=document.getElementById("vpstage");
+  if(st){st.style.transform="scale("+__SC+")";st.style.left=__OX+"px";st.style.top=__OY+"px";}
   if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
 }
 window.addEventListener("resize",rs);rs();
@@ -457,7 +462,7 @@ const BUILD2_SYSTEM = `You write ONLY the game-specific logic for a mobile HTML5
 
 Runtime globals you can use:
 - cv, ctx : the game <canvas> and its 2d context.
-- W, H : the logical screen size — ALWAYS exactly W=390, H=844 on every device. The runtime scales your rendering to fit any real screen, so design for this one fixed portrait canvas and never think about other sizes. Touch input arrives already converted to this 390x844 space.
+- W, H : the logical screen size — ALWAYS exactly W=480, H=720 (2:3 portrait) on every device. The runtime scales your rendering to fit any real screen, so design for this one fixed canvas and never think about other sizes. Touch input arrives already converted to this 480x720 space.
 - Game.score(n) : update the HUD score (non-negative integer).
 - Game.over(finalScore) : end the play. MUST eventually be called, exactly with the same integer score the player sees. Higher = better.
 - Game.hud(text) : right HUD slot for lives/level etc (e.g. "❤️❤️❤️"). Optional.
@@ -488,12 +493,12 @@ Rules:
 - INPUT IS TOUCH ONLY. Players are on phones: NEVER use keyboard events (keydown/keyup) as the primary control. Do NOT register your own pointer/touch listeners on window/canvas — the runtime already normalizes them into onDown/onMove/onUp (multi-touch: each finger calls the hook with its own id). DOM buttons you create may use click.
 - Continuous actions (auto-fire, holding to move) belong in update(dt) driven by state that onDown/onUp toggles — don't rely on event repetition.
 - Scoring uses the RANKING SCORE decided in the conversation; on-screen score and Game.over(score) must match.
-- LAYOUT (screen is FIXED 390x844 — obey these numbers):
-  - Keep ALL content inside x:0-390, y:70-800. The top 70px belongs to the HUD; the bottom 44px may sit under the home bar. NEVER place anything above y=70.
-  - The playfield must actually USE the screen: spread content across at least 85% of the width and center it horizontally ((390-totalWidth)/2). Grids/panels: compute cell size from the available box, e.g. 3 columns → cell = (390 - margins*2 - gaps) / 3. Don't leave the bottom half empty — either extend the playfield or center the content block vertically.
+- LAYOUT (screen is FIXED 480x720 — obey these numbers):
+  - Keep ALL content inside x:0-480, y:56-712. The top 56px belongs to the HUD; NEVER place anything above y=56.
+  - The playfield must actually USE the screen: spread content across at least 85% of the width and center it horizontally ((480-totalWidth)/2). Grids/panels: compute cell size from the available box, e.g. 3 columns → cell = (480 - margins*2 - gaps) / 3. Don't leave the bottom half empty — either extend the playfield or center the content block vertically.
   - Text: min font 14px, keep at least 16px from every edge.
   - NEVER draw your own score/time/lives readout on the canvas — the HUD already shows them (Game.score for score, Game.hud for time/lives). Hand-drawn digit displays are the #1 cause of broken-looking screens.
-- No external resources, no network, no audio files, no imports. If the game is UI-heavy you MAY create DOM elements, but prefer canvas. DOM rules: append them to document.getElementById('vpdom') (a fixed 390x844 layer that scales with the canvas), position:absolute with coordinates in the SAME 390x844 space, z-index 1-4, create in init() and remove stale ones first (vpdom.innerHTML=''). Anything clickable MUST be a real <button> element (click on other elements is suppressed on touch devices).
+- No external resources, no network, no audio files, no imports. If the game is UI-heavy you MAY create DOM elements, but prefer canvas. DOM rules: append them to document.getElementById('vpdom') (a fixed 480x720 layer that scales with the canvas), position:absolute with coordinates in the SAME 480x720 space, z-index 1-4, create in init() and remove stale ones first (vpdom.innerHTML=''). Anything clickable MUST be a real <button> element (click on other elements is suppressed on touch devices).
 - Characters/objects: do NOT use plain rectangles. Draw EMOJI sprites on canvas:
     ctx.font = size + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("🐱", x, y);
   If the conversation picked specific 素材 (emoji), use THOSE.

@@ -132,7 +132,7 @@ async function score(browser, c, html, genMeta) {
   const checks = {};
   checks.struct = !!(genMeta.ok && !genMeta.validateErr && genMeta.tune >= 4);
   if (!html) { return { checks, total: 0 }; }
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+  const ctx = await browser.newContext({ viewport: { width: 480, height: 720 }, hasTouch: true });
   const p = await ctx.newPage();
   const errs = []; p.on('pageerror', e => errs.push(String(e.message).slice(0, 120)));
   const cdp = await ctx.newCDPSession(p);
@@ -185,18 +185,18 @@ async function score(browser, c, html, genMeta) {
       if (kind === 'tapTargets') {
         const t = await findTargets();
         if (t.length) await p.touchscreen.tap(t[i % t.length].x, t[i % t.length].y);
-        else await p.touchscreen.tap(60 + (i % 3) * 130, 200 + (i % 4) * 110);
+        else await p.touchscreen.tap(80 + (i % 3) * 160, 180 + (i % 4) * 120);
       } else if (kind === 'dragMove') {
-        await touchDrag(195, 690, i % 2 ? 60 : 330, 690, 8);
+        await touchDrag(240, 620, i % 2 ? 70 : 410, 620, 8);
       } else if (kind === 'tapAnywhere') {
-        await p.touchscreen.tap(195, 380);
+        await p.touchscreen.tap(240, 400);
       } else if (kind === 'tapSides') {
-        await p.touchscreen.tap(i % 2 ? 90 : 300, 420);
+        await p.touchscreen.tap(i % 2 ? 110 : 370, 420);
       } else if (kind === 'tapGrid') {
-        const pts = [[110, 320], [280, 320], [110, 560], [280, 560]];
+        const pts = [[140, 300], [340, 300], [140, 520], [340, 520]];
         await p.touchscreen.tap(pts[i % 4][0], pts[i % 4][1]);
       } else if (kind === 'holdRelease') {
-        await hold(195, 400, 700);
+        await hold(240, 400, 700);
       }
       await p.waitForTimeout(kind === 'holdRelease' ? 1200 : 380);
     }
@@ -236,7 +236,7 @@ async function score(browser, c, html, genMeta) {
       }
       else if (c.probe === 'hudChanges') { checks.probe = await p.evaluate(() => { const r = document.getElementById('vphr'); return !!(r && r.textContent.trim()); }) || (await hudNum()) > 0; }
       else if (c.probe === 'holdGrows') {
-        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 195, y: 400, id: 1 }] });
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 240, y: 400, id: 1 }] });
         const g1 = await canvasHash(); await p.waitForTimeout(400); const g2 = await canvasHash(); await p.waitForTimeout(400); const g3 = await canvasHash();
         await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
         checks.probe = g1 !== g2 && g2 !== g3;
