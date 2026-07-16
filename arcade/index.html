@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-180.png?v=3" />
 <link rel="icon" href="icon-192.png?v=3" />
-<link rel="stylesheet" href="css/app.css?v=38" />
+<link rel="stylesheet" href="css/app.css?v=39" />
 <title>Vappa</title>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6804943232069371" crossorigin="anonymous"></script>
 <meta property="og:type" content="website" />
@@ -99,13 +99,19 @@
       </div>
       <!-- 難易度調整パネル（管理者のみ。ゲームのTUNEオブジェクトをスライダーで書き換える） -->
       <div id="tunePanel" hidden>
-        <div class="tphead">
-          <b>⚙️ 難易度の調整</b>
-          <span class="tpnote">動かすとプレビューが最初からやり直しになるよ</span>
-          <button id="tuneReset" type="button">リセット</button>
-          <button id="tuneClose" type="button" aria-label="閉じる">✕</button>
+        <div class="tphead" id="tuneHead">
+          <div class="tpgrip" aria-hidden="true"></div>
+          <div class="tpheadrow">
+            <b>⚙️ 難易度の調整</b>
+            <span class="tpnote">動かすとプレビューが最初からやり直しになるよ</span>
+            <button id="tuneReset" type="button">リセット</button>
+            <button id="tuneClose" type="button" aria-label="閉じる">✕</button>
+          </div>
         </div>
-        <div id="tuneBody"></div>
+        <div class="tpscroll" id="tuneScroll">
+          <div id="tuneBody"></div>
+        </div>
+        <div class="tprail" aria-hidden="true"></div>
       </div>
     </div>
     <!-- ④ 公開設定 -->
@@ -275,7 +281,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.70";
+  var APP_VERSION = "0.9.71";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -822,6 +828,32 @@
     if(p.hidden){ renderTunePanel(); p.hidden=false; } else { p.hidden=true; }
   });
   document.getElementById("tuneClose").addEventListener("click", function(){ document.getElementById("tunePanel").hidden=true; });
+  // ヘッダーを掴んで下にスワイプするとシートを閉じる（指に追従→70px超で確定）
+  (function(){
+    var p=document.getElementById("tunePanel"), h=document.getElementById("tuneHead");
+    var sy=null, dy=0;
+    h.addEventListener("touchstart", function(e){
+      if(e.target.closest("button")) return;   // リセット/✕のタップはそのまま
+      sy=e.touches[0].clientY; dy=0; p.style.transition="none";
+    }, {passive:true});
+    h.addEventListener("touchmove", function(e){
+      if(sy==null) return;
+      dy=e.touches[0].clientY-sy;
+      if(dy>0){ p.style.transform="translateY("+dy+"px)"; if(e.cancelable) e.preventDefault(); }
+    }, {passive:false});
+    h.addEventListener("touchend", function(){
+      if(sy==null) return;
+      p.style.transition="transform .18s ease";
+      if(dy>70){
+        p.style.transform="translateY(110%)";
+        setTimeout(function(){ p.hidden=true; p.style.transform=""; p.style.transition=""; }, 180);
+      } else {
+        p.style.transform="";
+        setTimeout(function(){ p.style.transition=""; }, 200);
+      }
+      sy=null;
+    }, {passive:true});
+  })();
   document.getElementById("tuneReset").addEventListener("click", function(){
     if(!tuneInit) return;
     Object.keys(tuneInit).forEach(function(k){ lastGen.html=patchTune(lastGen.html,k,tuneInit[k]); });
