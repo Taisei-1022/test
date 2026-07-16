@@ -340,6 +340,10 @@ window.addEventListener("pointerup",function(e){fire("onUp",toLX(e.clientX),toLY
 //  - touchmove は非passiveで preventDefault → パン/スクロール横取りはこれで止まる
 //  - touchend はボタン類「以外」でだけ preventDefault → iOSのダブルタップズーム
 //    （touch-action:noneでは止まらない端末がある）を殺しつつ、ボタンの click 合成は守る
+//  - preventDefault すると iOS は click を合成しない → 生成コードが div/span で
+//    自作ボタンを作った場合に全操作不能になる。そこで「タップ」（移動が小さく
+//    短いタッチ）に限り、こちらで click を合成して補う。本物の button 等は
+//    preventDefault しない＝ネイティブ click が来るので合成しない（二重防止）
 //  - pointerイベントが来る環境では発火だけ二重防止（seenPointer）
 function tfire(fn,e){
   if(seenPointer)return;
@@ -347,9 +351,27 @@ function tfire(fn,e){
     if(fn==="onDown")fire("onMove",toLX(t.clientX),toLY(t.clientY),t.identifier);}
 }
 function uiTouch(e){var t=e.target;return !!(t&&t.closest&&t.closest("button,a,input,select,label"));}
-window.addEventListener("touchstart",function(e){tfire("onDown",e);},{passive:true});
+var tstart={};
+window.addEventListener("touchstart",function(e){
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];tstart[t.identifier]={x:t.clientX,y:t.clientY,at:Date.now()};}
+  tfire("onDown",e);
+},{passive:true});
 window.addEventListener("touchmove",function(e){if(e.cancelable)e.preventDefault();tfire("onMove",e);},{passive:false});
-window.addEventListener("touchend",function(e){if(e.cancelable&&!uiTouch(e))e.preventDefault();tfire("onUp",e);},{passive:false});
+window.addEventListener("touchend",function(e){
+  var prevented=false;
+  if(e.cancelable&&!uiTouch(e)){e.preventDefault();prevented=true;}
+  if(prevented){
+    for(var i=0;i<e.changedTouches.length;i++){
+      var t=e.changedTouches[i],s=tstart[t.identifier];
+      if(s&&Math.abs(t.clientX-s.x)<14&&Math.abs(t.clientY-s.y)<14&&Date.now()-s.at<1500){
+        var el=document.elementFromPoint(t.clientX,t.clientY)||e.target;
+        if(el){try{el.dispatchEvent(new MouseEvent("click",{bubbles:true,cancelable:true,view:window,clientX:t.clientX,clientY:t.clientY}));}catch(err){}}
+      }
+    }
+  }
+  for(var j=0;j<e.changedTouches.length;j++)delete tstart[e.changedTouches[j].identifier];
+  tfire("onUp",e);
+},{passive:false});
 document.addEventListener("gesturestart",function(e){e.preventDefault();});
 window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",toLX(e.clientX),toLY(e.clientY),0);});
 window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",toLX(e.clientX),toLY(e.clientY),0);});
@@ -522,7 +544,9 @@ Rules:
   - The playfield must actually USE the screen: spread content across at least 85% of the width and center it horizontally ((480-totalWidth)/2). Grids/panels: compute cell size from the available box, e.g. 3 columns → cell = (480 - margins*2 - gaps) / 3. Don't leave the bottom half empty — either extend the playfield or center the content block vertically.
   - Text: min font 14px, keep at least 16px from every edge.
   - NEVER draw your own score/time/lives readout on the canvas — the HUD already shows them (Game.score for score, Game.hud for time/lives). Hand-drawn digit displays are the #1 cause of broken-looking screens.
-- No external resources, no network, no audio files, no imports. If the game is UI-heavy you MAY create DOM elements, but prefer canvas. DOM rules: append them to document.getElementById('vpdom') (a fixed 480x720 layer that scales with the canvas), position:absolute with coordinates in the SAME 480x720 space, z-index 1-4, create in init() and remove stale ones first (vpdom.innerHTML=''). Anything clickable MUST be a real <button> element (click on other elements is suppressed on touch devices).
+- No external resources, no network, no audio files, no imports. If the game is UI-heavy you MAY create DOM elements, but prefer canvas. DOM rules: append them to document.getElementById('vpdom') (a fixed 480x720 layer that scales with the canvas), position:absolute with coordinates in the SAME 480x720 space, z-index 1-4, create in init() and remove stale ones first (vpdom.innerHTML='').
+- Anything tappable in the DOM (D-pads, arrow keys, choice panels, answer cards…) MUST be a real <button> element — NEVER a <div>/<span> with a click listener. Reason: on iPhone, click on non-button elements does not fire reliably, so the whole game becomes unplayable. Correct pattern:
+    var b=document.createElement('button'); b.textContent='▲'; b.style.cssText='position:absolute;left:200px;top:600px;width:80px;height:64px;font-size:28px;'; b.addEventListener('click',function(){ move(0,-1); }); vpdom.appendChild(b);
 - Characters/objects: do NOT use plain rectangles. Draw EMOJI sprites on canvas:
     ctx.font = size + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("🐱", x, y);
   Write every emoji as a literal character (🐱 🪙 💣) — NEVER as a unicode escape or codepoint (no \\u, no String.fromCodePoint; they render as garbage text). If the conversation picked specific 素材 (emoji), use THOSE.
@@ -530,6 +554,7 @@ Rules:
     var TUNE = { key: { v: 150, label: "日本語ラベル", min: 60, max: 400, step: 10 }, ... };
   4-8 entries, label in Japanese, min/max = sensible playable range, step = adjustment granularity. Read values ONLY via TUNE.key.v (never repeat the literal elsewhere). The platform renders sliders from this object so humans can hand-tune difficulty without AI. When EDITING, keep the existing TUNE keys (current v values included) unless the request says otherwise.
 - Make it genuinely fun and polished: clear goal, responsive controls, juicy feedback (Game.float / shake / particles), difficulty that ramps up.
+- If a stage/level is randomly generated (mazes, gaps, puzzles), VERIFY in code that it is clearable (e.g. BFS reachability from start to goal) and regenerate until it is — never start an impossible round.
 - Japanese in-game text. Keep performance smooth on phones (no huge object counts).
 - JSON safety: your ENTIRE output is one JSON object and "js" is a JSON string value. Keep the code JSON-friendly:
   - Use SINGLE quotes (') for every JS string literal — e.g. ctx.fillStyle = 'hsl(330,80%,' + l + '%)'. Then you never need to escape quotes inside the JSON.

@@ -268,8 +268,10 @@ textarea.field{resize:vertical;line-height:1.5;}
 .traychip.imgchip{display:inline-flex;align-items:center;gap:5px;}
 .traychip.imgchip img{width:20px;height:20px;object-fit:contain;border-radius:4px;}
 
-/* 難易度調整（管理者用）：プレビュー右下の⚙️＋ボトムシート */
-#pvTune{position:absolute;right:10px;bottom:10px;z-index:5;width:44px;height:44px;
+/* 難易度調整（管理者用）：プレビュー枠外（下の説明行の右）の⚙️＋ボトムシート */
+.pvtools{display:flex;align-items:flex-start;gap:10px;}
+.pvtools .pvnote{flex:1;min-width:0;}
+#pvTune{flex:none;width:44px;height:44px;
   border-radius:50%;border:1px solid var(--rule);background:rgba(29,26,46,.9);
   font-size:20px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.45);}
 #tunePanel{position:fixed;left:0;right:0;bottom:0;z-index:60;max-height:52vh;overflow:auto;

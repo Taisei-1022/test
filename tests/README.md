@@ -113,6 +113,11 @@ node tests/tune-panel.js
 - **touch-action:none ではiOSのダブルタップズームを止められない**（manipulationなら
   止まるというWebKitの癖）→ ボタン類（button,a,input,select,label）以外の touchend
   だけ preventDefault する。ボタンまで preventDefault すると click合成が死ぬ（上の地雷）
+- その preventDefault の副作用で、**生成AIが div/span で自作したボタンはタッチで
+  一切反応しなくなる**（ダンジョン迷路の十字キーで実害）→ ランタイムが「タップ
+  （移動14px未満・1.5秒未満）」に限り click を手動合成して補う。本物のボタン類は
+  preventDefault しない＝ネイティブ click が来るので合成しない（二重発火防止）。
+  プロンプト側にも「タップUIは必ず本物の<button>」ルール＋作例あり（二層防御）
 - 固定ステージ（480×720）では**座標系は3つ全部を同じ変換で揃える**：canvasは
   ctx.setTransform(DPR*__SC,...,DPR*__OX,DPR*__OY)＋clip、DOM(#vpstage)は
   transform:scale(__SC)+left/top、入力は toLX/toLY で論理座標へ逆変換。
