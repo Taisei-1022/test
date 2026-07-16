@@ -41,9 +41,10 @@ var tests=[
    c.font=FONT;c.textAlign='center';c.textBaseline='middle';
    c.fillText('🚢',w/2,h/2);}},
  {n:"4. グラデーションfillStyleで普通の文字AB", run:function(c,w,h){
-   c.fillStyle='#2a5a7c';c.fillRect(0,0,w,h);
+   c.fillStyle='#12213a';c.fillRect(0,0,w,h);
    c.font="32px sans-serif";c.textAlign='center';c.textBaseline='middle';
-   c.fillStyle=mkGrad(c,w,h);
+   var g=c.createLinearGradient(0,0,0,h);g.addColorStop(0,'#ffffff');g.addColorStop(1,'#ffd700');
+   c.fillStyle=g;
    c.fillText('AB',w/2,h/2);}},
  {n:"5. 修正候補：fillText直前に単色へ戻す", run:function(c,w,h){
    c.fillStyle=mkGrad(c,w,h);c.fillRect(0,0,w,h);
