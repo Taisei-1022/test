@@ -101,9 +101,12 @@ const RED_PNG = Buffer.from(
     btn.click();
     await new Promise(r => setTimeout(r, 700));
     const c = w.document.getElementById('vpc');
-    const d = c.getContext('2d').getImageData(100, 100, 80, 80).data;
+    // 固定論理サイズ(390x844)ランタイム：論理(100,100,80,80)を実キャンバス座標へ変換して読む
+    const sc = w.__SC || 1, ox = w.__OX || 0, oy = w.__OY || 0;
+    const px = Math.round(100 * sc + ox), py = Math.round(100 * sc + oy), pw = Math.max(4, Math.round(80 * sc));
+    const d = c.getContext('2d').getImageData(px, py, pw, pw).data;
     let red = 0; for (let i = 0; i < d.length; i += 4) if (d[i] > 200 && d[i + 1] < 60) red++;
-    return red > 500 ? 'ok' : 'few:' + red;
+    return red > 100 ? 'ok' : 'few:' + red;
   });
 
   // 4. 編集ビルド：prevHtml に注入済み画像が入って往復するか

@@ -132,7 +132,7 @@ async function score(browser, c, html, genMeta) {
   const checks = {};
   checks.struct = !!(genMeta.ok && !genMeta.validateErr && genMeta.tune >= 4);
   if (!html) { return { checks, total: 0 }; }
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 700 }, hasTouch: true });
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
   const p = await ctx.newPage();
   const errs = []; p.on('pageerror', e => errs.push(String(e.message).slice(0, 120)));
   const cdp = await ctx.newCDPSession(p);
@@ -187,13 +187,13 @@ async function score(browser, c, html, genMeta) {
         if (t.length) await p.touchscreen.tap(t[i % t.length].x, t[i % t.length].y);
         else await p.touchscreen.tap(60 + (i % 3) * 130, 200 + (i % 4) * 110);
       } else if (kind === 'dragMove') {
-        await touchDrag(195, 560, i % 2 ? 60 : 330, 560, 8);
+        await touchDrag(195, 690, i % 2 ? 60 : 330, 690, 8);
       } else if (kind === 'tapAnywhere') {
         await p.touchscreen.tap(195, 380);
       } else if (kind === 'tapSides') {
         await p.touchscreen.tap(i % 2 ? 90 : 300, 420);
       } else if (kind === 'tapGrid') {
-        const pts = [[110, 260], [280, 260], [110, 470], [280, 470]];
+        const pts = [[110, 320], [280, 320], [110, 560], [280, 560]];
         await p.touchscreen.tap(pts[i % 4][0], pts[i % 4][1]);
       } else if (kind === 'holdRelease') {
         await hold(195, 400, 700);
@@ -250,6 +250,38 @@ async function score(browser, c, html, genMeta) {
     checks.score = c.scoreLoose ? /\d/.test(await hud())
       : ((await hudNum()) > 0 || (await hud()) !== hudBefore);
     if (checks.probe === 'defer-hud') checks.probe = (await hudNum()) > 0;
+    // layout（見た目）：ゲームが作ったDOMが論理390x844からはみ出していないか＋描画の左右バランス
+    try {
+      checks.layout = await p.evaluate(() => {
+        // DOM要素の containment（ベイカレント型の崩れ検出）
+        const dom = document.getElementById('vpdom');
+        const nodes = [...(dom ? dom.querySelectorAll('*') : [])];
+        // 旧スタイル（body直下にDOMを作るゲーム）も見る
+        for (const el of document.body.children) {
+          if (!/^(vpc|vpdom|vphud|vptoast|vpov|vpgame|vpimgs)$/.test(el.id || '') && el.tagName !== 'SCRIPT') nodes.push(el, ...el.querySelectorAll('*'));
+        }
+        for (const el of nodes) {
+          const r = el.getBoundingClientRect();
+          if (r.width === 0 && r.height === 0) continue;
+          if (r.top < -2 || r.left < -2 || r.right > innerWidth + 2 || r.bottom > innerHeight + 2) return false;   // はみ出し
+        }
+        // キャンバスの左右バランス：左/中/右で「変化のあるピクセル」が極端に偏っていないか
+        const cv2 = document.getElementById('vpc'); const g = cv2.getContext('2d');
+        const d = g.getImageData(0, 0, cv2.width, cv2.height).data;
+        const wpx = cv2.width, hpx = cv2.height, third = Math.floor(wpx / 3);
+        const busy = [0, 0, 0];
+        for (let y = Math.floor(hpx * 0.15); y < hpx * 0.95; y += 7) {
+          for (let x = 0; x < wpx - 8; x += 7) {
+            const i = (y * wpx + x) * 4, j = (y * wpx + x + 7) * 4;
+            if (Math.abs(d[i] - d[j]) + Math.abs(d[i + 1] - d[j + 1]) + Math.abs(d[i + 2] - d[j + 2]) > 40) busy[Math.min(2, Math.floor(x / third))]++;
+          }
+        }
+        const total = busy[0] + busy[1] + busy[2];
+        if (total < 30) return true;   // ほぼ一様（ミニマルな絵）は判定対象外
+        const mx = Math.max(...busy), mn = Math.min(...busy);
+        return mn > mx * 0.05;   // どこか1列だけ空っぽ（極端な偏り）ならNG
+      });
+    } catch (e) { checks.layout = false; }
     // errors（ここまでの実プレイでエラーが出ていないか）
     const vperr = await p.evaluate(() => window.__VP_ERR || null);
     checks.errors = !vperr && errs.length === 0;
@@ -275,7 +307,7 @@ async function score(browser, c, html, genMeta) {
     checks.fatal = String(e.message).slice(0, 120);
   }
   await ctx.close();
-  const names = ['struct', 'loads', 'starts', 'animates', 'input', 'score', 'errors', 'gameover', 'restart', 'probe'];
+  const names = ['struct', 'loads', 'starts', 'animates', 'input', 'score', 'errors', 'gameover', 'restart', 'probe', 'layout'];
   const total = names.reduce((s, n) => s + (checks[n] === true ? 1 : 0), 0);
   return { checks, total, errs: errs.slice(0, 3) };
 }
@@ -316,7 +348,7 @@ async function score(browser, c, html, genMeta) {
   }
   await browser.close();
   const grand = Object.values(report).reduce((s, r) => s + r.total, 0);
-  report.__grand = grand + '/' + (cases.length * 10);
+  report.__grand = grand + '/' + (cases.length * 11);
   fs.writeFileSync(path.join(OUT, 'report.json'), JSON.stringify(report, null, 1));
   console.log('=== TOTAL', report.__grand, '(tag=' + TAG + ', model=' + MODEL + ', effort=' + (EFFORT || 'off') + ') ===');
 })();

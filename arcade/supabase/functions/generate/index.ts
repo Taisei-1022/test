@@ -205,6 +205,9 @@ const RUNTIME_TPL = `<!DOCTYPE html>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
 #vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+/* ゲームが作るDOM UIの器。論理390x844座標系のまま実画面へ拡縮される */
+#vpdom{position:fixed;left:0;top:0;width:390px;height:844px;z-index:2;pointer-events:none;transform-origin:0 0;overflow:hidden}
+#vpdom *{pointer-events:auto}
 .vp-hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top) + 10px) 14px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
 .vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
 .vp-hud span:empty{display:none}
@@ -224,6 +227,7 @@ __GAME_CSS__
 </style>
 </head><body>
 <canvas id="vpc"></canvas>
+<div id="vpdom"></div>
 <div class="vp-hud" id="vphud" hidden><span id="vphl">0__UNIT__</span><span id="vphr"></span></div>
 <div class="vp-toast" id="vptoast"></div>
 <div class="vp-ov" id="vpov">
@@ -238,13 +242,28 @@ window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
 <script>
 window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
 var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
-var W=0,H=0;
+// 論理画面は 390x844 固定。全端末でこのサイズとして描き、ランタイムが実画面へ拡縮する
+// （レターボックス）。ゲームコードは端末差を一切考えなくてよい。
+var W=390,H=844;
+var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
 (function(){
 "use strict";
 var DPR=Math.min(2,window.devicePixelRatio||1);
-function rs(){W=window.innerWidth;H=window.innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);
-  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}}
+function rs(){
+  var vw=window.innerWidth,vh=window.innerHeight;
+  __SC=Math.min(vw/W,vh/H);
+  __OX=(vw-W*__SC)/2;__OY=(vh-H*__SC)/2;
+  cv.width=vw*DPR;cv.height=vh*DPR;
+  ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
+  ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
+  var dom=document.getElementById("vpdom");
+  if(dom){dom.style.transform="scale("+__SC+")";dom.style.left=__OX+"px";dom.style.top=__OY+"px";}
+  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
+}
 window.addEventListener("resize",rs);rs();
+// 実画面座標→論理座標（タッチ入力用）
+function toLX(x){return (x-__OX)/__SC;}
+function toLY(y){return (y-__OY)/__SC;}
 var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="__UNIT__";
 // ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
 var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
@@ -284,9 +303,9 @@ function fire(fn,x,y,id){
 // pointer と touch を両対応（iOSのiframe内などpointerが飛ばない環境へのフォールバック）。
 // pointerが一度でも来たらtouchは無視して二重発火を防ぐ。
 var seenPointer=false;
-window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",e.clientX,e.clientY,e.pointerId);fire("onMove",e.clientX,e.clientY,e.pointerId);});
-window.addEventListener("pointermove",function(e){fire("onMove",e.clientX,e.clientY,e.pointerId);});
-window.addEventListener("pointerup",function(e){fire("onUp",e.clientX,e.clientY,e.pointerId);});
+window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",toLX(e.clientX),toLY(e.clientY),e.pointerId);fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointermove",function(e){fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointerup",function(e){fire("onUp",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
 // タッチの扱い（iOS対策の要点）：
 //  - touchstart は preventDefault しない
 //  - touchmove は非passiveで preventDefault → パン/スクロール横取りはこれで止まる
@@ -295,17 +314,17 @@ window.addEventListener("pointerup",function(e){fire("onUp",e.clientX,e.clientY,
 //  - pointerイベントが来る環境では発火だけ二重防止（seenPointer）
 function tfire(fn,e){
   if(seenPointer)return;
-  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,t.clientX,t.clientY,t.identifier);
-    if(fn==="onDown")fire("onMove",t.clientX,t.clientY,t.identifier);}
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,toLX(t.clientX),toLY(t.clientY),t.identifier);
+    if(fn==="onDown")fire("onMove",toLX(t.clientX),toLY(t.clientY),t.identifier);}
 }
 function uiTouch(e){var t=e.target;return !!(t&&t.closest&&t.closest("button,a,input,select,label"));}
 window.addEventListener("touchstart",function(e){tfire("onDown",e);},{passive:true});
 window.addEventListener("touchmove",function(e){if(e.cancelable)e.preventDefault();tfire("onMove",e);},{passive:false});
 window.addEventListener("touchend",function(e){if(e.cancelable&&!uiTouch(e))e.preventDefault();tfire("onUp",e);},{passive:false});
 document.addEventListener("gesturestart",function(e){e.preventDefault();});
-window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",e.clientX,e.clientY,0);});
-window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",e.clientX,e.clientY,0);});
-window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",e.clientX,e.clientY,0);});
+window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",toLX(e.clientX),toLY(e.clientY),0);});
 window.Arcade.onPause(function(){paused=true;});
 window.Arcade.onResume(function(){paused=false;last=performance.now();});
 window.Arcade.onRestart(start);
@@ -437,8 +456,8 @@ function onMove(x,y){ basket.x = Math.max(basket.w/2, Math.min(W-basket.w/2, x))
 const BUILD2_SYSTEM = `You write ONLY the game-specific logic for a mobile HTML5 mini-game. The platform runtime already provides everything else — fullscreen canvas with devicePixelRatio handling, resize, the requestAnimationFrame loop, start/game-over/restart screens, score HUD, pause/resume, unified touch input, error capture, and score submission. Do NOT write any of that boilerplate.
 
 Runtime globals you can use:
-- cv, ctx : the fullscreen <canvas> and its 2d context. Coordinates are CSS pixels.
-- W, H : current screen size in CSS pixels (kept updated on resize).
+- cv, ctx : the game <canvas> and its 2d context.
+- W, H : the logical screen size — ALWAYS exactly W=390, H=844 on every device. The runtime scales your rendering to fit any real screen, so design for this one fixed portrait canvas and never think about other sizes. Touch input arrives already converted to this 390x844 space.
 - Game.score(n) : update the HUD score (non-negative integer).
 - Game.over(finalScore) : end the play. MUST eventually be called, exactly with the same integer score the player sees. Higher = better.
 - Game.hud(text) : right HUD slot for lives/level etc (e.g. "❤️❤️❤️"). Optional.
@@ -469,7 +488,11 @@ Rules:
 - INPUT IS TOUCH ONLY. Players are on phones: NEVER use keyboard events (keydown/keyup) as the primary control. Do NOT register your own pointer/touch listeners on window/canvas — the runtime already normalizes them into onDown/onMove/onUp (multi-touch: each finger calls the hook with its own id). DOM buttons you create may use click.
 - Continuous actions (auto-fire, holding to move) belong in update(dt) driven by state that onDown/onUp toggles — don't rely on event repetition.
 - Scoring uses the RANKING SCORE decided in the conversation; on-screen score and Game.over(score) must match.
-- No external resources, no network, no audio files, no imports. If the game is UI-heavy you MAY create DOM elements (position:fixed; z-index 1-4; create them in init() and remove stale ones first), but prefer canvas. Anything clickable MUST be a real <button> element (click on other elements is suppressed on touch devices).
+- LAYOUT (screen is FIXED 390x844 — obey these numbers):
+  - Keep ALL content inside x:0-390, y:70-800. The top 70px belongs to the HUD; the bottom 44px may sit under the home bar. NEVER place anything above y=70.
+  - The playfield must actually USE the screen: spread content across at least 85% of the width and center it horizontally ((390-totalWidth)/2). Grids/panels: compute cell size from the available box, e.g. 3 columns → cell = (390 - margins*2 - gaps) / 3. Don't leave the bottom half empty — either extend the playfield or center the content block vertically.
+  - Text: min font 14px, keep at least 16px from every edge.
+- No external resources, no network, no audio files, no imports. If the game is UI-heavy you MAY create DOM elements, but prefer canvas. DOM rules: append them to document.getElementById('vpdom') (a fixed 390x844 layer that scales with the canvas), position:absolute with coordinates in the SAME 390x844 space, z-index 1-4, create in init() and remove stale ones first (vpdom.innerHTML=''). Anything clickable MUST be a real <button> element (click on other elements is suppressed on touch devices).
 - Characters/objects: do NOT use plain rectangles. Draw EMOJI sprites on canvas:
     ctx.font = size + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("🐱", x, y);
   If the conversation picked specific 素材 (emoji), use THOSE.
