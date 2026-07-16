@@ -1,0 +1,52 @@
+name: hotel-price-watch
+
+# 定期的に仙台のホテル価格をチェックし、閾値以下なら Slack 通知する。
+on:
+  schedule:
+    # 毎日 00:00 UTC = 09:00 JST。頻度を変えたいときはこの cron を編集。
+    # （SerpApi 無料枠 250検索/月に収まるよう、ホテル数×宿泊日数×実行回数に注意）
+    - cron: "0 0 * * *"
+  workflow_dispatch: {}   # 手動実行（動作確認用）
+
+# 価格履歴をリポジトリに書き戻すため write 権限が必要
+permissions:
+  contents: write
+
+concurrency:
+  group: hotel-price-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hotel-price-watch
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run watcher
+        env:
+          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
+          RAKUTEN_APP_ID: ${{ secrets.RAKUTEN_APP_ID }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: python watch.py
+
+      - name: Commit price history
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/history.jsonl data/state.json
+          if git diff --cached --quiet; then
+            echo "価格履歴に変化なし。コミットしません。"
+          else
+            git commit -m "chore: update hotel price history [skip ci]"
+            git push
+          fi
