@@ -1016,11 +1016,18 @@ async function callOpenAICompat(spec: ModelSpec, system: string, messages: Msg[]
   } else {
     body.max_completion_tokens = 16000;   // GPT-5系は max_completion_tokens（temperature等は送らない）
   }
-  const data = await postOnce(url, { "content-type": "application/json", "authorization": "Bearer " + key }, body, timeoutMs);
-  const u = (data as { usage?: { prompt_tokens?: number; completion_tokens?: number } }).usage;
-  if (acc && u) acc.push({ model: spec.model, usage: { input_tokens: u.prompt_tokens || 0, output_tokens: u.completion_tokens || 0 } });
-  const choices = (data as { choices?: Array<{ message?: { content?: string } }> }).choices;
-  return parseJsonLoose(choices?.[0]?.message?.content || "");
+  const headers = { "content-type": "application/json", "authorization": "Bearer " + key };
+  const readOut = (data: Record<string, unknown>) => {
+    const u = (data as { usage?: { prompt_tokens?: number; completion_tokens?: number } }).usage;
+    if (acc && u) acc.push({ model: spec.model, usage: { input_tokens: u.prompt_tokens || 0, output_tokens: u.completion_tokens || 0 } });
+    const choices = (data as { choices?: Array<{ message?: { content?: string } }> }).choices;
+    return choices?.[0]?.message?.content || "";
+  };
+  let content = readOut(await postOnce(url, headers, body, timeoutMs));
+  // DeepSeekのjson_objectモードが稀に空白のみを返す不具合への保険：1回だけ再試行
+  if (!content.trim()) content = readOut(await postOnce(url, headers, body, timeoutMs));
+  if (!content.trim()) throw new Error("empty_json_output");
+  return parseJsonLoose(content);
 }
 
 // Google Gemini（generateContent）
@@ -1074,9 +1081,16 @@ async function startFlow(key: string, messages: Msg[], prevHtml: string, token: 
     : PLAN_SYSTEM;
   // 相談役も DeepSeek Flash（思考オフ＝速い・激安）を第一候補に。失敗時のみ Haiku へフォールバック
   // （Anthropic残高切れでチャットが全滅した事故の再発防止：どちらか片方が生きていれば動く）
+  // 注意：DeepSeekの json_object モードは「履歴に非JSONのassistant発言がある複数ターン会話」を
+  // 渡すと高確率で空白のみを返す不具合がある（実測2/3）。会話を1本のトランスクリプトに
+  // まとめて単発userとして渡すと安定する（実測4/4）ので、その形に変換して送る。
   let plan;
-  try { plan = await callOpenAICompat(TEST_MODELS["ds-flash"], planSystem, messages, PLAN_SCHEMA, 30000); }
-  catch {
+  try {
+    const planTr = messages.map((mm) => (mm.role === "user" ? "ユーザー: " : "AI: ") + mm.content).join("\n");
+    plan = await callOpenAICompat(TEST_MODELS["ds-flash"], planSystem,
+      [{ role: "user", content: "これまでの会話:\n" + planTr + "\n\n上の会話の続きとして、AIの次の返答をJSONで返してください。" }],
+      PLAN_SCHEMA, 30000);
+  } catch {
     try { plan = await callClaude(key, planSystem, messages, PLAN_SCHEMA, false); }
     catch (e) { return { immediate: buildErr(e) }; }
   }
