@@ -1,25 +1,27 @@
 <!DOCTYPE html>
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
-<title>風船チキンレース</title>
-<!--VAPPA_TPL1 %7B%22t%22%3A%22%E9%A2%A8%E8%88%B9%E3%83%81%E3%82%AD%E3%83%B3%E3%83%AC%E3%83%BC%E3%82%B9%22%2C%22h%22%3A%22%E7%94%BB%E9%9D%A2%E3%82%92%E6%8A%BC%E3%81%97%E3%81%A6%E9%A2%A8%E8%88%B9%E3%82%92%E8%86%A8%E3%82%89%E3%81%BE%E3%81%9B%E3%80%81%E6%8C%87%E3%82%92%E9%9B%A2%E3%81%97%E3%81%A6%E5%A4%A7%E3%81%8D%E3%81%95%E3%82%92%E7%A2%BA%E5%AE%9A%EF%BC%81%5Cn%E5%A4%A7%E3%81%8D%E3%81%84%E3%81%BB%E3%81%A9%E9%AB%98%E5%BE%97%E7%82%B9%E3%81%A0%E3%81%8C%E3%80%81%E7%A0%B4%E8%A3%82%E3%81%99%E3%82%8B%E3%81%A80%E7%82%B9%EF%BC%81%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
+<title>ふうせんチキンレース</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%81%B5%E3%81%86%E3%81%9B%E3%82%93%E3%83%81%E3%82%AD%E3%83%B3%E3%83%AC%E3%83%BC%E3%82%B9%22%2C%22h%22%3A%22%E7%94%BB%E9%9D%A2%E3%82%92%E6%8A%BC%E3%81%97%E3%81%A3%E3%81%B1%E3%81%AA%E3%81%97%E3%81%A7%E9%A2%A8%E8%88%B9%E3%81%8C%E8%86%A8%E3%82%89%E3%82%80%E3%80%82%E9%9B%A2%E3%81%97%E3%81%9F%E6%99%82%E3%81%AE%E5%A4%A7%E3%81%8D%E3%81%95%E3%81%A7%E5%BE%97%E7%82%B9%EF%BC%81%E7%A0%B4%E8%A3%82%E3%81%99%E3%82%8B%E5%89%8D%E3%81%AB%E9%9B%A2%E3%81%9B%EF%BC%81%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
 #vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
-/* ゲームが作るDOM UIの器。論理390x844座標系のまま実画面へ拡縮される */
-#vpdom{position:fixed;left:0;top:0;width:390px;height:844px;z-index:2;pointer-events:none;transform-origin:0 0;overflow:hidden}
+/* vpstage＝論理480x720（2:3）の箱。HUD・オーバーレイ・ゲームDOMを全部この中に入れ、
+   箱ごと実画面へ拡縮する（座標系はゲーム内で常に1つ） */
+#vpstage{position:fixed;left:0;top:0;width:480px;height:720px;transform-origin:0 0;z-index:1;overflow:hidden}
+#vpdom{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
 #vpdom *{pointer-events:auto}
-.vp-hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top) + 10px) 14px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.vp-hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
 .vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
 .vp-hud span:empty{display:none}
-.vp-ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
+.vp-ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
 .vp-ov h1{font-size:28px}
-.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:320px;white-space:pre-line}
+.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:340px;white-space:pre-line}
 .vp-ov .vp-big{font-size:44px;font-weight:900;color:#ffd166}
 .vp-btn{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:17px;box-shadow:0 5px 0 rgba(0,0,0,.25);touch-action:manipulation}
 .vp-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
-.vp-toast{position:fixed;top:calc(env(safe-area-inset-top) + 52px);left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+.vp-toast{position:absolute;top:52px;left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
 [hidden]{display:none!important}
 </style>
 <style id="vpcss">
@@ -29,14 +31,15 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
 </style>
 </head><body>
 <canvas id="vpc"></canvas>
-<div id="vpdom"></div>
-<div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
-<div class="vp-toast" id="vptoast"></div>
-<div class="vp-ov" id="vpov">
-  <h1>風船チキンレース</h1>
-  <p>画面を押して風船を膨らませ、指を離して大きさを確定！
-大きいほど高得点だが、破裂すると0点！</p>
-  <button class="vp-btn" id="vpstart">スタート</button>
+<div id="vpstage">
+  <div id="vpdom"></div>
+  <div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
+  <div class="vp-toast" id="vptoast"></div>
+  <div class="vp-ov" id="vpov">
+    <h1>ふうせんチキンレース</h1>
+    <p>画面を押しっぱなしで風船が膨らむ。離した時の大きさで得点！破裂する前に離せ！</p>
+    <button class="vp-btn" id="vpstart">スタート</button>
+  </div>
 </div>
 <script id="vpimgs">
 /* ユーザー素材画像 {名前:dataURL}。中身はビルド後にアプリが注入（AIには名前だけ渡る） */
@@ -45,9 +48,10 @@ window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
 <script>
 window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
 var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
-// 論理画面は 390x844 固定。全端末でこのサイズとして描き、ランタイムが実画面へ拡縮する
-// （レターボックス）。ゲームコードは端末差を一切考えなくてよい。
-var W=390,H=844;
+// 論理画面は 480x720（2:3）固定。全端末でこのサイズとして描き、ランタイムが
+// vpstage（HUD・オーバーレイ・ゲームDOMを含む箱）ごと実画面へ拡縮する。
+// ゲームコードは端末差を一切考えなくてよい（入力座標も論理系で届く）。
+var W=480,H=720;
 var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
 (function(){
 "use strict";
@@ -59,8 +63,8 @@ function rs(){
   cv.width=vw*DPR;cv.height=vh*DPR;
   ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
   ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
-  var dom=document.getElementById("vpdom");
-  if(dom){dom.style.transform="scale("+__SC+")";dom.style.left=__OX+"px";dom.style.top=__OY+"px";}
+  var st=document.getElementById("vpstage");
+  if(st){st.style.transform="scale("+__SC+")";st.style.left=__OX+"px";st.style.top=__OY+"px";}
   if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
 }
 window.addEventListener("resize",rs);rs();
@@ -153,107 +157,106 @@ window.__vpTap=function(){
 </script>
 <script id="vpgame">
 /*__VAPPA_JS__*/
-var TUNE = { inflationSpeed: { v: 60, label: '膨らむ速さ(半径/秒)', min: 30, max: 120, step: 10 }, baseBurstMin: { v: 50, label: '破裂下限', min: 30, max: 80, step: 5 }, baseBurstMax: { v: 70, label: '破裂上限(初回)', min: 50, max: 100, step: 5 }, burstVarianceStep: { v: 15, label: '後半へのばらつき追加', min: 0, max: 40, step: 5 }, showTime: { v: 1.0, label: '結果表示時間(秒)', min: 0.5, max: 2.0, step: 0.1 } };
-var state, currentIndex, currentRadius, burstRadius, showTimer, totalScore, isHolding;
-function init(){
-  state = 'ready';
-  currentIndex = 0;
+var TUNE = {
+  inflateSpeed: { v: 40, label: '膨らむ速さ', min: 20, max: 80, step: 5 },
+  burstBaseMin: { v: 60, label: '破裂下限', min: 40, max: 80, step: 5 },
+  burstBaseMax: { v: 80, label: '破裂上限', min: 50, max: 100, step: 5 },
+  burstVariance: { v: 5, label: 'ばらつき増加', min: 0, max: 10, step: 1 }
+};
+var state, balloon, totalScore, phase, phaseTimer, shake, balloonIndex;
+function init() {
   totalScore = 0;
-  currentRadius = 10;
-  showTimer = 0;
-  isHolding = false;
-  Game.score(0);
-  Game.hud('🎈 1/5');
-  generateBurstRadius();
+  balloonIndex = 0;
+  phase = 'ready';
+  balloon = createBalloon(0);
+  shake = 0;
+  Game.hud('🎈🎈🎈🎈🎈');
 }
-function generateBurstRadius(){
-  var min = TUNE.baseBurstMin.v;
-  var max = TUNE.baseBurstMax.v + currentIndex * TUNE.burstVarianceStep.v;
-  burstRadius = min + Math.random() * (max - min);
+function createBalloon(index) {
+  var center = (TUNE.burstBaseMin.v + TUNE.burstBaseMax.v) / 2;
+  var half = (TUNE.burstBaseMax.v - TUNE.burstBaseMin.v) / 2 + index * TUNE.burstVariance.v;
+  var threshold = Math.max(10, center - half + Math.random() * 2 * half);
+  return { size: 0, threshold: threshold, popped: false, jitter: 0 };
 }
-function update(dt){
-  if (state === 'inflating' && isHolding){
-    currentRadius += TUNE.inflationSpeed.v * dt;
-    if (currentRadius >= burstRadius){
-      state = 'burst';
-      showTimer = TUNE.showTime.v;
-    }
-  }
-  if (state === 'popped' || state === 'burst'){
-    showTimer -= dt;
-    if (showTimer <= 0){
-      nextBalloon();
-    }
-  }
-}
-function draw(){
-  ctx.fillStyle = '#fdf6e3';
-  ctx.fillRect(0,0,W,H);
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  if (state === 'ready' || state === 'inflating'){
-    var fontsize = currentRadius * 2;
-    ctx.font = fontsize + 'px "Apple Color Emoji","Noto Color Emoji",sans-serif';
-    var shake = 0;
-    if (state === 'inflating'){
-      var ratio = currentRadius / burstRadius;
-      if (ratio > 0.85){
-        shake = Math.sin(Date.now() * 0.02) * (ratio - 0.85) * 20;
+function update(dt) {
+  if (shake > 0) shake -= dt;
+  if (phase === 'inflating') {
+    balloon.size += TUNE.inflateSpeed.v * dt;
+    if (balloon.size >= balloon.threshold) {
+      balloon.popped = true;
+      phase = 'result';
+      phaseTimer = 1.2;
+      shake = 0.3;
+      Game.float(240, 388 - 30, '💥', '#ff6b6b');
+      Game.float(240, 388 - 60, '0', '#ff5252');
+    } else {
+      var near = 0.9 * balloon.threshold;
+      if (balloon.size > near) {
+        balloon.jitter = (Math.random() - 0.5) * 4;
+      } else {
+        balloon.jitter = 0;
       }
     }
-    ctx.fillText('🎈', W/2 + shake, H/2);
-  } else if (state === 'popped'){
-    var fontsize = currentRadius * 2;
-    ctx.font = fontsize + 'px "Apple Color Emoji","Noto Color Emoji",sans-serif';
-    ctx.fillText('🎈', W/2, H/2);
-    var scoreThis = Math.floor(100 * currentRadius / burstRadius);
-    ctx.font = '24px sans-serif';
-    ctx.fillStyle = '#f59e0b';
-    ctx.fillText('+' + scoreThis, W/2, H/2 - currentRadius - 20);
-  } else if (state === 'burst'){
-    ctx.font = '60px "Apple Color Emoji","Noto Color Emoji",sans-serif';
-    ctx.fillText('💥', W/2, H/2);
-    ctx.font = '28px sans-serif';
-    ctx.fillStyle = '#ef4444';
-    ctx.fillText('パンッ！', W/2, H/2 + 40);
-  }
-}
-function onDown(x, y){
-  if (state === 'ready'){
-    state = 'inflating';
-    isHolding = true;
-    currentRadius = 10;
-  }
-}
-function onUp(x, y){
-  if (state === 'inflating'){
-    if (currentRadius < burstRadius){
-      state = 'popped';
-      showTimer = TUNE.showTime.v;
-      var scoreThis = Math.floor(100 * currentRadius / burstRadius);
-      totalScore += scoreThis;
-      Game.score(totalScore);
-      Game.float(W/2, H/2 - currentRadius - 10, '+' + scoreThis, '#f59e0b');
-    } else {
-      state = 'burst';
-      showTimer = TUNE.showTime.v;
+  } else if (phase === 'result') {
+    phaseTimer -= dt;
+    if (phaseTimer <= 0) {
+      balloonIndex++;
+      if (balloonIndex >= 5) {
+        Game.over(totalScore);
+        return;
+      }
+      balloon = createBalloon(balloonIndex);
+      phase = 'ready';
+      Game.hud('🎈'.repeat(5 - balloonIndex));
     }
-    isHolding = false;
   }
 }
-function nextBalloon(){
-  currentIndex++;
-  if (currentIndex >= 5){
-    Game.hud('');
-    Game.over(totalScore);
-    return;
+function draw() {
+  var grad = ctx.createLinearGradient(0, 0, 0, 720);
+  grad.addColorStop(0, '#fce4ec');
+  grad.addColorStop(1, '#e3f2fd');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 480, 720);
+  ctx.save();
+  if (shake > 0) {
+    ctx.translate((Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10);
   }
-  state = 'ready';
-  currentRadius = 10;
-  Game.hud('🎈 ' + (currentIndex+1) + '/5');
-  generateBurstRadius();
+  if (!balloon.popped) {
+    var fontSize = 20 + balloon.size * 0.8;
+    ctx.font = fontSize + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🎈', 240 + balloon.jitter, 388);
+  } else {
+    ctx.font = "60px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('💥', 240, 388 - 30);
+    ctx.font = 'bold 32px sans-serif';
+    ctx.fillStyle = '#c62828';
+    ctx.fillText('パンッ！', 240, 388 + 50);
+  }
+  ctx.restore();
 }
-function onMove(x, y, id){}
+function onDown(x, y) {
+  if (phase === 'ready') {
+    phase = 'inflating';
+  }
+}
+function onUp(x, y) {
+  if (phase === 'inflating') {
+    if (!balloon.popped && balloon.size < balloon.threshold) {
+      var score = Math.min(100, Math.round(balloon.size));
+      totalScore += score;
+      Game.score(totalScore);
+      Game.float(240, 388 - 30, '+' + score, '#4caf50');
+    }
+    phase = 'result';
+    phaseTimer = 1.2;
+  }
+}
+function onMove(x, y) {}
+function onResize() {}
 /*__VAPPA_JS_END__*/
 </script>
 </body></html>

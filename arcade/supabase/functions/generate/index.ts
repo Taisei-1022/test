@@ -501,7 +501,7 @@ Rules:
 - No external resources, no network, no audio files, no imports. If the game is UI-heavy you MAY create DOM elements, but prefer canvas. DOM rules: append them to document.getElementById('vpdom') (a fixed 480x720 layer that scales with the canvas), position:absolute with coordinates in the SAME 480x720 space, z-index 1-4, create in init() and remove stale ones first (vpdom.innerHTML=''). Anything clickable MUST be a real <button> element (click on other elements is suppressed on touch devices).
 - Characters/objects: do NOT use plain rectangles. Draw EMOJI sprites on canvas:
     ctx.font = size + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("🐱", x, y);
-  If the conversation picked specific 素材 (emoji), use THOSE.
+  Write every emoji as a literal character (🐱 🪙 💣) — NEVER as a unicode escape or codepoint (no \\u, no String.fromCodePoint; they render as garbage text). If the conversation picked specific 素材 (emoji), use THOSE.
 - Difficulty tuning: put EVERY gameplay-balance number (speeds, spawn intervals, lives, thresholds, ramp rates…) into ONE top-level TUNE object as the FIRST statement of "js":
     var TUNE = { key: { v: 150, label: "日本語ラベル", min: 60, max: 400, step: 10 }, ... };
   4-8 entries, label in Japanese, min/max = sensible playable range, step = adjustment granularity. Read values ONLY via TUNE.key.v (never repeat the literal elsewhere). The platform renders sliders from this object so humans can hand-tune difficulty without AI. When EDITING, keep the existing TUNE keys (current v values included) unless the request says otherwise.

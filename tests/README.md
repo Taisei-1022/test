@@ -43,13 +43,20 @@ node tests/user-images.js
 node tests/gamegen-eval/run.js --tag=名前 [--cases=mole,jump] [--model=deepseek-v4-flash]
   [--effort=high] [--conc=3] [--reuse=旧タグ] [--score-only]
 ```
-10ジャンルの設計書からDeepSeekで実生成→Playwright実プレイで10項目×10本=100点満点の
-自動採点。プロンプト（BUILD2_SYSTEM/GOLD_JS）はindex.tsから毎回抽出されるので、
-プロンプト改善→再実行で効果を数字で確認できる。
-スコア推移: baseline 74 → cycle1 88 → cycle2 86 → cycle3 83 → **cycle4 96**
-（残る減点はボットのプレイスキル起因。生成失敗は4サイクルでゼロに）
+10ジャンルの設計書からDeepSeekで実生成→Playwright実プレイで11項目×10本=110点満点の
+自動採点（cycle5でレイアウト検査を追加）。プロンプト（BUILD2_SYSTEM/GOLD_JS）は
+index.tsから毎回抽出されるので、プロンプト改善→再実行で効果を数字で確認できる。
+ビューポートは480×720（＝固定ステージと論理1:1）。
+スコア推移: baseline 74 → cycle1 88 → cycle2 86 → cycle3 83 → **cycle4 96**（/100）
+→ cycle5 102/110（レイアウト検査追加） → **final23 103/110**（2:3固定ステージ480×720）
+（残る減点はボットのプレイスキル起因。生成失敗はゼロを維持）
 主な学び: ①JSON修復パーサ必須（不正エスケープ・生改行・内側生クォートの3段修復）
-②JS文字列はシングルクォート統一ルール ③絵文字フォント指定は正確な例文を提示。
+②JS文字列はシングルクォート統一ルール ③絵文字フォント指定は正確な例文を提示
+④絵文字は**リテラル文字で書かせる**（\u エスケープ/codePoint 禁止。禁止しないと
+バックスラッシュ回避ルールの副作用で「U0001fa99」等の文字列がそのまま描画される）
+⑤スコア/残り時間/ライフの自前描画を禁止（HUDがあるのに独自表示を作って
+「0001 99」のような数字ゴミを出す）⑥レイアウトは数値で指示（固定480×720、
+コンテンツは x:0-480 / y:56-712、幅85%以上を中央使用、グリッドはセル計算式を明記）。
 
 # ナビゲーション履歴（スワイプ戻る）E2E
 
@@ -106,3 +113,9 @@ node tests/tune-panel.js
 - **touch-action:none ではiOSのダブルタップズームを止められない**（manipulationなら
   止まるというWebKitの癖）→ ボタン類（button,a,input,select,label）以外の touchend
   だけ preventDefault する。ボタンまで preventDefault すると click合成が死ぬ（上の地雷）
+- 固定ステージ（480×720）では**座標系は3つ全部を同じ変換で揃える**：canvasは
+  ctx.setTransform(DPR*__SC,...,DPR*__OX,DPR*__OY)＋clip、DOM(#vpstage)は
+  transform:scale(__SC)+left/top、入力は toLX/toLY で論理座標へ逆変換。
+  どれか1つでも素通しにすると「canvasだけ帯付き・HUDだけ等倍」のズレが再発する
+- テスト側の物理座標が要る時は window.__SC/__OX/__OY を使う（user-images.js の
+  ピクセル検査が論理座標のままだとスケール導入で壊れた実績あり）

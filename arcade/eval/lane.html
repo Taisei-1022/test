@@ -1,25 +1,27 @@
 <!DOCTYPE html>
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
-<title>3車線カーレース</title>
-<!--VAPPA_TPL1 %7B%22t%22%3A%223%E8%BB%8A%E7%B7%9A%E3%82%AB%E3%83%BC%E3%83%AC%E3%83%BC%E3%82%B9%22%2C%22h%22%3A%22%E7%94%BB%E9%9D%A2%E5%B7%A6%E5%8F%B3%E3%82%BF%E3%83%83%E3%83%97%E3%81%A7%E8%BB%8A%E7%B7%9A%E5%A4%89%E6%9B%B4%EF%BC%81%E9%9A%9C%E5%AE%B3%E7%89%A9%E3%82%92%E3%82%88%E3%81%91%E3%81%A6%E8%B5%B0%E3%82%8A%E7%B6%9A%E3%81%91%E3%82%8D%22%2C%22u%22%3A%22m%22%7D-->
+<title>3レーンカーレース</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%223%E3%83%AC%E3%83%BC%E3%83%B3%E3%82%AB%E3%83%BC%E3%83%AC%E3%83%BC%E3%82%B9%22%2C%22h%22%3A%22%E5%B7%A6%E5%8F%B3%E3%82%BF%E3%83%83%E3%83%97%E3%81%A7%E8%BB%8A%E7%B7%9A%E5%A4%89%E6%9B%B4%EF%BC%81%E9%9A%9C%E5%AE%B3%E7%89%A9%E3%82%92%E3%82%88%E3%81%91%E3%81%A6%E9%80%B2%E3%82%81%EF%BC%81%22%2C%22u%22%3A%22m%22%7D-->
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
 #vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
-/* ゲームが作るDOM UIの器。論理390x844座標系のまま実画面へ拡縮される */
-#vpdom{position:fixed;left:0;top:0;width:390px;height:844px;z-index:2;pointer-events:none;transform-origin:0 0;overflow:hidden}
+/* vpstage＝論理480x720（2:3）の箱。HUD・オーバーレイ・ゲームDOMを全部この中に入れ、
+   箱ごと実画面へ拡縮する（座標系はゲーム内で常に1つ） */
+#vpstage{position:fixed;left:0;top:0;width:480px;height:720px;transform-origin:0 0;z-index:1;overflow:hidden}
+#vpdom{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
 #vpdom *{pointer-events:auto}
-.vp-hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top) + 10px) 14px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.vp-hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
 .vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
 .vp-hud span:empty{display:none}
-.vp-ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
+.vp-ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
 .vp-ov h1{font-size:28px}
-.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:320px;white-space:pre-line}
+.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:340px;white-space:pre-line}
 .vp-ov .vp-big{font-size:44px;font-weight:900;color:#ffd166}
 .vp-btn{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:17px;box-shadow:0 5px 0 rgba(0,0,0,.25);touch-action:manipulation}
 .vp-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
-.vp-toast{position:fixed;top:calc(env(safe-area-inset-top) + 52px);left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+.vp-toast{position:absolute;top:52px;left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
 [hidden]{display:none!important}
 </style>
 <style id="vpcss">
@@ -29,13 +31,15 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
 </style>
 </head><body>
 <canvas id="vpc"></canvas>
-<div id="vpdom"></div>
-<div class="vp-hud" id="vphud" hidden><span id="vphl">0m</span><span id="vphr"></span></div>
-<div class="vp-toast" id="vptoast"></div>
-<div class="vp-ov" id="vpov">
-  <h1>3車線カーレース</h1>
-  <p>画面左右タップで車線変更！障害物をよけて走り続けろ</p>
-  <button class="vp-btn" id="vpstart">スタート</button>
+<div id="vpstage">
+  <div id="vpdom"></div>
+  <div class="vp-hud" id="vphud" hidden><span id="vphl">0m</span><span id="vphr"></span></div>
+  <div class="vp-toast" id="vptoast"></div>
+  <div class="vp-ov" id="vpov">
+    <h1>3レーンカーレース</h1>
+    <p>左右タップで車線変更！障害物をよけて進め！</p>
+    <button class="vp-btn" id="vpstart">スタート</button>
+  </div>
 </div>
 <script id="vpimgs">
 /* ユーザー素材画像 {名前:dataURL}。中身はビルド後にアプリが注入（AIには名前だけ渡る） */
@@ -44,9 +48,10 @@ window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
 <script>
 window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
 var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
-// 論理画面は 390x844 固定。全端末でこのサイズとして描き、ランタイムが実画面へ拡縮する
-// （レターボックス）。ゲームコードは端末差を一切考えなくてよい。
-var W=390,H=844;
+// 論理画面は 480x720（2:3）固定。全端末でこのサイズとして描き、ランタイムが
+// vpstage（HUD・オーバーレイ・ゲームDOMを含む箱）ごと実画面へ拡縮する。
+// ゲームコードは端末差を一切考えなくてよい（入力座標も論理系で届く）。
+var W=480,H=720;
 var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
 (function(){
 "use strict";
@@ -58,8 +63,8 @@ function rs(){
   cv.width=vw*DPR;cv.height=vh*DPR;
   ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
   ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
-  var dom=document.getElementById("vpdom");
-  if(dom){dom.style.transform="scale("+__SC+")";dom.style.left=__OX+"px";dom.style.top=__OY+"px";}
+  var st=document.getElementById("vpstage");
+  if(st){st.style.transform="scale("+__SC+")";st.style.left=__OX+"px";st.style.top=__OY+"px";}
   if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
 }
 window.addEventListener("resize",rs);rs();
@@ -153,108 +158,100 @@ window.__vpTap=function(){
 <script id="vpgame">
 /*__VAPPA_JS__*/
 var TUNE = {
-  initSpeed: { v: 200, label: '初期落下速度(px/s)', min: 100, max: 400, step: 10 },
-  maxSpeed: { v: 600, label: '最高落下速度(px/s)', min: 400, max: 900, step: 20 },
-  accel: { v: 10, label: '速度増加(px/s²)', min: 0, max: 30, step: 1 },
-  spawnInterval: { v: 1.2, label: '初期出現間隔(秒)', min: 0.5, max: 2.5, step: 0.1 },
-  minSpawnInterval: { v: 0.4, label: '最短出現間隔(秒)', min: 0.2, max: 1, step: 0.05 },
-  spawnAccel: { v: 0.02, label: '出現間隔減少率(秒/秒)', min: 0, max: 0.1, step: 0.005 }
+  initSpeed: { v: 200, label: '初期スピード', min: 100, max: 400, step: 10 },
+  speedRamp: { v: 5, label: 'スピード増加率', min: 1, max: 20, step: 1 },
+  spawnInterval: { v: 1.2, label: '障害物出現間隔', min: 0.5, max: 2.5, step: 0.1 },
+  spawnMin: { v: 0.4, label: '最小間隔', min: 0.2, max: 1.0, step: 0.05 },
+  carSmooth: { v: 8, label: '車線変更の速さ', min: 4, max: 16, step: 1 }
 };
-var carX, carTargetX, carLane, obstacles, score, speed, spawnTimer, laneLineY, gameOver;
-var LANE_COUNT = 3;
-var LANE_MARGIN = 30;
-var LANE_WIDTH = (W - 2 * LANE_MARGIN) / LANE_COUNT;
-var CAR_Y = H - 120;
-var CAR_SIZE = 48;
-var OBSTACLE_SIZE = 40;
-function init() {
-  carLane = 1;
-  carTargetX = LANE_MARGIN + LANE_WIDTH / 2 + carLane * LANE_WIDTH;
-  carX = carTargetX;
+var laneWidth, roadLeft, car, obstacles, score, speed, spawnTimer, offset, gameOver;
+function init(){
+  laneWidth = 120;
+  roadLeft = (480 - 3 * laneWidth) / 2;
+  car = { lane: 1, x: roadLeft + 1.5 * laneWidth, y: 650, targetX: roadLeft + 1.5 * laneWidth };
   obstacles = [];
   score = 0;
   speed = TUNE.initSpeed.v;
   spawnTimer = TUNE.spawnInterval.v;
-  laneLineY = 0;
+  offset = 0;
   gameOver = false;
   Game.score(0);
+  Game.hud('');
 }
-function update(dt) {
+function update(dt){
   if (gameOver) return;
-  score += dt * 10;
+  score += 10 * dt;
   Game.score(Math.floor(score));
-  speed = Math.min(speed + TUNE.accel.v * dt, TUNE.maxSpeed.v);
+  speed += TUNE.speedRamp.v * dt;
+  offset += speed * dt;
+  if (offset > laneWidth) offset -= laneWidth;
   spawnTimer -= dt;
-  if (spawnTimer <= 0) {
-    var lane = Math.floor(Math.random() * LANE_COUNT);
-    var type = Math.random() < 0.5 ? '🚙' : '🚧';
-    obstacles.push({ lane: lane, y: -OBSTACLE_SIZE, type: type });
-    var interval = Math.max(TUNE.minSpawnInterval.v, TUNE.spawnInterval.v - score * TUNE.spawnAccel.v / 100);
-    spawnTimer = interval;
+  if (spawnTimer <= 0){
+    var lane = Math.floor(Math.random() * 3);
+    var type = Math.random() < 0.3 ? 'barrier' : 'car';
+    var x = roadLeft + lane * laneWidth + laneWidth / 2;
+    obstacles.push({ x: x, y: -30, lane: lane, type: type });
+    spawnTimer = Math.max(TUNE.spawnMin.v, TUNE.spawnInterval.v - score * 0.0005);
   }
-  for (var i = obstacles.length - 1; i >= 0; i--) {
+  for (var i = obstacles.length - 1; i >= 0; i--){
     var obs = obstacles[i];
     obs.y += speed * dt;
-    if (obs.y > H + OBSTACLE_SIZE) {
+    if (obs.y > 720 + 30){
       obstacles.splice(i, 1);
       continue;
     }
-    if (obs.y + OBSTACLE_SIZE/2 > CAR_Y - CAR_SIZE/2 && obs.y - OBSTACLE_SIZE/2 < CAR_Y + CAR_SIZE/2 && obs.lane === carLane) {
+    if (obs.y > car.y - 25 && obs.y < car.y + 25 && obs.lane === car.lane){
       gameOver = true;
       Game.over(Math.floor(score));
       return;
     }
   }
-  carX += (carTargetX - carX) * 8 * dt;
-  laneLineY += speed * dt;
-  if (laneLineY > 20) laneLineY -= 20;
-}
-function draw() {
-  ctx.fillStyle = '#2d2d2d';
-  ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#555555';
-  ctx.fillRect(LANE_MARGIN, 0, W - 2 * LANE_MARGIN, H);
-  ctx.fillStyle = '#4a7c59';
-  ctx.fillRect(0, 0, LANE_MARGIN, H);
-  ctx.fillRect(W - LANE_MARGIN, 0, LANE_MARGIN, H);
-  ctx.setLineDash([10, 10]);
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 3;
-  for (var i = 1; i < LANE_COUNT; i++) {
-    var x = LANE_MARGIN + i * LANE_WIDTH;
-    ctx.beginPath();
-    ctx.moveTo(x, -20 + laneLineY);
-    ctx.lineTo(x, H + 20 + laneLineY);
-    ctx.stroke();
+  var dx = car.targetX - car.x;
+  if (Math.abs(dx) > 1){
+    car.x += dx * TUNE.carSmooth.v * dt;
+  } else {
+    car.x = car.targetX;
   }
-  ctx.setLineDash([]);
+}
+function draw(){
+  ctx.fillStyle = '#3a5a40';
+  ctx.fillRect(0, 56, 480, 664);
+  ctx.fillStyle = '#555';
+  ctx.fillRect(roadLeft, 56, 360, 664);
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 4;
+  for (var i = 0; i < 3; i++){
+    var x = roadLeft + i * laneWidth;
+    if (i > 0){
+      for (var y = 56 - offset % (laneWidth * 2); y < 720; y += laneWidth * 2){
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x, y + laneWidth * 0.6);
+        ctx.stroke();
+      }
+    }
+  }
+  ctx.font = "40px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = "40px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-  for (var j = 0; j < obstacles.length; j++) {
+  for (var j = 0; j < obstacles.length; j++){
     var obs = obstacles[j];
-    var ox = LANE_MARGIN + LANE_WIDTH / 2 + obs.lane * LANE_WIDTH;
-    ctx.fillText(obs.type, ox, obs.y);
+    ctx.fillText(obs.type === 'car' ? '\uD83D\uDE99' : '\uD83D\uDEA7', obs.x, obs.y);
   }
-  ctx.font = "48px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-  ctx.fillText('🚗', carX, CAR_Y);
+  ctx.fillText('\uD83D\uDE97', car.x, car.y);
 }
-function onDown(x, y) {
+function onDown(x, y){
   if (gameOver) return;
-  if (x < W / 2) {
-    if (carLane > 0) {
-      carLane--;
-      carTargetX = LANE_MARGIN + LANE_WIDTH / 2 + carLane * LANE_WIDTH;
-    }
-  } else {
-    if (carLane < LANE_COUNT - 1) {
-      carLane++;
-      carTargetX = LANE_MARGIN + LANE_WIDTH / 2 + carLane * LANE_WIDTH;
-    }
+  if (x < 240 && car.lane > 0){
+    car.lane--;
+    car.targetX = roadLeft + car.lane * laneWidth + laneWidth / 2;
+  } else if (x > 240 && car.lane < 2){
+    car.lane++;
+    car.targetX = roadLeft + car.lane * laneWidth + laneWidth / 2;
   }
 }
-function onMove(x, y) {}
-function onUp(x, y) {}
+function onMove(x, y){}
+function onUp(x, y){}
 /*__VAPPA_JS_END__*/
 </script>
 </body></html>

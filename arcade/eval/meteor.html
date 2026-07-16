@@ -1,25 +1,27 @@
 <!DOCTYPE html>
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
-<title>隕石よけサバイバル</title>
-<!--VAPPA_TPL1 %7B%22t%22%3A%22%E9%9A%95%E7%9F%B3%E3%82%88%E3%81%91%E3%82%B5%E3%83%90%E3%82%A4%E3%83%90%E3%83%AB%22%2C%22h%22%3A%22%E7%94%BB%E9%9D%A2%E3%82%92%E3%83%89%E3%83%A9%E3%83%83%E3%82%B0%E3%81%97%E3%81%A6%F0%9F%9A%80%E3%82%92%E5%B7%A6%E5%8F%B3%E3%81%AB%E5%8B%95%E3%81%8B%E3%81%97%E3%80%81%E9%99%8D%E3%82%8A%E6%B3%A8%E3%81%90%E2%98%84%EF%B8%8F%E3%82%92%E3%82%88%E3%81%91%E3%82%88%E3%81%86%EF%BC%81%22%2C%22u%22%3A%22%E7%A7%92%22%7D-->
+<title>隕石サバイバル</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E9%9A%95%E7%9F%B3%E3%82%B5%E3%83%90%E3%82%A4%E3%83%90%E3%83%AB%22%2C%22h%22%3A%22%E7%94%BB%E9%9D%A2%E3%82%92%E3%83%89%E3%83%A9%E3%83%83%E3%82%B0%E3%81%97%E3%81%A6%E5%AE%87%E5%AE%99%E8%88%B9%E3%82%92%E5%B7%A6%E5%8F%B3%E3%81%AB%E5%8B%95%E3%81%8B%E3%81%97%E3%80%81%E9%99%8D%E3%82%8A%E6%B3%A8%E3%81%90%E9%9A%95%E7%9F%B3%E3%82%92%E3%82%88%E3%81%91%E7%B6%9A%E3%81%91%E3%82%88%E3%81%86%EF%BC%81%22%2C%22u%22%3A%22%E7%A7%92%22%7D-->
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
 #vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
-/* ゲームが作るDOM UIの器。論理390x844座標系のまま実画面へ拡縮される */
-#vpdom{position:fixed;left:0;top:0;width:390px;height:844px;z-index:2;pointer-events:none;transform-origin:0 0;overflow:hidden}
+/* vpstage＝論理480x720（2:3）の箱。HUD・オーバーレイ・ゲームDOMを全部この中に入れ、
+   箱ごと実画面へ拡縮する（座標系はゲーム内で常に1つ） */
+#vpstage{position:fixed;left:0;top:0;width:480px;height:720px;transform-origin:0 0;z-index:1;overflow:hidden}
+#vpdom{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
 #vpdom *{pointer-events:auto}
-.vp-hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top) + 10px) 14px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.vp-hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
 .vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
 .vp-hud span:empty{display:none}
-.vp-ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
+.vp-ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
 .vp-ov h1{font-size:28px}
-.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:320px;white-space:pre-line}
+.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:340px;white-space:pre-line}
 .vp-ov .vp-big{font-size:44px;font-weight:900;color:#ffd166}
 .vp-btn{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:17px;box-shadow:0 5px 0 rgba(0,0,0,.25);touch-action:manipulation}
 .vp-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
-.vp-toast{position:fixed;top:calc(env(safe-area-inset-top) + 52px);left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+.vp-toast{position:absolute;top:52px;left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
 [hidden]{display:none!important}
 </style>
 <style id="vpcss">
@@ -29,13 +31,15 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
 </style>
 </head><body>
 <canvas id="vpc"></canvas>
-<div id="vpdom"></div>
-<div class="vp-hud" id="vphud" hidden><span id="vphl">0秒</span><span id="vphr"></span></div>
-<div class="vp-toast" id="vptoast"></div>
-<div class="vp-ov" id="vpov">
-  <h1>隕石よけサバイバル</h1>
-  <p>画面をドラッグして🚀を左右に動かし、降り注ぐ☄️をよけよう！</p>
-  <button class="vp-btn" id="vpstart">スタート</button>
+<div id="vpstage">
+  <div id="vpdom"></div>
+  <div class="vp-hud" id="vphud" hidden><span id="vphl">0秒</span><span id="vphr"></span></div>
+  <div class="vp-toast" id="vptoast"></div>
+  <div class="vp-ov" id="vpov">
+    <h1>隕石サバイバル</h1>
+    <p>画面をドラッグして宇宙船を左右に動かし、降り注ぐ隕石をよけ続けよう！</p>
+    <button class="vp-btn" id="vpstart">スタート</button>
+  </div>
 </div>
 <script id="vpimgs">
 /* ユーザー素材画像 {名前:dataURL}。中身はビルド後にアプリが注入（AIには名前だけ渡る） */
@@ -44,9 +48,10 @@ window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
 <script>
 window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
 var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
-// 論理画面は 390x844 固定。全端末でこのサイズとして描き、ランタイムが実画面へ拡縮する
-// （レターボックス）。ゲームコードは端末差を一切考えなくてよい。
-var W=390,H=844;
+// 論理画面は 480x720（2:3）固定。全端末でこのサイズとして描き、ランタイムが
+// vpstage（HUD・オーバーレイ・ゲームDOMを含む箱）ごと実画面へ拡縮する。
+// ゲームコードは端末差を一切考えなくてよい（入力座標も論理系で届く）。
+var W=480,H=720;
 var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
 (function(){
 "use strict";
@@ -58,8 +63,8 @@ function rs(){
   cv.width=vw*DPR;cv.height=vh*DPR;
   ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
   ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
-  var dom=document.getElementById("vpdom");
-  if(dom){dom.style.transform="scale("+__SC+")";dom.style.left=__OX+"px";dom.style.top=__OY+"px";}
+  var st=document.getElementById("vpstage");
+  if(st){st.style.transform="scale("+__SC+")";st.style.left=__OX+"px";st.style.top=__OY+"px";}
   if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
 }
 window.addEventListener("resize",rs);rs();
@@ -153,100 +158,124 @@ window.__vpTap=function(){
 <script id="vpgame">
 /*__VAPPA_JS__*/
 var TUNE = {
-  spawnInit: { v: 1.2, label: '初期出現間隔', min: 0.5, max: 2.0, step: 0.1 },
-  spawnMin: { v: 0.3, label: '最小出現間隔', min: 0.1, max: 1.0, step: 0.05 },
-  spawnRamp: { v: 0.02, label: '出現間隔減少率', min: 0.01, max: 0.1, step: 0.01 },
-  speedInit: { v: 200, label: '初期落下速度', min: 100, max: 400, step: 10 },
-  speedMax: { v: 600, label: '最大落下速度', min: 400, max: 800, step: 10 },
-  speedRamp: { v: 5, label: '速度上昇率', min: 0, max: 20, step: 1 },
-  baseSize: { v: 36, label: '隕石基準サイズ', min: 24, max: 48, step: 2 },
-  sizeVar: { v: 8, label: '隕石サイズ変動幅', min: 0, max: 20, step: 2 }
+  baseSpeed: { v: 200, label: '基本速度', min: 100, max: 400, step: 10 },
+  spawnDelay: { v: 0.8, label: '出現間隔', min: 0.3, max: 2, step: 0.1 },
+  speedRamp: { v: 5, label: '速度上昇/秒', min: 0, max: 20, step: 1 },
+  spawnRamp: { v: 0.01, label: '間隔短縮/秒', min: 0, max: 0.05, step: 0.005 }
 };
-var shipX, meteors, stars, timer, spawnTimer, currentSpeed, shake;
+var ship, meteors, stars, timeAlive, lastScore, spawnTimer, shakeDuration, shakeAmount, explosion, gameOver;
 function init(){
-  shipX = W / 2;
+  ship = { x: W/2, y: H-60, r: 24 };
   meteors = [];
   stars = [];
-  for (var i = 0; i < 80; i++){
-    stars.push({ x: Math.random() * W, y: Math.random() * H, speed: 20 + Math.random() * 30 });
+  for (var i = 0; i < 120; i++){
+    stars.push({ x: Math.random()*W, y: Math.random()*H, speed: 10+Math.random()*20, size: Math.random()*1.5+1 });
   }
-  timer = 0;
-  spawnTimer = TUNE.spawnInit.v;
-  currentSpeed = TUNE.speedInit.v;
-  shake = 0;
+  timeAlive = 0;
+  lastScore = 0;
+  spawnTimer = TUNE.spawnDelay.v;
+  shakeDuration = 0;
+  shakeAmount = 5;
+  explosion = null;
+  gameOver = false;
   Game.score(0);
 }
 function update(dt){
-  timer += dt;
-  var score = Math.floor(timer);
-  Game.score(score);
-  currentSpeed = Math.min(TUNE.speedMax.v, currentSpeed + TUNE.speedRamp.v * dt);
+  if (gameOver) return;
+  timeAlive += dt;
+  var scoreNow = Math.floor(timeAlive);
+  if (scoreNow !== lastScore){
+    Game.score(scoreNow);
+    lastScore = scoreNow;
+  }
+  // Difficulty scaling
+  var currentSpawnDelay = Math.max(0.2, TUNE.spawnDelay.v - TUNE.spawnRamp.v * timeAlive);
+  var baseMeteorSpeed = TUNE.baseSpeed.v + TUNE.speedRamp.v * timeAlive;
+  // Spawn meteors
   spawnTimer -= dt;
   if (spawnTimer <= 0){
-    var size = TUNE.baseSize.v + Math.random() * TUNE.sizeVar.v * 2;
-    var speed = currentSpeed * (0.7 + 0.6 * Math.random());
-    meteors.push({ x: 20 + Math.random() * (W - 40), y: -size, speed: speed, size: size });
-    spawnTimer = Math.max(TUNE.spawnMin.v, TUNE.spawnInit.v - timer * TUNE.spawnRamp.v);
+    var size = 32 + Math.random()*24;
+    meteors.push({
+      x: 30 + Math.random()*(W-60),
+      y: -30,
+      speed: baseMeteorSpeed * (0.8 + Math.random()*0.4),
+      r: size/2
+    });
+    spawnTimer = currentSpawnDelay;
   }
-  for (var i = meteors.length - 1; i >= 0; i--){
+  // Move meteors
+  for (var i = meteors.length-1; i >= 0; i--){
     var m = meteors[i];
     m.y += m.speed * dt;
-    var shipR = 24;
-    var meteorR = m.size / 2;
-    var dx = m.x - shipX;
-    var dy = m.y - (H - 90);
-    var dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < shipR + meteorR){
-      Game.float(m.x, m.y, '\uD83D\uDCA5', '#ff4444');
-      shake = 0.3;
-      Game.over(score);
+    if (m.y > H + 30){
+      meteors.splice(i,1);
+      continue;
+    }
+    // Collision check
+    var dx = ship.x - m.x;
+    var dy = ship.y - m.y;
+    var dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist < ship.r + m.r){
+      // Hit
+      explosion = { x: ship.x, y: ship.y, t: 0.3 };
+      shakeDuration = 0.3;
+      gameOver = true;
+      Game.over(scoreNow);
       return;
     }
-    if (m.y > H + 20){
-      meteors.splice(i, 1);
-    }
   }
+  // Update stars
   for (var j = 0; j < stars.length; j++){
     var s = stars[j];
     s.y += s.speed * dt;
-    if (s.y > H) {
-      s.y = 0;
-      s.x = Math.random() * W;
+    if (s.y > H){
+      s.y -= H;
+      s.x = Math.random()*W;
     }
   }
-  if (shake > 0) shake -= dt;
+  // Shake decay
+  if (shakeDuration > 0) shakeDuration -= dt;
 }
 function draw(){
-  ctx.fillStyle = '#0a0a2a';
-  ctx.fillRect(0, 0, W, H);
-  if (shake > 0){
-    ctx.save();
-    ctx.translate((Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12);
-  }
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = '#0a0a1a';
+  ctx.fillRect(0,56,W,H-56);
+  // Stars
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
   for (var i = 0; i < stars.length; i++){
     var s = stars[i];
-    ctx.fillRect(s.x, s.y, 2, 2);
+    ctx.fillRect(s.x, s.y, s.size, s.size);
   }
+  // Shake
+  ctx.save();
+  if (shakeDuration > 0){
+    ctx.translate(Math.random()*shakeAmount*2-shakeAmount, Math.random()*shakeAmount*2-shakeAmount);
+  }
+  // Meteors
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   for (var j = 0; j < meteors.length; j++){
     var m = meteors[j];
-    ctx.font = m.size + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-    ctx.fillText('\u2604\uFE0F', m.x, m.y);
+    var fontSize = m.r * 2;
+    ctx.font = fontSize + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText('☄️', m.x, m.y);
   }
+  // Ship
   ctx.font = "48px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-  ctx.fillText('\uD83D\uDE80', shipX, H - 90);
-  if (shake > 0){
-    ctx.restore();
+  ctx.fillText('🚀', ship.x, ship.y);
+  // Explosion
+  if (explosion){
+    ctx.font = "64px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText('💥', explosion.x, explosion.y);
   }
+  ctx.restore();
 }
-function onDown(x, y){
-  shipX = Math.max(24, Math.min(W - 24, x));
+function onDown(x,y){
+  ship.x = Math.max(ship.r, Math.min(W-ship.r, x));
 }
-function onMove(x, y){
-  shipX = Math.max(24, Math.min(W - 24, x));
+function onMove(x,y){
+  ship.x = Math.max(ship.r, Math.min(W-ship.r, x));
 }
+
 /*__VAPPA_JS_END__*/
 </script>
 </body></html>

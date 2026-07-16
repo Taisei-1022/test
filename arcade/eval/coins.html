@@ -2,24 +2,26 @@
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
 <title>コインあつめ</title>
-<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%82%B3%E3%82%A4%E3%83%B3%E3%81%82%E3%81%A4%E3%82%81%22%2C%22h%22%3A%22%F0%9F%AA%99%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%E3%81%97%E3%81%A6%E3%82%B3%E3%82%A4%E3%83%B3%E3%82%92%E9%9B%86%E3%82%81%E3%82%8D%EF%BC%81%F0%9F%8C%88%E3%81%AF%2B5%E7%82%B9%E3%80%8230%E7%A7%92%E9%96%93%E3%81%A7%E9%AB%98%E5%BE%97%E7%82%B9%E3%82%92%E7%8B%99%E3%81%88%E3%80%82%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%82%B3%E3%82%A4%E3%83%B3%E3%81%82%E3%81%A4%E3%82%81%22%2C%22h%22%3A%22%E7%94%BB%E9%9D%A2%E3%81%AE%E3%82%B3%E3%82%A4%E3%83%B3%F0%9F%AA%99%E3%82%84%E8%99%B9%E3%82%B3%E3%82%A4%E3%83%B3%F0%9F%8C%88%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%E3%81%97%E3%81%A6%E9%9B%86%E3%82%81%E3%82%88%E3%81%86%EF%BC%8130%E7%A7%92%E9%96%93%E3%81%A7%E9%AB%98%E5%BE%97%E7%82%B9%E3%82%92%E7%8B%99%E3%81%88%EF%BC%81%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
 #vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
-/* ゲームが作るDOM UIの器。論理390x844座標系のまま実画面へ拡縮される */
-#vpdom{position:fixed;left:0;top:0;width:390px;height:844px;z-index:2;pointer-events:none;transform-origin:0 0;overflow:hidden}
+/* vpstage＝論理480x720（2:3）の箱。HUD・オーバーレイ・ゲームDOMを全部この中に入れ、
+   箱ごと実画面へ拡縮する（座標系はゲーム内で常に1つ） */
+#vpstage{position:fixed;left:0;top:0;width:480px;height:720px;transform-origin:0 0;z-index:1;overflow:hidden}
+#vpdom{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
 #vpdom *{pointer-events:auto}
-.vp-hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top) + 10px) 14px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.vp-hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
 .vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
 .vp-hud span:empty{display:none}
-.vp-ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
+.vp-ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
 .vp-ov h1{font-size:28px}
-.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:320px;white-space:pre-line}
+.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:340px;white-space:pre-line}
 .vp-ov .vp-big{font-size:44px;font-weight:900;color:#ffd166}
 .vp-btn{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:17px;box-shadow:0 5px 0 rgba(0,0,0,.25);touch-action:manipulation}
 .vp-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
-.vp-toast{position:fixed;top:calc(env(safe-area-inset-top) + 52px);left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+.vp-toast{position:absolute;top:52px;left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
 [hidden]{display:none!important}
 </style>
 <style id="vpcss">
@@ -29,13 +31,15 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
 </style>
 </head><body>
 <canvas id="vpc"></canvas>
-<div id="vpdom"></div>
-<div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
-<div class="vp-toast" id="vptoast"></div>
-<div class="vp-ov" id="vpov">
-  <h1>コインあつめ</h1>
-  <p>🪙をタップしてコインを集めろ！🌈は+5点。30秒間で高得点を狙え。</p>
-  <button class="vp-btn" id="vpstart">スタート</button>
+<div id="vpstage">
+  <div id="vpdom"></div>
+  <div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
+  <div class="vp-toast" id="vptoast"></div>
+  <div class="vp-ov" id="vpov">
+    <h1>コインあつめ</h1>
+    <p>画面のコイン🪙や虹コイン🌈をタップして集めよう！30秒間で高得点を狙え！</p>
+    <button class="vp-btn" id="vpstart">スタート</button>
+  </div>
 </div>
 <script id="vpimgs">
 /* ユーザー素材画像 {名前:dataURL}。中身はビルド後にアプリが注入（AIには名前だけ渡る） */
@@ -44,9 +48,10 @@ window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
 <script>
 window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
 var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
-// 論理画面は 390x844 固定。全端末でこのサイズとして描き、ランタイムが実画面へ拡縮する
-// （レターボックス）。ゲームコードは端末差を一切考えなくてよい。
-var W=390,H=844;
+// 論理画面は 480x720（2:3）固定。全端末でこのサイズとして描き、ランタイムが
+// vpstage（HUD・オーバーレイ・ゲームDOMを含む箱）ごと実画面へ拡縮する。
+// ゲームコードは端末差を一切考えなくてよい（入力座標も論理系で届く）。
+var W=480,H=720;
 var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
 (function(){
 "use strict";
@@ -58,8 +63,8 @@ function rs(){
   cv.width=vw*DPR;cv.height=vh*DPR;
   ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
   ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
-  var dom=document.getElementById("vpdom");
-  if(dom){dom.style.transform="scale("+__SC+")";dom.style.left=__OX+"px";dom.style.top=__OY+"px";}
+  var st=document.getElementById("vpstage");
+  if(st){st.style.transform="scale("+__SC+")";st.style.left=__OX+"px";st.style.top=__OY+"px";}
   if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
 }
 window.addEventListener("resize",rs);rs();
@@ -153,175 +158,106 @@ window.__vpTap=function(){
 <script id="vpgame">
 /*__VAPPA_JS__*/
 var TUNE = {
-  coinCount: { v: 4, label: 'コインの数', min: 3, max: 8, step: 1 },
-  coinSpeed: { v: 80, label: 'コインの速さ', min: 40, max: 200, step: 10 },
-  rainbowSpeed: { v: 150, label: '虹コインの速さ', min: 80, max: 300, step: 10 },
-  rainbowChance: { v: 0.1, label: '虹コインの確率', min: 0.05, max: 0.3, step: 0.05 },
-  gameDuration: { v: 30, label: '制限時間(秒)', min: 15, max: 60, step: 5 },
-  speedUpTime: { v: 10, label: '残り何秒から加速', min: 5, max: 20, step: 5 }
+  coinSpeed: { v: 80, label: '基本速度', min: 30, max: 150, step: 10 },
+  rainbowChance: { v: 0.1, label: '虹コイン確率', min: 0, max: 0.3, step: 0.02 },
+  speedUpFactor: { v: 2.0, label: '終盤加速倍率', min: 1.5, max: 3.0, step: 0.5 },
+  targetCount: { v: 4, label: '同時出現数', min: 3, max: 5, step: 1 }
 };
-var coins, particles, timeLeft, score, rainbowTextTimer, rainbowTextAlpha;
-var cloudPositions;
-function init() {
-  coins = [];
-  particles = [];
-  timeLeft = TUNE.gameDuration.v;
-  score = 0;
-  rainbowTextTimer = 0;
-  rainbowTextAlpha = 0;
+var coins, effects, bigText, score, timeLeft, isFast;
+function init(){
+  score = 0; timeLeft = 30; isFast = false;
+  coins = []; effects = []; bigText = null;
+  for (var i=0; i<TUNE.targetCount.v; i++) spawnCoin(true);
   Game.score(0);
-  Game.hud('');
-  // generate cloud positions
-  cloudPositions = [];
-  for (var ci = 0; ci < 4; ci++) {
-    cloudPositions.push({ x: Math.random() * (W - 60) + 30, y: 80 + Math.random() * (H - 160 - 100) + 50 });
-  }
-  // spawn initial coins
-  for (var i = 0; i < TUNE.coinCount.v; i++) {
-    spawnCoin(true);
-  }
 }
-function spawnCoin(initial) {
-  var isRainbow = !initial && Math.random() < TUNE.rainbowChance.v;
-  var r = isRainbow ? 12 : 18;
-  var x = r + Math.random() * (W - 2 * r);
-  var y = 80 + r + Math.random() * (H - 160 - 2 * r);
-  var angle = Math.random() * Math.PI * 2;
-  var speed = isRainbow ? TUNE.rainbowSpeed.v : TUNE.coinSpeed.v;
+function spawnCoin(initial){
+  var r = 20;
+  var isRainbow = Math.random() < TUNE.rainbowChance.v;
+  if (isRainbow) r = 14;
+  var x = r + Math.random() * (W - 2*r);
+  var y = 56 + r + Math.random() * (H - 56 - 2*r);
+  var speed = TUNE.coinSpeed.v;
+  if (isRainbow) speed *= 1.5;
+  var angle = Math.random() * 2 * Math.PI;
   var vx = Math.cos(angle) * speed;
   var vy = Math.sin(angle) * speed;
-  coins.push({ x: x, y: y, vx: vx, vy: vy, r: r, rainbow: isRainbow });
+  coins.push({ x: x, y: y, vx: vx, vy: vy, r: r, isRainbow: isRainbow });
 }
-function update(dt) {
-  if (timeLeft <= 0) return;
+function update(dt){
   timeLeft -= dt;
-  if (timeLeft <= 0) {
-    timeLeft = 0;
-    Game.over(score);
-    return;
-  }
-  // speed up in last seconds
-  var speedMult = (timeLeft <= TUNE.speedUpTime.v) ? 1.8 : 1;
-  // update coins
-  for (var i = 0; i < coins.length; i++) {
+  if (timeLeft <= 0){ Game.over(score); return; }
+  var factor = (timeLeft <= 10) ? TUNE.speedUpFactor.v : 1.0;
+  for (var i=0; i<coins.length; i++){
     var c = coins[i];
-    c.x += c.vx * dt * speedMult;
-    c.y += c.vy * dt * speedMult;
-    // bounce off edges
-    if (c.x - c.r < 0) { c.x = c.r; c.vx = -c.vx; }
-    if (c.x + c.r > W) { c.x = W - c.r; c.vx = -c.vx; }
-    if (c.y - c.r < 80) { c.y = 80 + c.r; c.vy = -c.vy; }
-    if (c.y + c.r > H - 80) { c.y = H - 80 - c.r; c.vy = -c.vy; }
-    // slight random drift
-    c.vx += (Math.random() - 0.5) * 20 * dt;
-    c.vy += (Math.random() - 0.5) * 20 * dt;
-    var maxSpeed = (c.rainbow ? TUNE.rainbowSpeed.v : TUNE.coinSpeed.v) * speedMult;
+    c.vx += (Math.random()-0.5)*60*dt;
+    c.vy += (Math.random()-0.5)*60*dt;
+    var maxSpeed = TUNE.coinSpeed.v * 1.5 * factor;
+    if (c.isRainbow) maxSpeed *= 1.5;
     var spd = Math.sqrt(c.vx*c.vx + c.vy*c.vy);
-    if (spd > maxSpeed) {
-      c.vx = c.vx / spd * maxSpeed;
-      c.vy = c.vy / spd * maxSpeed;
-    }
+    if (spd > maxSpeed){ c.vx = (c.vx/spd)*maxSpeed; c.vy = (c.vy/spd)*maxSpeed; }
+    c.x += c.vx * dt * factor;
+    c.y += c.vy * dt * factor;
+    if (c.x < c.r) { c.x = c.r; c.vx = -c.vx; }
+    if (c.x > W - c.r) { c.x = W - c.r; c.vx = -c.vx; }
+    if (c.y < 56 + c.r) { c.y = 56 + c.r; c.vy = -c.vy; }
+    if (c.y > H - c.r) { c.y = H - c.r; c.vy = -c.vy; }
   }
-  // update particles
-  for (var pi = particles.length - 1; pi >= 0; pi--) {
-    var p = particles[pi];
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-    p.life -= dt;
-    p.size *= 0.95;
-    if (p.life <= 0) particles.splice(pi, 1);
+  for (var i=effects.length-1; i>=0; i--){
+    var e = effects[i];
+    e.x += e.vx * dt; e.y += e.vy * dt; e.life -= dt;
+    e.vy += 100 * dt;
+    if (e.life <= 0 || e.y > H) effects.splice(i,1);
   }
-  // rainbow text timer
-  if (rainbowTextTimer > 0) {
-    rainbowTextTimer -= dt;
-    rainbowTextAlpha = Math.min(1, rainbowTextTimer / 0.3);
-  } else {
-    rainbowTextAlpha = 0;
+  if (bigText){
+    bigText.life -= dt;
+    if (bigText.life <= 0) bigText = null;
   }
 }
-function draw() {
-  // sky background
-  var grad = ctx.createLinearGradient(0, 0, 0, H);
-  grad.addColorStop(0, '#87CEEB');
-  grad.addColorStop(1, '#b0e0e6');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, W, H);
-  // clouds
-  ctx.font = "48px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  for (var ci = 0; ci < cloudPositions.length; ci++) {
-    ctx.fillText('☁️', cloudPositions[ci].x, cloudPositions[ci].y);
-  }
-  // draw coins
-  for (var i = 0; i < coins.length; i++) {
+function draw(){
+  ctx.fillStyle = '#87CEEB'; ctx.fillRect(0,0,W,H);
+  ctx.font = "40px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  var cloudPositions = [{x:80,y:100},{x:250,y:60},{x:400,y:120}];
+  for (var i=0; i<cloudPositions.length; i++) ctx.fillText('\u2601\ufe0f', cloudPositions[i].x, cloudPositions[i].y);
+  ctx.font = "28px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  for (var i=0; i<coins.length; i++){
     var c = coins[i];
-    ctx.font = (c.rainbow ? 28 : 36) + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-    ctx.fillText(c.rainbow ? '🌈' : '🪙', c.x, c.y);
+    if (c.isRainbow) { ctx.font = "20px 'Apple Color Emoji','Noto Color Emoji',sans-serif"; ctx.fillText('\ud83c\udf08', c.x, c.y); ctx.font = "28px 'Apple Color Emoji','Noto Color Emoji',sans-serif"; }
+    else ctx.fillText('\ud83e\ude99', c.x, c.y);
   }
-  // particles
-  for (var pi = 0; pi < particles.length; pi++) {
-    var p = particles[pi];
-    ctx.globalAlpha = p.life / p.maxLife;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-    ctx.fillStyle = p.color;
-    ctx.fill();
+  for (var i=0; i<effects.length; i++){
+    var e = effects[i];
+    ctx.globalAlpha = Math.max(0, e.life / 0.4);
+    ctx.fillStyle = e.color;
+    ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI*2); ctx.fill();
     ctx.globalAlpha = 1;
   }
-  // rainbow +5 text
-  if (rainbowTextAlpha > 0) {
-    ctx.save();
-    ctx.globalAlpha = rainbowTextAlpha;
-    ctx.font = "bold 48px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-    ctx.fillStyle = '#ff0';
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 4;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.strokeText('+5!', W/2, 80);
-    ctx.fillText('+5!', W/2, 80);
-    ctx.restore();
+  if (bigText){
+    ctx.font = "40px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'yellow'; ctx.strokeStyle = 'black'; ctx.lineWidth = 3;
+    ctx.globalAlpha = Math.max(0, bigText.life / 1.0);
+    ctx.strokeText(bigText.text, W/2, 80);
+    ctx.fillText(bigText.text, W/2, 80);
+    ctx.globalAlpha = 1;
   }
-  // time left display (draw as simple text, but runtime HUD might show it? Actually spec says dont draw own HUD, but we need countdown. Use Game.hud? We'll use Game.hud to show remaining time)
-  Game.hud('⏱ ' + Math.ceil(timeLeft) + '秒');
 }
-function onDown(x, y, id) {
-  if (timeLeft <= 0) return;
-  // check coins (largest radius first to prioritize rainbow? order doesn't matter)
-  for (var i = 0; i < coins.length; i++) {
+function onDown(x,y){
+  for (var i=0; i<coins.length; i++){
     var c = coins[i];
-    var dx = x - c.x;
-    var dy = y - c.y;
-    var dist = Math.sqrt(dx*dx + dy*dy);
-    if (dist < c.r + 10) { // touch radius buffer
-      // collect
-      var points = c.rainbow ? 5 : 1;
-      score += points;
+    var dx = x - c.x, dy = y - c.y;
+    if (Math.sqrt(dx*dx + dy*dy) < c.r + 10){
+      if (c.isRainbow){ score += 5; bigText = { text: '+5!', life: 1.0 }; Game.float(c.x, c.y, '+5', '#ffd700'); }
+      else { score += 1; Game.float(c.x, c.y, '+1', '#ffffff'); }
       Game.score(score);
-      // spawn particle burst
-      for (var p = 0; p < 8; p++) {
-        var angle = Math.random() * Math.PI * 2;
-        var speed = 40 + Math.random() * 80;
-        particles.push({
-          x: c.x, y: c.y,
-          vx: Math.cos(angle) * speed,
-          vy: Math.sin(angle) * speed,
-          size: 4 + Math.random() * 4,
-          life: 0.4 + Math.random() * 0.3,
-          maxLife: 0.7,
-          color: c.rainbow ? '#ff0' : '#ffd700'
-        });
+      for (var j=0; j<8; j++){
+        var angle = Math.random() * 2 * Math.PI;
+        var speed = 50 + Math.random() * 100;
+        effects.push({ x: c.x, y: c.y, vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed, r: 2+Math.random()*4, life: 0.3+Math.random()*0.2, color: c.isRainbow ? 'hsl(300,100%,70%)' : 'hsl(40,100%,70%)' });
       }
-      if (c.rainbow) {
-        rainbowTextTimer = 1.0;
-        rainbowTextAlpha = 1;
-      }
-      // remove coin
-      coins.splice(i, 1);
-      // spawn new coin after short delay? immediate
+      coins.splice(i,1);
       spawnCoin(false);
-      break; // only one coin per tap
+      return;
     }
   }
 }

@@ -2,24 +2,26 @@
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
 <title>ひかりの記憶</title>
-<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%81%B2%E3%81%8B%E3%82%8A%E3%81%AE%E8%A8%98%E6%86%B6%22%2C%22h%22%3A%22%E3%83%91%E3%83%8D%E3%83%AB%E3%81%8C%E5%85%89%E3%82%8B%E9%A0%86%E7%95%AA%E3%82%92%E8%A6%9A%E3%81%88%E3%81%A6%E3%80%81%E5%90%8C%E3%81%98%E9%A0%86%E3%81%AB%E3%82%BF%E3%83%83%E3%83%97%EF%BC%81%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%81%B2%E3%81%8B%E3%82%8A%E3%81%AE%E8%A8%98%E6%86%B6%22%2C%22h%22%3A%22%E5%85%89%E3%82%8B%E3%83%91%E3%83%8D%E3%83%AB%E3%81%AE%E9%A0%86%E7%95%AA%E3%82%92%E8%A6%9A%E3%81%88%E3%81%A6%E3%80%81%E5%90%8C%E3%81%98%E9%A0%86%E3%81%AB%E3%82%BF%E3%83%83%E3%83%97%E3%81%97%E3%82%88%E3%81%86%EF%BC%81%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
 #vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
-/* ゲームが作るDOM UIの器。論理390x844座標系のまま実画面へ拡縮される */
-#vpdom{position:fixed;left:0;top:0;width:390px;height:844px;z-index:2;pointer-events:none;transform-origin:0 0;overflow:hidden}
+/* vpstage＝論理480x720（2:3）の箱。HUD・オーバーレイ・ゲームDOMを全部この中に入れ、
+   箱ごと実画面へ拡縮する（座標系はゲーム内で常に1つ） */
+#vpstage{position:fixed;left:0;top:0;width:480px;height:720px;transform-origin:0 0;z-index:1;overflow:hidden}
+#vpdom{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
 #vpdom *{pointer-events:auto}
-.vp-hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top) + 10px) 14px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.vp-hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
 .vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
 .vp-hud span:empty{display:none}
-.vp-ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
+.vp-ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
 .vp-ov h1{font-size:28px}
-.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:320px;white-space:pre-line}
+.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:340px;white-space:pre-line}
 .vp-ov .vp-big{font-size:44px;font-weight:900;color:#ffd166}
 .vp-btn{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:17px;box-shadow:0 5px 0 rgba(0,0,0,.25);touch-action:manipulation}
 .vp-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
-.vp-toast{position:fixed;top:calc(env(safe-area-inset-top) + 52px);left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+.vp-toast{position:absolute;top:52px;left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
 [hidden]{display:none!important}
 </style>
 <style id="vpcss">
@@ -29,13 +31,15 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
 </style>
 </head><body>
 <canvas id="vpc"></canvas>
-<div id="vpdom"></div>
-<div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
-<div class="vp-toast" id="vptoast"></div>
-<div class="vp-ov" id="vpov">
-  <h1>ひかりの記憶</h1>
-  <p>パネルが光る順番を覚えて、同じ順にタップ！</p>
-  <button class="vp-btn" id="vpstart">スタート</button>
+<div id="vpstage">
+  <div id="vpdom"></div>
+  <div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
+  <div class="vp-toast" id="vptoast"></div>
+  <div class="vp-ov" id="vpov">
+    <h1>ひかりの記憶</h1>
+    <p>光るパネルの順番を覚えて、同じ順にタップしよう！</p>
+    <button class="vp-btn" id="vpstart">スタート</button>
+  </div>
 </div>
 <script id="vpimgs">
 /* ユーザー素材画像 {名前:dataURL}。中身はビルド後にアプリが注入（AIには名前だけ渡る） */
@@ -44,9 +48,10 @@ window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
 <script>
 window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
 var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
-// 論理画面は 390x844 固定。全端末でこのサイズとして描き、ランタイムが実画面へ拡縮する
-// （レターボックス）。ゲームコードは端末差を一切考えなくてよい。
-var W=390,H=844;
+// 論理画面は 480x720（2:3）固定。全端末でこのサイズとして描き、ランタイムが
+// vpstage（HUD・オーバーレイ・ゲームDOMを含む箱）ごと実画面へ拡縮する。
+// ゲームコードは端末差を一切考えなくてよい（入力座標も論理系で届く）。
+var W=480,H=720;
 var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
 (function(){
 "use strict";
@@ -58,8 +63,8 @@ function rs(){
   cv.width=vw*DPR;cv.height=vh*DPR;
   ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
   ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
-  var dom=document.getElementById("vpdom");
-  if(dom){dom.style.transform="scale("+__SC+")";dom.style.left=__OX+"px";dom.style.top=__OY+"px";}
+  var st=document.getElementById("vpstage");
+  if(st){st.style.transform="scale("+__SC+")";st.style.left=__OX+"px";st.style.top=__OY+"px";}
   if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
 }
 window.addEventListener("resize",rs);rs();
@@ -153,203 +158,174 @@ window.__vpTap=function(){
 <script id="vpgame">
 /*__VAPPA_JS__*/
 var TUNE = {
-  showInterval: { v: 0.8, label: '光る間隔(秒)', min: 0.3, max: 1.5, step: 0.1 },
-  flashDuration: { v: 0.3, label: '光る時間(秒)', min: 0.1, max: 0.8, step: 0.05 },
-  roundSpeedUp: { v: 0.02, label: '毎ラウンド短縮(秒)', min: 0, max: 0.1, step: 0.01 },
-  initialLength: { v: 2, label: '最初の光る回数', min: 1, max: 5, step: 1 }
+  initialLength: { v: 3, label: '初期の長さ', min: 2, max: 5, step: 1 },
+  baseSpeed: { v: 0.8, label: '光る速度(秒)', min: 0.3, max: 1.5, step: 0.1 },
+  speedDecrease: { v: 0.05, label: '速度減少(秒/ラウンド)', min: 0, max: 0.2, step: 0.01 }
 };
-var colors = ['#e74c3c','#3498db','#2ecc71','#f1c40f'];
-var darkColors = ['#8b1a1a','#1a4b7a','#1a6e3a','#9a7e00'];
-var panels = [];
+var colors = ['#ff4d4d', '#4da6ff', '#4dff4d', '#ffff4d'];
+var brightColors = ['#ff8080', '#80b3ff', '#80ff80', '#ffff80'];
+var panelPositions = [];
 var sequence = [];
 var playerIndex = 0;
-var phase = 'showing';
-var showIndex = 0;
-var showTimer = 0;
-var flashTimer = 0;
-var currentFlash = -1;
-var round = 1;
+var round = 0;
 var score = 0;
-var panelSize = 150;
-var gap = 20;
-var gridX = 35;
-var gridY = 275;
-
-function init() {
-  panels = [];
-  for (var i = 0; i < 4; i++) {
-    var col = i % 2;
-    var row = Math.floor(i / 2);
-    panels.push({
-      x: gridX + col * (panelSize + gap),
-      y: gridY + row * (panelSize + gap),
-      w: panelSize,
-      h: panelSize,
-      color: colors[i],
-      dark: darkColors[i],
-      pressed: false
-    });
-  }
+var state = 'idle'; // 'idle', 'show', 'input', 'gameover'
+var currentShow = 0;
+var showTimer = 0;
+var showSpeed = 0;
+var pressedPanel = -1;
+var pressTimer = 0;
+var message = '';
+function init(){
+  var margin = 30;
+  var gap = 20;
+  var totalWidth = W - 2*margin;
+  var panelSize = (totalWidth - gap) / 2;
+  var startX = margin;
+  var startY = 120;
+  panelPositions = [
+    { x: startX, y: startY, w: panelSize, h: panelSize },
+    { x: startX + panelSize + gap, y: startY, w: panelSize, h: panelSize },
+    { x: startX, y: startY + panelSize + gap, w: panelSize, h: panelSize },
+    { x: startX + panelSize + gap, y: startY + panelSize + gap, w: panelSize, h: panelSize }
+  ];
   sequence = [];
-  playerIndex = 0;
-  phase = 'showing';
-  showIndex = 0;
-  showTimer = 0;
-  flashTimer = 0;
-  currentFlash = -1;
-  round = 1;
+  round = 0;
   score = 0;
+  playerIndex = 0;
+  state = 'idle';
+  currentShow = 0;
+  showTimer = 0;
+  showSpeed = TUNE.baseSpeed.v;
+  pressedPanel = -1;
+  pressTimer = 0;
+  message = '';
   Game.score(0);
-  Game.hud('ラウンド ' + round);
   startRound();
 }
-
-function startRound() {
-  sequence = [];
-  for (var i = 0; i < TUNE.initialLength.v + round - 1; i++) {
-    sequence.push(Math.floor(Math.random() * 4));
-  }
+function startRound(){
+  round++;
+  sequence.push(Math.floor(Math.random() * 4));
+  showSpeed = Math.max(0.2, TUNE.baseSpeed.v - (round - 1) * TUNE.speedDecrease.v);
   playerIndex = 0;
-  showIndex = 0;
+  currentShow = 0;
+  state = 'show';
   showTimer = 0;
-  phase = 'showing';
-  
+  message = 'みてね…';
 }
-
-function update(dt) {
-  if (phase === 'showing') {
-    if (currentFlash === -1) {
-      
-    } else {
-      flashTimer -= dt;
-      if (flashTimer <= 0) {
-        currentFlash = -1;
-        flashTimer = 0;
-        showIndex++;
-        if (showIndex >= sequence.length) {
-          phase = 'input';
-          playerIndex = 0;
-          return;
-        }
+function update(dt){
+  if (state === 'show'){
+    showTimer += dt;
+    if (showTimer >= showSpeed){
+      showTimer = 0;
+      currentShow++;
+      if (currentShow >= sequence.length){
+        state = 'input';
+        message = 'どうぞ！';
       }
     }
-    if (currentFlash === -1) {
-      currentFlash = sequence[showIndex];
-      flashTimer = TUNE.flashDuration.v;
-      showTimer = TUNE.showInterval.v - TUNE.flashDuration.v;
-    } else {
-      
-    }
-  } else if (phase === 'input') {
-    
-  }
-  
-  var speedUp = (round - 1) * TUNE.roundSpeedUp.v;
-  var effectiveInterval = Math.max(0.2, TUNE.showInterval.v - speedUp);
-  
-  if (currentFlash === -1 && showTimer > 0) {
-    showTimer -= dt;
-    if (showTimer <= 0) {
-      currentFlash = sequence[showIndex];
-      flashTimer = TUNE.flashDuration.v;
-    }
-  }
-  if (currentFlash !== -1) {
-    flashTimer -= dt;
-    if (flashTimer <= 0) {
-      currentFlash = -1;
-      showIndex++;
-      if (showIndex >= sequence.length) {
-        phase = 'input';
-        playerIndex = 0;
-      } else {
-        showTimer = effectiveInterval;
+  } else if (state === 'input'){
+    if (pressedPanel !== -1){
+      pressTimer -= dt;
+      if (pressTimer <= 0){
+        pressedPanel = -1;
       }
     }
   }
 }
-
-function draw() {
+function draw(){
   ctx.fillStyle = '#0f1322';
   ctx.fillRect(0, 0, W, H);
-  
-  for (var i = 0; i < panels.length; i++) {
-    var p = panels[i];
-    var isLit = (currentFlash === i);
-    var color = isLit ? p.color : p.dark;
-    if (p.pressed) {
-      ctx.fillStyle = darkenColor(color, 0.7);
-    } else {
-      ctx.fillStyle = color;
+  for (var i = 0; i < 4; i++){
+    var p = panelPositions[i];
+    var isLit = false;
+    var isPressed = (pressedPanel === i);
+    if (state === 'show' && currentShow > i && i === sequence[currentShow - 1]){
+      isLit = true;
     }
-    var offset = p.pressed ? 4 : 0;
-    ctx.beginPath();
-    ctx.roundRect(p.x + offset, p.y + offset, p.w - 2*offset, p.h - 2*offset, 20);
-    ctx.fill();
+    if (state === 'show' && currentShow > 0 && i === sequence[currentShow - 1]){
+      isLit = true;
+    }
+    // Actually we need to light the current show index, not previous. Let's correct:
+    // During show, the panel at sequence[currentShow] is lit when showTimer > 0. We'll use a different approach: store currentShow as index in sequence that is currently lit; we want to light that panel for the duration showSpeed. So we'll set isLit = (state === 'show' && currentShow < sequence.length && i === sequence[currentShow]);
+    // But we need to handle after last show: we set state to input. So modify.
+    // Let's recompute in draw:
   }
-  
+  // Actually implement properly:
+  for (var i = 0; i < 4; i++){
+    var p = panelPositions[i];
+    var isLit = false;
+    var isPressed = (pressedPanel === i);
+    if (state === 'show' && currentShow < sequence.length && i === sequence[currentShow]){
+      isLit = true;
+    }
+    if (state === 'input' && isPressed){
+      isPressed = true;
+    }
+    var baseColor = colors[i];
+    var lightColor = brightColors[i];
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.roundRect(p.x, p.y, p.w, p.h, 15);
+    if (isLit){
+      ctx.fillStyle = lightColor;
+      ctx.shadowBlur = 20;
+      ctx.shadowColor = lightColor;
+    } else {
+      ctx.fillStyle = baseColor;
+    }
+    if (isPressed && state === 'input'){
+      ctx.fillStyle = lightColor;
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = lightColor;
+    }
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // Draw border
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+  // Draw message
   ctx.fillStyle = '#ffffff';
+  ctx.font = '24px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = '24px "Helvetica Neue", sans-serif';
-  var msg = (phase === 'showing') ? 'みてね…' : 'どうぞ！';
-  ctx.fillText(msg, W/2, 170);
-  
-  ctx.font = '18px "Helvetica Neue", sans-serif';
-  ctx.fillText('ラウンド ' + round, W/2, 200);
+  ctx.fillText(message, W/2, 80);
+  // Draw round info
+  ctx.font = '18px sans-serif';
+  ctx.fillStyle = '#aaaaaa';
+  ctx.fillText('ラウンド: ' + round, W-80, 35);
+  // Draw score via Game.score already does HUD
 }
-
-function onDown(x, y) {
-  if (phase !== 'input') return;
-  
-  for (var i = 0; i < panels.length; i++) {
-    var p = panels[i];
-    if (x >= p.x && x <= p.x + p.w && y >= p.y && y <= p.y + p.h) {
-      p.pressed = true;
-      if (sequence[playerIndex] === i) {
+function onDown(x, y, id){
+  if (state !== 'input') return;
+  for (var i = 0; i < 4; i++){
+    var p = panelPositions[i];
+    if (x >= p.x && x <= p.x + p.w && y >= p.y && y <= p.y + p.h){
+      // Check correct
+      if (i === sequence[playerIndex]){
         playerIndex++;
-        if (playerIndex === sequence.length) {
-          
+        pressedPanel = i;
+        pressTimer = 0.2;
+        if (playerIndex >= sequence.length){
+          // Round complete
           score += round;
           Game.score(score);
-          round++;
-          Game.hud('ラウンド ' + round);
           startRound();
         }
       } else {
-        
+        // Wrong
         Game.over(score);
+        state = 'gameover';
+        message = 'ミス!';
       }
       break;
     }
   }
 }
-
-function onUp(x, y) {
-  for (var i = 0; i < panels.length; i++) {
-    panels[i].pressed = false;
-  }
-}
-
-function darkenColor(hex, factor) {
-  var r = parseInt(hex.slice(1,3), 16);
-  var g = parseInt(hex.slice(3,5), 16);
-  var b = parseInt(hex.slice(5,7), 16);
-  r = Math.round(r * factor);
-  g = Math.round(g * factor);
-  b = Math.round(b * factor);
-  return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
-}
-
-
-
-
-
-
-
-
-
-
+function onMove(x,y,id){}
+function onUp(x,y,id){}
 
 /*__VAPPA_JS_END__*/
 </script>

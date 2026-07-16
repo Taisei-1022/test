@@ -2,24 +2,26 @@
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
 <title>寿司キャッチ</title>
-<!--VAPPA_TPL1 %7B%22t%22%3A%22%E5%AF%BF%E5%8F%B8%E3%82%AD%E3%83%A3%E3%83%83%E3%83%81%22%2C%22h%22%3A%22%E3%81%8A%E7%9A%BF%E3%82%92%E3%83%89%E3%83%A9%E3%83%83%E3%82%B0%E3%81%97%E3%81%A6%E4%B8%8A%E3%81%8B%E3%82%89%E8%90%BD%E3%81%A1%E3%81%A6%E3%81%8F%E3%82%8B%E5%AF%BF%E5%8F%B8%E3%82%92%E3%82%AD%E3%83%A3%E3%83%83%E3%83%81%EF%BC%81%5Cn%E3%82%8F%E3%81%95%E3%81%B3%E3%81%AF%E9%81%BF%E3%81%91%E3%81%A6%E3%81%AD%E3%80%82%E5%90%8C%E3%81%98%E5%AF%BF%E5%8F%B8%E3%82%923%E9%80%A3%E7%B6%9A%E3%81%A7%E3%82%B2%E3%83%83%E3%83%88%E3%81%A7%E3%83%9C%E3%83%BC%E3%83%8A%E3%82%B9%EF%BC%81%22%2C%22u%22%3A%22%E5%80%8B%22%7D-->
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E5%AF%BF%E5%8F%B8%E3%82%AD%E3%83%A3%E3%83%83%E3%83%81%22%2C%22h%22%3A%22%E3%81%8A%E7%9A%BF%E3%82%92%E5%B7%A6%E5%8F%B3%E3%81%AB%E3%83%89%E3%83%A9%E3%83%83%E3%82%B0%E3%81%97%E3%81%A6%E3%80%81%E8%90%BD%E3%81%A1%E3%81%A6%E3%81%8F%E3%82%8B%E5%AF%BF%E5%8F%B8%E3%82%92%E3%82%AD%E3%83%A3%E3%83%83%E3%83%81%EF%BC%81%E3%80%80%E3%83%AF%E3%82%B5%E3%83%93%E3%81%AF%E9%81%BF%E3%81%91%E3%82%88%E3%81%86%E3%80%82%E5%90%8C%E3%81%98%E7%A8%AE%E9%A1%9E%E3%82%923%E9%80%A3%E7%B6%9A%E3%81%A7%E6%8D%95%E3%82%8B%E3%81%A8%E3%83%9C%E3%83%BC%E3%83%8A%E3%82%B9%EF%BC%81%22%2C%22u%22%3A%22%E5%80%8B%22%7D-->
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
 #vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
-/* ゲームが作るDOM UIの器。論理390x844座標系のまま実画面へ拡縮される */
-#vpdom{position:fixed;left:0;top:0;width:390px;height:844px;z-index:2;pointer-events:none;transform-origin:0 0;overflow:hidden}
+/* vpstage＝論理480x720（2:3）の箱。HUD・オーバーレイ・ゲームDOMを全部この中に入れ、
+   箱ごと実画面へ拡縮する（座標系はゲーム内で常に1つ） */
+#vpstage{position:fixed;left:0;top:0;width:480px;height:720px;transform-origin:0 0;z-index:1;overflow:hidden}
+#vpdom{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
 #vpdom *{pointer-events:auto}
-.vp-hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top) + 10px) 14px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.vp-hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
 .vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
 .vp-hud span:empty{display:none}
-.vp-ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
+.vp-ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
 .vp-ov h1{font-size:28px}
-.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:320px;white-space:pre-line}
+.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:340px;white-space:pre-line}
 .vp-ov .vp-big{font-size:44px;font-weight:900;color:#ffd166}
 .vp-btn{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:17px;box-shadow:0 5px 0 rgba(0,0,0,.25);touch-action:manipulation}
 .vp-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
-.vp-toast{position:fixed;top:calc(env(safe-area-inset-top) + 52px);left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+.vp-toast{position:absolute;top:52px;left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
 [hidden]{display:none!important}
 </style>
 <style id="vpcss">
@@ -29,14 +31,15 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
 </style>
 </head><body>
 <canvas id="vpc"></canvas>
-<div id="vpdom"></div>
-<div class="vp-hud" id="vphud" hidden><span id="vphl">0個</span><span id="vphr"></span></div>
-<div class="vp-toast" id="vptoast"></div>
-<div class="vp-ov" id="vpov">
-  <h1>寿司キャッチ</h1>
-  <p>お皿をドラッグして上から落ちてくる寿司をキャッチ！
-わさびは避けてね。同じ寿司を3連続でゲットでボーナス！</p>
-  <button class="vp-btn" id="vpstart">スタート</button>
+<div id="vpstage">
+  <div id="vpdom"></div>
+  <div class="vp-hud" id="vphud" hidden><span id="vphl">0個</span><span id="vphr"></span></div>
+  <div class="vp-toast" id="vptoast"></div>
+  <div class="vp-ov" id="vpov">
+    <h1>寿司キャッチ</h1>
+    <p>お皿を左右にドラッグして、落ちてくる寿司をキャッチ！　ワサビは避けよう。同じ種類を3連続で捕るとボーナス！</p>
+    <button class="vp-btn" id="vpstart">スタート</button>
+  </div>
 </div>
 <script id="vpimgs">
 /* ユーザー素材画像 {名前:dataURL}。中身はビルド後にアプリが注入（AIには名前だけ渡る） */
@@ -45,9 +48,10 @@ window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
 <script>
 window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
 var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
-// 論理画面は 390x844 固定。全端末でこのサイズとして描き、ランタイムが実画面へ拡縮する
-// （レターボックス）。ゲームコードは端末差を一切考えなくてよい。
-var W=390,H=844;
+// 論理画面は 480x720（2:3）固定。全端末でこのサイズとして描き、ランタイムが
+// vpstage（HUD・オーバーレイ・ゲームDOMを含む箱）ごと実画面へ拡縮する。
+// ゲームコードは端末差を一切考えなくてよい（入力座標も論理系で届く）。
+var W=480,H=720;
 var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
 (function(){
 "use strict";
@@ -59,8 +63,8 @@ function rs(){
   cv.width=vw*DPR;cv.height=vh*DPR;
   ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
   ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
-  var dom=document.getElementById("vpdom");
-  if(dom){dom.style.transform="scale("+__SC+")";dom.style.left=__OX+"px";dom.style.top=__OY+"px";}
+  var st=document.getElementById("vpstage");
+  if(st){st.style.transform="scale("+__SC+")";st.style.left=__OX+"px";st.style.top=__OY+"px";}
   if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
 }
 window.addEventListener("resize",rs);rs();
@@ -154,106 +158,94 @@ window.__vpTap=function(){
 <script id="vpgame">
 /*__VAPPA_JS__*/
 var TUNE = {
-  fallSpeed:     { v: 120, label: '落下速度',   min: 40,  max: 300, step: 10 },
-  spawnInterval: { v: 0.8, label: '出現間隔',   min: 0.3, max: 1.5, step: 0.1 },
-  speedInc:      { v: 3,   label: '速度増加率', min: 0,   max: 10,  step: 1 },
-  spawnDec:      { v: 0.005, label: '出現間隔減少率', min: 0, max: 0.02, step: 0.001 },
-  comboNum:      { v: 3,   label: 'コンボ必要数', min: 2,  max: 5,   step: 1 },
-  comboBonus:    { v: 5,   label: 'コンボボーナス', min: 1,  max: 10,  step: 1 },
-  timeLimit:     { v: 30,  label: '制限時間(秒)', min: 10, max: 60,  step: 5 },
-  lives:         { v: 3,   label: 'ライフ',     min: 1,  max: 5,   step: 1 }
+  fallSpeed: { v: 200, label: '落下速度', min: 100, max: 400, step: 10 },
+  speedAccel: { v: 8, label: '加速', min: 0, max: 20, step: 1 },
+  spawnInterval: { v: 0.8, label: '出現間隔', min: 0.3, max: 2, step: 0.1 },
+  spawnMin: { v: 0.3, label: '最小間隔', min: 0.15, max: 1, step: 0.05 },
+  wasabiRate: { v: 0.2, label: 'ワサビ率', min: 0, max: 0.5, step: 0.02 },
+  comboBonus: { v: 5, label: 'コンボボーナス', min: 2, max: 10, step: 1 },
+  timerDuration: { v: 30, label: '制限時間(秒)', min: 20, max: 60, step: 5 }
 };
-var plateX, plateW, items, lives, score, combo, lastType, timeLeft, spawnTimer, speed;
-var sushiEmoji = ['🍣','🍤','🍙'];
-function init(){
-  plateX = W/2;
-  plateW = 80;
+var plate, items, lives, score, timer, fallSpeed, spawnT, lastType, combo, elapsed;
+function init() {
+  plate = { x: W/2, w: 80 };
   items = [];
-  lives = TUNE.lives.v;
+  lives = 3;
   score = 0;
+  timer = TUNE.timerDuration.v;
+  fallSpeed = TUNE.fallSpeed.v;
+  spawnT = TUNE.spawnInterval.v;
+  lastType = null;
   combo = 0;
-  lastType = -1;
-  timeLeft = TUNE.timeLimit.v;
-  spawnTimer = 0;
-  speed = TUNE.fallSpeed.v;
-  Game.hud('❤️'.repeat(lives));
+  elapsed = 0;
+  Game.hud('❤️❤️❤️ ' + Math.ceil(timer) + 's');
   Game.score(0);
 }
-function update(dt){
-  timeLeft -= dt;
-  if (timeLeft <= 0) { Game.over(score); return; }
-  speed += TUNE.speedInc.v * dt;
-  spawnTimer -= dt;
-  if (spawnTimer <= 0) {
-    var type = Math.floor(Math.random() * sushiEmoji.length);
-    var x = 30 + Math.random() * (W - 60);
-    items.push({ x: x, y: -20, r: 20, type: type });
-    spawnTimer = Math.max(0.3, TUNE.spawnInterval.v - score * TUNE.spawnDec.v);
+function update(dt) {
+  if (timer <= 0 || lives <= 0) return;
+  timer -= dt;
+  elapsed += dt;
+  fallSpeed += TUNE.speedAccel.v * dt;
+  var interval = Math.max(TUNE.spawnMin.v, TUNE.spawnInterval.v - elapsed * 0.02);
+  spawnT -= dt;
+  if (spawnT <= 0) {
+    var types = ['🍣','🍤','🍙'];
+    var isWasabi = Math.random() < TUNE.wasabiRate.v;
+    var emoji = isWasabi ? '🥦' : types[Math.floor(Math.random() * 3)];
+    items.push({ x: 30 + Math.random() * (W - 60), y: -20, r: 20, emoji: emoji, wasabi: isWasabi });
+    spawnT = interval;
   }
-  var plateTopY = H - 80;
+  var plateY = H - 100;
   for (var i = items.length - 1; i >= 0; i--) {
     var it = items[i];
-    it.y += speed * dt;
-    if (it.y > plateTopY - 10 && it.y < plateTopY + 30 && Math.abs(it.x - plateX) < plateW/2 + it.r) {
-      // caught
-      if (it.type === -1) { // wasabi? Not in this set, but for safety
+    it.y += fallSpeed * dt;
+    if (it.y > plateY - 20 && it.y < plateY + 20 && Math.abs(it.x - plate.x) < plate.w/2 + it.r) {
+      if (it.wasabi) {
         lives--;
-        Game.hud('❤️'.repeat(Math.max(0,lives)));
-        Game.float(it.x, plateTopY - 20, '💥', '#f87171');
+        Game.hud('❤️'.repeat(Math.max(0, lives)) + ' ' + Math.ceil(timer) + 's');
+        Game.float(it.x, plateY - 30, '💥', '#ff6b6b');
         if (lives <= 0) { Game.over(score); return; }
       } else {
+        combo = (it.emoji === lastType) ? combo + 1 : 1;
+        lastType = it.emoji;
         score++;
-        Game.score(score);
-        Game.float(it.x, plateTopY - 30, '+1', '#ffd166');
-        if (it.type === lastType) {
-          combo++;
-          if (combo >= TUNE.comboNum.v) {
-            score += TUNE.comboBonus.v;
-            Game.score(score);
-            Game.toast('コンボ！ +' + TUNE.comboBonus.v);
-            combo = 0;
-          }
+        if (combo >= 3) {
+          score += TUNE.comboBonus.v;
+          Game.float(it.x, plateY - 30, 'コンボ+5!', '#ffd166');
+          combo = 0;
         } else {
-          combo = 1;
-          lastType = it.type;
+          Game.float(it.x, plateY - 30, '+1', '#a0ffa0');
         }
+        Game.score(score);
       }
-      items.splice(i,1);
+      items.splice(i, 1);
     } else if (it.y > H + 30) {
-      items.splice(i,1);
+      items.splice(i, 1);
     }
   }
+  Game.hud('❤️'.repeat(Math.max(0, lives)) + ' ' + Math.ceil(timer) + 's');
+  if (timer <= 0) { Game.over(score); return; }
 }
-function draw(){
-  ctx.fillStyle = '#8B5E3C'; // wood-like
-  ctx.fillRect(0,0,W,H);
-  // draw counter lines
-  ctx.fillStyle = '#6B3A2A';
-  for (var i = 0; i < 5; i++) {
-    ctx.fillRect(0, H-100 - i*150, W, 2);
-  }
-  // draw items
+function draw() {
+  ctx.fillStyle = '#8B4513';
+  ctx.fillRect(0, 56, W, H - 56);
+  ctx.fillStyle = '#D2B48C';
+  ctx.fillRect(0, H - 120, W, 50);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = "36px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
   for (var i = 0; i < items.length; i++) {
     var it = items[i];
-    ctx.fillText(sushiEmoji[it.type], it.x, it.y);
+    ctx.font = "44px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText(it.emoji, it.x, it.y);
   }
-  // draw plate
-  ctx.font = "48px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-  ctx.fillText('🍽️', plateX, H - 70);
-  // draw timer
-  ctx.font = '20px sans-serif';
-  ctx.fillStyle = '#fff';
-  ctx.textAlign = 'right';
-  ctx.fillText(Math.ceil(timeLeft) + '秒', W - 10, 30);
+  ctx.font = "56px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  ctx.fillText('🍽️', plate.x, H - 80);
 }
-function onDown(x,y){
-  plateX = Math.max(plateW/2, Math.min(W - plateW/2, x));
+function onDown(x, y) {
+  plate.x = Math.max(plate.w/2, Math.min(W - plate.w/2, x));
 }
-function onMove(x,y){
-  plateX = Math.max(plateW/2, Math.min(W - plateW/2, x));
+function onMove(x, y) {
+  plate.x = Math.max(plate.w/2, Math.min(W - plate.w/2, x));
 }
 /*__VAPPA_JS_END__*/
 </script>
