@@ -274,6 +274,7 @@ textarea.field{resize:vertical;line-height:1.5;}
 #pvTune{flex:none;width:44px;height:44px;
   border-radius:50%;border:1px solid var(--rule);background:rgba(29,26,46,.9);
   font-size:20px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.45);}
+#tunePanel[hidden]{display:none;}   /* display:flexがhidden属性を潰さないように */
 #tunePanel{position:fixed;left:0;right:0;bottom:0;z-index:60;max-height:56vh;
   display:flex;flex-direction:column;overflow:hidden;
   background:var(--plate);border-top:1px solid var(--rule);border-radius:18px 18px 0 0;

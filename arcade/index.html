@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-180.png?v=3" />
 <link rel="icon" href="icon-192.png?v=3" />
-<link rel="stylesheet" href="css/app.css?v=39" />
+<link rel="stylesheet" href="css/app.css?v=40" />
 <title>Vappa</title>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6804943232069371" crossorigin="anonymous"></script>
 <meta property="og:type" content="website" />
@@ -281,7 +281,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.73";
+  var APP_VERSION = "0.9.74";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -865,32 +865,8 @@
     // ✕はiOSのclick合成が死んでいても確実に閉じる
     document.getElementById("tuneClose").addEventListener("touchend", function(e){
       if(e.cancelable) e.preventDefault();
-      dbg("✕touchend→close");
       closeSheet();
     }, {passive:false});
-    // ---- 一時診断（管理者パネル内のみ）：実機でタッチがどこまで届くか可視化 ----
-    var dbgEl=null, dbgLines=[];
-    function dbg(s){
-      dbgLines.push(s); if(dbgLines.length>10) dbgLines.shift();
-      if(!dbgEl){
-        dbgEl=document.createElement("div");
-        dbgEl.style.cssText="position:fixed;left:8px;top:8px;z-index:9999;background:rgba(0,0,0,.85);color:#7CFC00;"+
-          "font:10px/1.5 monospace;padding:6px 8px;border-radius:8px;max-width:70vw;pointer-events:none;white-space:pre-wrap;";
-        document.body.appendChild(dbgEl);
-      }
-      dbgEl.textContent=dbgLines.join("\n");
-    }
-    window.addEventListener("error", function(e){ dbg("JSエラー: "+(e.message||"?")); });
-    ["touchstart","touchmove","touchend","touchcancel","click"].forEach(function(tp){
-      document.addEventListener(tp, function(e){
-        if(p.hidden) return;
-        var t=e.target;
-        var id=t&&t.id?("#"+t.id):(t&&t.className&&typeof t.className==="string"?"."+t.className.split(" ")[0]:String(t&&t.tagName));
-        var inPanel=t&&t.closest&&!!t.closest("#tunePanel");
-        var y=(e.touches&&e.touches[0])?Math.round(e.touches[0].clientY):(e.changedTouches&&e.changedTouches[0]?Math.round(e.changedTouches[0].clientY):"-");
-        dbg(tp+" "+id+(inPanel?"":"(外)")+" y="+y+(sy!=null?" dy="+Math.round(dy):""));
-      }, {capture:true, passive:true});
-    });
   })();
   document.getElementById("tuneReset").addEventListener("click", function(){
     if(!tuneInit) return;
