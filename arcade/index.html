@@ -281,7 +281,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.71";
+  var APP_VERSION = "0.9.72";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -828,31 +828,45 @@
     if(p.hidden){ renderTunePanel(); p.hidden=false; } else { p.hidden=true; }
   });
   document.getElementById("tuneClose").addEventListener("click", function(){ document.getElementById("tunePanel").hidden=true; });
-  // ヘッダーを掴んで下にスワイプするとシートを閉じる（指に追従→70px超で確定）
+  // ヘッダーを掴んで下にスワイプするとシートを閉じる（指に追従→70px超で確定）。
+  // iOS対策：touchcancelで必ず状態を捨てる／ボタン上のタッチでは状態を作らない／
+  // ドラッグ中は全touchmoveをpreventDefault（最初の1発を逃すとiOSが主導権を取り
+  // touchcancelされるため）。✕はclick合成に頼らずtouchendでも直接閉じる。
   (function(){
     var p=document.getElementById("tunePanel"), h=document.getElementById("tuneHead");
     var sy=null, dy=0;
+    function reset(){
+      sy=null; dy=0;
+      p.style.transition="transform .18s ease"; p.style.transform="";
+      setTimeout(function(){ p.style.transition=""; }, 200);
+    }
+    function closeSheet(){
+      p.style.transition="transform .18s ease"; p.style.transform="translateY(110%)";
+      setTimeout(function(){ p.hidden=true; p.style.transform=""; p.style.transition=""; }, 180);
+    }
     h.addEventListener("touchstart", function(e){
-      if(e.target.closest("button")) return;   // リセット/✕のタップはそのまま
-      sy=e.touches[0].clientY; dy=0; p.style.transition="none";
+      sy=null; dy=0;                              // 前回の残留状態を必ず捨てる
+      if(e.target.closest("button")) return;      // リセット/✕のタップはそのまま
+      sy=e.touches[0].clientY; p.style.transition="none";
     }, {passive:true});
     h.addEventListener("touchmove", function(e){
       if(sy==null) return;
       dy=e.touches[0].clientY-sy;
-      if(dy>0){ p.style.transform="translateY("+dy+"px)"; if(e.cancelable) e.preventDefault(); }
+      p.style.transform="translateY("+Math.max(0,dy)+"px)";
+      if(e.cancelable) e.preventDefault();        // 方向に関わらず主導権を渡さない
     }, {passive:false});
-    h.addEventListener("touchend", function(){
+    h.addEventListener("touchend", function(e){
       if(sy==null) return;
-      p.style.transition="transform .18s ease";
-      if(dy>70){
-        p.style.transform="translateY(110%)";
-        setTimeout(function(){ p.hidden=true; p.style.transform=""; p.style.transition=""; }, 180);
-      } else {
-        p.style.transform="";
-        setTimeout(function(){ p.style.transition=""; }, 200);
-      }
+      if(e.changedTouches && e.changedTouches[0]) dy=e.changedTouches[0].clientY-sy;
+      if(dy>70) closeSheet(); else reset();
       sy=null;
     }, {passive:true});
+    h.addEventListener("touchcancel", reset, {passive:true});
+    // ✕はiOSのclick合成が死んでいても確実に閉じる
+    document.getElementById("tuneClose").addEventListener("touchend", function(e){
+      if(e.cancelable) e.preventDefault();
+      closeSheet();
+    }, {passive:false});
   })();
   document.getElementById("tuneReset").addEventListener("click", function(){
     if(!tuneInit) return;
