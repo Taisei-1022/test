@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>絵文字canvas診断 その3（fillStyle編）</title>
+<style>
+body{margin:0;padding:16px;background:#141221;color:#f1eefb;font-family:system-ui,sans-serif}
+h1{font-size:16px;margin:0 0 4px}
+#sum{font-size:15px;font-weight:900;background:#1d1a2e;border:1px solid #2c2740;border-radius:10px;padding:10px;margin:10px 0;line-height:1.9;word-break:break-all}
+.row{display:flex;align-items:center;gap:10px;background:#1d1a2e;border:1px solid #2c2740;border-radius:10px;padding:8px;margin-bottom:8px}
+.row canvas{width:80px;height:48px;border-radius:6px;flex:none}
+.lbl{font-size:11.5px;line-height:1.5;color:#9a93b5;min-width:0}
+.lbl b{color:#f1eefb;font-size:12.5px}
+.v{font-weight:900;font-size:18px;margin-left:auto;flex:none}
+.ok{color:#34d399}.ng{color:#f87171}
+</style></head><body>
+<h1>🔬 絵文字canvas診断 その3（fillStyle編）</h1>
+<div id="sum">計測中…</div>
+<div id="rows"></div>
+<script>
+(function(){
+var FONT="40px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+function mkGrad(c,w,h){
+  var g=c.createLinearGradient(0,0,0,h);
+  g.addColorStop(0,'#1a3a5c');g.addColorStop(0.5,'#2a5a7c');g.addColorStop(1,'#1a3a5c');
+  return g;
+}
+var tests=[
+ {n:"1. 単色fillStyleで🚢（対照）", run:function(c,w,h){
+   c.fillStyle='#2a5a7c';c.fillRect(0,0,w,h);
+   c.fillStyle='#000';c.font=FONT;c.textAlign='center';c.textBaseline='middle';
+   c.fillText('🚢',w/2,h/2);}},
+ {n:"2. グラデーションfillStyleのまま🚢", run:function(c,w,h){
+   c.fillStyle=mkGrad(c,w,h);c.fillRect(0,0,w,h);
+   c.font=FONT;c.textAlign='center';c.textBaseline='middle';
+   c.fillText('🚢',w/2,h/2);}},
+ {n:"3. 実ゲーム完全再現（グラデ背景→波stroke→🚢）", run:function(c,w,h){
+   c.fillStyle=mkGrad(c,w,h);c.fillRect(0,0,w,h);
+   c.strokeStyle='rgba(255,255,255,0.1)';c.lineWidth=2;
+   c.beginPath();c.moveTo(0,h/2);c.lineTo(w,h/2);c.stroke();
+   c.font=FONT;c.textAlign='center';c.textBaseline='middle';
+   c.fillText('🚢',w/2,h/2);}},
+ {n:"4. グラデーションfillStyleで普通の文字AB", run:function(c,w,h){
+   c.fillStyle='#2a5a7c';c.fillRect(0,0,w,h);
+   c.font="32px sans-serif";c.textAlign='center';c.textBaseline='middle';
+   c.fillStyle=mkGrad(c,w,h);
+   c.fillText('AB',w/2,h/2);}},
+ {n:"5. 修正候補：fillText直前に単色へ戻す", run:function(c,w,h){
+   c.fillStyle=mkGrad(c,w,h);c.fillRect(0,0,w,h);
+   c.fillStyle='#000';
+   c.font=FONT;c.textAlign='center';c.textBaseline='middle';
+   c.fillText('🚢',w/2,h/2);}}
+];
+var DPR=Math.min(2,window.devicePixelRatio||1);
+var rows=document.getElementById("rows"),res=[];
+tests.forEach(function(ts,i){
+  var row=document.createElement("div");row.className="row";
+  var cv=document.createElement("canvas");
+  var w=80,h=48;
+  cv.width=w*DPR;cv.height=h*DPR;
+  var lbl=document.createElement("div");lbl.className="lbl";
+  var v=document.createElement("div");v.className="v";
+  row.appendChild(cv);row.appendChild(lbl);row.appendChild(v);rows.appendChild(row);
+  var c=cv.getContext("2d");
+  c.setTransform(DPR,0,0,DPR,0,0);
+  var err="";
+  try{ts.run(c,w,h);}catch(e){err=" ERR:"+e.message;}
+  // 判定：背景（青系）でも文字色(黒)でもないピクセル…ではなく「背景と違うピクセル」を数える
+  var drawn=false;
+  try{
+    var mid=c.getImageData(Math.round((w/2-20)*DPR),Math.round((h/2-16)*DPR),Math.round(40*DPR),Math.round(32*DPR)).data;
+    var corner=c.getImageData(0,0,4,4).data;
+    var n=0;
+    for(var p=0;p<mid.length;p+=4){
+      // 端(背景)との差が大きいピクセルを数える（グラデなので緩めの閾値）
+      if(Math.abs(mid[p]-corner[0])>60||Math.abs(mid[p+1]-corner[1])>60||Math.abs(mid[p+2]-corner[2])>60)n++;
+    }
+    drawn=n>50;
+    lbl.innerHTML="<b>"+ts.n+"</b><br>px="+n+err;
+  }catch(e){lbl.innerHTML="<b>"+ts.n+"</b><br>ERR:"+e.message;}
+  v.textContent=drawn?"✓":"✗";v.className="v "+(drawn?"ok":"ng");
+  res.push((i+1)+(drawn?"✓":"✗"));
+});
+document.getElementById("sum").textContent="結果: "+res.join("  ")+"（スクショして送ってね）";
+})();
+</script>
+</body></html>
