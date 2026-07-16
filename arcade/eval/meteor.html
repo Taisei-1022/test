@@ -2,11 +2,14 @@
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
 <title>隕石よけサバイバル</title>
-<!--VAPPA_TPL1 %7B%22t%22%3A%22%E9%9A%95%E7%9F%B3%E3%82%88%E3%81%91%E3%82%B5%E3%83%90%E3%82%A4%E3%83%90%E3%83%AB%22%2C%22h%22%3A%22%E6%8C%87%E3%81%A7%E3%83%89%E3%83%A9%E3%83%83%E3%82%B0%E3%81%97%E3%81%A6%E5%AE%87%E5%AE%99%E8%88%B9%E3%82%92%E6%93%8D%E4%BD%9C%E3%80%82%E9%9A%95%E7%9F%B3%E3%82%92%E3%82%88%E3%81%91%E3%81%A6%E7%94%9F%E3%81%8D%E6%AE%8B%E3%82%8C%EF%BC%81%22%2C%22u%22%3A%22%E7%A7%92%22%7D-->
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E9%9A%95%E7%9F%B3%E3%82%88%E3%81%91%E3%82%B5%E3%83%90%E3%82%A4%E3%83%90%E3%83%AB%22%2C%22h%22%3A%22%E7%94%BB%E9%9D%A2%E3%82%92%E3%83%89%E3%83%A9%E3%83%83%E3%82%B0%E3%81%97%E3%81%A6%F0%9F%9A%80%E3%82%92%E5%B7%A6%E5%8F%B3%E3%81%AB%E5%8B%95%E3%81%8B%E3%81%97%E3%80%81%E9%99%8D%E3%82%8A%E6%B3%A8%E3%81%90%E2%98%84%EF%B8%8F%E3%82%92%E3%82%88%E3%81%91%E3%82%88%E3%81%86%EF%BC%81%22%2C%22u%22%3A%22%E7%A7%92%22%7D-->
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
 #vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+/* ゲームが作るDOM UIの器。論理390x844座標系のまま実画面へ拡縮される */
+#vpdom{position:fixed;left:0;top:0;width:390px;height:844px;z-index:2;pointer-events:none;transform-origin:0 0;overflow:hidden}
+#vpdom *{pointer-events:auto}
 .vp-hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top) + 10px) 14px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
 .vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
 .vp-hud span:empty{display:none}
@@ -26,11 +29,12 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
 </style>
 </head><body>
 <canvas id="vpc"></canvas>
+<div id="vpdom"></div>
 <div class="vp-hud" id="vphud" hidden><span id="vphl">0秒</span><span id="vphr"></span></div>
 <div class="vp-toast" id="vptoast"></div>
 <div class="vp-ov" id="vpov">
   <h1>隕石よけサバイバル</h1>
-  <p>指でドラッグして宇宙船を操作。隕石をよけて生き残れ！</p>
+  <p>画面をドラッグして🚀を左右に動かし、降り注ぐ☄️をよけよう！</p>
   <button class="vp-btn" id="vpstart">スタート</button>
 </div>
 <script id="vpimgs">
@@ -40,13 +44,28 @@ window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
 <script>
 window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
 var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
-var W=0,H=0;
+// 論理画面は 390x844 固定。全端末でこのサイズとして描き、ランタイムが実画面へ拡縮する
+// （レターボックス）。ゲームコードは端末差を一切考えなくてよい。
+var W=390,H=844;
+var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
 (function(){
 "use strict";
 var DPR=Math.min(2,window.devicePixelRatio||1);
-function rs(){W=window.innerWidth;H=window.innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);
-  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}}
+function rs(){
+  var vw=window.innerWidth,vh=window.innerHeight;
+  __SC=Math.min(vw/W,vh/H);
+  __OX=(vw-W*__SC)/2;__OY=(vh-H*__SC)/2;
+  cv.width=vw*DPR;cv.height=vh*DPR;
+  ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
+  ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
+  var dom=document.getElementById("vpdom");
+  if(dom){dom.style.transform="scale("+__SC+")";dom.style.left=__OX+"px";dom.style.top=__OY+"px";}
+  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
+}
 window.addEventListener("resize",rs);rs();
+// 実画面座標→論理座標（タッチ入力用）
+function toLX(x){return (x-__OX)/__SC;}
+function toLY(y){return (y-__OY)/__SC;}
 var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="秒";
 // ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
 var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
@@ -86,9 +105,9 @@ function fire(fn,x,y,id){
 // pointer と touch を両対応（iOSのiframe内などpointerが飛ばない環境へのフォールバック）。
 // pointerが一度でも来たらtouchは無視して二重発火を防ぐ。
 var seenPointer=false;
-window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",e.clientX,e.clientY,e.pointerId);fire("onMove",e.clientX,e.clientY,e.pointerId);});
-window.addEventListener("pointermove",function(e){fire("onMove",e.clientX,e.clientY,e.pointerId);});
-window.addEventListener("pointerup",function(e){fire("onUp",e.clientX,e.clientY,e.pointerId);});
+window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",toLX(e.clientX),toLY(e.clientY),e.pointerId);fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointermove",function(e){fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointerup",function(e){fire("onUp",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
 // タッチの扱い（iOS対策の要点）：
 //  - touchstart は preventDefault しない
 //  - touchmove は非passiveで preventDefault → パン/スクロール横取りはこれで止まる
@@ -97,17 +116,17 @@ window.addEventListener("pointerup",function(e){fire("onUp",e.clientX,e.clientY,
 //  - pointerイベントが来る環境では発火だけ二重防止（seenPointer）
 function tfire(fn,e){
   if(seenPointer)return;
-  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,t.clientX,t.clientY,t.identifier);
-    if(fn==="onDown")fire("onMove",t.clientX,t.clientY,t.identifier);}
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,toLX(t.clientX),toLY(t.clientY),t.identifier);
+    if(fn==="onDown")fire("onMove",toLX(t.clientX),toLY(t.clientY),t.identifier);}
 }
 function uiTouch(e){var t=e.target;return !!(t&&t.closest&&t.closest("button,a,input,select,label"));}
 window.addEventListener("touchstart",function(e){tfire("onDown",e);},{passive:true});
 window.addEventListener("touchmove",function(e){if(e.cancelable)e.preventDefault();tfire("onMove",e);},{passive:false});
 window.addEventListener("touchend",function(e){if(e.cancelable&&!uiTouch(e))e.preventDefault();tfire("onUp",e);},{passive:false});
 document.addEventListener("gesturestart",function(e){e.preventDefault();});
-window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",e.clientX,e.clientY,0);});
-window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",e.clientX,e.clientY,0);});
-window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",e.clientX,e.clientY,0);});
+window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",toLX(e.clientX),toLY(e.clientY),0);});
 window.Arcade.onPause(function(){paused=true;});
 window.Arcade.onResume(function(){paused=false;last=performance.now();});
 window.Arcade.onRestart(start);
@@ -134,103 +153,99 @@ window.__vpTap=function(){
 <script id="vpgame">
 /*__VAPPA_JS__*/
 var TUNE = {
-  initialSpawn: { v: 1.5, label: '初期出現間隔(秒)', min: 0.5, max: 3, step: 0.1 },
-  minSpawn: { v: 0.3, label: '最短出現間隔(秒)', min: 0.1, max: 1, step: 0.05 },
-  speedMin: { v: 100, label: '隕石最低速(px/秒)', min: 50, max: 200, step: 10 },
-  speedMax: { v: 250, label: '隕石最高速(px/秒)', min: 150, max: 400, step: 10 },
-  speedIncrease: { v: 15, label: '速度増加率(px/秒²)', min: 5, max: 30, step: 1 },
-  shipSize: { v: 40, label: '宇宙船サイズ(半径px)', min: 30, max: 60, step: 5 }
+  spawnInit: { v: 1.2, label: '初期出現間隔', min: 0.5, max: 2.0, step: 0.1 },
+  spawnMin: { v: 0.3, label: '最小出現間隔', min: 0.1, max: 1.0, step: 0.05 },
+  spawnRamp: { v: 0.02, label: '出現間隔減少率', min: 0.01, max: 0.1, step: 0.01 },
+  speedInit: { v: 200, label: '初期落下速度', min: 100, max: 400, step: 10 },
+  speedMax: { v: 600, label: '最大落下速度', min: 400, max: 800, step: 10 },
+  speedRamp: { v: 5, label: '速度上昇率', min: 0, max: 20, step: 1 },
+  baseSize: { v: 36, label: '隕石基準サイズ', min: 24, max: 48, step: 2 },
+  sizeVar: { v: 8, label: '隕石サイズ変動幅', min: 0, max: 20, step: 2 }
 };
-var ship, meteors, time, gameOver, shake, spawnTimer, stars, prevScore;
-function init() {
-  ship = { x: W / 2, y: H - 60, r: TUNE.shipSize.v / 2 };
+var shipX, meteors, stars, timer, spawnTimer, currentSpeed, shake;
+function init(){
+  shipX = W / 2;
   meteors = [];
-  time = 0;
-  gameOver = false;
-  shake = 0;
-  spawnTimer = TUNE.initialSpawn.v;
   stars = [];
-  for (var i = 0; i < 50; i++) {
+  for (var i = 0; i < 80; i++){
     stars.push({ x: Math.random() * W, y: Math.random() * H, speed: 20 + Math.random() * 30 });
   }
-  prevScore = 0;
+  timer = 0;
+  spawnTimer = TUNE.spawnInit.v;
+  currentSpeed = TUNE.speedInit.v;
+  shake = 0;
   Game.score(0);
-  Game.hud('');
 }
-function update(dt) {
-  if (gameOver) {
-    if (shake > 0) shake -= dt;
-    return;
-  }
-  time += dt;
-  var newScore = Math.floor(time);
-  if (newScore > prevScore) {
-    prevScore = newScore;
-    Game.score(newScore);
-  }
-  var speedBonus = TUNE.speedIncrease.v * time;
-  var speedMin = TUNE.speedMin.v + speedBonus;
-  var speedMax = TUNE.speedMax.v + speedBonus;
-  var spawnInterval = Math.max(TUNE.minSpawn.v, TUNE.initialSpawn.v - time * 0.02);
+function update(dt){
+  timer += dt;
+  var score = Math.floor(timer);
+  Game.score(score);
+  currentSpeed = Math.min(TUNE.speedMax.v, currentSpeed + TUNE.speedRamp.v * dt);
   spawnTimer -= dt;
-  if (spawnTimer <= 0) {
-    var r = 12 + Math.random() * 18;
-    meteors.push({
-      x: Math.random() * W,
-      y: -30,
-      r: r,
-      speed: speedMin + Math.random() * (speedMax - speedMin)
-    });
-    spawnTimer = spawnInterval;
+  if (spawnTimer <= 0){
+    var size = TUNE.baseSize.v + Math.random() * TUNE.sizeVar.v * 2;
+    var speed = currentSpeed * (0.7 + 0.6 * Math.random());
+    meteors.push({ x: 20 + Math.random() * (W - 40), y: -size, speed: speed, size: size });
+    spawnTimer = Math.max(TUNE.spawnMin.v, TUNE.spawnInit.v - timer * TUNE.spawnRamp.v);
   }
-  for (var i = meteors.length - 1; i >= 0; i--) {
+  for (var i = meteors.length - 1; i >= 0; i--){
     var m = meteors[i];
     m.y += m.speed * dt;
-    if (m.y - m.r > H) {
-      meteors.splice(i, 1);
-      continue;
-    }
-    var dx = m.x - ship.x;
-    var dy = m.y - ship.y;
+    var shipR = 24;
+    var meteorR = m.size / 2;
+    var dx = m.x - shipX;
+    var dy = m.y - (H - 90);
     var dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < m.r + ship.r) {
-      gameOver = true;
+    if (dist < shipR + meteorR){
+      Game.float(m.x, m.y, '\uD83D\uDCA5', '#ff4444');
       shake = 0.3;
-      Game.float(ship.x, ship.y - 30, '💥', '#ff4444');
-      setTimeout(function() { Game.over(prevScore); }, 500);
+      Game.over(score);
       return;
+    }
+    if (m.y > H + 20){
+      meteors.splice(i, 1);
+    }
+  }
+  for (var j = 0; j < stars.length; j++){
+    var s = stars[j];
+    s.y += s.speed * dt;
+    if (s.y > H) {
+      s.y = 0;
+      s.x = Math.random() * W;
     }
   }
   if (shake > 0) shake -= dt;
 }
-function draw() {
-  ctx.fillStyle = '#0a0a1a';
+function draw(){
+  ctx.fillStyle = '#0a0a2a';
   ctx.fillRect(0, 0, W, H);
-  var ox = shake > 0 ? (Math.random() - 0.5) * 20 : 0;
-  ctx.save();
-  ctx.translate(ox, 0);
+  if (shake > 0){
+    ctx.save();
+    ctx.translate((Math.random() - 0.5) * 12, (Math.random() - 0.5) * 12);
+  }
+  ctx.fillStyle = '#ffffff';
+  for (var i = 0; i < stars.length; i++){
+    var s = stars[i];
+    ctx.fillRect(s.x, s.y, 2, 2);
+  }
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = "18px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-  for (var i = 0; i < stars.length; i++) {
-    var s = stars[i];
-    ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.fillText('·', s.x, s.y);
-  }
-  ctx.font = '36px "Apple Color Emoji","Noto Color Emoji",sans-serif';
-  for (var j = 0; j < meteors.length; j++) {
+  for (var j = 0; j < meteors.length; j++){
     var m = meteors[j];
-    ctx.fillText('☄️', m.x, m.y);
+    ctx.font = m.size + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText('\u2604\uFE0F', m.x, m.y);
   }
-  ctx.font = '48px "Apple Color Emoji","Noto Color Emoji",sans-serif';
-  ctx.fillText('🚀', ship.x, ship.y);
-  ctx.restore();
+  ctx.font = "48px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  ctx.fillText('\uD83D\uDE80', shipX, H - 90);
+  if (shake > 0){
+    ctx.restore();
+  }
 }
-function onDown(x, y) {
-  ship.x = Math.max(ship.r, Math.min(W - ship.r, x));
+function onDown(x, y){
+  shipX = Math.max(24, Math.min(W - 24, x));
 }
-function onMove(x, y) {
-  ship.x = Math.max(ship.r, Math.min(W - ship.r, x));
+function onMove(x, y){
+  shipX = Math.max(24, Math.min(W - 24, x));
 }
 /*__VAPPA_JS_END__*/
 </script>

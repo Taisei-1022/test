@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
-<title>城を守れ！タップディフェンス</title>
-<!--VAPPA_TPL1 %7B%22t%22%3A%22%E5%9F%8E%E3%82%92%E5%AE%88%E3%82%8C%EF%BC%81%E3%82%BF%E3%83%83%E3%83%97%E3%83%87%E3%82%A3%E3%83%95%E3%82%A7%E3%83%B3%E3%82%B9%22%2C%22h%22%3A%22%E5%8F%B3%E3%81%8B%E3%82%89%E6%9D%A5%E3%82%8B%E6%95%B5%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%E3%81%A7%E5%80%92%E3%81%9B%EF%BC%81%E5%9F%8E%E3%81%AB%E7%9D%80%E3%81%8B%E3%82%8C%E3%82%8B%E3%81%A8HP%E3%81%8C%E6%B8%9B%E3%82%8B%E3%80%82%22%2C%22u%22%3A%22%E5%8C%B9%22%7D-->
+<title>キャッスルディフェンス</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%82%AD%E3%83%A3%E3%83%83%E3%82%B9%E3%83%AB%E3%83%87%E3%82%A3%E3%83%95%E3%82%A7%E3%83%B3%E3%82%B9%22%2C%22h%22%3A%22%E8%BF%AB%E3%82%8A%E3%81%8F%E3%82%8B%E6%95%B5%F0%9F%91%B9%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%E3%81%A7%E5%80%92%E3%81%9B%EF%BC%81%E5%9F%8E%F0%9F%8F%B0%E3%81%AB%E5%88%B0%E9%81%94%E3%81%95%E3%82%8C%E3%81%AA%E3%81%84%E3%82%88%E3%81%86%E3%81%AB%E5%AE%88%E3%82%8C%22%2C%22u%22%3A%22%E4%BD%93%22%7D-->
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
 #vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+/* ゲームが作るDOM UIの器。論理390x844座標系のまま実画面へ拡縮される */
+#vpdom{position:fixed;left:0;top:0;width:390px;height:844px;z-index:2;pointer-events:none;transform-origin:0 0;overflow:hidden}
+#vpdom *{pointer-events:auto}
 .vp-hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top) + 10px) 14px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
 .vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
 .vp-hud span:empty{display:none}
@@ -26,11 +29,12 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
 </style>
 </head><body>
 <canvas id="vpc"></canvas>
-<div class="vp-hud" id="vphud" hidden><span id="vphl">0匹</span><span id="vphr"></span></div>
+<div id="vpdom"></div>
+<div class="vp-hud" id="vphud" hidden><span id="vphl">0体</span><span id="vphr"></span></div>
 <div class="vp-toast" id="vptoast"></div>
 <div class="vp-ov" id="vpov">
-  <h1>城を守れ！タップディフェンス</h1>
-  <p>右から来る敵をタップで倒せ！城に着かれるとHPが減る。</p>
+  <h1>キャッスルディフェンス</h1>
+  <p>迫りくる敵👹をタップで倒せ！城🏰に到達されないように守れ</p>
   <button class="vp-btn" id="vpstart">スタート</button>
 </div>
 <script id="vpimgs">
@@ -40,14 +44,29 @@ window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
 <script>
 window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
 var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
-var W=0,H=0;
+// 論理画面は 390x844 固定。全端末でこのサイズとして描き、ランタイムが実画面へ拡縮する
+// （レターボックス）。ゲームコードは端末差を一切考えなくてよい。
+var W=390,H=844;
+var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
 (function(){
 "use strict";
 var DPR=Math.min(2,window.devicePixelRatio||1);
-function rs(){W=window.innerWidth;H=window.innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);
-  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}}
+function rs(){
+  var vw=window.innerWidth,vh=window.innerHeight;
+  __SC=Math.min(vw/W,vh/H);
+  __OX=(vw-W*__SC)/2;__OY=(vh-H*__SC)/2;
+  cv.width=vw*DPR;cv.height=vh*DPR;
+  ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
+  ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
+  var dom=document.getElementById("vpdom");
+  if(dom){dom.style.transform="scale("+__SC+")";dom.style.left=__OX+"px";dom.style.top=__OY+"px";}
+  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
+}
 window.addEventListener("resize",rs);rs();
-var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="匹";
+// 実画面座標→論理座標（タッチ入力用）
+function toLX(x){return (x-__OX)/__SC;}
+function toLY(y){return (y-__OY)/__SC;}
+var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="体";
 // ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
 var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
 var hud=document.getElementById("vphud"),hl=document.getElementById("vphl"),hr=document.getElementById("vphr");
@@ -86,9 +105,9 @@ function fire(fn,x,y,id){
 // pointer と touch を両対応（iOSのiframe内などpointerが飛ばない環境へのフォールバック）。
 // pointerが一度でも来たらtouchは無視して二重発火を防ぐ。
 var seenPointer=false;
-window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",e.clientX,e.clientY,e.pointerId);fire("onMove",e.clientX,e.clientY,e.pointerId);});
-window.addEventListener("pointermove",function(e){fire("onMove",e.clientX,e.clientY,e.pointerId);});
-window.addEventListener("pointerup",function(e){fire("onUp",e.clientX,e.clientY,e.pointerId);});
+window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",toLX(e.clientX),toLY(e.clientY),e.pointerId);fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointermove",function(e){fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointerup",function(e){fire("onUp",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
 // タッチの扱い（iOS対策の要点）：
 //  - touchstart は preventDefault しない
 //  - touchmove は非passiveで preventDefault → パン/スクロール横取りはこれで止まる
@@ -97,17 +116,17 @@ window.addEventListener("pointerup",function(e){fire("onUp",e.clientX,e.clientY,
 //  - pointerイベントが来る環境では発火だけ二重防止（seenPointer）
 function tfire(fn,e){
   if(seenPointer)return;
-  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,t.clientX,t.clientY,t.identifier);
-    if(fn==="onDown")fire("onMove",t.clientX,t.clientY,t.identifier);}
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,toLX(t.clientX),toLY(t.clientY),t.identifier);
+    if(fn==="onDown")fire("onMove",toLX(t.clientX),toLY(t.clientY),t.identifier);}
 }
 function uiTouch(e){var t=e.target;return !!(t&&t.closest&&t.closest("button,a,input,select,label"));}
 window.addEventListener("touchstart",function(e){tfire("onDown",e);},{passive:true});
 window.addEventListener("touchmove",function(e){if(e.cancelable)e.preventDefault();tfire("onMove",e);},{passive:false});
 window.addEventListener("touchend",function(e){if(e.cancelable&&!uiTouch(e))e.preventDefault();tfire("onUp",e);},{passive:false});
 document.addEventListener("gesturestart",function(e){e.preventDefault();});
-window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",e.clientX,e.clientY,0);});
-window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",e.clientX,e.clientY,0);});
-window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",e.clientX,e.clientY,0);});
+window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",toLX(e.clientX),toLY(e.clientY),0);});
 window.Arcade.onPause(function(){paused=true;});
 window.Arcade.onResume(function(){paused=false;last=performance.now();});
 window.Arcade.onRestart(start);
@@ -134,106 +153,115 @@ window.__vpTap=function(){
 <script id="vpgame">
 /*__VAPPA_JS__*/
 var TUNE = {
-  baseSpeed: { v: 80, label: '初期速度', min: 40, max: 200, step: 10 },
-  speedInc: { v: 3, label: '速度増加量（秒毎）', min: 0, max: 10, step: 0.5 },
-  maxSpeed: { v: 250, label: '最高速度', min: 100, max: 400, step: 10 },
-  spawnInterval: { v: 1.2, label: '初期出現間隔', min: 0.5, max: 3, step: 0.1 },
-  minInterval: { v: 0.4, label: '最短出現間隔', min: 0.2, max: 1, step: 0.05 },
-  intervalDec: { v: 0.02, label: '間隔減少量（秒毎）', min: 0, max: 0.1, step: 0.005 },
-  toughProb: { v: 0.2, label: 'タフな敵の確率', min: 0, max: 0.5, step: 0.05 },
-  castleHP: { v: 5, label: '城のHP', min: 1, max: 10, step: 1 }
+  spawnInterval: { v: 1.2, label: '出現間隔(秒)', min: 0.3, max: 3, step: 0.1 },
+  speedBase: { v: 60, label: '基本速度', min: 30, max: 150, step: 5 },
+  speedIncrease: { v: 5, label: '速度増加/10秒', min: 0, max: 20, step: 1 },
+  toughChance: { v: 0.25, label: 'タフな敵の確率', min: 0, max: 0.6, step: 0.05 },
+  maxEnemies: { v: 6, label: '同時出現最大数', min: 3, max: 12, step: 1 }
 };
-var castleHp, score, enemies, spawnTimer, currentSpeed, currentInterval;
+var castle = { x: 60, y: 300, w: 60, h: 80 };
+var enemies = [];
+var hp = 5;
+var score = 0;
+var spawnTimer = 0;
+var elapsed = 0;
+var shake = 0;
+var spawnInterval = TUNE.spawnInterval.v;
+var speed = TUNE.speedBase.v;
 function init() {
-  castleHp = TUNE.castleHP.v;
-  score = 0;
   enemies = [];
+  hp = 5;
+  score = 0;
   spawnTimer = 0;
-  currentSpeed = TUNE.baseSpeed.v;
-  currentInterval = TUNE.spawnInterval.v;
-  Game.hud('\u2764\uFE0F'.repeat(castleHp));
+  elapsed = 0;
+  shake = 0;
+  spawnInterval = TUNE.spawnInterval.v;
+  speed = TUNE.speedBase.v;
+  Game.score(0);
+  Game.hud('\u2764\uFE0F'.repeat(hp));
 }
 function update(dt) {
+  elapsed += dt;
+  speed = TUNE.speedBase.v + TUNE.speedIncrease.v * Math.floor(elapsed / 10);
+  spawnInterval = Math.max(0.2, TUNE.spawnInterval.v - elapsed * 0.005);
   spawnTimer -= dt;
-  if (spawnTimer <= 0) {
-    var isTough = Math.random() < TUNE.toughProb.v;
+  if (spawnTimer <= 0 && enemies.length < TUNE.maxEnemies.v) {
+    var tough = Math.random() < TUNE.toughChance.v;
     enemies.push({
       x: W + 20,
-      y: 80 + Math.random() * (H - 160),
-      r: 24,
-      tough: isTough,
-      hits: 0
+      y: castle.y - 20 + Math.random() * 80,
+      hp: tough ? 2 : 1,
+      type: tough ? 'tough' : 'normal',
+      speed: speed + Math.random() * 20 - 10
     });
-    spawnTimer = currentInterval;
-    currentInterval = Math.max(TUNE.minInterval.v, currentInterval - TUNE.intervalDec.v * dt);
+    spawnTimer = spawnInterval;
   }
-  currentSpeed = Math.min(TUNE.maxSpeed.v, currentSpeed + TUNE.speedInc.v * dt);
-  var castleLeft = 40;
   for (var i = enemies.length - 1; i >= 0; i--) {
     var e = enemies[i];
-    e.x -= currentSpeed * dt;
-    if (e.x < castleLeft) {
-      castleHp--;
-      Game.hud('\u2764\uFE0F'.repeat(Math.max(0, castleHp)));
-      if (castleHp <= 0) {
+    e.x -= e.speed * dt;
+    if (e.x < castle.x + castle.w / 2) {
+      hp--;
+      shake = 0.3;
+      Game.hud('\u2764\uFE0F'.repeat(Math.max(0, hp)));
+      enemies.splice(i, 1);
+      if (hp <= 0) {
         Game.over(score);
         return;
       }
+    } else if (e.x < -40) {
       enemies.splice(i, 1);
     }
   }
+  if (shake > 0) shake -= dt;
 }
 function draw() {
-  ctx.fillStyle = '#87CEEB';
+  // sky
+  var skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+  skyGrad.addColorStop(0, '#74b9ff');
+  skyGrad.addColorStop(0.6, '#a2d9f0');
+  ctx.fillStyle = skyGrad;
   ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#7CFC00';
-  ctx.fillRect(0, H * 0.7, W, H * 0.3);
+  // grass
+  ctx.fillStyle = '#55a630';
+  ctx.fillRect(0, castle.y + castle.h, W, H - castle.y - castle.h);
+  // castle
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = "44px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-  ctx.fillText('\uD83C\uDFF0', 40, H * 0.7 - 20);
+  ctx.font = "60px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  ctx.fillText('\uD83C\uDFF0', castle.x, castle.y);
+  // enemies
+  ctx.font = "50px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
   for (var i = 0; i < enemies.length; i++) {
     var e = enemies[i];
-    if (e.tough && e.hits === 1) {
-      ctx.font = "28px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-      ctx.fillStyle = '#FF4500';
-      ctx.fillText('\uD83D\uDE21', e.x, e.y);
-    } else {
-      ctx.font = "28px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-      ctx.fillStyle = '#000';
-      ctx.fillText(e.tough ? '\uD83E\uDDCC' : '\uD83D\uDC79', e.x, e.y);
-    }
+    var emoji = e.type === 'tough' ? (e.hp === 2 ? '\uD83E\uDDCC' : '\uD83D\uDE21') : '\uD83D\uDC79';
+    ctx.fillText(emoji, e.x, e.y);
+  }
+  // shake
+  if (shake > 0) {
+    var ox = (Math.random() - 0.5) * 8;
+    ctx.fillStyle = '#ff0000';
+    ctx.globalAlpha = 0.3;
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
   }
 }
-function onDown(x, y, id) {
+function onDown(x, y) {
   for (var i = enemies.length - 1; i >= 0; i--) {
     var e = enemies[i];
     var dx = x - e.x;
     var dy = y - e.y;
-    if (dx * dx + dy * dy < e.r * e.r) {
-      if (e.tough) {
-        if (e.hits === 0) {
-          e.hits = 1;
-          Game.float(e.x, e.y - 20, '\uD83D\DCA5', '#FF6347');
-          return;
-        } else if (e.hits === 1) {
-          score++;
-          Game.score(score);
-          enemies.splice(i, 1);
-          Game.float(e.x, e.y, '+1', '#FFD700');
-          return;
-        }
-      } else {
+    if (dx * dx + dy * dy < 900) { // radius ~30
+      e.hp--;
+      if (e.hp <= 0) {
         score++;
         Game.score(score);
+        Game.float(e.x, e.y - 30, '+1', '#ffd166');
         enemies.splice(i, 1);
-        Game.float(e.x, e.y, '+1', '#FFD700');
-        return;
       }
+      break; // only one enemy per tap
     }
   }
 }
-
 /*__VAPPA_JS_END__*/
 </script>
 </body></html>

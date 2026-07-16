@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
-<title>エイリアンシューティング</title>
-<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%82%A8%E3%82%A4%E3%83%AA%E3%82%A2%E3%83%B3%E3%82%B7%E3%83%A5%E3%83%BC%E3%83%86%E3%82%A3%E3%83%B3%E3%82%B0%22%2C%22h%22%3A%22%F0%9F%9B%B8%E3%82%92%E5%B7%A6%E5%8F%B3%E3%81%AB%E3%83%89%E3%83%A9%E3%83%83%E3%82%B0%E3%81%A7%E7%A7%BB%E5%8B%95%E3%80%82%E8%87%AA%E5%8B%95%E9%80%A3%E5%B0%84%E3%81%A7%E3%82%A8%E3%82%A4%E3%83%AA%E3%82%A2%E3%83%B3%E3%82%92%E6%92%83%E3%81%A1%E8%90%BD%E3%81%A8%E3%81%9B%EF%BC%81%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
+<title>エイリアンシューター</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%82%A8%E3%82%A4%E3%83%AA%E3%82%A2%E3%83%B3%E3%82%B7%E3%83%A5%E3%83%BC%E3%82%BF%E3%83%BC%22%2C%22h%22%3A%22%F0%9F%9B%B8%E3%82%92%E5%B7%A6%E5%8F%B3%E3%81%AB%E3%83%89%E3%83%A9%E3%83%83%E3%82%B0%E3%81%97%E3%81%A6%E6%93%8D%E4%BD%9C%E3%80%82%E8%87%AA%E5%8B%95%E3%81%A7%E5%BC%BE%E3%82%92%E6%92%83%E3%81%A1%E3%80%81%E9%99%8D%E3%82%8A%E3%81%A6%E3%81%8F%E3%82%8B%F0%9F%91%BE%E3%82%92%E5%80%92%E3%81%9B%EF%BC%8110%E4%BD%93%E5%80%92%E3%81%99%E3%81%94%E3%81%A8%E3%81%ABWAVE%20UP%EF%BC%81%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
 #vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+/* ゲームが作るDOM UIの器。論理390x844座標系のまま実画面へ拡縮される */
+#vpdom{position:fixed;left:0;top:0;width:390px;height:844px;z-index:2;pointer-events:none;transform-origin:0 0;overflow:hidden}
+#vpdom *{pointer-events:auto}
 .vp-hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top) + 10px) 14px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
 .vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
 .vp-hud span:empty{display:none}
@@ -26,11 +29,12 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
 </style>
 </head><body>
 <canvas id="vpc"></canvas>
+<div id="vpdom"></div>
 <div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
 <div class="vp-toast" id="vptoast"></div>
 <div class="vp-ov" id="vpov">
-  <h1>エイリアンシューティング</h1>
-  <p>🛸を左右にドラッグで移動。自動連射でエイリアンを撃ち落とせ！</p>
+  <h1>エイリアンシューター</h1>
+  <p>🛸を左右にドラッグして操作。自動で弾を撃ち、降りてくる👾を倒せ！10体倒すごとにWAVE UP！</p>
   <button class="vp-btn" id="vpstart">スタート</button>
 </div>
 <script id="vpimgs">
@@ -40,13 +44,28 @@ window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
 <script>
 window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
 var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
-var W=0,H=0;
+// 論理画面は 390x844 固定。全端末でこのサイズとして描き、ランタイムが実画面へ拡縮する
+// （レターボックス）。ゲームコードは端末差を一切考えなくてよい。
+var W=390,H=844;
+var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
 (function(){
 "use strict";
 var DPR=Math.min(2,window.devicePixelRatio||1);
-function rs(){W=window.innerWidth;H=window.innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);
-  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}}
+function rs(){
+  var vw=window.innerWidth,vh=window.innerHeight;
+  __SC=Math.min(vw/W,vh/H);
+  __OX=(vw-W*__SC)/2;__OY=(vh-H*__SC)/2;
+  cv.width=vw*DPR;cv.height=vh*DPR;
+  ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
+  ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
+  var dom=document.getElementById("vpdom");
+  if(dom){dom.style.transform="scale("+__SC+")";dom.style.left=__OX+"px";dom.style.top=__OY+"px";}
+  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
+}
 window.addEventListener("resize",rs);rs();
+// 実画面座標→論理座標（タッチ入力用）
+function toLX(x){return (x-__OX)/__SC;}
+function toLY(y){return (y-__OY)/__SC;}
 var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="点";
 // ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
 var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
@@ -86,9 +105,9 @@ function fire(fn,x,y,id){
 // pointer と touch を両対応（iOSのiframe内などpointerが飛ばない環境へのフォールバック）。
 // pointerが一度でも来たらtouchは無視して二重発火を防ぐ。
 var seenPointer=false;
-window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",e.clientX,e.clientY,e.pointerId);fire("onMove",e.clientX,e.clientY,e.pointerId);});
-window.addEventListener("pointermove",function(e){fire("onMove",e.clientX,e.clientY,e.pointerId);});
-window.addEventListener("pointerup",function(e){fire("onUp",e.clientX,e.clientY,e.pointerId);});
+window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",toLX(e.clientX),toLY(e.clientY),e.pointerId);fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointermove",function(e){fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointerup",function(e){fire("onUp",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
 // タッチの扱い（iOS対策の要点）：
 //  - touchstart は preventDefault しない
 //  - touchmove は非passiveで preventDefault → パン/スクロール横取りはこれで止まる
@@ -97,17 +116,17 @@ window.addEventListener("pointerup",function(e){fire("onUp",e.clientX,e.clientY,
 //  - pointerイベントが来る環境では発火だけ二重防止（seenPointer）
 function tfire(fn,e){
   if(seenPointer)return;
-  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,t.clientX,t.clientY,t.identifier);
-    if(fn==="onDown")fire("onMove",t.clientX,t.clientY,t.identifier);}
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,toLX(t.clientX),toLY(t.clientY),t.identifier);
+    if(fn==="onDown")fire("onMove",toLX(t.clientX),toLY(t.clientY),t.identifier);}
 }
 function uiTouch(e){var t=e.target;return !!(t&&t.closest&&t.closest("button,a,input,select,label"));}
 window.addEventListener("touchstart",function(e){tfire("onDown",e);},{passive:true});
 window.addEventListener("touchmove",function(e){if(e.cancelable)e.preventDefault();tfire("onMove",e);},{passive:false});
 window.addEventListener("touchend",function(e){if(e.cancelable&&!uiTouch(e))e.preventDefault();tfire("onUp",e);},{passive:false});
 document.addEventListener("gesturestart",function(e){e.preventDefault();});
-window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",e.clientX,e.clientY,0);});
-window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",e.clientX,e.clientY,0);});
-window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",e.clientX,e.clientY,0);});
+window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",toLX(e.clientX),toLY(e.clientY),0);});
 window.Arcade.onPause(function(){paused=true;});
 window.Arcade.onResume(function(){paused=false;last=performance.now();});
 window.Arcade.onRestart(start);
@@ -134,164 +153,133 @@ window.__vpTap=function(){
 <script id="vpgame">
 /*__VAPPA_JS__*/
 var TUNE = {
-  baseAliens: { v: 5, label: '初期のエイリアン数', min: 2, max: 12, step: 1 },
-  speedBase: { v: 80, label: '落下速度ベース', min: 40, max: 200, step: 10 },
-  speedIncrease: { v: 10, label: 'Waveごとの速度上昇', min: 0, max: 40, step: 5 },
-  bulletSpeed: { v: 300, label: '弾の速度', min: 200, max: 500, step: 20 },
-  fireRate: { v: 0.15, label: '射撃間隔(秒)', min: 0.05, max: 0.4, step: 0.05 },
-  lives: { v: 3, label: 'ライフ数', min: 1, max: 9, step: 1 }
+  alienSpeed: { v: 60, label: 'エイリアンの速さ', min: 30, max: 150, step: 5 },
+  bulletSpeed: { v: 400, label: '弾の速さ', min: 200, max: 600, step: 20 },
+  fireRate: { v: 0.2, label: '連射間隔(秒)', min: 0.1, max: 0.5, step: 0.05 },
+  waveKills: { v: 10, label: 'Waveに必要な撃破数', min: 5, max: 20, step: 5 },
+  spawnInterval: { v: 1.5, label: '出現間隔(秒)', min: 0.5, max: 3, step: 0.1 },
+  maxAliens: { v: 4, label: '同時編隊数', min: 2, max: 8, step: 1 }
 };
-var player, bullets, aliens, explosions, lives, score, wave, kills, fireTimer, spawnTimer, waveToast, shake;
-var stars = [];
-function init() {
-  player = { x: W / 2, y: H - 60, w: 40 };
+var player, bullets, aliens, explosions, stars, lives, score, wave, killCount, fireTimer, spawnTimer, waveDisplayTimer;
+function init(){
+  player = { x: W/2, y: H-100 };
   bullets = [];
   aliens = [];
   explosions = [];
-  lives = TUNE.lives.v;
+  stars = [];
+  for (var i = 0; i < 50; i++) stars.push({ x: Math.random()*W, y: 60+Math.random()*(H-180) });
+  lives = 3;
   score = 0;
   wave = 1;
-  kills = 0;
+  killCount = 0;
   fireTimer = 0;
-  spawnTimer = 1.0;
-  waveToast = 0;
-  shake = 0;
-  stars = [];
-  for (var i = 0; i < 100; i++) stars.push({ x: Math.random() * W, y: Math.random() * H, s: Math.random() * 2 + 0.5 });
-  Game.hud('❤️'.repeat(lives) + ' WAVE ' + wave);
+  spawnTimer = 0;
+  waveDisplayTimer = 0;
+  Game.score(score);
+  Game.hud('\u2764\uFE0F\u2764\uFE0F\u2764\uFE0F');
 }
-function update(dt) {
-  // Auto-fire
+function update(dt){
   fireTimer += dt;
   if (fireTimer >= TUNE.fireRate.v) {
-    bullets.push({ x: player.x, y: player.y - 20, vy: -TUNE.bulletSpeed.v });
     fireTimer -= TUNE.fireRate.v;
+    bullets.push({ x: player.x, y: player.y-20 });
   }
-  // Move bullets
-  for (var i = bullets.length - 1; i >= 0; i--) {
-    bullets[i].y += bullets[i].vy * dt;
-    if (bullets[i].y < -20) bullets.splice(i, 1);
+  for (var i = bullets.length-1; i >= 0; i--) {
+    bullets[i].y -= TUNE.bulletSpeed.v * dt;
+    if (bullets[i].y < -20) bullets.splice(i,1);
   }
-  // Spawn aliens
-  var alienSpeed = TUNE.speedBase.v + (wave - 1) * TUNE.speedIncrease.v;
-  spawnTimer -= dt;
-  if (spawnTimer <= 0) {
-    var n = Math.floor(TUNE.baseAliens.v + (wave - 1) * 1.5);
-    n = Math.min(n, 20);
-    for (var k = 0; k < n; k++) {
-      aliens.push({ x: 30 + Math.random() * (W - 60), y: -30, r: 18, speed: alienSpeed });
+  spawnTimer += dt;
+  if (spawnTimer >= TUNE.spawnInterval.v) {
+    spawnTimer = 0;
+    var num = Math.min(2+Math.floor(wave/2), TUNE.maxAliens.v);
+    var spacing = 60;
+    var startX = (W - (num-1)*spacing)/2;
+    for (var j = 0; j < num; j++) {
+      aliens.push({ x: startX+j*spacing, y: -30 });
     }
-    spawnTimer = 3.0;
   }
-  // Move aliens
-  for (var j = aliens.length - 1; j >= 0; j--) {
-    var a = aliens[j];
-    a.y += a.speed * dt;
-    if (a.y > H + 30) {
-      lives--;
-      shake = 0.3;
-      explosions.push({ x: a.x, y: H - 30, life: 0.4, maxLife: 0.4 });
-      aliens.splice(j, 1);
-      Game.hud('❤️'.repeat(Math.max(0, lives)) + ' WAVE ' + wave);
+  for (var i = aliens.length-1; i >= 0; i--) {
+    var a = aliens[i];
+    a.y += (TUNE.alienSpeed.v + wave*10) * dt;
+    if (a.y > H+30) {
+      explosions.push({ x: a.x, y: H-20, t: 0.3 });
+      aliens.splice(i,1);
+      loseLife();
       if (lives <= 0) { Game.over(score); return; }
       continue;
     }
-    // collision with player
-    var dx = a.x - player.x;
-    var dy = a.y - player.y;
-    if (dx * dx + dy * dy < (a.r + 20) * (a.r + 20)) {
-      lives--;
-      shake = 0.3;
-      explosions.push({ x: player.x, y: player.y, life: 0.4, maxLife: 0.4 });
-      aliens.splice(j, 1);
-      Game.hud('❤️'.repeat(Math.max(0, lives)) + ' WAVE ' + wave);
+    if (a.y > player.y-20 && a.y < player.y+20 && Math.abs(a.x-player.x) < 30) {
+      explosions.push({ x: a.x, y: a.y, t: 0.3 });
+      aliens.splice(i,1);
+      loseLife();
       if (lives <= 0) { Game.over(score); return; }
+      continue;
     }
-  }
-  // Bullet-alien collision
-  for (var b = bullets.length - 1; b >= 0; b--) {
-    var bullet = bullets[b];
-    for (var a2 = aliens.length - 1; a2 >= 0; a2--) {
-      var alien = aliens[a2];
-      var dx2 = bullet.x - alien.x;
-      var dy2 = bullet.y - alien.y;
-      if (dx2 * dx2 + dy2 * dy2 < (alien.r + 8) * (alien.r + 8)) {
-        bullets.splice(b, 1);
-        explosions.push({ x: alien.x, y: alien.y, life: 0.4, maxLife: 0.4 });
-        aliens.splice(a2, 1);
+    for (var j = bullets.length-1; j >= 0; j--) {
+      var b = bullets[j];
+      var dx = a.x-b.x, dy = a.y-b.y;
+      if (dx*dx+dy*dy < 400) {
+        explosions.push({ x: a.x, y: a.y, t: 0.3 });
+        aliens.splice(i,1);
+        bullets.splice(j,1);
         score += 10;
+        killCount++;
         Game.score(score);
-        Game.float(alien.x, alien.y, '+10', '#ffd166');
-        kills++;
-        if (kills % 10 === 0) {
-          wave = Math.floor(kills / 10) + 1;
-          Game.toast('WAVE +1');
-          waveToast = 1.5;
-          Game.hud('❤️'.repeat(Math.max(0, lives)) + ' WAVE ' + wave);
+        Game.float(a.x, a.y, '+10', '#ffd700');
+        if (killCount % TUNE.waveKills.v === 0) {
+          wave++;
+          waveDisplayTimer = 1.5;
+          Game.toast('WAVE ' + wave);
         }
         break;
       }
     }
   }
-  // Explosions
-  for (var e = explosions.length - 1; e >= 0; e--) {
-    explosions[e].life -= dt;
-    if (explosions[e].life <= 0) explosions.splice(e, 1);
+  for (var i = explosions.length-1; i >= 0; i--) {
+    explosions[i].t -= dt;
+    if (explosions[i].t <= 0) explosions.splice(i,1);
   }
-  if (shake > 0) shake -= dt;
-  if (waveToast > 0) waveToast -= dt;
+  if (waveDisplayTimer > 0) waveDisplayTimer -= dt;
 }
-function draw() {
-  ctx.fillStyle = '#0f1322';
-  ctx.fillRect(0, 0, W, H);
-  // Stars
+function draw(){
+  ctx.fillStyle = '#0a0a2e';
+  ctx.fillRect(0,0,W,H);
   ctx.fillStyle = '#ffffff';
-  for (var s = 0; s < stars.length; s++) {
-    ctx.globalAlpha = 0.5 + 0.5 * Math.random();
-    ctx.fillRect(stars[s].x, stars[s].y, stars[s].s, stars[s].s);
-  }
-  ctx.globalAlpha = 1;
-  var ox = shake > 0 ? (Math.random() * 6 - 3) : 0;
-  ctx.save();
-  ctx.translate(ox, 0);
-  // Draw aliens
+  for (var i = 0; i < stars.length; i++) ctx.fillRect(stars[i].x, stars[i].y, 2, 2);
+  ctx.font = "40px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = "36px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-  for (var i = 0; i < aliens.length; i++) {
-    ctx.fillText('👾', aliens[i].x, aliens[i].y);
-  }
-  // Draw bullets
-  for (var j = 0; j < bullets.length; j++) {
-    ctx.shadowColor = '#ffdd00';
-    ctx.shadowBlur = 15;
-    ctx.fillStyle = '#ffdd00';
+  ctx.fillText('\uD83D\uDEF8', player.x, player.y);
+  ctx.fillStyle = '#00ffff';
+  for (var i = 0; i < bullets.length; i++) {
     ctx.beginPath();
-    ctx.arc(bullets[j].x, bullets[j].y, 6, 0, Math.PI * 2);
+    ctx.arc(bullets[i].x, bullets[i].y, 4, 0, Math.PI*2);
     ctx.fill();
-    ctx.shadowBlur = 0;
   }
-  // Draw player
-  ctx.font = "48px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-  ctx.fillText('🛸', player.x, player.y);
-  // Draw explosions
-  for (var k = 0; k < explosions.length; k++) {
-    var e = explosions[k];
-    var alpha = e.life / e.maxLife;
-    ctx.globalAlpha = alpha;
-    ctx.font = Math.floor(36 * (1 + alpha)) + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-    ctx.fillText('💥', e.x, e.y);
+  ctx.font = "32px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  for (var i = 0; i < aliens.length; i++) ctx.fillText('\uD83D\uDC7E', aliens[i].x, aliens[i].y);
+  for (var i = 0; i < explosions.length; i++) {
+    ctx.globalAlpha = explosions[i].t / 0.3;
+    ctx.font = "28px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText('\uD83D\uDCA5', explosions[i].x, explosions[i].y);
+    ctx.globalAlpha = 1;
   }
-  ctx.globalAlpha = 1;
-  ctx.restore();
+  if (waveDisplayTimer > 0) {
+    ctx.fillStyle = '#ffd700';
+    ctx.font = 'bold 24px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('WAVE ' + wave, W/2, 80);
+  }
 }
-function onDown(x, y) {
-  player.x = Math.max(20, Math.min(W - 20, x));
+function onDown(x,y){ player.x = Math.max(20, Math.min(W-20, x)); }
+function onMove(x,y){ player.x = Math.max(20, Math.min(W-20, x)); }
+function loseLife(){
+  lives--;
+  var hearts = '';
+  for (var i = 0; i < lives; i++) hearts += '\u2764\uFE0F';
+  Game.hud(hearts);
 }
-function onMove(x, y) {
-  player.x = Math.max(20, Math.min(W - 20, x));
-}
-
 /*__VAPPA_JS_END__*/
 </script>
 </body></html>

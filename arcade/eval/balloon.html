@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
-<title>ふうせんチキンレース</title>
-<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%81%B5%E3%81%86%E3%81%9B%E3%82%93%E3%83%81%E3%82%AD%E3%83%B3%E3%83%AC%E3%83%BC%E3%82%B9%22%2C%22h%22%3A%22%E9%A2%A8%E8%88%B9%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%E3%81%97%E7%B6%9A%E3%81%91%E3%81%A6%E8%86%A8%E3%82%89%E3%81%BE%E3%81%9B%E3%80%81%E3%82%AE%E3%83%AA%E3%82%AE%E3%83%AA%E3%81%A7%E9%9B%A2%E3%81%97%E3%81%A6%E9%AB%98%E5%BE%97%E7%82%B9%E3%82%92%E7%8B%99%E3%81%88%EF%BC%81%E7%A0%B4%E8%A3%82%E3%81%99%E3%82%8B%E3%81%A80%E7%82%B9%E3%80%825%E5%80%8B%E6%8C%91%E6%88%A6%E3%80%82%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
+<title>風船チキンレース</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E9%A2%A8%E8%88%B9%E3%83%81%E3%82%AD%E3%83%B3%E3%83%AC%E3%83%BC%E3%82%B9%22%2C%22h%22%3A%22%E7%94%BB%E9%9D%A2%E3%82%92%E6%8A%BC%E3%81%97%E3%81%A6%E9%A2%A8%E8%88%B9%E3%82%92%E8%86%A8%E3%82%89%E3%81%BE%E3%81%9B%E3%80%81%E6%8C%87%E3%82%92%E9%9B%A2%E3%81%97%E3%81%A6%E5%A4%A7%E3%81%8D%E3%81%95%E3%82%92%E7%A2%BA%E5%AE%9A%EF%BC%81%5Cn%E5%A4%A7%E3%81%8D%E3%81%84%E3%81%BB%E3%81%A9%E9%AB%98%E5%BE%97%E7%82%B9%E3%81%A0%E3%81%8C%E3%80%81%E7%A0%B4%E8%A3%82%E3%81%99%E3%82%8B%E3%81%A80%E7%82%B9%EF%BC%81%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
 #vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+/* ゲームが作るDOM UIの器。論理390x844座標系のまま実画面へ拡縮される */
+#vpdom{position:fixed;left:0;top:0;width:390px;height:844px;z-index:2;pointer-events:none;transform-origin:0 0;overflow:hidden}
+#vpdom *{pointer-events:auto}
 .vp-hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top) + 10px) 14px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
 .vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
 .vp-hud span:empty{display:none}
@@ -26,11 +29,13 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
 </style>
 </head><body>
 <canvas id="vpc"></canvas>
+<div id="vpdom"></div>
 <div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
 <div class="vp-toast" id="vptoast"></div>
 <div class="vp-ov" id="vpov">
-  <h1>ふうせんチキンレース</h1>
-  <p>風船をタップし続けて膨らませ、ギリギリで離して高得点を狙え！破裂すると0点。5個挑戦。</p>
+  <h1>風船チキンレース</h1>
+  <p>画面を押して風船を膨らませ、指を離して大きさを確定！
+大きいほど高得点だが、破裂すると0点！</p>
   <button class="vp-btn" id="vpstart">スタート</button>
 </div>
 <script id="vpimgs">
@@ -40,13 +45,28 @@ window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
 <script>
 window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
 var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
-var W=0,H=0;
+// 論理画面は 390x844 固定。全端末でこのサイズとして描き、ランタイムが実画面へ拡縮する
+// （レターボックス）。ゲームコードは端末差を一切考えなくてよい。
+var W=390,H=844;
+var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
 (function(){
 "use strict";
 var DPR=Math.min(2,window.devicePixelRatio||1);
-function rs(){W=window.innerWidth;H=window.innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);
-  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}}
+function rs(){
+  var vw=window.innerWidth,vh=window.innerHeight;
+  __SC=Math.min(vw/W,vh/H);
+  __OX=(vw-W*__SC)/2;__OY=(vh-H*__SC)/2;
+  cv.width=vw*DPR;cv.height=vh*DPR;
+  ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
+  ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
+  var dom=document.getElementById("vpdom");
+  if(dom){dom.style.transform="scale("+__SC+")";dom.style.left=__OX+"px";dom.style.top=__OY+"px";}
+  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
+}
 window.addEventListener("resize",rs);rs();
+// 実画面座標→論理座標（タッチ入力用）
+function toLX(x){return (x-__OX)/__SC;}
+function toLY(y){return (y-__OY)/__SC;}
 var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="点";
 // ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
 var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
@@ -86,9 +106,9 @@ function fire(fn,x,y,id){
 // pointer と touch を両対応（iOSのiframe内などpointerが飛ばない環境へのフォールバック）。
 // pointerが一度でも来たらtouchは無視して二重発火を防ぐ。
 var seenPointer=false;
-window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",e.clientX,e.clientY,e.pointerId);fire("onMove",e.clientX,e.clientY,e.pointerId);});
-window.addEventListener("pointermove",function(e){fire("onMove",e.clientX,e.clientY,e.pointerId);});
-window.addEventListener("pointerup",function(e){fire("onUp",e.clientX,e.clientY,e.pointerId);});
+window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",toLX(e.clientX),toLY(e.clientY),e.pointerId);fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointermove",function(e){fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointerup",function(e){fire("onUp",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
 // タッチの扱い（iOS対策の要点）：
 //  - touchstart は preventDefault しない
 //  - touchmove は非passiveで preventDefault → パン/スクロール横取りはこれで止まる
@@ -97,17 +117,17 @@ window.addEventListener("pointerup",function(e){fire("onUp",e.clientX,e.clientY,
 //  - pointerイベントが来る環境では発火だけ二重防止（seenPointer）
 function tfire(fn,e){
   if(seenPointer)return;
-  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,t.clientX,t.clientY,t.identifier);
-    if(fn==="onDown")fire("onMove",t.clientX,t.clientY,t.identifier);}
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,toLX(t.clientX),toLY(t.clientY),t.identifier);
+    if(fn==="onDown")fire("onMove",toLX(t.clientX),toLY(t.clientY),t.identifier);}
 }
 function uiTouch(e){var t=e.target;return !!(t&&t.closest&&t.closest("button,a,input,select,label"));}
 window.addEventListener("touchstart",function(e){tfire("onDown",e);},{passive:true});
 window.addEventListener("touchmove",function(e){if(e.cancelable)e.preventDefault();tfire("onMove",e);},{passive:false});
 window.addEventListener("touchend",function(e){if(e.cancelable&&!uiTouch(e))e.preventDefault();tfire("onUp",e);},{passive:false});
 document.addEventListener("gesturestart",function(e){e.preventDefault();});
-window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",e.clientX,e.clientY,0);});
-window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",e.clientX,e.clientY,0);});
-window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",e.clientX,e.clientY,0);});
+window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",toLX(e.clientX),toLY(e.clientY),0);});
 window.Arcade.onPause(function(){paused=true;});
 window.Arcade.onResume(function(){paused=false;last=performance.now();});
 window.Arcade.onRestart(start);
@@ -133,170 +153,107 @@ window.__vpTap=function(){
 </script>
 <script id="vpgame">
 /*__VAPPA_JS__*/
-var TUNE = {
-  baseRadius: { v: 70, label: '基本破裂半径', min: 40, max: 120, step: 5 },
-  rangeBase: { v: 15, label: '範囲ベース', min: 5, max: 30, step: 5 },
-  rangeIncrease: { v: 10, label: '範囲増加/個', min: 0, max: 20, step: 2 },
-  growSpeed: { v: 60, label: '膨張速度(半径/秒)', min: 30, max: 120, step: 10 },
-  shakeThreshold: { v: 0.9, label: '震え開始割合', min: 0.7, max: 1.0, step: 0.05 },
-  resultDisplayTime: { v: 0.8, label: '結果表示時間(秒)', min: 0.3, max: 2.0, step: 0.1 }
-};
-var totalScore, currentBalloon, state, resultTimer, burstFlag, currentRadius, burstRadius, resultScore, balloonPositions;
+var TUNE = { inflationSpeed: { v: 60, label: '膨らむ速さ(半径/秒)', min: 30, max: 120, step: 10 }, baseBurstMin: { v: 50, label: '破裂下限', min: 30, max: 80, step: 5 }, baseBurstMax: { v: 70, label: '破裂上限(初回)', min: 50, max: 100, step: 5 }, burstVarianceStep: { v: 15, label: '後半へのばらつき追加', min: 0, max: 40, step: 5 }, showTime: { v: 1.0, label: '結果表示時間(秒)', min: 0.5, max: 2.0, step: 0.1 } };
+var state, currentIndex, currentRadius, burstRadius, showTimer, totalScore, isHolding;
 function init(){
-  totalScore = 0;
-  currentBalloon = 0;
   state = 'ready';
-  resultTimer = 0;
-  burstFlag = false;
-  currentRadius = 0;
-  balloonPositions = [];
-  for (var i = 0; i < 5; i++){
-    balloonPositions.push({ x: W * (i+1) / 6, y: H * 0.4 });
-  }
-  Game.hud('\ud83c\udf88 1/5');
+  currentIndex = 0;
+  totalScore = 0;
+  currentRadius = 10;
+  showTimer = 0;
+  isHolding = false;
   Game.score(0);
+  Game.hud('🎈 1/5');
+  generateBurstRadius();
+}
+function generateBurstRadius(){
+  var min = TUNE.baseBurstMin.v;
+  var max = TUNE.baseBurstMax.v + currentIndex * TUNE.burstVarianceStep.v;
+  burstRadius = min + Math.random() * (max - min);
 }
 function update(dt){
-  if (state === 'inflating'){
-    currentRadius += TUNE.growSpeed.v * dt;
+  if (state === 'inflating' && isHolding){
+    currentRadius += TUNE.inflationSpeed.v * dt;
     if (currentRadius >= burstRadius){
-      state = 'result';
-      resultTimer = TUNE.resultDisplayTime.v;
-      burstFlag = true;
-      resultScore = 0;
+      state = 'burst';
+      showTimer = TUNE.showTime.v;
     }
-  } else if (state === 'result'){
-    resultTimer -= dt;
-    if (resultTimer <= 0){
-      if (currentBalloon < 4){
-        currentBalloon++;
-        state = 'ready';
-        Game.hud('\ud83c\udf88 ' + (currentBalloon+1) + '/5');
-      } else {
-        Game.over(totalScore);
-      }
+  }
+  if (state === 'popped' || state === 'burst'){
+    showTimer -= dt;
+    if (showTimer <= 0){
+      nextBalloon();
     }
   }
 }
 function draw(){
-  ctx.fillStyle = '#fce4ec';
-  ctx.fillRect(0, 0, W, H);
-  var pos = balloonPositions[currentBalloon];
-  if (state === 'ready'){
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = '16px sans-serif';
-    ctx.fillStyle = '#888';
-    ctx.fillText('\u30bf\u30c3\u30d7\u3057\u3066\u86a8\u3089\u307e\u305b\u308b', pos.x, pos.y);
-  } else if (state === 'inflating'){
-    var r = currentRadius;
+  ctx.fillStyle = '#fdf6e3';
+  ctx.fillRect(0,0,W,H);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  if (state === 'ready' || state === 'inflating'){
+    var fontsize = currentRadius * 2;
+    ctx.font = fontsize + 'px "Apple Color Emoji","Noto Color Emoji",sans-serif';
     var shake = 0;
-    if (currentRadius > burstRadius * TUNE.shakeThreshold.v){
-      shake = 3;
+    if (state === 'inflating'){
+      var ratio = currentRadius / burstRadius;
+      if (ratio > 0.85){
+        shake = Math.sin(Date.now() * 0.02) * (ratio - 0.85) * 20;
+      }
     }
-    var dx = (Math.random() - 0.5) * 2 * shake;
-    var dy = (Math.random() - 0.5) * 2 * shake;
-    var x = pos.x + dx;
-    var y = pos.y + dy;
-    ctx.beginPath();
-    ctx.moveTo(x, y + r);
-    ctx.lineTo(x, y + r + 40);
-    ctx.strokeStyle = '#999';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.fillStyle = '#ff6b6b';
-    ctx.beginPath();
-    ctx.moveTo(x - 5, y + r - 2);
-    ctx.lineTo(x + 5, y + r - 2);
-    ctx.lineTo(x, y + r + 5);
-    ctx.closePath();
-    ctx.fill();
-    var grad = ctx.createRadialGradient(x - 10, y - 10, 0, x, y, r);
-    grad.addColorStop(0, 'rgba(255,255,255,0.9)');
-    var saturation = 30 + (currentRadius / burstRadius) * 70;
-    var lightness = 70;
-    var color = 'hsl(0, ' + saturation + '%, ' + lightness + '%)';
-    grad.addColorStop(0.7, color);
-    grad.addColorStop(1, 'hsl(0, 80%, 50%)');
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.1)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-  } else if (state === 'result'){
-    if (burstFlag){
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.font = "60px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-      ctx.fillText('\ud83d\udca5', pos.x, pos.y - 20);
-      ctx.font = '24px sans-serif';
-      ctx.fillStyle = '#ff6b6b';
-      ctx.fillText('\u30d1\u30f3\u30c3\uff01', pos.x, pos.y + 30);
-    } else {
-      var r = currentRadius;
-      ctx.beginPath();
-      ctx.moveTo(pos.x, pos.y + r);
-      ctx.lineTo(pos.x, pos.y + r + 40);
-      ctx.strokeStyle = '#999';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.fillStyle = '#ff6b6b';
-      ctx.beginPath();
-      ctx.moveTo(pos.x - 5, pos.y + r - 2);
-      ctx.lineTo(pos.x + 5, pos.y + r - 2);
-      ctx.lineTo(pos.x, pos.y + r + 5);
-      ctx.closePath();
-      ctx.fill();
-      var grad = ctx.createRadialGradient(pos.x - 10, pos.y - 10, 0, pos.x, pos.y, r);
-      grad.addColorStop(0, 'rgba(255,255,255,0.9)');
-      var saturation = 30 + (currentRadius / burstRadius) * 70;
-      var color = 'hsl(0, ' + saturation + '%, 70%)';
-      grad.addColorStop(0.7, color);
-      grad.addColorStop(1, 'hsl(0, 80%, 50%)');
-      ctx.beginPath();
-      ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
-      ctx.fillStyle = grad;
-      ctx.fill();
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.font = '36px sans-serif';
-      ctx.fillStyle = '#333';
-      ctx.fillText('+' + resultScore, pos.x, pos.y);
-    }
+    ctx.fillText('🎈', W/2 + shake, H/2);
+  } else if (state === 'popped'){
+    var fontsize = currentRadius * 2;
+    ctx.font = fontsize + 'px "Apple Color Emoji","Noto Color Emoji",sans-serif';
+    ctx.fillText('🎈', W/2, H/2);
+    var scoreThis = Math.floor(100 * currentRadius / burstRadius);
+    ctx.font = '24px sans-serif';
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillText('+' + scoreThis, W/2, H/2 - currentRadius - 20);
+  } else if (state === 'burst'){
+    ctx.font = '60px "Apple Color Emoji","Noto Color Emoji",sans-serif';
+    ctx.fillText('💥', W/2, H/2);
+    ctx.font = '28px sans-serif';
+    ctx.fillStyle = '#ef4444';
+    ctx.fillText('パンッ！', W/2, H/2 + 40);
   }
 }
 function onDown(x, y){
   if (state === 'ready'){
     state = 'inflating';
-    currentRadius = 0;
-    var variance = TUNE.rangeBase.v + currentBalloon * TUNE.rangeIncrease.v;
-    burstRadius = TUNE.baseRadius.v + (Math.random() * 2 - 1) * variance;
-    if (burstRadius < 10) burstRadius = 10;
-    burstFlag = false;
+    isHolding = true;
+    currentRadius = 10;
   }
 }
 function onUp(x, y){
   if (state === 'inflating'){
-    if (currentRadius >= burstRadius){
-      state = 'result';
-      resultTimer = TUNE.resultDisplayTime.v;
-      burstFlag = true;
-      resultScore = 0;
-    } else {
-      state = 'result';
-      resultTimer = TUNE.resultDisplayTime.v;
-      burstFlag = false;
-      resultScore = Math.min(Math.floor((currentRadius / burstRadius) * 100), 100);
-      if (resultScore < 1) resultScore = 1;
-      totalScore += resultScore;
+    if (currentRadius < burstRadius){
+      state = 'popped';
+      showTimer = TUNE.showTime.v;
+      var scoreThis = Math.floor(100 * currentRadius / burstRadius);
+      totalScore += scoreThis;
       Game.score(totalScore);
-      Game.float(balloonPositions[currentBalloon].x, balloonPositions[currentBalloon].y - 30, '+' + resultScore + '\u70b9', '#ff6b6b');
+      Game.float(W/2, H/2 - currentRadius - 10, '+' + scoreThis, '#f59e0b');
+    } else {
+      state = 'burst';
+      showTimer = TUNE.showTime.v;
     }
+    isHolding = false;
   }
 }
-
+function nextBalloon(){
+  currentIndex++;
+  if (currentIndex >= 5){
+    Game.hud('');
+    Game.over(totalScore);
+    return;
+  }
+  state = 'ready';
+  currentRadius = 10;
+  Game.hud('🎈 ' + (currentIndex+1) + '/5');
+  generateBurstRadius();
+}
+function onMove(x, y, id){}
 /*__VAPPA_JS_END__*/
 </script>
 </body></html>

@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
-<title>恐竜ジャンプランナー</title>
-<!--VAPPA_TPL1 %7B%22t%22%3A%22%E6%81%90%E7%AB%9C%E3%82%B8%E3%83%A3%E3%83%B3%E3%83%97%E3%83%A9%E3%83%B3%E3%83%8A%E3%83%BC%22%2C%22h%22%3A%22%E7%94%BB%E9%9D%A2%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%E3%81%A7%E3%82%B8%E3%83%A3%E3%83%B3%E3%83%97%EF%BC%81%5Cn%E3%82%B5%E3%83%9C%E3%83%86%E3%83%B3%E3%82%92%E9%81%BF%E3%81%91%E3%81%A6%E8%B5%B0%E3%82%8A%E7%B6%9A%E3%81%91%E3%82%8D%EF%BC%81%22%2C%22u%22%3A%22%E5%80%8B%22%7D-->
+<title>恐竜ランナー</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E6%81%90%E7%AB%9C%E3%83%A9%E3%83%B3%E3%83%8A%E3%83%BC%22%2C%22h%22%3A%22%E3%82%BF%E3%83%83%E3%83%97%E3%81%A7%E3%82%B8%E3%83%A3%E3%83%B3%E3%83%97%EF%BC%81%E3%82%B5%E3%83%9C%E3%83%86%E3%83%B3%E3%82%92%E9%81%BF%E3%81%91%E3%81%A6%E8%B5%B0%E3%82%8A%E7%B6%9A%E3%81%91%E3%82%88%E3%81%86%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
 #vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+/* ゲームが作るDOM UIの器。論理390x844座標系のまま実画面へ拡縮される */
+#vpdom{position:fixed;left:0;top:0;width:390px;height:844px;z-index:2;pointer-events:none;transform-origin:0 0;overflow:hidden}
+#vpdom *{pointer-events:auto}
 .vp-hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top) + 10px) 14px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
 .vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
 .vp-hud span:empty{display:none}
@@ -26,12 +29,12 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
 </style>
 </head><body>
 <canvas id="vpc"></canvas>
-<div class="vp-hud" id="vphud" hidden><span id="vphl">0個</span><span id="vphr"></span></div>
+<div id="vpdom"></div>
+<div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
 <div class="vp-toast" id="vptoast"></div>
 <div class="vp-ov" id="vpov">
-  <h1>恐竜ジャンプランナー</h1>
-  <p>画面をタップでジャンプ！
-サボテンを避けて走り続けろ！</p>
+  <h1>恐竜ランナー</h1>
+  <p>タップでジャンプ！サボテンを避けて走り続けよう</p>
   <button class="vp-btn" id="vpstart">スタート</button>
 </div>
 <script id="vpimgs">
@@ -41,14 +44,29 @@ window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
 <script>
 window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
 var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
-var W=0,H=0;
+// 論理画面は 390x844 固定。全端末でこのサイズとして描き、ランタイムが実画面へ拡縮する
+// （レターボックス）。ゲームコードは端末差を一切考えなくてよい。
+var W=390,H=844;
+var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
 (function(){
 "use strict";
 var DPR=Math.min(2,window.devicePixelRatio||1);
-function rs(){W=window.innerWidth;H=window.innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);
-  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}}
+function rs(){
+  var vw=window.innerWidth,vh=window.innerHeight;
+  __SC=Math.min(vw/W,vh/H);
+  __OX=(vw-W*__SC)/2;__OY=(vh-H*__SC)/2;
+  cv.width=vw*DPR;cv.height=vh*DPR;
+  ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
+  ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
+  var dom=document.getElementById("vpdom");
+  if(dom){dom.style.transform="scale("+__SC+")";dom.style.left=__OX+"px";dom.style.top=__OY+"px";}
+  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
+}
 window.addEventListener("resize",rs);rs();
-var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="個";
+// 実画面座標→論理座標（タッチ入力用）
+function toLX(x){return (x-__OX)/__SC;}
+function toLY(y){return (y-__OY)/__SC;}
+var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="点";
 // ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
 var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
 var hud=document.getElementById("vphud"),hl=document.getElementById("vphl"),hr=document.getElementById("vphr");
@@ -87,9 +105,9 @@ function fire(fn,x,y,id){
 // pointer と touch を両対応（iOSのiframe内などpointerが飛ばない環境へのフォールバック）。
 // pointerが一度でも来たらtouchは無視して二重発火を防ぐ。
 var seenPointer=false;
-window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",e.clientX,e.clientY,e.pointerId);fire("onMove",e.clientX,e.clientY,e.pointerId);});
-window.addEventListener("pointermove",function(e){fire("onMove",e.clientX,e.clientY,e.pointerId);});
-window.addEventListener("pointerup",function(e){fire("onUp",e.clientX,e.clientY,e.pointerId);});
+window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",toLX(e.clientX),toLY(e.clientY),e.pointerId);fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointermove",function(e){fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointerup",function(e){fire("onUp",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
 // タッチの扱い（iOS対策の要点）：
 //  - touchstart は preventDefault しない
 //  - touchmove は非passiveで preventDefault → パン/スクロール横取りはこれで止まる
@@ -98,17 +116,17 @@ window.addEventListener("pointerup",function(e){fire("onUp",e.clientX,e.clientY,
 //  - pointerイベントが来る環境では発火だけ二重防止（seenPointer）
 function tfire(fn,e){
   if(seenPointer)return;
-  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,t.clientX,t.clientY,t.identifier);
-    if(fn==="onDown")fire("onMove",t.clientX,t.clientY,t.identifier);}
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,toLX(t.clientX),toLY(t.clientY),t.identifier);
+    if(fn==="onDown")fire("onMove",toLX(t.clientX),toLY(t.clientY),t.identifier);}
 }
 function uiTouch(e){var t=e.target;return !!(t&&t.closest&&t.closest("button,a,input,select,label"));}
 window.addEventListener("touchstart",function(e){tfire("onDown",e);},{passive:true});
 window.addEventListener("touchmove",function(e){if(e.cancelable)e.preventDefault();tfire("onMove",e);},{passive:false});
 window.addEventListener("touchend",function(e){if(e.cancelable&&!uiTouch(e))e.preventDefault();tfire("onUp",e);},{passive:false});
 document.addEventListener("gesturestart",function(e){e.preventDefault();});
-window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",e.clientX,e.clientY,0);});
-window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",e.clientX,e.clientY,0);});
-window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",e.clientX,e.clientY,0);});
+window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",toLX(e.clientX),toLY(e.clientY),0);});
 window.Arcade.onPause(function(){paused=true;});
 window.Arcade.onResume(function(){paused=false;last=performance.now();});
 window.Arcade.onRestart(start);
@@ -135,107 +153,116 @@ window.__vpTap=function(){
 <script id="vpgame">
 /*__VAPPA_JS__*/
 var TUNE = {
-  speed: { v: 200, label: '初期速度', min: 100, max: 400, step: 10 },
-  accel: { v: 5, label: '加速', min: 1, max: 20, step: 1 },
-  jumpVel: { v: 400, label: 'ジャンプ力', min: 250, max: 600, step: 10 },
-  gravity: { v: 900, label: '重力', min: 600, max: 1200, step: 50 },
-  spawnMin: { v: 0.5, label: '出現間隔(最小)', min: 0.2, max: 1.0, step: 0.1 },
-  spawnMax: { v: 1.5, label: '出現間隔(最大)', min: 1.0, max: 2.5, step: 0.1 }
+  baseSpeed: { v: 200, label: '基本速度', min: 100, max: 500, step: 10 },
+  speedIncrease: { v: 10, label: '加速度', min: 0, max: 50, step: 5 },
+  spawnInterval: { v: 1.2, label: '出現間隔(初期)', min: 0.5, max: 3, step: 0.1 },
+  minSpawnInterval: { v: 0.4, label: '最小間隔', min: 0.2, max: 1, step: 0.1 },
+  jumpPower: { v: 450, label: 'ジャンプ力', min: 300, max: 700, step: 10 },
+  gravity: { v: 1200, label: '重力', min: 800, max: 1800, step: 100 }
 };
-var player, obstacles, score, currentSpeed, spawnTimer, groundY, gradient;
+
+var player, obstacles, speed, spawnTimer, score, gameOver, groundY, time;
+
 function init() {
-  player = { x: W * 0.25, y: 0, vy: 0, onGround: true, rot: 0 };
+  groundY = H - 100;
+  player = { x: 120, y: groundY - 20, vy: 0, jumping: false, rotation: 0, width: 30, height: 40 };
   obstacles = [];
-  score = 0;
-  currentSpeed = TUNE.speed.v;
+  speed = TUNE.baseSpeed.v;
   spawnTimer = 0;
-  groundY = H * 0.75;
-  var grd = ctx.createLinearGradient(0, 0, 0, H);
-  grd.addColorStop(0, '#ff7e5f');
-  grd.addColorStop(0.5, '#feb47b');
-  grd.addColorStop(1, '#2d1b69');
-  gradient = grd;
-  player.y = groundY;
+  score = 0;
+  gameOver = false;
+  time = 0;
   Game.score(0);
+  Game.hud('');
 }
+
 function update(dt) {
-  currentSpeed += TUNE.accel.v * dt;
-  if (!player.onGround) {
-    player.vy += TUNE.gravity.v * dt;
-    player.y += player.vy * dt;
-    player.rot = player.vy * 0.003;
-    if (player.y >= groundY) {
-      player.y = groundY;
-      player.vy = 0;
-      player.onGround = true;
-      player.rot = 0;
-    }
-  }
+  if (gameOver) return;
+  time += dt;
+  speed += TUNE.speedIncrease.v * dt;
   spawnTimer -= dt;
   if (spawnTimer <= 0) {
-    var interval = TUNE.spawnMin.v + Math.random() * (TUNE.spawnMax.v - TUNE.spawnMin.v);
+    var interval = TUNE.spawnInterval.v - time * 0.01;
+    if (interval < TUNE.minSpawnInterval.v) interval = TUNE.minSpawnInterval.v;
     spawnTimer = interval;
-    obstacles.push({ x: W + 20, y: groundY, w: 30, h: 30, scored: false });
+    var obstacle = { x: W + 30, y: groundY - 15, width: 30, height: 30, scored: false };
+    obstacles.push(obstacle);
   }
-  for (var i = obstacles.length - 1; i >= 0; i--) {
-    var ob = obstacles[i];
-    ob.x -= currentSpeed * dt;
-    var dx = player.x - ob.x;
-    var dy = (player.y - 16) - (ob.y - 16);
-    var dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < 30) {
-      Game.over(score);
-      return;
+  var i, obs;
+  var px = player.x, py = player.y;
+  for (i = obstacles.length - 1; i >= 0; i--) {
+    obs = obstacles[i];
+    obs.x -= speed * dt;
+    if (!gameOver) {
+      var overlapX = (px - 15 < obs.x + 15 && px + 15 > obs.x - 15);
+      var overlapY = (py - 20 < obs.y + 15 && py + 20 > obs.y - 15);
+      if (overlapX && overlapY) {
+        gameOver = true;
+        Game.over(score);
+        return;
+      }
     }
-    if (!ob.scored && ob.x + 20 < player.x) {
-      ob.scored = true;
+    if (!obs.scored && obs.x < px - 30) {
+      obs.scored = true;
       score++;
       Game.score(score);
-      Game.float(player.x, player.y - 40, '+1', '#ffd700');
+      Game.float(px + 40, py - 20, '+1', '#ffd166');
     }
-    if (ob.x < -50) {
+    if (obs.x < -50) {
       obstacles.splice(i, 1);
     }
   }
+  if (player.jumping) {
+    player.vy += TUNE.gravity.v * dt;
+    player.y += player.vy * dt;
+    if (player.y >= groundY - 20) {
+      player.y = groundY - 20;
+      player.vy = 0;
+      player.jumping = false;
+      player.rotation = 0;
+    } else {
+      player.rotation = player.vy * 0.02;
+      if (player.rotation > 0.5) player.rotation = 0.5;
+      if (player.rotation < -0.5) player.rotation = -0.5;
+    }
+  }
 }
+
 function draw() {
-  ctx.fillStyle = gradient;
+  var grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#ff7e5f');
+  grad.addColorStop(0.5, '#feb47b');
+  grad.addColorStop(1, '#ffcc80');
+  ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = '#3a2a1a';
-  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#5a3e1b';
+  ctx.lineWidth = 4;
   ctx.beginPath();
   ctx.moveTo(0, groundY);
   ctx.lineTo(W, groundY);
   ctx.stroke();
-  ctx.font = "30px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
+  ctx.font = "32px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
   for (var i = 0; i < obstacles.length; i++) {
-    var ob = obstacles[i];
-    ctx.fillText('🌵', ob.x, ob.y - 15);
+    var obs = obstacles[i];
+    ctx.fillText('🌵', obs.x, obs.y);
   }
   ctx.save();
-  ctx.translate(player.x, player.y - 15);
-  ctx.rotate(player.rot);
+  ctx.translate(player.x, player.y);
+  ctx.rotate(player.rotation);
   ctx.font = "36px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('🦖', 0, 0);
   ctx.restore();
 }
+
 function onDown(x, y) {
-  if (player.onGround) {
-    player.vy = -TUNE.jumpVel.v;
-    player.onGround = false;
+  if (!gameOver && !player.jumping) {
+    player.jumping = true;
+    player.vy = -TUNE.jumpPower.v;
   }
-}
-function onResize() {
-  groundY = H * 0.75;
-  var grd = ctx.createLinearGradient(0, 0, 0, H);
-  grd.addColorStop(0, '#ff7e5f');
-  grd.addColorStop(0.5, '#feb47b');
-  grd.addColorStop(1, '#2d1b69');
-  gradient = grd;
 }
 /*__VAPPA_JS_END__*/
 </script>

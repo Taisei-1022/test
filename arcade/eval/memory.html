@@ -2,11 +2,14 @@
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
 <title>ひかりの記憶</title>
-<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%81%B2%E3%81%8B%E3%82%8A%E3%81%AE%E8%A8%98%E6%86%B6%22%2C%22h%22%3A%22%E5%85%89%E3%82%8B%E9%A0%86%E7%95%AA%E3%82%92%E8%A6%9A%E3%81%88%E3%81%A6%E3%80%81%E5%90%8C%E3%81%98%E9%A0%86%E3%81%AB%E3%82%BF%E3%83%83%E3%83%97%E3%81%97%E3%82%88%E3%81%86%EF%BC%81%E9%96%93%E9%81%95%E3%81%88%E3%81%9F%E3%82%89%E7%B5%82%E4%BA%86%E3%80%82%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%81%B2%E3%81%8B%E3%82%8A%E3%81%AE%E8%A8%98%E6%86%B6%22%2C%22h%22%3A%22%E3%83%91%E3%83%8D%E3%83%AB%E3%81%8C%E5%85%89%E3%82%8B%E9%A0%86%E7%95%AA%E3%82%92%E8%A6%9A%E3%81%88%E3%81%A6%E3%80%81%E5%90%8C%E3%81%98%E9%A0%86%E3%81%AB%E3%82%BF%E3%83%83%E3%83%97%EF%BC%81%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
 #vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+/* ゲームが作るDOM UIの器。論理390x844座標系のまま実画面へ拡縮される */
+#vpdom{position:fixed;left:0;top:0;width:390px;height:844px;z-index:2;pointer-events:none;transform-origin:0 0;overflow:hidden}
+#vpdom *{pointer-events:auto}
 .vp-hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:calc(env(safe-area-inset-top) + 10px) 14px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
 .vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
 .vp-hud span:empty{display:none}
@@ -26,11 +29,12 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
 </style>
 </head><body>
 <canvas id="vpc"></canvas>
+<div id="vpdom"></div>
 <div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
 <div class="vp-toast" id="vptoast"></div>
 <div class="vp-ov" id="vpov">
   <h1>ひかりの記憶</h1>
-  <p>光る順番を覚えて、同じ順にタップしよう！間違えたら終了。</p>
+  <p>パネルが光る順番を覚えて、同じ順にタップ！</p>
   <button class="vp-btn" id="vpstart">スタート</button>
 </div>
 <script id="vpimgs">
@@ -40,13 +44,28 @@ window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
 <script>
 window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
 var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
-var W=0,H=0;
+// 論理画面は 390x844 固定。全端末でこのサイズとして描き、ランタイムが実画面へ拡縮する
+// （レターボックス）。ゲームコードは端末差を一切考えなくてよい。
+var W=390,H=844;
+var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
 (function(){
 "use strict";
 var DPR=Math.min(2,window.devicePixelRatio||1);
-function rs(){W=window.innerWidth;H=window.innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);
-  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}}
+function rs(){
+  var vw=window.innerWidth,vh=window.innerHeight;
+  __SC=Math.min(vw/W,vh/H);
+  __OX=(vw-W*__SC)/2;__OY=(vh-H*__SC)/2;
+  cv.width=vw*DPR;cv.height=vh*DPR;
+  ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
+  ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
+  var dom=document.getElementById("vpdom");
+  if(dom){dom.style.transform="scale("+__SC+")";dom.style.left=__OX+"px";dom.style.top=__OY+"px";}
+  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
+}
 window.addEventListener("resize",rs);rs();
+// 実画面座標→論理座標（タッチ入力用）
+function toLX(x){return (x-__OX)/__SC;}
+function toLY(y){return (y-__OY)/__SC;}
 var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="点";
 // ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
 var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
@@ -86,9 +105,9 @@ function fire(fn,x,y,id){
 // pointer と touch を両対応（iOSのiframe内などpointerが飛ばない環境へのフォールバック）。
 // pointerが一度でも来たらtouchは無視して二重発火を防ぐ。
 var seenPointer=false;
-window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",e.clientX,e.clientY,e.pointerId);fire("onMove",e.clientX,e.clientY,e.pointerId);});
-window.addEventListener("pointermove",function(e){fire("onMove",e.clientX,e.clientY,e.pointerId);});
-window.addEventListener("pointerup",function(e){fire("onUp",e.clientX,e.clientY,e.pointerId);});
+window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",toLX(e.clientX),toLY(e.clientY),e.pointerId);fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointermove",function(e){fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointerup",function(e){fire("onUp",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
 // タッチの扱い（iOS対策の要点）：
 //  - touchstart は preventDefault しない
 //  - touchmove は非passiveで preventDefault → パン/スクロール横取りはこれで止まる
@@ -97,17 +116,17 @@ window.addEventListener("pointerup",function(e){fire("onUp",e.clientX,e.clientY,
 //  - pointerイベントが来る環境では発火だけ二重防止（seenPointer）
 function tfire(fn,e){
   if(seenPointer)return;
-  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,t.clientX,t.clientY,t.identifier);
-    if(fn==="onDown")fire("onMove",t.clientX,t.clientY,t.identifier);}
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,toLX(t.clientX),toLY(t.clientY),t.identifier);
+    if(fn==="onDown")fire("onMove",toLX(t.clientX),toLY(t.clientY),t.identifier);}
 }
 function uiTouch(e){var t=e.target;return !!(t&&t.closest&&t.closest("button,a,input,select,label"));}
 window.addEventListener("touchstart",function(e){tfire("onDown",e);},{passive:true});
 window.addEventListener("touchmove",function(e){if(e.cancelable)e.preventDefault();tfire("onMove",e);},{passive:false});
 window.addEventListener("touchend",function(e){if(e.cancelable&&!uiTouch(e))e.preventDefault();tfire("onUp",e);},{passive:false});
 document.addEventListener("gesturestart",function(e){e.preventDefault();});
-window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",e.clientX,e.clientY,0);});
-window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",e.clientX,e.clientY,0);});
-window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",e.clientX,e.clientY,0);});
+window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",toLX(e.clientX),toLY(e.clientY),0);});
 window.Arcade.onPause(function(){paused=true;});
 window.Arcade.onResume(function(){paused=false;last=performance.now();});
 window.Arcade.onRestart(start);
@@ -134,84 +153,117 @@ window.__vpTap=function(){
 <script id="vpgame">
 /*__VAPPA_JS__*/
 var TUNE = {
-  flashDuration: { v: 0.6, label: '光る時間(秒)', min: 0.2, max: 1.5, step: 0.1 },
-  pauseDuration: { v: 0.3, label: '間隔(秒)', min: 0.1, max: 1, step: 0.05 },
-  speedUp: { v: 0.05, label: '毎ラウンド短縮(秒)', min: 0, max: 0.2, step: 0.01 },
-  panelR: { v: 12, label: '角丸半径', min: 4, max: 30, step: 2 }
+  showInterval: { v: 0.8, label: '光る間隔(秒)', min: 0.3, max: 1.5, step: 0.1 },
+  flashDuration: { v: 0.3, label: '光る時間(秒)', min: 0.1, max: 0.8, step: 0.05 },
+  roundSpeedUp: { v: 0.02, label: '毎ラウンド短縮(秒)', min: 0, max: 0.1, step: 0.01 },
+  initialLength: { v: 2, label: '最初の光る回数', min: 1, max: 5, step: 1 }
 };
-var colors = ['#ff4444', '#4488ff', '#44ff44', '#ffdd44'];
-var colorsBright = ['#ff8888', '#88bbff', '#88ff88', '#ffee88'];
-var colorsDark = ['#cc3333', '#3366cc', '#33cc33', '#ccaa33'];
-var phase, sequence, round, score, showIndex, showSubState, showSubTimer, inputIndex, pressTimers, currentFlashDur, currentPauseDur, panelRects;
+var colors = ['#e74c3c','#3498db','#2ecc71','#f1c40f'];
+var darkColors = ['#8b1a1a','#1a4b7a','#1a6e3a','#9a7e00'];
+var panels = [];
+var sequence = [];
+var playerIndex = 0;
+var phase = 'showing';
+var showIndex = 0;
+var showTimer = 0;
+var flashTimer = 0;
+var currentFlash = -1;
+var round = 1;
+var score = 0;
+var panelSize = 150;
+var gap = 20;
+var gridX = 35;
+var gridY = 275;
 
 function init() {
+  panels = [];
+  for (var i = 0; i < 4; i++) {
+    var col = i % 2;
+    var row = Math.floor(i / 2);
+    panels.push({
+      x: gridX + col * (panelSize + gap),
+      y: gridY + row * (panelSize + gap),
+      w: panelSize,
+      h: panelSize,
+      color: colors[i],
+      dark: darkColors[i],
+      pressed: false
+    });
+  }
   sequence = [];
-  round = 0;
-  score = 0;
+  playerIndex = 0;
   phase = 'showing';
   showIndex = 0;
-  showSubState = 'flash';
-  pressTimers = [0, 0, 0, 0];
-  recomputePanelRects();
-  for (var i = 0; i < 2; i++) {
-    sequence.push(Math.floor(Math.random() * 4));
-  }
+  showTimer = 0;
+  flashTimer = 0;
+  currentFlash = -1;
   round = 1;
-  currentFlashDur = Math.max(0.15, TUNE.flashDuration.v - (round - 1) * TUNE.speedUp.v);
-  currentPauseDur = Math.max(0.1, TUNE.pauseDuration.v - (round - 1) * TUNE.speedUp.v * 0.5);
-  showSubTimer = currentFlashDur;
-  inputIndex = 0;
-  Game.hud('第' + round + 'ラウンド');
+  score = 0;
+  Game.score(0);
+  Game.hud('ラウンド ' + round);
+  startRound();
 }
 
-function recomputePanelRects() {
-  panelRects = [];
-  var margin = 20;
-  var gap = 10;
-  var panelW = (W - 2 * margin - gap) / 2;
-  var panelH = (H - 2 * margin - gap) / 2;
-  panelW = Math.max(panelW, 80);
-  panelH = Math.max(panelH, 80);
-  var totalW = panelW * 2 + gap;
-  var totalH = panelH * 2 + gap;
-  var startX = (W - totalW) / 2;
-  var startY = (H - totalH) / 2;
-  if (startY < 50) startY = 50;
-  for (var row = 0; row < 2; row++) {
-    for (var col = 0; col < 2; col++) {
-      var idx = row * 2 + col;
-      panelRects.push({
-        x: startX + col * (panelW + gap),
-        y: startY + row * (panelH + gap),
-        w: panelW,
-        h: panelH
-      });
-    }
+function startRound() {
+  sequence = [];
+  for (var i = 0; i < TUNE.initialLength.v + round - 1; i++) {
+    sequence.push(Math.floor(Math.random() * 4));
   }
+  playerIndex = 0;
+  showIndex = 0;
+  showTimer = 0;
+  phase = 'showing';
+  
 }
 
 function update(dt) {
-  for (var i = 0; i < 4; i++) {
-    if (pressTimers[i] > 0) {
-      pressTimers[i] -= dt;
-      if (pressTimers[i] < 0) pressTimers[i] = 0;
+  if (phase === 'showing') {
+    if (currentFlash === -1) {
+      
+    } else {
+      flashTimer -= dt;
+      if (flashTimer <= 0) {
+        currentFlash = -1;
+        flashTimer = 0;
+        showIndex++;
+        if (showIndex >= sequence.length) {
+          phase = 'input';
+          playerIndex = 0;
+          return;
+        }
+      }
+    }
+    if (currentFlash === -1) {
+      currentFlash = sequence[showIndex];
+      flashTimer = TUNE.flashDuration.v;
+      showTimer = TUNE.showInterval.v - TUNE.flashDuration.v;
+    } else {
+      
+    }
+  } else if (phase === 'input') {
+    
+  }
+  
+  var speedUp = (round - 1) * TUNE.roundSpeedUp.v;
+  var effectiveInterval = Math.max(0.2, TUNE.showInterval.v - speedUp);
+  
+  if (currentFlash === -1 && showTimer > 0) {
+    showTimer -= dt;
+    if (showTimer <= 0) {
+      currentFlash = sequence[showIndex];
+      flashTimer = TUNE.flashDuration.v;
     }
   }
-  if (phase === 'showing') {
-    showSubTimer -= dt;
-    if (showSubTimer <= 0) {
-      if (showSubState === 'flash') {
-        showSubState = 'pause';
-        showSubTimer = currentPauseDur;
+  if (currentFlash !== -1) {
+    flashTimer -= dt;
+    if (flashTimer <= 0) {
+      currentFlash = -1;
+      showIndex++;
+      if (showIndex >= sequence.length) {
+        phase = 'input';
+        playerIndex = 0;
       } else {
-        showIndex++;
-        if (showIndex >= round) {
-          phase = 'input';
-          inputIndex = 0;
-        } else {
-          showSubState = 'flash';
-          showSubTimer = currentFlashDur;
-        }
+        showTimer = effectiveInterval;
       }
     }
   }
@@ -220,89 +272,85 @@ function update(dt) {
 function draw() {
   ctx.fillStyle = '#0f1322';
   ctx.fillRect(0, 0, W, H);
-  for (var i = 0; i < 4; i++) {
-    var rect = panelRects[i];
-    if (!rect) continue;
-    var color;
-    var isHighlight = false;
-    if (phase === 'showing' && showSubState === 'flash' && showIndex === i) {
-      isHighlight = true;
-      color = colorsBright[i];
-    } else if (pressTimers[i] > 0) {
-      color = colorsDark[i];
+  
+  for (var i = 0; i < panels.length; i++) {
+    var p = panels[i];
+    var isLit = (currentFlash === i);
+    var color = isLit ? p.color : p.dark;
+    if (p.pressed) {
+      ctx.fillStyle = darkenColor(color, 0.7);
     } else {
-      color = colors[i];
+      ctx.fillStyle = color;
     }
-    var r = TUNE.panelR.v;
+    var offset = p.pressed ? 4 : 0;
     ctx.beginPath();
-    ctx.moveTo(rect.x + r, rect.y);
-    ctx.lineTo(rect.x + rect.w - r, rect.y);
-    ctx.quadraticCurveTo(rect.x + rect.w, rect.y, rect.x + rect.w, rect.y + r);
-    ctx.lineTo(rect.x + rect.w, rect.y + rect.h - r);
-    ctx.quadraticCurveTo(rect.x + rect.w, rect.y + rect.h, rect.x + rect.w - r, rect.y + rect.h);
-    ctx.lineTo(rect.x + r, rect.y + rect.h);
-    ctx.quadraticCurveTo(rect.x, rect.y + rect.h, rect.x, rect.y + rect.h - r);
-    ctx.lineTo(rect.x, rect.y + r);
-    ctx.quadraticCurveTo(rect.x, rect.y, rect.x + r, rect.y);
-    ctx.closePath();
-    ctx.fillStyle = color;
+    ctx.roundRect(p.x + offset, p.y + offset, p.w - 2*offset, p.h - 2*offset, 20);
     ctx.fill();
-    if (isHighlight) {
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 4;
-      ctx.stroke();
-    }
   }
+  
+  ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = '26px sans-serif';
-  ctx.fillStyle = '#fff';
-  var textY = 30;
-  if (panelRects[0]) textY = panelRects[0].y - 20;
-  if (textY < 15) textY = 15;
-  if (phase === 'showing') {
-    ctx.fillText('みてね…', W / 2, textY);
-  } else if (phase === 'input') {
-    ctx.fillText('どうぞ！', W / 2, textY);
-  }
+  ctx.font = '24px "Helvetica Neue", sans-serif';
+  var msg = (phase === 'showing') ? 'みてね…' : 'どうぞ！';
+  ctx.fillText(msg, W/2, 170);
+  
+  ctx.font = '18px "Helvetica Neue", sans-serif';
+  ctx.fillText('ラウンド ' + round, W/2, 200);
 }
 
-function onDown(x, y, id) {
+function onDown(x, y) {
   if (phase !== 'input') return;
-  for (var i = 0; i < 4; i++) {
-    var rect = panelRects[i];
-    if (x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h) {
-      pressTimers[i] = 0.15;
-      if (i === sequence[inputIndex]) {
-        inputIndex++;
-        if (inputIndex >= round) {
+  
+  for (var i = 0; i < panels.length; i++) {
+    var p = panels[i];
+    if (x >= p.x && x <= p.x + p.w && y >= p.y && y <= p.y + p.h) {
+      p.pressed = true;
+      if (sequence[playerIndex] === i) {
+        playerIndex++;
+        if (playerIndex === sequence.length) {
+          
           score += round;
           Game.score(score);
-          Game.float(rect.x + rect.w / 2, rect.y, '+' + round, '#ffd166');
           round++;
-          sequence.push(Math.floor(Math.random() * 4));
-          phase = 'showing';
-          showIndex = 0;
-          showSubState = 'flash';
-          currentFlashDur = Math.max(0.15, TUNE.flashDuration.v - (round - 1) * TUNE.speedUp.v);
-          currentPauseDur = Math.max(0.1, TUNE.pauseDuration.v - (round - 1) * TUNE.speedUp.v * 0.5);
-          showSubTimer = currentFlashDur;
-          Game.hud('第' + round + 'ラウンド');
+          Game.hud('ラウンド ' + round);
+          startRound();
         }
       } else {
-        Game.float(rect.x + rect.w / 2, rect.y, '✗', '#f87171');
+        
         Game.over(score);
       }
-      return;
+      break;
     }
   }
 }
 
-function onMove(x, y, id) {}
-function onUp(x, y, id) {}
-function onResize() {
-  recomputePanelRects();
+function onUp(x, y) {
+  for (var i = 0; i < panels.length; i++) {
+    panels[i].pressed = false;
+  }
 }
+
+function darkenColor(hex, factor) {
+  var r = parseInt(hex.slice(1,3), 16);
+  var g = parseInt(hex.slice(3,5), 16);
+  var b = parseInt(hex.slice(5,7), 16);
+  r = Math.round(r * factor);
+  g = Math.round(g * factor);
+  b = Math.round(b * factor);
+  return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+}
+
+
+
+
+
+
+
+
+
+
+
 /*__VAPPA_JS_END__*/
 </script>
 </body></html>
