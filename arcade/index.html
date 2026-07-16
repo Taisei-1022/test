@@ -157,7 +157,8 @@
       <div id="testmodelBox" hidden>
         <div class="section">生成モデル（テスト）</div>
         <label class="name"><select id="testmodel" style="width:240px;padding:.5rem;background:#1d1a2e;border:1px solid #2c2740;color:#fff;border-radius:8px;font:inherit">
-          <option value="">Opus 4.8・思考中（本番・既定）</option>
+          <option value="">標準：DeepSeek V4 Flash・思考high（既定・〜¥1）</option>
+          <option value="opus">Opus 4.8・思考中（〜¥40）</option>
           <option value="opus-h">Opus 4.8・思考高</option>
           <option value="opus-x">Opus 4.8・思考最高</option>
           <option value="sonnet-m">Sonnet 5・思考中（〜¥8）</option>
@@ -273,7 +274,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.68";
+  var APP_VERSION = "0.9.69";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)

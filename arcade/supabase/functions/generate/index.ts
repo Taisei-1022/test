@@ -778,10 +778,11 @@ function buildErr(e: unknown) {
 
 // フェーズごとのモデル（コスト最適化）：
 //   相談・質問役（think=false）→ Haiku（安い・速い）
-//   ゲーム本生成・修正（think=true）→ ★一時的に Opus（品質確認用・高コスト。後で sonnet に戻す）
+//   ゲーム本生成・修正（think=true）→ 既定は specFor() = DeepSeek V4 Flash・思考high
+//   （MODELS.build は anthropic 呼び出しの後方互換フォールバックとして残す）
 const MODELS = { plan: "claude-haiku-4-5-20251001", build: "claude-opus-4-8" };
 
-// ---- 管理者用テストモデル（build のみ差替え・ライブ既定は MODELS.build のまま）----
+// ---- モデル一覧（管理者はチャットから差替え可能。既定は specFor() を参照）----
 // provider ごとに呼び出しを実装（anthropic / openai / gemini / deepseek）。
 // anthropic 以外は envKey のシークレット（Supabase の Edge Function Secrets）が必要。
 // モデルIDが変わったらここを書き換えるだけでよい。
@@ -808,8 +809,9 @@ const TEST_MODELS: Record<string, ModelSpec> = {
   "grok-45":  { provider: "xai",       model: "grok-4.5",        envKey: "XAI_API_KEY" },   // 最新上位（$2/$6）
 };
 // 管理者の指定キーを ModelSpec に解決（未指定/不明/非管理者は本番モデル）
+// 本番既定 = DeepSeek V4 Flash・思考high（PDCA計測 102-103/110・1本約¥1）
 function specFor(testModel?: string): ModelSpec {
-  return (testModel && TEST_MODELS[testModel]) || { provider: "anthropic", model: MODELS.build, effort: "medium" };
+  return (testModel && TEST_MODELS[testModel]) || TEST_MODELS["ds-flash-h"];
 }
 // 表示用ラベル（モデル名＋思考レベル）。チャットのモデル表記と管理者のコスト表示に使う
 function specLabel(s: ModelSpec): string {
@@ -1132,11 +1134,11 @@ Deno.serve(async (req) => {
     if (isAdmin) return json({ enabled: true, admin: true, model: specLabel(specFor(testModel)) });
     const d = today();
     const used = await readUsage("u:bld:" + token + ":" + d);
-    if (used === null) return json({ enabled: false, model: MODELS.build });   // rate_limit.sql 未実行 = 無制限
+    if (used === null) return json({ enabled: false, model: specLabel(specFor()) });   // rate_limit.sql 未実行 = 無制限
     const ipU = await readUsage("i:bld:" + ip + ":" + d);
     const gU = await readUsage("g:bld:" + d);
     return json({
-      enabled: true, model: MODELS.build,
+      enabled: true, model: specLabel(specFor()),
       bldUsed: used, bldLimit: LIMITS.bldUser, bldRemaining: Math.max(0, LIMITS.bldUser - used),
       ipUsed: ipU || 0, ipLimit: LIMITS.bldIp,
       globalUsed: gU || 0, globalLimit: LIMITS.bldGlobal,
