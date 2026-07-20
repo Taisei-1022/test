@@ -724,8 +724,12 @@ async function buildOnce(key: string, messages: Msg[], prevHtml: string, spec?: 
     action: "build", reply, title, html, category, model: specLabel(mspec), cost: computeCost(acc),
     sec: Math.round((Date.now() - t0) / 1000), spec: specText || undefined,
   });
-  // 実行上限(400秒)まで黙って殺される前に、インスタンスの残り寿命内で自前タイムアウトさせる。
-  const mainTmo = Math.max(30000, Math.min(380000, remainMs()));
+  // 実行上限(400秒)まで黙って殺される前に、必ずタイムアウトして結果orエラーを書く。
+  // ★重要: タイムアウトは「呼び出す瞬間の」残り寿命で算出する。設計書生成(最大60秒)を
+  //   挟んだ後に固定値380秒を渡すと 60+380=440秒 で壁(400秒)を超え、abortする前に
+  //   インスタンスが殺されて結果もエラーも書けない(=silent death→ポーリングが永久pending)。
+  const buildTmo = () => Math.max(20000, remainMs());
+  const specTmo = () => Math.max(15000, Math.min(60000, remainMs()));
   const lastUser = [...messages].reverse().find((m) => m.role === "user");
   const instruction = (lastUser?.content || "").trim();
   const tpl = prevHtml ? extractTpl(prevHtml) : null;
@@ -734,7 +738,7 @@ async function buildOnce(key: string, messages: Msg[], prevHtml: string, spec?: 
   if (prevHtml && !tpl) {
     const uc = "次の既存ゲーム(HTML)を、下の指示に従って修正してください。修正後の完全な単一HTMLだけを返し、タイトルも内容に合わせて更新してOKです。\n\n【指示】\n" +
       instruction + "\n\n【既存HTML】\n" + prevHtml;
-    const g = await callBuild(key, mspec, BUILD_SYSTEM, [{ role: "user", content: uc }], GAME_SCHEMA, mainTmo, acc);
+    const g = await callBuild(key, mspec, BUILD_SYSTEM, [{ role: "user", content: uc }], GAME_SCHEMA, buildTmo(), acc);
     if (!g.html) return { error: "empty_html" };
     let title = g.title || "無題のゲーム", html = g.html, category = g.category || "その他";
     const problem = validateGame(html);
@@ -766,9 +770,9 @@ async function buildOnce(key: string, messages: Msg[], prevHtml: string, spec?: 
     else {
       try {
         let sres;
-        try { sres = await callOpenAICompat(TEST_MODELS["ds-flash-h"], SPEC_SYSTEM, [{ role: "user", content: transcript }], SPEC_SCHEMA, 60000, acc); }
+        try { sres = await callOpenAICompat(TEST_MODELS["ds-flash-h"], SPEC_SYSTEM, [{ role: "user", content: transcript }], SPEC_SCHEMA, specTmo(), acc); }
         catch {
-          sres = await callClaude(key, SPEC_SYSTEM, [{ role: "user", content: transcript }], SPEC_SCHEMA, true, 60000, acc,
+          sres = await callClaude(key, SPEC_SYSTEM, [{ role: "user", content: transcript }], SPEC_SCHEMA, true, specTmo(), acc,
             { provider: "anthropic", model: "claude-sonnet-5", effort: "low" });
         }
         specText = String(sres.spec || "").slice(0, 6000);
@@ -780,7 +784,7 @@ async function buildOnce(key: string, messages: Msg[], prevHtml: string, spec?: 
       : "次の相談で決まった内容で、ミニゲームのロジックを作ってください。\n\n【相談ログ】\n" + transcript;
     reply = "作ったよ！";
   }
-  let g = await callBuild(key, mspec, BUILD2_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA2, mainTmo, acc);
+  let g = await callBuild(key, mspec, BUILD2_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA2, buildTmo(), acc);
   if (!g || !g.js) return { error: "empty_html" };
   // 自動チェック → 問題があれば1回だけAIに直させる（jsだけなので修正も安い）
   const problem2 = validateJs(g.js);
