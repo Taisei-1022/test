@@ -4,7 +4,7 @@
    - 新バージョンはユーザーが「更新」を押すまで待機（勝手にリロードしない） */
 // CACHE 名はアプリのバージョンに紐づける（＝毎デプロイで sw.js が変わり、更新が必ず検知される）。
 // APP_VERSION を上げるたびにここも上げること。
-var CACHE = "vappa-0.9.74";
+var CACHE = "vappa-0.9.75";
 var CORE = [
   "./", "./index.html", "./play.html", "./leaderboard.html",
   "./privacy.html", "./terms.html", "./about.html", "./contact.html",

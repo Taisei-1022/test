@@ -281,7 +281,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.74";
+  var APP_VERSION = "0.9.75";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -1302,7 +1302,7 @@
       : /insufficient_credit/.test(s)
       ? "AIの利用クレジットが不足しています。\nAnthropicの管理画面（Plans & Billing）でクレジットを追加すると、また作れるようになります。"
       : /timeout/.test(s)
-      ? "ちょっと内容が複雑すぎたみたい。\nお題をもう少しシンプルにして、もう一度試してね（1メカニクスくらいが作りやすいよ）。"
+      ? "いま生成が混み合っていて、時間がかかりすぎたみたい。\nもう一度「作る」を押すと、たいてい通るよ。"
       : "うまくいかなかった…もう一度試してみて。\n("+s.slice(0,90)+")";
   }
   // 費用表示の共通化（管理者のみ）。全プロバイダ共通で res.cost があれば出す。
@@ -1600,7 +1600,7 @@
       // 失敗を黙って捨てない：何が起きたかを必ずユーザーに知らせる
       setGenerating(false); clearPending();
       var s=String(err&&err.message||err);
-      showToast(/timeout/.test(s) ? "⚠️ 前回の生成は時間切れで失敗したみたい。もう一度ためしてね"
+      showToast(/timeout/.test(s) ? "⚠️ 前回の生成は混み合っていて完了できなかったみたい。もう一度ためしてね"
                                   : "⚠️ 前回の生成は完了できなかったよ。もう一度ためしてね", 4500);
     });
   }

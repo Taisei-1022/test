@@ -612,6 +612,10 @@ const ADMIN_CODE = Deno.env.get("ADMIN_CODE") || "";
 const BOOT = Date.now();
 const WALL_MS = 400000;
 function remainMs(buffer = 20000) { return WALL_MS - (Date.now() - BOOT) - buffer; }
+// ビルドが時間切れ(400秒の壁)になったら、失敗として書かず新しいインスタンスへ
+// 引き継いで再挑戦する回数の上限。1回目=選択モデル、2回目(=最終)=最速モデル(思考オフ)。
+// これで「時間がかかりすぎた」表示は、DeepSeekが本当に連続で死んでいる時しか出なくなる。
+const MAX_BUILD_ATT = 2;
 
 // Supabaseの ai_gate(RPC) を service_role で呼ぶ。テーブル/関数が無い等で失敗したら
 // null を返す（=フェイルオープン：保護は効かないがアプリは止めない）。
@@ -1105,7 +1109,8 @@ async function startFlow(key: string, messages: Msg[], prevHtml: string, token: 
 // 受付インスタンスは相談ターンで寿命を消費していることが多いので、ビルド本体は
 // 自分自身をもう一度呼び出して新しいインスタンスに任せる（フルの持ち時間を確保）。
 // k にサービスロールキーを要求するので外部からは実行できない。
-type IRun = { k?: string; job?: string; messages?: Msg[]; prevHtml?: string; spec?: ModelSpec; uspec?: string; hop?: number };
+type IRun = { k?: string; job?: string; messages?: Msg[]; prevHtml?: string; spec?: ModelSpec; uspec?: string; hop?: number; att?: number };
+// ↑ att: 時間切れ時の引き継ぎ再挑戦カウンタ（1始まり、MAX_BUILD_ATT まで）
 const FN_SELF = SUPA_URL ? SUPA_URL.replace(/\/$/, "") + "/functions/v1/generate" : "";
 async function dispatchRun(payload: IRun): Promise<boolean> {
   if (!FN_SELF || !SUPA_SRV) return false;
@@ -1165,8 +1170,16 @@ Deno.serve(async (req) => {
     const rPrev = typeof irun.prevHtml === "string" ? irun.prevHtml : "";
     const rUspec = typeof irun.uspec === "string" ? irun.uspec : "";
     const rJob = irun.job;
+    const att = irun.att || 1;
     const rWork = (async () => {
       let r; try { r = await buildOnce(key, rMsgs, rPrev, rSpec, rUspec); } catch (e) { r = buildErr(e); }
+      // 時間切れは「失敗」として確定させず、新しいインスタンス（＝まっさらな400秒）へ
+      // 引き継いで再挑戦する。最終回は思考オフの最速モデルで確実性を上げる。
+      if (r && (r as { error?: string }).error === "timeout" && att < MAX_BUILD_ATT) {
+        const nextSpec = (att + 1 >= MAX_BUILD_ATT) ? TEST_MODELS["ds-flash"] : rSpec;
+        const moved = await dispatchRun({ ...irun, hop: 0, att: att + 1, spec: nextSpec });
+        if (moved) return;   // ジョブは pending のまま。引き継ぎ先が結果を書く
+      }
       await finishJob(rJob, r);
     })();
     try {
@@ -1202,7 +1215,9 @@ Deno.serve(async (req) => {
       return json(res && res.error ? { status: "error", ...res } : { status: "done", ...(res as object) });
     }
     const age = (Date.now() - new Date(row.created_at).getTime()) / 1000;
-    if (age > 390) return json({ status: "error", error: "timeout" });
+    // 引き継ぎ再挑戦（最大 MAX_BUILD_ATT 回・各〜400秒）を待てるだけの安全網。
+    // 通常は引き継ぎ先が結果/エラーを書くのでこれより前に解決する。純粋な保険。
+    if (age > 780) return json({ status: "error", error: "timeout" });
     return json({ status: "pending" });
   }
 
