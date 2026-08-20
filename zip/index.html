@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1" />
 <meta name="color-scheme" content="light dark" />
 <meta name="description" content="番号を順に通りながら盤面をすべて埋める一筆書きパズル。毎日の問題とランダム生成に対応。" />
 <title>Zip — 一筆書きパズル</title>
@@ -53,10 +53,13 @@
     <button id="undoBtn" class="btn" type="button">1 手戻す</button>
     <button id="resetBtn" class="btn" type="button">最初から</button>
     <button id="hintBtn" class="btn" type="button">ヒント</button>
+    <button id="rulesBtn" class="btn" type="button">ルール</button>
   </div>
+</div>
 
-  <details class="rules">
-    <summary>ルールと操作方法</summary>
+<div id="rulesOverlay" class="overlay" hidden>
+  <div class="modal modal-text" role="dialog" aria-modal="true" aria-labelledby="rulesTitle">
+    <h2 id="rulesTitle">ルールと操作方法</h2>
     <ul>
       <li>番号 <b>1</b> のマスから線を引き始めます。</li>
       <li>線は上下左右にのみ伸び、<b>太い線（壁）</b>は通り抜けられません。</li>
@@ -67,11 +70,11 @@
       操作: ドラッグでなぞる／タップで 1 マスずつ／通った線を逆になぞると消えます。
       キーボードは矢印キーで移動、Backspace で 1 手戻す、R で最初から。
     </p>
-  </details>
-
-  <footer class="foot">
-    <span>解が一意になるように問題を自動生成しています。</span>
-  </footer>
+    <p class="rules-note">解が一意になるように問題を自動生成しています。</p>
+    <div class="modal-actions">
+      <button id="rulesCloseBtn" class="btn btn-primary" type="button">閉じる</button>
+    </div>
+  </div>
 </div>
 
 <div id="winOverlay" class="overlay" hidden>

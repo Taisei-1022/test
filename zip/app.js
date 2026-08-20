@@ -22,6 +22,9 @@
     best: document.getElementById('best'),
     puzzleLabel: document.getElementById('puzzleLabel'),
     status: document.getElementById('status'),
+    rulesBtn: document.getElementById('rulesBtn'),
+    rulesOverlay: document.getElementById('rulesOverlay'),
+    rulesCloseBtn: document.getElementById('rulesCloseBtn'),
     winOverlay: document.getElementById('winOverlay'),
     winTime: document.getElementById('winTime'),
     winSub: document.getElementById('winSub'),
@@ -113,6 +116,7 @@
     drawBoard();
     updatePath();
     updateHud();
+    startTimer();   // 問題が表示された時点から計測を始める
     setStatus('1 のマスから指またはマウスでなぞってください。');
     el.puzzleLabel.textContent = state.mode === 'daily'
       ? '今日 ' + todayStr().slice(5)
@@ -443,6 +447,15 @@
   });
   el.winOverlay.addEventListener('click', function (ev) {
     if (ev.target === el.winOverlay) el.winOverlay.hidden = true;
+  });
+
+  el.rulesBtn.addEventListener('click', function () { el.rulesOverlay.hidden = false; });
+  el.rulesCloseBtn.addEventListener('click', function () { el.rulesOverlay.hidden = true; });
+  el.rulesOverlay.addEventListener('click', function (ev) {
+    if (ev.target === el.rulesOverlay) el.rulesOverlay.hidden = true;
+  });
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape') el.rulesOverlay.hidden = true;
   });
 
   function setMode(mode) {
