@@ -62,9 +62,12 @@
     var m = Math.floor(sec / 60);
     return m + ':' + String(sec % 60).padStart(2, '0');
   }
+  // 端末のタイムゾーンに関係なく日本時間の日付を使う（誰がいつ開いても同じ問題になる）
   function todayStr() {
-    var d = new Date();
-    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    var jst = new Date(Date.now() + 9 * 3600000);
+    return jst.getUTCFullYear() + '-' +
+      String(jst.getUTCMonth() + 1).padStart(2, '0') + '-' +
+      String(jst.getUTCDate()).padStart(2, '0');
   }
   function svg(tag, attrs) {
     var node = document.createElementNS(SVGNS, tag);
@@ -79,6 +82,69 @@
   function setStatus(msg, warn) {
     el.status.textContent = msg;
     el.status.classList.toggle('warn', !!warn);
+  }
+
+  function labelOf(key) { return Z.DIFFICULTIES[key].label; }
+
+  // ------------------------------------------------ 今日の問題の進み具合
+  //
+  //  かんたん → ふつう → むずかしい → エキスパート の順にクリアしていき、
+  //  4 問そろってはじめてランダム出題が解放される。
+  //  記録は localStorage（使えない環境ではセッション内のメモリ）に持つ。
+
+  var ORDER = Z.DIFFICULTY_ORDER;
+  var memoryRecords = {};
+
+  function dailyRecordKey(key) { return 'zip.daily.' + todayStr() + '.' + key; }
+
+  function dailyRecord(key) {
+    var v = load(dailyRecordKey(key), null);
+    if (v !== null) return Number(v);
+    var m = memoryRecords[dailyRecordKey(key)];
+    return m === undefined ? null : m;
+  }
+
+  function saveDailyRecord(key, secs) {
+    var prev = dailyRecord(key);
+    if (prev !== null && prev <= secs) return;
+    memoryRecords[dailyRecordKey(key)] = secs;
+    save(dailyRecordKey(key), String(secs));
+  }
+
+  function nextDaily() {
+    for (var i = 0; i < ORDER.length; i++) if (dailyRecord(ORDER[i]) === null) return ORDER[i];
+    return null;
+  }
+
+  function dailyClearedCount() {
+    var n = 0;
+    for (var i = 0; i < ORDER.length; i++) if (dailyRecord(ORDER[i]) !== null) n++;
+    return n;
+  }
+
+  function randomUnlocked() { return nextDaily() === null; }
+
+  // 今日の問題モードでは「クリア済み」と「次に挑む 1 問」だけ選べる
+  function difficultyLocked(key) {
+    if (state.mode === 'random') return false;
+    return dailyRecord(key) === null && key !== nextDaily();
+  }
+
+  function updateLocks() {
+    Array.prototype.forEach.call(el.difficulty.children, function (b) {
+      var key = b.dataset.key;
+      var done = dailyRecord(key) !== null;
+      var locked = difficultyLocked(key);
+      b.classList.toggle('done', done && state.mode === 'daily');
+      b.classList.toggle('locked', locked);
+      b.title = Z.DIFFICULTIES[key].size + '×' + Z.DIFFICULTIES[key].size +
+        (locked ? '（本日の「' + labelOf(nextDaily()) + '」をクリアすると挑戦できます）' : done ? '（本日クリア済み）' : '');
+    });
+    var locked = !randomUnlocked();
+    el.randomBtn.classList.toggle('locked', locked);
+    el.randomBtn.title = locked
+      ? '本日の 4 問をすべてクリアすると遊べます（あと ' + (ORDER.length - dailyClearedCount()) + ' 問）'
+      : 'ランダムに出題します';
   }
 
   // ------------------------------------------------------------------ 生成
@@ -117,7 +183,10 @@
     updatePath();
     updateHud();
     startTimer();   // 問題が表示された時点から計測を始める
-    setStatus('1 のマスから指またはマウスでなぞってください。');
+    updateLocks();
+    setStatus(state.mode === 'daily'
+      ? '本日の「' + labelOf(state.difficulty) + '」（' + dailyClearedCount() + '/' + ORDER.length + ' クリア済み）'
+      : '1 のマスから指またはマウスでなぞってください。');
     el.puzzleLabel.textContent = state.mode === 'daily'
       ? '今日 ' + todayStr().slice(5)
       : '#' + puzzle.seed.toString(16).toUpperCase().padStart(8, '0').slice(0, 6);
@@ -333,12 +402,28 @@
     var prev = load(bestKey(), null);
     var isBest = !prev || secs < Number(prev);
     if (isBest) save(bestKey(), String(secs));
-    if (state.mode === 'daily') save('zip.daily.' + todayStr() + '.' + state.difficulty, String(secs));
+    if (state.mode === 'daily') saveDailyRecord(state.difficulty, secs);
     updateHud();
+    updateLocks();
 
-    el.winTime.textContent = fmtTime(secs);
-    el.winSub.textContent = (isBest ? '自己ベスト更新！ ' : '') +
+    var detail = (isBest ? '自己ベスト更新！ ' : '') +
       (state.hints ? 'ヒント ' + state.hints + ' 回' : 'ヒントなし');
+    var next = state.mode === 'daily' ? nextDaily() : null;
+
+    if (state.mode === 'daily' && next) {
+      // まだ今日の 4 問が残っている → 次の難易度へ誘導する
+      el.winSub.textContent = '本日の問題 ' + dailyClearedCount() + '/' + ORDER.length + ' クリア　' + detail;
+      el.nextBtn.textContent = '本日の「' + labelOf(next) + '」をプレイ';
+      el.nextBtn.dataset.action = 'daily:' + next;
+    } else if (state.mode === 'daily') {
+      el.winSub.textContent = '本日の 4 問をすべてクリア！ ランダム出題が解放されました。　' + detail;
+      el.nextBtn.textContent = 'ランダムで遊ぶ';
+      el.nextBtn.dataset.action = 'random';
+    } else {
+      el.winSub.textContent = detail;
+      el.nextBtn.textContent = '次の問題';
+      el.nextBtn.dataset.action = 'random';
+    }
     el.winOverlay.hidden = false;
     setStatus('クリア！おめでとうございます。');
   }
@@ -432,13 +517,46 @@
   el.undoBtn.addEventListener('click', undo);
   el.resetBtn.addEventListener('click', resetPath);
   el.hintBtn.addEventListener('click', showHint);
-  el.dailyBtn.addEventListener('click', function () { setMode('daily'); newPuzzle('daily'); });
-  el.randomBtn.addEventListener('click', function () { setMode('random'); newPuzzle('random'); });
-  el.nextBtn.addEventListener('click', function () {
-    el.winOverlay.hidden = true;
+  el.dailyBtn.addEventListener('click', function () { playDaily(); });
+
+  el.randomBtn.addEventListener('click', function () {
+    if (!randomUnlocked()) {
+      var next = nextDaily();
+      setStatus('本日の 4 問をクリアするとランダムが遊べます。まずは「' + labelOf(next) + '」から（あと ' +
+        (ORDER.length - dailyClearedCount()) + ' 問）。', true);
+      return;
+    }
     setMode('random');
     newPuzzle('random');
   });
+
+  el.nextBtn.addEventListener('click', function () {
+    el.winOverlay.hidden = true;
+    var action = el.nextBtn.dataset.action || 'random';
+    if (action.indexOf('daily:') === 0) playDaily(action.slice(6));
+    else { setMode('random'); newPuzzle('random'); }
+  });
+
+  // 今日の問題を開く（難易度の指定がなければ、まだクリアしていない一番やさしいもの）
+  function playDaily(difficulty) {
+    var key = difficulty;
+    if (!key) {
+      var cur = state.difficulty;
+      var playable = dailyRecord(cur) !== null || cur === nextDaily();
+      key = playable ? cur : (nextDaily() || cur);
+    }
+    setDifficulty(key);
+    setMode('daily');
+    newPuzzle('daily');
+  }
+
+  function setDifficulty(key) {
+    state.difficulty = key;
+    save('zip.difficulty', key);
+    Array.prototype.forEach.call(el.difficulty.children, function (child) {
+      child.setAttribute('aria-pressed', String(child.dataset.key === key));
+    });
+  }
   el.shareBtn.addEventListener('click', function () {
     var text = shareText();
     var done = function () { el.shareBtn.textContent = 'コピーしました'; setTimeout(function () { el.shareBtn.textContent = '結果をコピー'; }, 1600); };
@@ -462,24 +580,25 @@
     state.mode = mode;
     el.dailyBtn.setAttribute('aria-pressed', String(mode === 'daily'));
     el.randomBtn.setAttribute('aria-pressed', String(mode === 'random'));
+    updateLocks();
   }
 
   // ------------------------------------------------------------ 難易度・配色
 
-  Z.DIFFICULTY_ORDER.forEach(function (key) {
+  ORDER.forEach(function (key) {
     var cfg = Z.DIFFICULTIES[key];
     var b = document.createElement('button');
     b.type = 'button';
+    b.dataset.key = key;
     b.textContent = cfg.label;
-    b.title = cfg.size + '×' + cfg.size;
-    b.setAttribute('aria-pressed', String(key === state.difficulty));
+    b.setAttribute('aria-pressed', 'false');
     b.addEventListener('click', function () {
+      if (difficultyLocked(key)) {
+        setStatus('本日の問題は やさしい順に挑戦します。まずは「' + labelOf(nextDaily()) + '」から。', true);
+        return;
+      }
       if (state.difficulty === key) return;
-      state.difficulty = key;
-      save('zip.difficulty', key);
-      Array.prototype.forEach.call(el.difficulty.children, function (child) {
-        child.setAttribute('aria-pressed', String(child === b));
-      });
+      setDifficulty(key);
       newPuzzle();
     });
     el.difficulty.appendChild(b);
@@ -497,8 +616,13 @@
 
   // -------------------------------------------------------------- 起動
 
-  setMode('daily');
-  newPuzzle('daily');
+  if (randomUnlocked()) {          // 本日の 4 問を制覇済みならランダムから始める
+    setDifficulty(state.difficulty);
+    setMode('random');
+    newPuzzle('random');
+  } else {                         // まだ残っていれば、やさしい順に今日の問題を出す
+    playDaily();
+  }
 
   window.__zip = { state: state, newPuzzle: newPuzzle }; // 動作確認・デバッグ用
 })();
