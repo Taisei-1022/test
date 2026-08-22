@@ -397,7 +397,7 @@
     state.solved = true;
     stopTimer();
     updatePath();
-    var secs = Math.round(currentElapsed());
+    var secs = Math.floor(currentElapsed());   // HUD の表示（切り捨て）と揃える
 
     var prev = load(bestKey(), null);
     var isBest = !prev || secs < Number(prev);
@@ -406,6 +406,7 @@
     updateHud();
     updateLocks();
 
+    el.winTime.textContent = fmtTime(secs);
     var detail = (isBest ? '自己ベスト更新！ ' : '') +
       (state.hints ? 'ヒント ' + state.hints + ' 回' : 'ヒントなし');
     var next = state.mode === 'daily' ? nextDaily() : null;
@@ -510,7 +511,7 @@
     var cfg = Z.DIFFICULTIES[state.difficulty];
     return 'Zip ' + cfg.label + ' ' + p.size + '×' + p.size + '\n' +
       (state.mode === 'daily' ? todayStr() : '#' + p.seed.toString(16).toUpperCase().slice(0, 6)) +
-      '  ⏱ ' + fmtTime(Math.round(currentElapsed())) +
+      '  ⏱ ' + fmtTime(currentElapsed()) +
       '  💡 ' + state.hints;
   }
 
