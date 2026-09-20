@@ -2,7 +2,7 @@
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>ランキング診断（Supabase接続）</title>
+<title>Supabase診断（ランキング／ゲーム一覧）</title>
 <style>
 body{margin:0;padding:16px;background:#141221;color:#f1eefb;font-family:system-ui,sans-serif}
 h1{font-size:16px;margin:0 0 4px}
@@ -16,8 +16,8 @@ p.note{font-size:12px;color:#9a93b5;line-height:1.7;margin:4px 0 12px}
 button{background:#7b61ff;color:#fff;border:0;border-radius:12px;padding:12px 16px;font:inherit;font-weight:800;margin:6px 6px 0 0}
 button.sec{background:#23263a;border:1px solid #3a3d52}
 </style></head><body>
-<h1>🩺 ランキング診断（Supabase接続）</h1>
-<p class="note">「ランキングが空っぽ」の原因を切り分けます。読み取りは自動、書き込みテストはボタンを押した時だけ実行します（テスト行は game_id=<code>__diag__</code> なので本物のランキングは汚れません）。</p>
+<h1>🩺 Supabase診断（ランキング／ゲーム一覧）</h1>
+<p class="note">「ランキングが空」「公式ゲームしか出ない」は同じ原因の可能性があります（scores と games の両方が同じ通信コードを使い、失敗を握りつぶすため）。読み取りは自動、書き込みテストはボタンを押した時だけ実行します（テスト行は <code>__diag__</code> なので本物のデータは汚れません）。</p>
 <div id="sum">計測中…</div>
 <div id="rows"></div>
 <button id="ins">✍️ 書き込みテストを実行</button>
@@ -71,9 +71,22 @@ async function probe(label, path, opts){
   add("2. 読み取り（apikey＋Authorization）", b.ok?"OK":"NG",
       "HTTP "+b.status+"\n"+b.body+((a.body.trim()==="[]"&&b.ok&&b.body.trim()!=="[]")?"\n→ ★Authorizationを付けると取れる＝store.jsの修正で直る":""));
 
-  // 3) 件数
+  // 3) scores 件数
   var c = await probe("C","scores?select=id",{prefer:"count=exact",range:"0-0",auth:true});
-  add("3. 総件数", c.ok?"OK":"NG", "HTTP "+c.status+"\ncontent-range: "+(c.cr||"なし")+"\n→ 右の数字が総行数（0なら1件も保存されていない）");
+  add("3. scores 総件数", c.ok?"OK":"NG", "HTTP "+c.status+"\ncontent-range: "+(c.cr||"なし")+"\n→ 末尾の数字が総行数（0なら1件も保存されていない）");
+
+  // 4-6) games テーブル（「公式ゲームしか出ない」の原因切り分け）
+  var g1 = await probe("D","games?select=id,title,author,published&limit=5");
+  add("4. games 読み取り（apikeyのみ／現行実装）", g1.ok?"OK":"NG",
+      "HTTP "+g1.status+"\n"+g1.body);
+
+  var g2 = await probe("E","games?select=id,title,author,published&limit=5",{auth:true});
+  add("5. games 読み取り（apikey＋Authorization）", g2.ok?"OK":"NG",
+      "HTTP "+g2.status+"\n"+g2.body+((g1.body.trim()==="[]"&&g2.ok&&g2.body.trim()!=="[]")?"\n→ ★Authorizationを付けると取れる＝catalog.jsの修正で直る":""));
+
+  var g3 = await probe("F","games?select=id",{prefer:"count=exact",range:"0-0",auth:true});
+  add("6. games 総件数", g3.ok?"OK":"NG", "HTTP "+g3.status+"\ncontent-range: "+(g3.cr||"なし")+
+      "\n→ 0なら「まだ1本も公開していない」（バグではない）。1以上なのに一覧に出ないなら読み取りの問題");
 
   document.getElementById("sum").textContent = "結果: "+res.join("  ")+"（スクショして送ってね）";
 })();
