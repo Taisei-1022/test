@@ -1,6 +1,8 @@
 /* 共有モジュール（全画面共通）
-   - Share.open({gameId, gameTitle}) でポップアップを表示。
-   - 「このゲームを共有」= play.html?game=ID へのリンク。
+   - Share.open({gameId, gameTitle, score?, unit?, by?}) でポップアップを表示。
+   - score を渡すと「挑戦状」モード：リンクに &ch=スコア&by=名前 を付け、
+     受け取った相手の play.html に「◯◯が123点！抜ける？」を出す（＝張り合いループの核）。
+   - 「このゲームを共有」= play.html?game=ID（＋挑戦状ならスコア付き）。
    - 「Vappaを共有」= アプリ本体(index.html のディレクトリ)へのリンク。
    - 端末がWeb Share API対応ならネイティブの共有シート、非対応ならクリップボードへコピー。 */
 window.Share = (function () {
@@ -12,7 +14,15 @@ window.Share = (function () {
   // キャッシュするため、ここを上げてURLを変える＝再取得させてサムネを更新する。
   var SHARE_V = "4";
   function appUrl() { return baseDir() + "?v=" + SHARE_V; }
-  function gameUrl(id) { return baseDir() + "play.html?game=" + encodeURIComponent(id) + "&v=" + SHARE_V; }
+  // ch＝挑戦スコア、by＝挑戦者名 を任意で付与（挑戦状リンク）。
+  function gameUrl(id, ch) {
+    var u = baseDir() + "play.html?game=" + encodeURIComponent(id) + "&v=" + SHARE_V;
+    if (ch && ch.score != null && isFinite(ch.score)) {
+      u += "&ch=" + encodeURIComponent(Math.round(ch.score));
+      if (ch.by) u += "&by=" + encodeURIComponent(String(ch.by).slice(0, 16));
+    }
+    return u;
+  }
 
   function toast(msg) {
     var t = document.createElement("div");
@@ -27,8 +37,10 @@ window.Share = (function () {
     try {
       if (navigator.share) { await navigator.share({ title: title, text: text, url: url }); return; }
     } catch (e) { if (e && e.name === "AbortError") return; }
-    try { await navigator.clipboard.writeText(url); toast("リンクをコピーしました"); return; } catch (e) {}
-    try { window.prompt("リンクをコピーしてください", url); } catch (e) {}
+    // Web Share 非対応：テキスト＋URLをまとめてコピー（挑戦状の文言も一緒に渡る）
+    var payload = (text ? text + "\n" : "") + url;
+    try { await navigator.clipboard.writeText(payload); toast("リンクをコピーしました"); return; } catch (e) {}
+    try { window.prompt("リンクをコピーしてください", payload); } catch (e) {}
   }
 
   function close() { var o = document.getElementById("__shareov"); if (o) o.remove(); }
@@ -45,6 +57,11 @@ window.Share = (function () {
   function open(opts) {
     opts = opts || {};
     close();
+    var hasScore = opts.score != null && isFinite(opts.score);
+    var sc = hasScore ? Math.round(opts.score) : null;
+    var unit = opts.unit || "点";
+    var title = opts.gameTitle || "ゲーム";
+
     var ov = document.createElement("div");
     ov.id = "__shareov";
     ov.setAttribute("style", "position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);" +
@@ -53,21 +70,45 @@ window.Share = (function () {
     sheet.setAttribute("style", "width:100%;max-width:520px;background:#181a27;border-radius:20px 20px 0 0;" +
       "padding:16px 16px calc(18px + env(safe-area-inset-bottom));box-shadow:0 -10px 36px rgba(0,0,0,.55)");
     var head = document.createElement("div");
-    head.textContent = "共有する";
+    head.textContent = hasScore ? "挑戦状を送る" : "共有する";
     head.setAttribute("style", "font-weight:800;font-size:16px;color:#fff;margin:2px 2px 6px");
     sheet.appendChild(head);
 
     if (opts.gameId) {
       var sub = document.createElement("div");
-      sub.textContent = "「" + (opts.gameTitle || "このゲーム") + "」";
-      sub.setAttribute("style", "font-size:12px;font-weight:700;color:#9aa0b5;margin:0 2px 4px");
+      sub.textContent = hasScore
+        ? "「" + title + "」であなたの " + sc + unit + " を添えて送る"
+        : "「" + title + "」";
+      sub.setAttribute("style", "font-size:12px;font-weight:700;color:#9aa0b5;margin:0 2px 6px");
       sheet.appendChild(sub);
-      var g = btn("🎮 このゲームを共有", true);
-      g.addEventListener("click", function () {
-        close();
-        doShare((opts.gameTitle || "ゲーム") + "｜Vappa", "「" + (opts.gameTitle || "ゲーム") + "」で遊ぼう！", gameUrl(opts.gameId));
-      });
-      sheet.appendChild(g);
+
+      if (hasScore) {
+        // 挑戦状（スコア付き）：これが張り合いループの主ボタン
+        var chb = btn("🔥 挑戦状を送る（" + sc + unit + "）", true);
+        chb.addEventListener("click", function () {
+          close();
+          doShare(
+            title + "｜Vappa",
+            "「" + title + "」で " + sc + unit + "！抜ける？💪",
+            gameUrl(opts.gameId, { score: sc, by: opts.by })
+          );
+        });
+        sheet.appendChild(chb);
+        // スコアなしで「ゲームだけ」共有したい人向けのサブ導線
+        var gp = btn("🎮 ゲームだけ共有", false);
+        gp.addEventListener("click", function () {
+          close();
+          doShare(title + "｜Vappa", "「" + title + "」で遊ぼう！", gameUrl(opts.gameId));
+        });
+        sheet.appendChild(gp);
+      } else {
+        var g = btn("🎮 このゲームを共有", true);
+        g.addEventListener("click", function () {
+          close();
+          doShare(title + "｜Vappa", "「" + title + "」で遊ぼう！", gameUrl(opts.gameId));
+        });
+        sheet.appendChild(g);
+      }
     }
 
     var a = btn("✨ Vappa（アプリ）を共有", !opts.gameId);

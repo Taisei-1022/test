@@ -33,37 +33,141 @@
 <script src="js/config.js?v=6"></script>
 <script src="js/store.js?v=7"></script>
 <script src="js/catalog.js?v=10"></script>
-<script src="js/share.js?v=5"></script>
+<script src="js/share.js?v=6"></script>
 <script src="js/sw-reg.js?v=2"></script>
 <script src="js/arcade-embed.js?v=3"></script>
 <script>
 (function () {
   "use strict";
-  var id = new URLSearchParams(location.search).get("game");
+  var qp = new URLSearchParams(location.search);
+  var id = qp.get("game");
   if (!id) { location.replace("index.html"); return; }
+
+  // ---- 挑戦状（誰かがスコアを添えて送ってきたリンク）----
+  var chScore = null, chBy = "";
+  (function () {
+    var c = qp.get("ch");
+    if (c != null && c !== "" && isFinite(+c)) chScore = Math.round(+c);
+    chBy = (qp.get("by") || "").slice(0, 16);
+  })();
 
   var frame = document.getElementById("frame");
   var bestEl = document.getElementById("best");
   var toast = document.getElementById("toast");
   var stype = "high", unit = "点", player = Store.player();
+  var myBestScore = null, lastScore = null, GAME = null;
 
   function fmt(v) { return v + unit; }
+  function isBetter(a, b) { return stype === "low" ? a < b : a > b; }   // a が b より良いか
   function showToast(msg) { toast.textContent = msg; toast.classList.add("show"); setTimeout(function(){toast.classList.remove("show");}, 1500); }
-  function refreshBest(gid) { return Store.myBest(gid, stype, player).then(function (b) { bestEl.textContent = (b === null ? "—" : fmt(b)); }); }
+  function refreshBest(gid) { return Store.myBest(gid, stype, player).then(function (b) { myBestScore = b; bestEl.textContent = (b === null ? "—" : fmt(b)); }); }
+  function ctl(call) { try { frame.contentWindow.postMessage({ __arcadeCtl: true, call: call }, "*"); } catch (e) {} }
+
+  // ---- 受け取った挑戦状のバナー（張り合いの動機づけ。数秒で自然に消える）----
+  function showChallengeBanner() {
+    if (chScore == null) return;
+    var b = document.createElement("div");
+    b.textContent = "🔥 " + (chBy || "だれか") + "の挑戦：" + fmt(chScore) + "。抜ける？";
+    b.setAttribute("style", "position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 58px);transform:translateX(-50%);" +
+      "z-index:9998;max-width:92%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" +
+      "background:linear-gradient(90deg,#ff6b57,#ff9950);color:#2a1200;font-weight:900;font-size:14px;" +
+      "padding:9px 16px;border-radius:999px;box-shadow:0 6px 20px rgba(255,107,87,.4)");
+    document.body.appendChild(b);
+    setTimeout(function () { b.style.transition = "opacity .5s"; b.style.opacity = "0"; }, 4200);
+    setTimeout(function () { try { b.remove(); } catch (e) {} }, 4800);
+  }
+
+  // ---- ゲームオーバー時の結果シート（勝敗＋挑戦状を送る/返す）----
+  function sheetBtn(label, accent) {
+    var el = document.createElement("button");
+    el.textContent = label;
+    el.setAttribute("style", "display:block;width:100%;text-align:center;font-weight:800;font-size:15px;" +
+      "padding:15px 14px;margin:8px 0 0;border-radius:14px;border:1px solid " + (accent ? "#7b61ff" : "#3a3d52") + ";" +
+      "background:" + (accent ? "#7b61ff" : "#23263a") + ";color:#fff;cursor:pointer");
+    return el;
+  }
+  function closeResult() { var o = document.getElementById("__resultov"); if (o) o.remove(); }
+  function showResult(score, prevBest) {
+    closeResult();
+    var ov = document.createElement("div");
+    ov.id = "__resultov";
+    ov.setAttribute("style", "position:fixed;inset:0;z-index:9990;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center");
+    var sheet = document.createElement("div");
+    sheet.setAttribute("style", "width:100%;max-width:520px;background:#181a27;border-radius:20px 20px 0 0;" +
+      "padding:18px 16px calc(18px + env(safe-area-inset-bottom));box-shadow:0 -10px 36px rgba(0,0,0,.55);text-align:center");
+
+    // 大きくスコア表示
+    var big = document.createElement("div");
+    big.innerHTML = '<span style="font-size:40px;font-weight:900;color:#ffd166">' + score + '</span>' +
+      '<span style="font-size:18px;font-weight:800;color:#ffd166;margin-left:2px">' + unit + '</span>';
+    big.setAttribute("style", "margin:2px 0 4px");
+    sheet.appendChild(big);
+
+    // 勝敗（挑戦状を受けているときだけ）
+    var verdict = document.createElement("div");
+    verdict.setAttribute("style", "font-weight:900;font-size:16px;margin:2px 0 6px;min-height:20px");
+    var challengeMode = chScore != null;
+    if (challengeMode) {
+      if (isBetter(score, chScore)) {
+        verdict.textContent = "🎉 " + (chBy || "相手") + "に勝った！（" + fmt(chScore) + "）";
+        verdict.style.color = "#34d399";
+      } else if (score === chScore) {
+        verdict.textContent = "🤝 " + (chBy || "相手") + "と同点！（" + fmt(chScore) + "）";
+        verdict.style.color = "#facc15";
+      } else {
+        var diff = stype === "low" ? (score - chScore) : (chScore - score);
+        verdict.textContent = "😢 " + (chBy || "相手") + "にあと " + Math.abs(diff) + unit + "（" + fmt(chScore) + "）";
+        verdict.style.color = "#f87171";
+      }
+    } else {
+      var upd = (prevBest == null) || isBetter(score, prevBest);
+      verdict.textContent = upd ? "✨ 自己ベスト更新！" : "自己ベスト " + fmt(prevBest);
+      verdict.style.color = upd ? "#34d399" : "#9aa0b5";
+    }
+    sheet.appendChild(verdict);
+
+    // 主導線：挑戦状を送る/返す（＝ループの心臓）
+    var send = sheetBtn(challengeMode ? "🔥 挑戦状を返す（" + fmt(score) + "）" : "🔥 スコアを添えて挑戦状を送る", true);
+    send.addEventListener("click", function () {
+      closeResult();
+      if (window.Share && GAME) Share.open({ gameId: GAME.id, gameTitle: GAME.title, score: score, unit: unit, by: player });
+    });
+    sheet.appendChild(send);
+
+    var again = sheetBtn("🔄 もう一回", false);
+    again.addEventListener("click", function () { closeResult(); ctl("restart"); });
+    sheet.appendChild(again);
+
+    var cl = sheetBtn("とじる", false);
+    cl.style.marginTop = "12px";
+    cl.style.opacity = "0.85";
+    cl.addEventListener("click", closeResult);
+    sheet.appendChild(cl);
+
+    ov.appendChild(sheet);
+    ov.addEventListener("click", function (e) { if (!(e.target.closest && e.target.closest("button"))) closeResult(); });
+    document.body.appendChild(ov);
+  }
 
   Catalog.resolve(id).then(function (game) {
     if (!game) { location.replace("index.html"); return; }
+    GAME = game;
     stype = game.score.type; unit = game.score.unit;
     document.getElementById("title").textContent = game.title;
     document.title = game.title;
     document.getElementById("rankBtn").href = "leaderboard.html?game=" + game.id + "&from=play";
     var sb = document.getElementById("shareBtn");
-    if (sb) sb.addEventListener("click", function () { if (window.Share) Share.open({ gameId: game.id, gameTitle: game.title }); });
+    // 共有ボタン：スコアがあれば自動で「挑戦状」モードになる（直近スコア優先、なければ自己ベスト）
+    if (sb) sb.addEventListener("click", function () {
+      if (!window.Share) return;
+      var s = (lastScore != null) ? lastScore : myBestScore;
+      Share.open({ gameId: game.id, gameTitle: game.title, unit: unit, score: s, by: player });
+    });
 
     if (game.source === "seed") frame.src = game.path;        // シード：ファイルを読み込む
     else frame.srcdoc = buildSrcdoc(game.html);               // 生成：HTMLを直接サンドボックス再生
 
-    refreshBest(game.id);
+    refreshBest(game.id).then(showChallengeBanner);
 
     // ゲーム → 殻
     window.addEventListener("message", function (e) {
@@ -71,18 +175,15 @@
       if (!d || !d.__arcade) return;
       if (d.call === "gameOver") {
         var score = Math.round(Number(d.payload.score) || 0);
-        Store.myBest(game.id, stype, player).then(function (prev) {
-          Store.submit(game.id, stype, player, score).then(function () {
-            var better = prev === null || (stype === "low" ? score < prev : score > prev);
-            refreshBest(game.id);
-            showToast(better ? "自己ベスト更新！ " + fmt(score) : "結果 " + fmt(score));
-          });
+        var prevBest = myBestScore;   // 更新前の自己ベスト（勝敗表示用に退避）
+        Store.submit(game.id, stype, player, score).then(function () {
+          lastScore = score;
+          refreshBest(game.id).then(function () { showResult(score, prevBest); });
         });
       }
     });
 
     document.addEventListener("visibilitychange", function () { ctl(document.hidden ? "pause" : "resume"); });
-    function ctl(call) { try { frame.contentWindow.postMessage({ __arcadeCtl: true, call: call }, "*"); } catch (e) {} }
   });
 })();
 </script>
