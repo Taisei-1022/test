@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>ランキング診断（Supabase接続）</title>
+<style>
+body{margin:0;padding:16px;background:#141221;color:#f1eefb;font-family:system-ui,sans-serif}
+h1{font-size:16px;margin:0 0 4px}
+p.note{font-size:12px;color:#9a93b5;line-height:1.7;margin:4px 0 12px}
+#sum{font-size:14px;font-weight:900;background:#1d1a2e;border:1px solid #2c2740;border-radius:10px;padding:10px;margin:10px 0;line-height:1.9;word-break:break-all}
+.row{background:#1d1a2e;border:1px solid #2c2740;border-radius:10px;padding:10px;margin-bottom:8px}
+.row b{font-size:13px;display:block;margin-bottom:4px}
+.row .m{font-size:11.5px;line-height:1.6;color:#9a93b5;white-space:pre-wrap;word-break:break-all}
+.v{float:right;font-weight:900;font-size:16px}
+.ok{color:#34d399}.ng{color:#f87171}.wa{color:#facc15}
+button{background:#7b61ff;color:#fff;border:0;border-radius:12px;padding:12px 16px;font:inherit;font-weight:800;margin:6px 6px 0 0}
+button.sec{background:#23263a;border:1px solid #3a3d52}
+</style></head><body>
+<h1>🩺 ランキング診断（Supabase接続）</h1>
+<p class="note">「ランキングが空っぽ」の原因を切り分けます。読み取りは自動、書き込みテストはボタンを押した時だけ実行します（テスト行は game_id=<code>__diag__</code> なので本物のランキングは汚れません）。</p>
+<div id="sum">計測中…</div>
+<div id="rows"></div>
+<button id="ins">✍️ 書き込みテストを実行</button>
+<button id="clean" class="sec">🧹 テスト行を削除</button>
+
+<script src="../js/config.js?v=6"></script>
+<script>
+(function(){
+var cfg = window.ARCADE_CONFIG || {};
+var URL_ = (cfg.supabaseUrl||"").replace(/\/$/,"");
+var KEY = cfg.supabaseKey || "";
+var rows = document.getElementById("rows"), res = [];
+
+function add(name, verdict, detail){
+  var d = document.createElement("div"); d.className="row";
+  var cls = verdict==="OK" ? "ok" : (verdict==="警告" ? "wa" : "ng");
+  d.innerHTML = '<span class="v '+cls+'">'+verdict+'</span><b>'+name+'</b><div class="m"></div>';
+  d.querySelector(".m").textContent = detail;
+  rows.appendChild(d);
+  res.push(name.split(".")[0]+(verdict==="OK"?"✓":"✗"));
+}
+
+// fetch して status と本文を必ず見せる（握りつぶさない）
+async function probe(label, path, opts){
+  opts = opts || {};
+  var h = { apikey: KEY, "Content-Type":"application/json" };
+  if (opts.auth) h.Authorization = "Bearer " + KEY;
+  if (opts.prefer) h.Prefer = opts.prefer;
+  if (opts.range) h.Range = opts.range;
+  try {
+    var r = await fetch(URL_+"/rest/v1/"+path, { method: opts.method||"GET", headers: h, body: opts.body });
+    var txt = await r.text();
+    var cr = r.headers.get("content-range");
+    return { ok:r.ok, status:r.status, body:txt.slice(0,300), cr:cr };
+  } catch(e){
+    return { ok:false, status:0, body:"ネットワーク例外: "+(e&&e.message||e), cr:null };
+  }
+}
+
+(async function(){
+  if (!URL_ || !KEY){ add("0. 設定", "NG", "config.js に supabaseUrl/supabaseKey が入っていません＝端末内モードで動作中（共有ランキングは出ません）"); document.getElementById("sum").textContent="結果: 設定なし"; return; }
+  add("0. 設定", "OK", "URL: "+URL_+"\nキー形式: "+(/^eyJ/.test(KEY) ? "旧anon(JWT)" : "新publishable(sb_...)")+"\n※ store.js は新形式だと Authorization ヘッダを付けない実装");
+
+  // 1) 読み取り：apikeyのみ（＝今の store.js と同じ）
+  var a = await probe("A","scores?select=game_id,player,score&limit=5");
+  add("1. 読み取り（apikeyのみ／現行実装）", a.ok?"OK":"NG",
+      "HTTP "+a.status+"\n"+a.body+(a.ok&&a.body.trim()==="[]"?"\n→ 200だが0件。RLSで弾かれている（=空配列）か、本当にデータが無い":""));
+
+  // 2) 読み取り：apikey + Authorization（新キーで必要かの検証）
+  var b = await probe("B","scores?select=game_id,player,score&limit=5",{auth:true});
+  add("2. 読み取り（apikey＋Authorization）", b.ok?"OK":"NG",
+      "HTTP "+b.status+"\n"+b.body+((a.body.trim()==="[]"&&b.ok&&b.body.trim()!=="[]")?"\n→ ★Authorizationを付けると取れる＝store.jsの修正で直る":""));
+
+  // 3) 件数
+  var c = await probe("C","scores?select=id",{prefer:"count=exact",range:"0-0",auth:true});
+  add("3. 総件数", c.ok?"OK":"NG", "HTTP "+c.status+"\ncontent-range: "+(c.cr||"なし")+"\n→ 右の数字が総行数（0なら1件も保存されていない）");
+
+  document.getElementById("sum").textContent = "結果: "+res.join("  ")+"（スクショして送ってね）";
+})();
+
+document.getElementById("ins").addEventListener("click", async function(){
+  var body = JSON.stringify({ game_id:"__diag__", player:"__diag__", score: Math.floor(Math.random()*1000) });
+  var w = await probe("W","scores",{method:"POST",body:body,prefer:"return=representation",auth:true});
+  add("4. 書き込みテスト（INSERT）", w.ok?"OK":"NG",
+      "HTTP "+w.status+"\n"+w.body+(!w.ok?"\n→ ★書き込みが拒否されている＝RLSのINSERTポリシー不足。スコアが保存されない根本原因":"\n→ 書き込みは通る"));
+  document.getElementById("sum").textContent = "結果: "+res.join("  ")+"（スクショして送ってね）";
+});
+
+document.getElementById("clean").addEventListener("click", async function(){
+  var d = await probe("D","scores?game_id=eq.__diag__",{method:"DELETE",auth:true});
+  add("5. テスト行の削除", d.ok?"OK":"警告", "HTTP "+d.status+"\n"+(d.body||"(空)")+(!d.ok?"\n→ 消せない場合はSupabaseの管理画面から game_id='__diag__' を削除してください":""));
+});
+})();
+</script>
+</body></html>
