@@ -63,6 +63,20 @@
   function refreshBest(gid) { return Store.myBest(gid, stype, player).then(function (b) { myBestScore = b; bestEl.textContent = (b === null ? "—" : fmt(b)); }); }
   function ctl(call) { try { frame.contentWindow.postMessage({ __arcadeCtl: true, call: call }, "*"); } catch (e) {} }
 
+  // ---- 画面端スワイプ（iOSの「戻る」ジェスチャー）対策 ----
+  // ジェスチャー自体はOSの仕組みでJSから無効化できない（preventDefaultが効かない）。
+  // そこで履歴にガードを1つ積んでおき、戻られたら同じページを積み直す＝実際には離脱しない。
+  // ページはリロードされないのでiframeのゲームも中断されない。抜けるのは左上の「‹」。
+  (function guardBack() {
+    var hinted = false;
+    function push() { try { history.pushState({ vpGuard: 1 }, "", location.href); } catch (e) {} }
+    push();
+    window.addEventListener("popstate", function () {
+      push();                                  // 戻された分を積み直す
+      if (!hinted) { hinted = true; showToast("戻るときは左上の ‹ を押してね"); }
+    });
+  })();
+
   // ---- 受け取った挑戦状のバナー（張り合いの動機づけ。数秒で自然に消える）----
   function showChallengeBanner() {
     if (chScore == null) return;
