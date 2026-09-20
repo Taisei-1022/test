@@ -148,9 +148,21 @@
     });
     sheet.appendChild(send);
 
+    // 「もう一回」と「ランキング」は横並び（結果シートが縦に伸びすぎないように）。
+    // ランキングは結果シートからも必ず行けるようにする（シートが上に乗って
+    // バーのランキングボタンを塞ぐため。プレイ直後こそ順位を見たい）。
+    var row = document.createElement("div");
+    row.setAttribute("style", "display:flex;gap:8px");
     var again = sheetBtn("🔄 もう一回", false);
+    again.style.flex = "1";
     again.addEventListener("click", function () { closeResult(); ctl("restart"); });
-    sheet.appendChild(again);
+    var rank = sheetBtn("🏆 ランキング", false);
+    rank.style.flex = "1";
+    rank.addEventListener("click", function () {
+      if (GAME) location.href = "leaderboard.html?game=" + encodeURIComponent(GAME.id) + "&from=play";
+    });
+    row.appendChild(again); row.appendChild(rank);
+    sheet.appendChild(row);
 
     var cl = sheetBtn("とじる", false);
     cl.style.marginTop = "12px";
