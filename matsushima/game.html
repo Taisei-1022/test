@@ -78,6 +78,8 @@ body.nohud #hud *{pointer-events:none!important}
 #target .tn{font-family:var(--mincho);font-weight:800;font-size:16px;letter-spacing:.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #target .td{font-size:12px;color:var(--washi-dim);font-variant-numeric:tabular-nums;white-space:nowrap}
 #target.auto .arr{background:var(--gold)}
+#ffBtn{position:absolute;left:50%;transform:translateX(-50%);top:calc(var(--st) + 66px);padding:7px 14px;border-radius:999px;font-weight:700;font-size:13px;pointer-events:auto}
+#ffBtn.on{background:rgba(202,163,90,.45);border-color:var(--gold)}
 #rt{position:absolute;right:calc(var(--sr) + 12px);top:calc(var(--st) + 12px);display:flex;flex-direction:column;align-items:flex-end;gap:8px;pointer-events:auto}
 #mini{width:128px;height:128px;border-radius:50%;border:2px solid rgba(243,236,221,.5);box-shadow:0 4px 18px rgba(0,0,0,.35);display:block;background:#1d4652;cursor:pointer}
 .rbtns{display:flex;gap:8px}
@@ -107,6 +109,7 @@ body.nohud #hud *{pointer-events:none!important}
   #speed{min-width:88px;padding:7px 11px}
   #speed .v{font-size:28px}
   #target{top:calc(var(--st) + 112px);left:calc(var(--sl) + 12px);transform:none;max-width:52vw}
+  #ffBtn{top:calc(var(--st) + 166px);left:calc(var(--sl) + 12px);transform:none}
 }
 @media (max-height:460px){
   #wheel{width:120px;height:120px}
@@ -186,6 +189,7 @@ kbd{font-family:var(--gothic);font-size:11px;border:1px solid var(--panel-line);
 <div id="hud" class="hidden">
   <div id="speed" class="pnl"><div><span class="v" id="spd">0.0</span><span class="u">ノット</span></div><div class="hd" id="hdg">北 0°</div><div class="loc" id="loc">松島湾</div></div>
   <button id="target" class="pnl" aria-label="目的地（地図を開く）"><span class="arr"><svg viewBox="0 0 14 14"><path d="M7 1 12 12 7 9.5 2 12Z" fill="#fff6ea"/></svg></span><span><span class="tn" id="tname">—</span><br><span class="td" id="tdist"></span></span></button>
+  <button id="ffBtn" class="pnl hidden" aria-label="早送り">≫ 早送り</button>
   <div id="rt">
     <canvas id="mini" width="256" height="256" aria-label="ミニマップ（タップで地図）"></canvas>
     <div class="rbtns">
@@ -316,11 +320,13 @@ const SPOTS=[
  {id:'sabusawa',n:'寒風沢島',k:'さぶさわじま',px:2676,py:1980,r:520,d:'江戸時代、仙台藩の米を江戸へ運ぶ千石船の港として栄えた島。日和山には船乗りが風待ちをした名残が残ります。'},
  {id:'hou',n:'朴島',k:'ほうじま',px:2662,py:1502,r:260,d:'浦戸諸島の小さな島。春には島一面が菜の花で黄色く染まり、松島湾の春の風物詩になっています。'},
  {id:'otakamori',n:'大高森',k:'おおたかもり',px:3314,py:1780,r:900,d:'宮戸島にそびえる標高105.8mの山。松島四大観のひとつ「壮観」とよばれ、山頂から湾に浮かぶ島々を360度見渡せます。'},
- {id:'sagakei',n:'嵯峨渓',k:'さがけい',px:3760,py:2190,r:330,d:'宮戸島の外洋側に続く、断崖と奇岩の海岸。波が削った荒々しい景観は「日本三大渓」のひとつに数えられます。'},
+ {id:'sagakei',n:'嵯峨渓',k:'さがけい',px:3735,py:2365,r:360,d:'宮戸島の外洋側に続く、断崖と奇岩の海岸。波が削った荒々しい景観は「日本三大渓」のひとつに数えられます。この岬の先から東へ、高さ数十mの絶壁が続きます。'},
  {id:'magaki',n:'籬島',k:'まがきじま',px:640,py:2342,r:160,d:'塩竈の沖に浮かぶ小さな島。古くから和歌に詠まれてきた歌枕として知られ、塩竈港に出入りする船を見守ってきました。'},
 ];
-SPOTS.forEach(s=>{s.x=px2x(s.px);s.z=py2z(s.py);s.r2=s.r;});
+SPOTS.forEach(s=>{s.x=px2x(s.px);s.z=py2z(s.py);});
 const START={px:1305,py:992,hdg:150};
+// keep generic houses off the landmark islets (Godaido, Fukuurajima, Oshima, Zuiganji precinct)
+const NOHOUSE=[[1272,957,22],[1436,1043,60],[1240,1088,30],[1124,884,45]];
 
 /* ════════════ Persistence ════════════ */
 const store={get(k,d){try{const v=localStorage.getItem('mts_'+k);return v==null?d:JSON.parse(v);}catch(e){return d;}},set(k,v){try{localStorage.setItem('mts_'+k,JSON.stringify(v));}catch(e){}}};
@@ -518,7 +524,11 @@ function makeCruiser(pal){
   gb.box(.22,.22,.22,0,ud+5.1,wz+.6,0xffffff,0,0xffffff);
   gb.box(.2,.2,.3,-1.9,ud+1.8,wz-.8,0xff3030,0,0xff2020);gb.box(.2,.2,.3,1.9,ud+1.8,wz-.8,0x20c050,0,0x20ff60);
   gb.box(.9,.5,.02,.45,ud+4.4,wz+.6,shu,0,null,0,.0);
-  // funnel-like accent at stern cabin
+  // rear windows, stern deck rail and ensign staff
+  gb.box(cw*.86,1.0,.05,0,y0+1.35,c1+.01,glass,0,glow);
+  gb.box(1.3,.5,.05,0,y0+.45,c1+.02,shu);
+  railing(gb,[[-H.hw(.12)*.95,H.deck(.05)+.9,H.zt(.12)],[-H.hw(0)*.9,H.deck(0)+.9,H.zt(.01)],[H.hw(0)*.9,H.deck(0)+.9,H.zt(.01)],[H.hw(.12)*.95,H.deck(.05)+.9,H.zt(.12)]],.5,0xcfcfcf,1.4);
+  gb.cyl(.04,.04,2.2,0,H.deck(0)+1.1+.9,H.zt(.02),0xdddddd,5);gb.box(.02,.55,.8,0,H.deck(0)+2.8,H.zt(.02)+.42,0xf4f2ec);
   gb.box(1.2,1.2,1.2,0,ud+.6,c1+.8,shu);
   // life rings
   for(const s of[-1,1])for(const z of[-3,4]){const m=new THREE.Matrix4().compose(V3(s*rx,ud+.6,z),new THREE.Quaternion().setFromEuler(new THREE.Euler(0,Math.PI/2,0)),V3(1,1,1));gb.add(new THREE.TorusGeometry(.35,.09,6,12),0xf07a1e,m);}
@@ -706,6 +716,7 @@ async function loadWorld(){
   setProg(0,'地形を読み込み中…');
   const [hb,pb,pj]=await Promise.all([fetchBlob('height.png',0,.3,'地形を読み込み中…'),fetchBlob('photo.jpg',.3,.45,'空中写真を読み込み中…'),fetch('places.json').then(r=>r.json())]);
   PLACES=pj.map(a=>({n:a[0],k:a[1],c:a[2],px:a[3],py:a[4],r:a[5]*S,top:a[6],x:px2x(a[3]),z:py2z(a[4])}));
+  for(const s of SPOTS){const pl=PLACES.find(p=>p.n===s.n&&p.c==='i'&&p.r>0&&Math.hypot(p.px-s.px,p.py-s.py)<40);if(pl)s.r=Math.max(s.r,pl.r+200);}
   const himg=await blobImg(hb);
   {const cv=document.createElement('canvas');cv.width=MW;cv.height=MH;const cx=cv.getContext('2d',{willReadFrequently:true});cx.drawImage(himg,0,0);
    const d=cx.getImageData(0,0,MW,MH).data;HQ=new Uint8Array(MW*MH);for(let i=0,j=0;i<HQ.length;i++,j+=4)HQ[i]=d[j];cv.width=cv.height=1;}
@@ -735,7 +746,7 @@ async function loadWorld(){
   const PD=pcx.getImageData(0,0,960,768).data;
   buildVegetation(PD);await yieldUI();
   setProg(.9,'航路を計算中…');await yieldUI();
-  buildNav();buildLandmarks();buildBay();buildMapBase(PD);
+  buildNav();buildLandmarks();labelNav();buildBay();buildMapBase(PD);
   setProg(1,'準備完了');
 }
 /* ---- terrain tiles ---- */
@@ -802,7 +813,7 @@ function buildVegetation(PD){
     const veg=(g>=r*1.0&&g+6>=b&&lum<118)||lum<48;
     if(veg){if(sl>1.35)continue;const near=dl<90?1:dl<260?.5:dl<800?.16:.035;
       const isle=ISLE[(py>>1)*HW+(px>>1)];if(R()<(isle?1:near*.9))trees.push([jx,jy,h,isle?0:dl,sl,isle]);}
-    else if(px%3===0&&py%4===0&&sl<.25&&h<45&&dl<1100&&mx-mn<34&&lum>80&&lum<215){if(R()<.55)houses.push([jx,jy,h,lum]);}
+    else if(px%3===0&&py%4===0&&sl<.25&&h<45&&dl<1100&&mx-mn<34&&lum>80&&lum<215&&!NOHOUSE.some(z=>Math.hypot(z[0]-px,z[1]-py)<z[2])){if(R()<.55)houses.push([jx,jy,h,lum]);}
   }
   const thin=(arr,max)=>{if(arr.length<=max)return arr;const k=max/arr.length;return arr.filter(()=>R()<k);};
   // coast & island pines get priority in the budget; inland forest takes what is left
@@ -841,13 +852,23 @@ function buildVegetation(PD){
   world.nTrees=T.length;world.nHouses=H.length;
 }
 /* ════════════ Navigation grid & A* ════════════ */
-const GW=480,GH=384,GC=8;let NAV=null;const barriers=[];
+const GW=480,GH=384,GC=8;let NAV=null,NAVC=null,mainComp=0;const barriers=[];const NAVSETS={};
+function setNav(big){const n=NAVSETS[big?'wide':'narrow'];NAV=n.nav;NAVC=n.comp;mainComp=n.main;}
 function navCell(cx,cy){return cx>=0&&cy>=0&&cx<GW&&cy<GH&&NAV[cy*GW+cx]===1;}
-function buildNav(){NAV=new Uint8Array(GW*GH);
-  for(let cy=0;cy<GH;cy++)for(let cx=0;cx<GW;cx++){const i=clamp(cx*4+2,0,HW-1),j=clamp(cy*4+2,0,HH-1);NAV[cy*GW+cx]=dSea[j*HW+i]>24?1:0;}
+function buildNav(){for(const[k,th]of[['wide',22],['narrow',11]]){const nav=new Uint8Array(GW*GH);
+  for(let cy=0;cy<GH;cy++)for(let cx=0;cx<GW;cx++){const i=clamp(cx*4+2,0,HW-1),j=clamp(cy*4+2,0,HH-1);nav[cy*GW+cx]=dSea[j*HW+i]>th?1:0;}
+  NAVSETS[k]={nav,comp:null,main:0};}setNav(true);
 }
-function blockSeg(a,b){const n=Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/4);for(let i=0;i<=n;i++){const px=lerp(a[0],b[0],i/n),py=lerp(a[1],b[1],i/n);for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const cx=(px/GC|0)+dx,cy=(py/GC|0)+dy;if(cx>=0&&cy>=0&&cx<GW&&cy<GH)NAV[cy*GW+cx]=0;}}}
-function nearestNav(px,py){const cx0=px/GC|0,cy0=py/GC|0;for(let r=0;r<60;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){if(Math.max(Math.abs(dx),Math.abs(dy))!==r)continue;if(navCell(cx0+dx,cy0+dy))return[cx0+dx,cy0+dy];}return null;}
+function navEach(fn){for(const k of['wide','narrow']){NAV=NAVSETS[k].nav;fn();}setNav(true);}
+function labelNav(){for(const k of['wide','narrow']){NAV=NAVSETS[k].nav;labelOne();NAVSETS[k].comp=NAVC;NAVSETS[k].main=mainComp;}setNav(true);}
+function labelOne(){NAVC=new Int32Array(GW*GH);const st=new Int32Array(GW*GH);let n=0,best=0,bestN=0;
+  for(let i=0;i<NAV.length;i++){if(!NAV[i]||NAVC[i])continue;n++;let sp=0,c=0;st[sp++]=i;NAVC[i]=n;
+    while(sp){const k=st[--sp];c++;const x=k%GW,y=k/GW|0;for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=GW||ny>=GH)continue;const j=ny*GW+nx;if(NAV[j]&&!NAVC[j]){NAVC[j]=n;st[sp++]=j;}}}
+    if(c>bestN){bestN=c;best=n;}}
+  mainComp=best;}
+function blockSeg(a,b){navEach(()=>blockSeg1(a,b));}
+function blockSeg1(a,b){const n=Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/4);for(let i=0;i<=n;i++){const px=lerp(a[0],b[0],i/n),py=lerp(a[1],b[1],i/n);for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const cx=(px/GC|0)+dx,cy=(py/GC|0)+dy;if(cx>=0&&cy>=0&&cx<GW&&cy<GH)NAV[cy*GW+cx]=0;}}}
+function nearestNav(px,py,comp){const cx0=px/GC|0,cy0=py/GC|0;for(let r=0;r<90;r++)for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){if(Math.max(Math.abs(dx),Math.abs(dy))!==r)continue;const x=cx0+dx,y=cy0+dy;if(navCell(x,y)&&(!comp||NAVC[y*GW+x]===comp))return[x,y];}return null;}
 function astar(s,g){const N=GW*GH,G=new Float32Array(N).fill(1e9),from=new Int32Array(N).fill(-1),closed=new Uint8Array(N);
   const heap=[],push=(i,f)=>{heap.push([f,i]);let k=heap.length-1;while(k>0){const p=(k-1)>>1;if(heap[p][0]<=heap[k][0])break;[heap[p],heap[k]]=[heap[k],heap[p]];k=p;}},
   pop=()=>{const top=heap[0],last=heap.pop();if(heap.length){heap[0]=last;let k=0;for(;;){const l=2*k+1,r=l+1;let m=k;if(l<heap.length&&heap[l][0]<heap[m][0])m=l;if(r<heap.length&&heap[r][0]<heap[m][0])m=r;if(m===k)break;[heap[m],heap[k]]=[heap[k],heap[m]];k=m;}}return top;};
@@ -862,7 +883,7 @@ function astar(s,g){const N=GW*GH,G=new Float32Array(N).fill(1e9),from=new Int32
   const los=(a,b)=>{const n=Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/(GC*.5));for(let k=1;k<n;k++){const px=lerp(a[0],b[0],k/n),py=lerp(a[1],b[1],k/n);if(!navCell(px/GC|0,py/GC|0))return false;}return true;};
   const out=[path[0]];let k=0;while(k<path.length-1){let j=path.length-1;while(j>k+1&&!los(path[k],path[j]))j--;out.push(path[j]);k=j;}
   return out.map(p=>V3(px2x(p[0]),0,py2z(p[1])));}
-function routeWorld(pts){let all=[];for(let i=0;i<pts.length-1;i++){const a=nearestNav(pts[i][0],pts[i][1]),b=nearestNav(pts[i+1][0],pts[i+1][1]);if(!a||!b)continue;const p=astar(a,b);if(!p)continue;if(all.length)p.shift();all=all.concat(p);}return all;}
+function routeWorld(pts){let all=[];for(let i=0;i<pts.length-1;i++){const a=nearestNav(pts[i][0],pts[i][1],mainComp),b=nearestNav(pts[i+1][0],pts[i+1][1],mainComp);if(!a||!b)continue;const p=astar(a,b);if(!p)continue;if(all.length)p.shift();all=all.concat(p);}return all;}
 
 /* ════════════ Landmarks ════════════ */
 function buildLandmarks(){
@@ -899,6 +920,7 @@ function buildBay(){
   const R=rng(99);
   // ferries
   const MG=ll2px(141.0277,38.3177);
+  setNav(true);
   const routeA=routeWorld([[START.px+10,START.py+18],[1560,1500],[1100,2050],[MG[0]+30,MG[1]]]);
   const k1=ll2px(141.0921,38.3370),n1=ll2px(141.1045,38.3395),s1=ll2px(141.1195,38.3378),h1=ll2px(141.1235,38.3495);
   const routeB=routeWorld([[MG[0]+30,MG[1]],k1,n1,s1,h1]);
@@ -923,6 +945,9 @@ function buildBay(){
   R_.forEach((r,i)=>{q.setFromAxisAngle(V3(0,1,0),r.a);m4.compose(V3(r.x,0,r.z),q,V3(1,1,1));im.setMatrixAt(i,m4);rafts.push(r);});
   im.geometry=rg.clone();im.geometry.setAttribute('aICol',new THREE.InstancedBufferAttribute(col,3));im.geometry.setAttribute('aIVar',new THREE.InstancedBufferAttribute(vr,3));
   im.frustumCulled=false;scene.add(im);
+  // rafts are obstacles for route planning too
+  navEach(()=>{for(const r of R_){for(let a=-14;a<=14;a+=7)for(let b=-8;b<=8;b+=8){const x=r.x+r.c*b+r.s*a,z=r.z-r.s*b+r.c*a;const cx=x2px(x)/GC|0,cy=z2py(z)/GC|0;if(cx>=0&&cy>=0&&cx<GW&&cy<GH)NAV[cy*GW+cx]=0;}}});
+  labelNav();
   // channel buoys along route A
   const bgb=new GB();bgb.cyl(.55,.7,1.6,0,.6,0,0xffffff,10);bgb.cyl(.12,.12,1.6,0,2.2,0,0xffffff,6);bgb.box(.3,.3,.3,0,3.1,0,0xffffff,0,0xffffff);
   const bpos=[];for(let k=1;k<routeA.length;k++){const a=routeA[k-1],b=routeA[k],L=a.distanceTo(b);for(let s=250;s<L-100;s+=650){const t=s/L,x=lerp(a.x,b.x,t),z=lerp(a.z,b.z,t),dx=(b.x-a.x)/L,dz=(b.z-a.z)/L;
@@ -958,7 +983,7 @@ function setBoat(t){boatType=t;store.set('boat',t);if(boat.mesh){scene.remove(bo
   const spec=BOATS[t];const mdl=spec.make();boat.spec=spec;boat.model=mdl;boat.mesh=new THREE.Mesh(mdl.geo,boatMat);boat.mesh.rotation.order='YXZ';scene.add(boat.mesh);
   camDist=spec.cam[0];document.querySelectorAll('#boatSeg .pill,.boat').forEach(b=>{const on=b.dataset.b===t;b.classList.toggle('on',on);if(b.classList.contains('boat'))b.setAttribute('aria-pressed',on);});
   wake.reset();}
-function placeBoat(px,py,hdg){let p=[px,py];if(!navOK(px2x(px),py2z(py))){const c=nearestNav(px,py);if(c)p=[(c[0]+.5)*GC,(c[1]+.5)*GC];}
+function placeBoat(px,py,hdg){setNav(boat.spec.len>15);let p=[px,py];if(!navOK(px2x(px),py2z(py))){const c=nearestNav(px,py,mainComp);if(c)p=[(c[0]+.5)*GC,(c[1]+.5)*GC];}
   boat.pos.set(px2x(p[0]),0,py2z(p[1]));boat.hdg=hdg*Math.PI/180;boat.u=boat.v=boat.r=0;setThr(0);wake.reset();}
 function navOK(x,z){return hAt(x,z)<-1.2;}
 const fwd=h=>V3(Math.sin(h),0,-Math.cos(h)), rgt=h=>V3(Math.cos(h),0,Math.sin(h));
@@ -1089,22 +1114,26 @@ function cycleCam(){camMode=(camMode+1)%3;camYaw=0;camPitch=camMode===1?.05:camM
 $('#bFeed').onclick=()=>{sound.resume();throwSnack();};$('#bHorn').onclick=horn;$('#bCam').onclick=cycleCam;$('#bAuto').onclick=toggleAuto;
 
 /* ════════════ Target / autopilot ════════════ */
-let target=null;
+let target=null,timeScale=1,dbgCam=null;
+$('#ffBtn').onclick=()=>{timeScale=timeScale>1?1:4;$('#ffBtn').classList.toggle('on',timeScale>1);$('#ffBtn').textContent=timeScale>1?'≫ 早送り中 ×4':'≫ 早送り';};
 function setTarget(s){target=s;$('#tname').textContent=s?s.n:'自由航行';$('#mapSel').textContent='目的地：'+(s?s.n+'（'+s.k+'）':'—');drawBigMap();}
 function nextTarget(){let best=null,bd=1e18;for(const s of SPOTS){if(stamps[s.id])continue;const d=Math.hypot(s.x-boat.pos.x,s.z-boat.pos.z);if(d<bd){bd=d;best=s;}}setTarget(best);}
 function toggleAuto(){if(autopilot){cancelAuto();toast('手動操船に切り替えました');return;}startAuto();}
-function startAuto(){if(!target){toast('目的地がありません');return;}
-  const a=nearestNav(x2px(boat.pos.x),z2py(boat.pos.z));
-  let gx=target.px,gy=target.py;const g=nearestNavFrom(gx,gy,x2px(boat.pos.x),z2py(boat.pos.z));
+function startAuto(quiet){if(!target){toast('目的地がありません');return;}
+  setNav(boat.spec.len>15);
+  const a=nearestNav(x2px(boat.pos.x),z2py(boat.pos.z),mainComp),g=nearestNav(target.px,target.py,mainComp);
   if(!a||!g){toast('航路が見つかりません');return;}const path=astar(a,g);if(!path||path.length<1){toast('航路が見つかりません');return;}
-  autopilot={path,i:0};$('#bAuto').classList.add('on');$('#target').classList.add('auto');toast(target.n+'へ自動航行します');}
-function nearestNavFrom(px,py){return nearestNav(px,py);}
-function cancelAuto(){if(!autopilot)return;autopilot=null;$('#bAuto').classList.remove('on');$('#target').classList.remove('auto');}
-function runAuto(){const P=autopilot.path;let i=autopilot.i;while(i<P.length-1&&Math.hypot(P[i].x-boat.pos.x,P[i].z-boat.pos.z)<Math.max(45,boat.spec.len*2.2))i++;autopilot.i=i;
+  autopilot={path,i:0,stuck:0,rev:0,revRud:0};$('#bAuto').classList.add('on');$('#ffBtn').classList.remove('hidden');$('#target').classList.add('auto');if(!quiet)toast(target.n+'へ自動航行します');}
+function tow(){setNav(boat.spec.len>15);if(autopilot){autopilot.tows=(autopilot.tows||0)+1;if(autopilot.tows>3){cancelAuto();setThr(0);toast('この先は狭く、自動航行では進めません');return;}}const c=nearestNav(x2px(boat.pos.x),z2py(boat.pos.z),mainComp);if(!c)return;boat.pos.set(px2x((c[0]+.5)*GC),0,py2z((c[1]+.5)*GC));boat.u=boat.v=boat.r=0;wake.reset();toast('近くの航路まで曳航しました');if(autopilot){const tw=autopilot.tows;startAuto(true);if(autopilot)autopilot.tows=tw;}}
+function cancelAuto(){if(!autopilot)return;autopilot=null;timeScale=1;$('#ffBtn').classList.add('hidden');$('#ffBtn').classList.remove('on');$('#ffBtn').textContent='≫ 早送り';$('#bAuto').classList.remove('on');$('#target').classList.remove('auto');}
+function runAuto(dt){const A=autopilot;if(A.rev>0){A.rev-=dt;setThr(-.75);input.rudder=A.revRud;if(A.rev<=0){const f=A.fails,tw=A.tows;startAuto(true);if(autopilot){autopilot.fails=f;autopilot.tows=tw;}}return;}
+  const P=autopilot.path;let i=autopilot.i;while(i<P.length-1&&Math.hypot(P[i].x-boat.pos.x,P[i].z-boat.pos.z)<Math.max(45,boat.spec.len*2.2))i++;autopilot.i=i;
   const tp=P[i],dx=tp.x-boat.pos.x,dz=tp.z-boat.pos.z,dist=Math.hypot(dx,dz);const want=Math.atan2(dx,-dz);let err=want-boat.hdg;while(err>Math.PI)err-=2*Math.PI;while(err<-Math.PI)err+=2*Math.PI;
-  input.rudder=clamp(err*2.4-boat.r*1.2,-1,1);const end=Math.hypot(P[P.length-1].x-boat.pos.x,P[P.length-1].z-boat.pos.z);
+  input.rudder=clamp(err*2.4-boat.r*1.2,-1,1);
+  if(Math.abs(boat.u)<.6&&boat.thr>.2){A.stuck+=dt;if(A.stuck>2.2){A.stuck=0;A.fails=(A.fails||0)+1;if(A.fails>=3){tow();return;}A.rev=boat.spec.len>15?4.5:2.5;A.revRud=clamp(-err*3,-1,1);}}else A.stuck=Math.max(0,A.stuck-dt*.5);const end=Math.hypot(P[P.length-1].x-boat.pos.x,P[P.length-1].z-boat.pos.z);
   let thr=Math.abs(err)>1.1?.35:.9;if(end<220)thr=Math.min(thr,.25+end/220*.5);setThr(thr);
   if(i===P.length-1&&dist<Math.max(30,boat.spec.len)){cancelAuto();setThr(.1);toast('目的地付近に到着しました');}}
+
 
 /* ════════════ HUD / labels / map ════════════ */
 const vert=s=>[...s].map(c=>'<span>'+c+'</span>').join('');
@@ -1190,7 +1219,7 @@ function stepBoat(dt){const sp=boat.spec;
   if(!autopilot){let r=0;if(input.keys['a']||input.keys['arrowleft'])r-=1;if(input.keys['d']||input.keys['arrowright'])r+=1;
     const wr=wheelAng/135;input.rudder=r!==0?r:wr;
     if(input.keys['w']||input.keys['arrowup'])setThr(Math.min(1,boat.thr+dt*.6));if(input.keys['s']||input.keys['arrowdown'])setThr(Math.max(-1,boat.thr-dt*.6));}
-  else runAuto();
+  else runAuto(dt);
   if(!input.wheelActive){wheelAng*=Math.pow(.004,dt);if(autopilot)wheelAng=input.rudder*100;}
   wheelG.setAttribute('transform',`rotate(${wheelAng.toFixed(1)})`);
   boat.rud=lerp(boat.rud,input.rudder,Math.min(1,dt*4));
@@ -1246,7 +1275,7 @@ function cull(){const cx=camera.position.x,cz=camera.position.z,td=Q.treeDist+ca
 /* ════════════ Main loop ════════════ */
 let last=performance.now(),fpsAcc=0,fpsN=0,fpsT=0,hudT=0,lblT=0;
 function frame(now){requestAnimationFrame(frame);let dt=(now-last)/1000;last=now;if(dt>.1)dt=.1;t+=dt;U.uTime.value=t;tickTod(dt);
-  if(gameOn&&boat.mesh){stepBoat(dt);stepCamera(dt);}else titleCamera();
+  if(dbgCam){camera.position.copy(dbgCam.p);camera.lookAt(dbgCam.l);}else if(gameOn&&boat.mesh){stepBoat(dt);for(let k=1;k<timeScale&&autopilot;k++){t+=dt;U.uTime.value=t;stepBoat(dt);stepFerries(dt);}stepCamera(dt);}else titleCamera();
   stepFerries(dt);if(gullMesh&&boat.mesh)updateGulls(dt,t);spray.update(dt);
   if(buoyMesh){/* blink handled by night emission */}
   sky.position.copy(camera.position);water.position.set(Math.round(camera.position.x/100)*100,0,Math.round(camera.position.z/100)*100);
@@ -1284,7 +1313,7 @@ async function boot(data){
   const btn=$('#start');btn.disabled=false;$('#startTxt').textContent='出航する';$('#bar').style.width='0';
   btn.onclick=()=>startGame(null);
   if(data.on)startGame(data);
-  window.__mts={wake,placeBoat,boat,world,camera,U,setTod:changeTod,startGame,hAt,SPOTS,PLACES:()=>PLACES,ferries,rafts,renderer};
+  window.__mts={cam(px,py,h,lx,ly,lh){dbgCam=h==null?null:{p:V3(px2x(px),h,py2z(py)),l:V3(px2x(lx),lh,py2z(ly))};},setBoat,sim(sec){const dt=1/30;for(let i=0;i<sec*30;i++){t+=dt;U.uTime.value=t;stepBoat(dt);stepFerries(dt);}stepCamera(1);},setTarget,startAuto,get auto(){return autopilot;},stamps:()=>stamps,wake,placeBoat,boat,world,camera,U,setTod:changeTod,startGame,hAt,SPOTS,PLACES:()=>PLACES,ferries,rafts,renderer};
 }
 if(hot&&hot.ready)hot.ready(boot);else boot(hot&&hot.data||{});
 })();
