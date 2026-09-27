@@ -1,6 +1,18 @@
 /* ゲーム登録（MVPは自分で仕込むシードのみ） */
 window.GAMES = [
   {
+    id: "matsushima",
+    title: "松島 島めぐり航海",
+    author: "taisei",
+    category: "シミュレーション",
+    path: "games/matsushima/index.html?v=1",
+    thumb: "games/matsushima/thumb.png?v=1",
+    score: { type: "high", unit: "印" },
+    accent: "#d4432a",
+    created: "2026-09-27",
+    blurb: "実測地形で再現した松島湾を船でめぐり、12の名所で航海印を集めよう。"
+  },
+  {
     id: "city",
     title: "ひとながれシティ",
     author: "Vappa公式",
