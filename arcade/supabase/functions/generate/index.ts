@@ -617,6 +617,14 @@ function remainMs(buffer = 20000) { return WALL_MS - (Date.now() - BOOT) - buffe
 // これで「時間がかかりすぎた」表示は、DeepSeekが本当に連続で死んでいる時しか出なくなる。
 const MAX_BUILD_ATT = 2;
 
+// 1ビルド分のAI呼び出し記録（どのモデルを・何秒・どう終わったか・何トークン使ったか）。
+// ジョブ結果に diag として添付する。V4.1 移行後に「空の回答」「時間切れ」が続いたが、
+// 記録が無く原因を推測するしかなかったため。時間切れで新インスタンスへ引き継ぐ時も
+// pdiag で持ち越す。インスタンスは基本1ビルドずつ処理するのでモジュール変数で足りる。
+let DIAG: string[] = [];
+function diag(s: string) { DIAG.push(Math.round((Date.now() - BOOT) / 1000) + "s " + s); if (DIAG.length > 24) DIAG.shift(); }
+function withDiag(r: unknown) { return (r && typeof r === "object") ? { ...(r as object), diag: DIAG.slice() } : r; }
+
 // Supabaseの ai_gate(RPC) を service_role で呼ぶ。テーブル/関数が無い等で失敗したら
 // null を返す（=フェイルオープン：保護は効かないがアプリは止めない）。
 async function gate(ub: string, ib: string, gb: string, umax: number, imax: number, gmax: number, cooldown: number) {
@@ -1038,27 +1046,41 @@ async function callOpenAICompat(spec: ModelSpec, system: string, messages: Msg[]
     response_format: { type: "json_object" },   // DeepSeek V4・xAI・GPT いずれも JSON 構造化出力に対応
   };
   if (spec.provider === "deepseek") {
-    // V4：effort ありは思考ON（reasoning_effort）、なしは思考OFF。どちらも response_format 対応。
+    // effort ありは思考ON（reasoning_effort）、なしは思考OFF。どちらも response_format 対応。
     if (spec.effort) body.reasoning_effort = spec.effort;
     else body.thinking = { type: "disabled" };
-    body.max_tokens = 16000;   // 思考分も含むので広めに
+    // max_tokens は思考分も含む。V4 時代の 16000 だと、V4.1 は複雑なゲームで思考だけで
+    // 使い切り、本文が空（empty_json_output）になっていた（本番で確認）。V4.1 の出力上限は
+    // 384K なので、思考ありは広く取る。実際に使った量は diag に残る。
+    body.max_tokens = spec.effort ? 48000 : 16000;
   } else if (spec.provider === "xai") {
     body.max_tokens = 16000;   // xAI は max_tokens（思考分も含む）
   } else {
     body.max_completion_tokens = 16000;   // GPT-5系は max_completion_tokens（temperature等は送らない）
   }
   const headers = { "content-type": "application/json", "authorization": "Bearer " + key };
-  const readOut = (data: Record<string, unknown>) => {
-    const u = (data as { usage?: { prompt_tokens?: number; completion_tokens?: number } }).usage;
+  const tag = spec.model + "/" + (spec.effort || "off");
+  // 1回呼んで、本文・終了理由を返す（呼び出しごとに diag へ記録）
+  const call = async (): Promise<{ content: string; finish: string }> => {
+    const t = Date.now();
+    let data: Record<string, unknown>;
+    try { data = await postOnce(url, headers, body, timeoutMs); }
+    catch (e) { diag(tag + " " + String((e as Error)?.message || e).slice(0, 60) + " after " + Math.round((Date.now() - t) / 1000) + "s"); throw e; }
+    const u = (data as { usage?: { prompt_tokens?: number; completion_tokens?: number; completion_tokens_details?: { reasoning_tokens?: number } } }).usage;
     if (acc && u) acc.push({ model: spec.model, usage: { input_tokens: u.prompt_tokens || 0, output_tokens: u.completion_tokens || 0 } });
-    const choices = (data as { choices?: Array<{ message?: { content?: string } }> }).choices;
-    return choices?.[0]?.message?.content || "";
+    const ch = (data as { choices?: Array<{ finish_reason?: string; message?: { content?: string } }> }).choices?.[0];
+    const content = ch?.message?.content || "", finish = ch?.finish_reason || "?";
+    diag(tag + " " + Math.round((Date.now() - t) / 1000) + "s finish=" + finish + " out=" + (u?.completion_tokens ?? "?") +
+      " think=" + (u?.completion_tokens_details?.reasoning_tokens ?? "?") + " body=" + content.length + "ch");
+    return { content, finish };
   };
-  let content = readOut(await postOnce(url, headers, body, timeoutMs));
-  // DeepSeekのjson_objectモードが稀に空白のみを返す不具合への保険：1回だけ再試行
-  if (!content.trim()) content = readOut(await postOnce(url, headers, body, timeoutMs));
-  if (!content.trim()) throw new Error("empty_json_output");
-  return parseJsonLoose(content);
+  let r = await call();
+  // DeepSeek の json_object モードが稀に空白のみを返す不具合への保険：1回だけ再試行。
+  // ただし finish=length（トークン上限まで思考して本文が書けなかった）は、同じ条件で
+  // 再試行しても同じ結果になり時間だけ失う（本番で 76秒×2 を確認）ので再試行しない。
+  if (!r.content.trim() && r.finish !== "length") r = await call();
+  if (!r.content.trim()) throw new Error(r.finish === "length" ? "token_budget_exhausted" : "empty_json_output");
+  return parseJsonLoose(r.content);
 }
 
 // Google Gemini（generateContent）
@@ -1164,7 +1186,8 @@ async function startFlow(key: string, messages: Msg[], prevHtml: string, token: 
 // 受付インスタンスは相談ターンで寿命を消費していることが多いので、ビルド本体は
 // 自分自身をもう一度呼び出して新しいインスタンスに任せる（フルの持ち時間を確保）。
 // k にサービスロールキーを要求するので外部からは実行できない。
-type IRun = { k?: string; job?: string; messages?: Msg[]; prevHtml?: string; spec?: ModelSpec; uspec?: string; hop?: number; att?: number };
+type IRun = { k?: string; job?: string; messages?: Msg[]; prevHtml?: string; spec?: ModelSpec; uspec?: string; hop?: number; att?: number; pdiag?: string[] };
+// ↑ pdiag: 前のインスタンスまでの diag（引き継ぎ時に持ち越す）
 // ↑ att: 時間切れ時の引き継ぎ再挑戦カウンタ（1始まり、MAX_BUILD_ATT まで）
 const FN_SELF = SUPA_URL ? SUPA_URL.replace(/\/$/, "") + "/functions/v1/generate" : "";
 async function dispatchRun(payload: IRun): Promise<boolean> {
@@ -1215,9 +1238,11 @@ Deno.serve(async (req) => {
   if (irun) {
     if (!SUPA_SRV || irun.k !== SUPA_SRV || typeof irun.job !== "string") return json({ error: "forbidden" }, 403);
     const hop = irun.hop || 0;
+    DIAG = Array.isArray(irun.pdiag) ? irun.pdiag.slice(-24).map(String) : [];
+    diag("instance att=" + (irun.att || 1) + " hop=" + hop + " model=" + ((irun.spec && irun.spec.model) || "default"));
     // このインスタンスも寿命が残り少なければ、さらに新しいインスタンスへ回す（最大2回）
     if (remainMs() < 330000 && hop < 2) {
-      const moved = await dispatchRun({ ...irun, hop: hop + 1 });
+      const moved = await dispatchRun({ ...irun, hop: hop + 1, pdiag: DIAG });
       if (moved) return json({ ok: true, moved: true });
     }
     const rSpec = (irun.spec && typeof irun.spec === "object") ? irun.spec : specFor();
@@ -1232,10 +1257,11 @@ Deno.serve(async (req) => {
       // 引き継いで再挑戦する。最終回は思考オフの最速モデルで確実性を上げる。
       if (r && (r as { error?: string }).error === "timeout" && att < MAX_BUILD_ATT) {
         const nextSpec = (att + 1 >= MAX_BUILD_ATT) ? TEST_MODELS["ds-flash"] : rSpec;
-        const moved = await dispatchRun({ ...irun, hop: 0, att: att + 1, spec: nextSpec });
+        diag("att" + att + " timeout → handoff att" + (att + 1) + " " + nextSpec.model + "/" + (nextSpec.effort || "off"));
+        const moved = await dispatchRun({ ...irun, hop: 0, att: att + 1, spec: nextSpec, pdiag: DIAG });
         if (moved) return;   // ジョブは pending のまま。引き継ぎ先が結果を書く
       }
-      await finishJob(rJob, r);
+      await finishJob(rJob, withDiag(r));
     })();
     try {
       const ER = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
@@ -1313,8 +1339,9 @@ Deno.serve(async (req) => {
       // 失敗したらこのインスタンスで従来どおり生成（残り寿命内のタイムアウトが守る）。
       const moved = await dispatchRun({ k: SUPA_SRV, job: id, messages, prevHtml, spec: buildSpec, uspec });
       if (moved) return;
+      DIAG = []; diag("direct build (dispatch failed)");
       let r; try { r = await buildOnce(key, messages, prevHtml, buildSpec, uspec); } catch (e) { r = buildErr(e); }
-      await finishJob(id, r);
+      await finishJob(id, withDiag(r));
     })();
     try {
       const ER = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
