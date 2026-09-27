@@ -40,7 +40,7 @@ node tests/user-images.js
 # DeepSeek生成品質の評価ハーネス（PDCA用）
 
 ```
-node tests/gamegen-eval/run.js --tag=名前 [--cases=mole,jump] [--model=deepseek-v4-flash]
+node tests/gamegen-eval/run.js --tag=名前 [--cases=mole,jump] [--model=deepseek-flash]
   [--effort=high] [--conc=3] [--reuse=旧タグ] [--score-only]
 ```
 10ジャンルの設計書からDeepSeekで実生成→Playwright実プレイで11項目×10本=110点満点の

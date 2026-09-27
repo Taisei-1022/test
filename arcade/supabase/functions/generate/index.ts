@@ -718,10 +718,12 @@ function validateGame(html: string): string | null {
 // spec で使用モデルを差し替え可能（管理者テスト用。既定は本番モデル）。
 async function buildOnce(key: string, messages: Msg[], prevHtml: string, spec?: ModelSpec, userSpec?: string) {
   const mspec = spec || specFor();
+  let used = mspec;   // 実際に使ったモデル（DeepSeek 失敗で Claude に切り替わったらこちらが変わる）
+  const fb = (s: ModelSpec) => { used = s; };
   const t0 = Date.now();
   const acc: Array<{ model: string; usage: Usage }> = [];   // トークン使用量を集計（コスト算出用）
   const done = (reply: string, title: string, html: string, category: string, specText: string) => ({
-    action: "build", reply, title, html, category, model: specLabel(mspec), cost: computeCost(acc),
+    action: "build", reply, title, html, category, model: specLabel(used), cost: computeCost(acc),
     sec: Math.round((Date.now() - t0) / 1000), spec: specText || undefined,
   });
   // 実行上限(400秒)まで黙って殺される前に、必ずタイムアウトして結果orエラーを書く。
@@ -738,7 +740,7 @@ async function buildOnce(key: string, messages: Msg[], prevHtml: string, spec?: 
   if (prevHtml && !tpl) {
     const uc = "次の既存ゲーム(HTML)を、下の指示に従って修正してください。修正後の完全な単一HTMLだけを返し、タイトルも内容に合わせて更新してOKです。\n\n【指示】\n" +
       instruction + "\n\n【既存HTML】\n" + prevHtml;
-    const g = await callBuild(key, mspec, BUILD_SYSTEM, [{ role: "user", content: uc }], GAME_SCHEMA, buildTmo(), acc);
+    const g = await callBuildFB(key, used, BUILD_SYSTEM, [{ role: "user", content: uc }], GAME_SCHEMA, buildTmo(), acc, fb);
     if (!g.html) return { error: "empty_html" };
     let title = g.title || "無題のゲーム", html = g.html, category = g.category || "その他";
     const problem = validateGame(html);
@@ -747,7 +749,7 @@ async function buildOnce(key: string, messages: Msg[], prevHtml: string, spec?: 
       try {
         const fixUser = "あなたが作った次のHTMLゲームに問題が見つかりました：「" + problem +
           "」。原因を必ず直し、最後まで完結した完全な単一HTMLだけを返してください（</html>まで）。タイトルは維持。\n\n【HTML】\n" + html;
-        const g2 = await callBuild(key, mspec, BUILD_SYSTEM, [{ role: "user", content: fixUser }], GAME_SCHEMA, fixTmo0, acc);
+        const g2 = await callBuildFB(key, used, BUILD_SYSTEM, [{ role: "user", content: fixUser }], GAME_SCHEMA, fixTmo0, acc, fb);
         if (g2.html) { html = g2.html; title = g2.title || title; category = g2.category || category; }
       } catch { /* 修正に失敗したら元の生成結果をそのまま返す */ }
     }
@@ -784,7 +786,7 @@ async function buildOnce(key: string, messages: Msg[], prevHtml: string, spec?: 
       : "次の相談で決まった内容で、ミニゲームのロジックを作ってください。\n\n【相談ログ】\n" + transcript;
     reply = "作ったよ！";
   }
-  let g = await callBuild(key, mspec, BUILD2_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA2, buildTmo(), acc);
+  let g = await callBuildFB(key, used, BUILD2_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA2, buildTmo(), acc, fb);
   if (!g || !g.js) return { error: "empty_html" };
   // 自動チェック → 問題があれば1回だけAIに直させる（jsだけなので修正も安い）
   const problem2 = validateJs(g.js);
@@ -794,7 +796,7 @@ async function buildOnce(key: string, messages: Msg[], prevHtml: string, spec?: 
       const fixUser = "あなたが書いたゲームロジック(js)に問題が見つかりました：「" + problem2 +
         "」。原因を必ず直し、全フィールド（title/howto/unit/css/js/category）を完全な形で返してください。\n\n【title】" + (g.title || "") +
         "\n【howto】" + (g.howto || "") + "\n【unit】" + (g.unit || "") + "\n\n【css】\n" + (g.css || "") + "\n\n【js】\n" + g.js;
-      const g2 = await callBuild(key, mspec, BUILD2_SYSTEM, [{ role: "user", content: fixUser }], GAME_SCHEMA2, fixTmo, acc);
+      const g2 = await callBuildFB(key, used, BUILD2_SYSTEM, [{ role: "user", content: fixUser }], GAME_SCHEMA2, fixTmo, acc, fb);
       if (g2 && g2.js && !validateJs(g2.js)) g = g2;
     } catch { /* 修正に失敗したら元の生成結果をそのまま返す */ }
   }
@@ -807,7 +809,8 @@ function buildErr(e: unknown) {
   const s = String((e as Error)?.message || e);
   if (s.indexOf("refused") >= 0) return { error: "refused" };
   if (s === "timeout") return { error: "timeout" };   // 自前タイムアウト＝時間切れとして通知
-  if (/credit balance is too low/i.test(s)) return { error: "insufficient_credit" };
+  // Anthropic（"credit balance is too low"）と DeepSeek（402 "Insufficient Balance"）の残高切れ
+  if (/credit balance is too low|Insufficient Balance|upstream:402/i.test(s)) return { error: "insufficient_credit" };
   // テストモデルのAPIキー未設定（管理者向け：Supabase Secrets に該当キーを追加する）
   if (s.indexOf("missing_env:") >= 0) return { error: "generate_error", detail: s.slice(0, 200) };
   return { error: "generate_error", detail: s.slice(0, 200) };
@@ -815,7 +818,8 @@ function buildErr(e: unknown) {
 
 // フェーズごとのモデル（コスト最適化）：
 //   相談・質問役（think=false）→ Haiku（安い・速い）
-//   ゲーム本生成・修正（think=true）→ 既定は specFor() = DeepSeek V4 Flash・思考high
+//   ゲーム本生成・修正（think=true）→ 既定は specFor() = DeepSeek Flash(V4.1)・思考high
+//     （DeepSeek が残高切れ等で失敗したら callBuildFB が Claude で作り直す）
 //   （MODELS.build は anthropic 呼び出しの後方互換フォールバックとして残す）
 const MODELS = { plan: "claude-haiku-4-5-20251001", build: "claude-opus-4-8" };
 
@@ -831,11 +835,13 @@ const TEST_MODELS: Record<string, ModelSpec> = {
   "sonnet-m": { provider: "anthropic", model: "claude-sonnet-5", effort: "medium" },
   "sonnet-h": { provider: "anthropic", model: "claude-sonnet-5", effort: "high" },
   "sonnet-x": { provider: "anthropic", model: "claude-sonnet-5", effort: "xhigh" },   // 安い×最高effortの検証用
-  // DeepSeek V4：2モデル（flash 激安 / pro 上位）× 思考オフ・high・max の6択。
+  // DeepSeek：2モデル（flash 激安 / pro 上位）× 思考オフ・high・max の6択。
   // effort 未指定＝思考オフ（thinking disabled）、effort ありは reasoning_effort として送る。
-  "ds-flash":   { provider: "deepseek", model: "deepseek-v4-flash", envKey: "DEEPSEEK_API_KEY" },                    // Flash・思考オフ（最速最安）
-  "ds-flash-h": { provider: "deepseek", model: "deepseek-v4-flash", effort: "high", envKey: "DEEPSEEK_API_KEY" },   // Flash・思考high
-  "ds-flash-x": { provider: "deepseek", model: "deepseek-v4-flash", effort: "max",  envKey: "DEEPSEEK_API_KEY" },   // Flash・思考max
+  // 2026-09-09 に Flash が V4.1 になり、正式IDは "deepseek-flash"。旧ID "deepseek-v4-flash" は
+  // 今は V4.1 に振り替えて受け付けているが廃止予定の扱いなので、正式IDに寄せておく。
+  "ds-flash":   { provider: "deepseek", model: "deepseek-flash", envKey: "DEEPSEEK_API_KEY" },                    // Flash・思考オフ（最速最安）
+  "ds-flash-h": { provider: "deepseek", model: "deepseek-flash", effort: "high", envKey: "DEEPSEEK_API_KEY" },   // Flash・思考high
+  "ds-flash-x": { provider: "deepseek", model: "deepseek-flash", effort: "max",  envKey: "DEEPSEEK_API_KEY" },   // Flash・思考max
   "ds-pro":     { provider: "deepseek", model: "deepseek-v4-pro",   envKey: "DEEPSEEK_API_KEY" },                    // Pro・思考オフ
   "ds-pro-h":   { provider: "deepseek", model: "deepseek-v4-pro",   effort: "high", envKey: "DEEPSEEK_API_KEY" },   // Pro・思考high
   "ds-pro-x":   { provider: "deepseek", model: "deepseek-v4-pro",   effort: "max",  envKey: "DEEPSEEK_API_KEY" },   // Pro・思考max（全力）
@@ -846,7 +852,8 @@ const TEST_MODELS: Record<string, ModelSpec> = {
   "grok-45":  { provider: "xai",       model: "grok-4.5",        envKey: "XAI_API_KEY" },   // 最新上位（$2/$6）
 };
 // 管理者の指定キーを ModelSpec に解決（未指定/不明/非管理者は本番モデル）
-// 本番既定 = DeepSeek V4 Flash・思考high（PDCA計測 102-103/110・1本約¥1）
+// 本番既定 = DeepSeek Flash・思考high（V4 時代の PDCA計測 102-103/110・1本約¥1。
+// V4.1 で出力単価が上がったので現在は1本 約¥2〜4 の見込み。V4.1 での再計測は未実施）
 function specFor(testModel?: string): ModelSpec {
   return (testModel && TEST_MODELS[testModel]) || TEST_MODELS["ds-flash-h"];
 }
@@ -862,26 +869,41 @@ const USD_JPY = 160;
 // モデル別の単価（1Mトークンあたり、入力/出力ドル）。cache_read=入力×0.1, cache_write=入力×1.25。
 const PRICES: Record<string, { in: number; out: number }> = {
   "claude-opus-4-8": { in: 5, out: 25 },
-  // Sonnet 5 は導入割引中：入力$2/出力$10（2026-08-31まで）。以降は $3/$15 に戻すこと。
-  "claude-sonnet-5": { in: 2, out: 10 },
+  // Sonnet 5：導入割引（$2/$10）は 2026-08-31 で終了したので通常価格に戻した。
+  "claude-sonnet-5": { in: 3, out: 15 },
   "claude-sonnet-4-6": { in: 3, out: 15 },
   "claude-haiku-4-5-20251001": { in: 1, out: 5 },
   // 他社モデル（概算単価。改定されたらここを更新）
   "gemini-2.5-pro": { in: 1.25, out: 10 },
   "gpt-5.1": { in: 1.25, out: 10 },
-  // DeepSeek V4（公式 pricing。cache_read は入力×0.02 相当だが概算は cache_read=入力×0.1 の共通式に委ねる）
-  "deepseek-v4-flash": { in: 0.14, out: 0.28 },
-  "deepseek-v4-pro": { in: 0.435, out: 0.87 },
+  // DeepSeek（公式 pricing・2026-09 時点の「ピーク時」単価。オフピークは半額＝dsPeak() で判定）。
+  // V4.1 で出力単価が大きく上がった（Flash 出力 $0.28 → ピーク $1.20 / オフピーク $0.60）。
+  // cache_read は入力×0.02 相当だが、概算は cache_read=入力×0.1 の共通式に委ねる。
+  "deepseek-flash": { in: 0.30, out: 1.20 },
+  "deepseek-v4-flash": { in: 0.30, out: 1.20 },   // 旧ID（V4.1 に振り替えられ Flash 価格で課金）
+  "deepseek-v4-pro": { in: 1.32, out: 3.96 },
   // xAI（/v1/models の実売単価。改定されたらここを更新）
   "grok-4.3": { in: 1.25, out: 2.5 },
   "grok-build-0.1": { in: 1, out: 2 },
   "grok-4.5": { in: 2, out: 6 },
 };
 type Usage = { input_tokens?: number; output_tokens?: number; cache_creation_input_tokens?: number; cache_read_input_tokens?: number };
+// DeepSeek のピーク時間帯か（UTC 月〜金 01:00-04:00 / 06:00-10:00＝日本時間 平日10-13時/15-19時）。
+// それ以外（夜・週末）は半額。中国の祝日は考慮しない（その日は実際より高めに表示されるだけ）。
+function dsPeak(d = new Date()): boolean {
+  const day = d.getUTCDay(), h = d.getUTCHours();
+  if (day === 0 || day === 6) return false;
+  return (h >= 1 && h < 4) || (h >= 6 && h < 10);
+}
+function priceOf(model: string) {
+  const p = PRICES[model] || { in: 5, out: 25 };
+  if (/^deepseek-/.test(model) && !dsPeak()) return { in: p.in / 2, out: p.out / 2 };
+  return p;
+}
 function computeCost(acc: Array<{ model: string; usage: Usage }>) {
   let usd = 0, tin = 0, tout = 0, tcr = 0, tcw = 0;
   for (const c of acc) {
-    const p = PRICES[c.model] || { in: 5, out: 25 };
+    const p = priceOf(c.model);
     const u = c.usage || {};
     const inp = u.input_tokens || 0, out = u.output_tokens || 0;
     const cw = u.cache_creation_input_tokens || 0, cr = u.cache_read_input_tokens || 0;
@@ -1060,6 +1082,27 @@ function callBuild(key: string, spec: ModelSpec, system: string, messages: Msg[]
   if (spec.provider === "gemini") return callGemini(spec, system, messages, schema, timeoutMs, acc);
   if (spec.provider === "openai" || spec.provider === "deepseek" || spec.provider === "xai") return callOpenAICompat(spec, system, messages, schema, timeoutMs, acc);
   return callClaude(key, system, messages, schema, true, timeoutMs, acc, spec);
+}
+
+// ビルドの保険：DeepSeek 等（Anthropic 以外）が失敗したら Claude で作り直す。
+// 相談（→Haiku）と設計書（→Sonnet）には既にあったのに、肝心のビルドだけ無く、
+// DeepSeek の残高切れで「相談は普通にできて、最後の『作る』だけ失敗する」状態になった。
+// - timeout は対象外：既存の「新インスタンスへ引き継いで再挑戦」(MAX_BUILD_ATT)に任せる
+//   （ここで粘ると 400 秒の壁に当たり、結果もエラーも書けなくなる）。
+// - 残り寿命が少ない時も対象外（Claude で作り直す時間が無い）。
+// - onFallback で呼び出し側に「実際に使ったモデル」を伝える（表示・以降の修正呼び出し用）。
+const BUILD_FALLBACK: ModelSpec = { provider: "anthropic", model: "claude-sonnet-5", effort: "medium" };
+async function callBuildFB(key: string, spec: ModelSpec, system: string, messages: Msg[], schema: unknown, timeoutMs: number,
+  acc?: Array<{ model: string; usage: Usage }>, onFallback?: (s: ModelSpec) => void) {
+  try {
+    return await callBuild(key, spec, system, messages, schema, timeoutMs, acc);
+  } catch (e) {
+    const msg = String((e as Error)?.message || e);
+    if (spec.provider === "anthropic" || msg === "timeout" || remainMs() < 90000) throw e;
+    console.warn("build: " + spec.model + " failed (" + msg.slice(0, 120) + ") → Claude fallback");
+    if (onFallback) onFallback(BUILD_FALLBACK);
+    return await callBuild(key, BUILD_FALLBACK, system, messages, schema, Math.max(20000, Math.min(timeoutMs, remainMs())), acc);
+  }
 }
 
 // 受付：レート制限＋相談（プランナー）。結果がすぐ返せるものは immediate、

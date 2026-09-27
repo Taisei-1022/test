@@ -1,6 +1,6 @@
 /* DeepSeek生成品質の評価ランナー（PDCA用）
    使い方:
-     node tests/gamegen-eval/run.js --tag=baseline [--cases=mole,jump] [--model=deepseek-v4-flash]
+     node tests/gamegen-eval/run.js --tag=baseline [--cases=mole,jump] [--model=deepseek-flash]
        [--effort=high] [--conc=3] [--reuse=タグ名] [--score-only]
    - index.ts から RUNTIME_TPL / BUILD2_SYSTEM / GOLD_JS を毎回抽出（＝プロンプト改善が即反映）
    - 生成は DeepSeek API を curl で直叩き（プロキシ都合）。結果は results/<tag>/ に保存
@@ -15,14 +15,17 @@ const CASES = require('./cases.js');
 const args = {};
 process.argv.slice(2).forEach(a => { const m = /^--([^=]+)(?:=(.*))?$/.exec(a); if (m) args[m[1]] = m[2] === undefined ? true : m[2]; });
 const TAG = args.tag || 'run';
-const MODEL = args.model || 'deepseek-v4-flash';
+const MODEL = args.model || 'deepseek-flash';
 const EFFORT = args.effort === 'none' ? null : (args.effort || 'high');
 const CONC = parseInt(args.conc || '3', 10);
 const ONLY = args.cases ? String(args.cases).split(',') : null;
 const OUT = path.join(__dirname, 'results', TAG);
 fs.mkdirSync(OUT, { recursive: true });
 
-const DSKEY = 'sk-122da074beef4a7381e855c31016d592';
+// APIキーは環境変数から読む（以前はここに直書きしてコミットされていた＝漏洩扱いで失効済みにすること）。
+//   DEEPSEEK_API_KEY=sk-... node tests/gamegen-eval/run.js --tag=...
+const DSKEY = process.env.DEEPSEEK_API_KEY || '';
+if (!DSKEY) { console.error('DEEPSEEK_API_KEY が未設定です（例: DEEPSEEK_API_KEY=sk-... node tests/gamegen-eval/run.js ...）'); process.exit(1); }
 const IDX = fs.readFileSync(path.join(__dirname, '../../arcade/supabase/functions/generate/index.ts'), 'utf8');
 function extract(re, name) { const m = re.exec(IDX); if (!m) throw new Error('extract fail: ' + name); return m[1].replace(/\\`/g, '`').replace(/\\\$\{/g, '${'); }
 const RUNTIME_TPL = extract(/const RUNTIME_TPL = `([\s\S]*?)`;\n\n\/\/ AI/, 'RUNTIME_TPL');

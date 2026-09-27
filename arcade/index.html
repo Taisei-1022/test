@@ -282,7 +282,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.80";
+  var APP_VERSION = "0.9.81";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -1301,7 +1301,7 @@
     return /not_configured/.test(s)
       ? "AI生成が未設定です。SupabaseのEdge Functionとキーを設定してね。"
       : /insufficient_credit/.test(s)
-      ? "AIの利用クレジットが不足しています。\nAnthropicの管理画面（Plans & Billing）でクレジットを追加すると、また作れるようになります。"
+      ? "いまAIの利用枠が足りず、ゲームを作れませんでした（運営側の問題です）。\n補充されるまで少し待ってから、もう一度試してね。"
       : /timeout/.test(s)
       ? "いま生成が混み合っていて、時間がかかりすぎたみたい。\nもう一度「作る」を押すと、たいてい通るよ。"
       : "うまくいかなかった…もう一度試してみて。\n("+s.slice(0,90)+")";
