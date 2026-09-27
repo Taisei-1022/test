@@ -66,10 +66,16 @@ window.Ai = (function () {
   }
 
   // 非同期生成：完成までポーリング。通信が一時的に切れても続行（サーバー側は生成し続ける）。
+  // 待つ上限はサーバー側の安全網（ジョブ作成から780秒で timeout を返す）より少し長くする。
+  // サーバーは1回目が時間切れになると新インスタンスへ引き継いで2回目を試すので、
+  // 以前の395秒だと「2回目で完成しているのに、アプリが先に諦めて失敗表示」になっていた。
+  // 780秒を過ぎればサーバーが明示的に timeout を返すので、無限に待つことはない。
   async function pollJob(jobId) {
     var start = Date.now();
-    while (Date.now() - start < 395000) {
+    while (Date.now() - start < 800000) {
       await sleep(2500);
+      // 経過秒を画面へ知らせる（長く待たせる時に「止まっていない」ことを見せる用）
+      try { window.dispatchEvent(new CustomEvent("vappa:genwait", { detail: { sec: Math.round((Date.now() - start) / 1000) } })); } catch (e) {}
       var d = null;
       try { d = await pollOnce(jobId); } catch (e) { d = null; }
       if (!d) continue;                       // 一時的な失敗 → 次のポーリングで再確認

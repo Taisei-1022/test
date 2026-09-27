@@ -273,7 +273,7 @@
 <script src="js/config.js?v=6"></script>
 <script src="js/netstate.js?v=1"></script>
 <script src="js/store.js?v=8"></script>
-<script src="js/ai.js?v=17"></script>
+<script src="js/ai.js?v=18"></script>
 <script src="js/catalog.js?v=11"></script>
 <script src="js/share.js?v=6"></script>
 <script src="js/arcade-embed.js?v=3"></script>
@@ -283,7 +283,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.82";
+  var APP_VERSION = "0.9.83";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -1213,6 +1213,19 @@
   }
   function bubble(cls,text){ var d=document.createElement("div"); d.className="msg "+cls; d.textContent=text;
     chatlog.appendChild(d); chatlog.scrollTop=chatlog.scrollHeight; return d; }
+  // 生成待ちの経過表示。サーバーは1回目が時間切れ（約6分半）になると別インスタンスで
+  // 作り直すため、最大13分ほどかかることがある。黙って待たせると止まったと思われて
+  // 閉じられてしまうので、待機中の吹き出しに経過を出す。
+  window.addEventListener("vappa:genwait", function(e){
+    var sec=(e.detail&&e.detail.sec)||0;
+    var ts=chatlog.querySelectorAll(".msg.typing"); if(!ts.length) return;
+    var el=ts[ts.length-1];
+    if(!el.dataset.base) el.dataset.base=el.textContent;
+    var base=el.dataset.base, min=Math.floor(sec/60), s2=("0"+(sec%60)).slice(-2);
+    el.textContent = sec<60 ? base
+      : sec<390 ? base+"（"+min+":"+s2+"）"
+      : "時間がかかっているので、作り直しているよ…（"+min+":"+s2+"・最大あと"+Math.max(1,Math.ceil((780-sec)/60))+"分）\nアプリは閉じずに待っててね";
+  });
   // 表示するボットの発言を「履歴にも必ず残す」版（生成結果・ステータス・エラー等）。
   // role:"note" はサーバー送信時に除外されるアプリ専用（AIの文脈は汚さない）が、復元時はそのまま表示される。
   function note(text){ bubble("bot", text); convo.push({role:"note", content:text}); saveChatNow(); }
