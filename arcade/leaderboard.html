@@ -25,8 +25,9 @@
 
 <script src="js/games.js?v=9"></script>
 <script src="js/config.js?v=6"></script>
-<script src="js/store.js?v=7"></script>
-<script src="js/catalog.js?v=10"></script>
+<script src="js/netstate.js?v=1"></script>
+<script src="js/store.js?v=8"></script>
+<script src="js/catalog.js?v=11"></script>
 <script src="js/share.js?v=6"></script>
 <script src="js/sw-reg.js?v=2"></script>
 <script>
@@ -51,7 +52,15 @@
     return Store.top(game.id, stype, 100).then(function (rows) {
       var list = document.getElementById("list");
       var myRank = null;
-      if (!rows.length) { list.innerHTML = '<li class="empty">まだ記録がありません。最初の1位になろう。</li>'; return; }
+      // 空の理由を区別して出す。サーバーに繋がっていない時に「まだ記録がありません」と
+      // 言うと嘘になり、原因調査が遅れる（Supabaseの一時停止で実際にそうなった）。
+      if (!rows.length) {
+        var down = window.Net && Net.failed();
+        list.innerHTML = down
+          ? '<li class="empty">サーバーに接続できないため、ランキングを読み込めませんでした。</li>'
+          : '<li class="empty">まだ記録がありません。最初の1位になろう。</li>';
+        return;
+      }
       list.innerHTML = rows.map(function (row, i) {
         if (row.player === player && myRank === null) myRank = i + 1;
         var meCls = row.player === player ? " me" : "";

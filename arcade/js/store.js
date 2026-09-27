@@ -90,7 +90,15 @@ window.Store = (function () {
       // 新 publishable key(sb_publishable_...) は apikey ヘッダだけでよい。
       if (/^eyJ/.test(cfg.supabaseKey)) h.Authorization = "Bearer " + cfg.supabaseKey;
       opts.headers = Object.assign(h, opts.headers || {});
-      return fetch(cfg.supabaseUrl.replace(/\/$/, "") + "/rest/v1/" + path, opts);
+      // 通信の成否を1か所で見張る（下の各APIは失敗を握りつぶして空を返すため、
+      // ここで拾わないと「データが無い」のか「サーバーが落ちている」のか分からない）。
+      return fetch(cfg.supabaseUrl.replace(/\/$/, "") + "/rest/v1/" + path, opts).then(function (r) {
+        if (window.Net) { r.ok ? Net.ok() : Net.fail(r.status); }
+        return r;
+      }, function (e) {
+        if (window.Net) Net.fail(0);
+        throw e;
+      });
     }
     var enc = encodeURIComponent;
     return Object.assign({}, nameApi, {

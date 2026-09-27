@@ -20,7 +20,15 @@ window.Catalog = (function () {
     var h = { apikey: cfg.supabaseKey, "Content-Type": "application/json" };
     if (/^eyJ/.test(cfg.supabaseKey)) h.Authorization = "Bearer " + cfg.supabaseKey; // 旧anon(JWT)のみ
     opts.headers = Object.assign(h, opts.headers || {});
-    return fetch(cfg.supabaseUrl.replace(/\/$/, "") + "/rest/v1/" + path, opts);
+    // 通信の成否を1か所で見張る。400は「任意列があるか探る」通常運用なので
+    // Net 側で無視される（schemaErr の再試行と競合しない）。
+    return fetch(cfg.supabaseUrl.replace(/\/$/, "") + "/rest/v1/" + path, opts).then(function (r) {
+      if (window.Net) { r.ok ? Net.ok() : Net.fail(r.status); }
+      return r;
+    }, function (e) {
+      if (window.Net) Net.fail(0);
+      throw e;
+    });
   }
   function loadLS() { try { return JSON.parse(localStorage.getItem(LS)) || []; } catch (e) { return []; } }
   function saveLS(a) { localStorage.setItem(LS, JSON.stringify(a)); }
