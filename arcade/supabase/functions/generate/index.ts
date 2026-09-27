@@ -622,7 +622,7 @@ const MAX_BUILD_ATT = 2;
 // 記録が無く原因を推測するしかなかったため。時間切れで新インスタンスへ引き継ぐ時も
 // pdiag で持ち越す。インスタンスは基本1ビルドずつ処理するのでモジュール変数で足りる。
 let DIAG: string[] = [];
-function diag(s: string) { DIAG.push(Math.round((Date.now() - BOOT) / 1000) + "s " + s); if (DIAG.length > 24) DIAG.shift(); }
+function diag(s: string) { DIAG.push(Math.round((Date.now() - BOOT) / 1000) + "s " + s); if (DIAG.length > 24) DIAG.shift(); saveProgress(); }
 function withDiag(r: unknown) { return (r && typeof r === "object") ? { ...(r as object), diag: DIAG.slice() } : r; }
 
 // Supabaseの ai_gate(RPC) を service_role で呼ぶ。テーブル/関数が無い等で失敗したら
@@ -667,7 +667,22 @@ async function createJob(token: string): Promise<string | null> {
     return Array.isArray(rows) && rows[0] ? rows[0].id : null;
   } catch { return null; }
 }
+// 途中経過の保存：diag を {pending:true, diag} として随時書く。途中で固まった／壁で殺された
+// ジョブも「どこまで進んだか」が残る（以前は最後にしか書かず、固まると記録ゼロだった）。
+// 書き込みは直列化し、最終結果(finishJob)は必ずその後に書く（古い途中経過で上書きしない）。
+let CUR_JOB = "";
+let progressChain: Promise<void> = Promise.resolve();
+function saveProgress() {
+  if (!CUR_JOB || !JOBS_URL || !SUPA_SRV) return;
+  const id = CUR_JOB, snap = DIAG.slice();
+  progressChain = progressChain.then(async () => {
+    try { await fetch(JOBS_URL + "?id=eq." + encodeURIComponent(id), { method: "PATCH", headers: jobHeaders, body: JSON.stringify({ result: { pending: true, diag: snap } }) }); }
+    catch { /* ignore */ }
+  });
+}
 async function finishJob(id: string, result: unknown) {
+  if (id === CUR_JOB) CUR_JOB = "";          // 以降は途中経過を書かない
+  try { await progressChain; } catch { /* ignore */ }
   if (!JOBS_URL || !SUPA_SRV) return;
   try {
     await fetch(JOBS_URL + "?id=eq." + encodeURIComponent(id), { method: "PATCH", headers: jobHeaders, body: JSON.stringify({ result }) });
@@ -1239,11 +1254,12 @@ Deno.serve(async (req) => {
     if (!SUPA_SRV || irun.k !== SUPA_SRV || typeof irun.job !== "string") return json({ error: "forbidden" }, 403);
     const hop = irun.hop || 0;
     DIAG = Array.isArray(irun.pdiag) ? irun.pdiag.slice(-24).map(String) : [];
+    CUR_JOB = typeof irun.job === "string" ? irun.job : "";
     diag("instance att=" + (irun.att || 1) + " hop=" + hop + " model=" + ((irun.spec && irun.spec.model) || "default"));
     // このインスタンスも寿命が残り少なければ、さらに新しいインスタンスへ回す（最大2回）
     if (remainMs() < 330000 && hop < 2) {
       const moved = await dispatchRun({ ...irun, hop: hop + 1, pdiag: DIAG });
-      if (moved) return json({ ok: true, moved: true });
+      if (moved) { CUR_JOB = ""; return json({ ok: true, moved: true }); }
     }
     const rSpec = (irun.spec && typeof irun.spec === "object") ? irun.spec : specFor();
     const rMsgs = Array.isArray(irun.messages) ? irun.messages : [];
@@ -1259,7 +1275,7 @@ Deno.serve(async (req) => {
         const nextSpec = (att + 1 >= MAX_BUILD_ATT) ? TEST_MODELS["ds-flash"] : rSpec;
         diag("att" + att + " timeout → handoff att" + (att + 1) + " " + nextSpec.model + "/" + (nextSpec.effort || "off"));
         const moved = await dispatchRun({ ...irun, hop: 0, att: att + 1, spec: nextSpec, pdiag: DIAG });
-        if (moved) return;   // ジョブは pending のまま。引き継ぎ先が結果を書く
+        if (moved) { CUR_JOB = ""; return; }   // ジョブは pending のまま。引き継ぎ先が結果を書く
       }
       await finishJob(rJob, withDiag(r));
     })();
@@ -1291,15 +1307,16 @@ Deno.serve(async (req) => {
   if (jobId) {
     const row = await getJob(jobId);
     if (!row) return json({ status: "error", error: "job_not_found" });
-    if (row.result) {
-      const res = row.result as { error?: string };
-      return json(res && res.error ? { status: "error", ...res } : { status: "done", ...(res as object) });
+    const res = row.result as { error?: string; pending?: boolean; diag?: string[] } | null;
+    if (res && !res.pending) {
+      return json(res.error ? { status: "error", ...res } : { status: "done", ...(res as object) });
     }
+    const pdiag = res && Array.isArray(res.diag) ? res.diag : undefined;   // 途中経過（どこまで進んだか）
     const age = (Date.now() - new Date(row.created_at).getTime()) / 1000;
     // 引き継ぎ再挑戦（最大 MAX_BUILD_ATT 回・各〜400秒）を待てるだけの安全網。
     // 通常は引き継ぎ先が結果/エラーを書くのでこれより前に解決する。純粋な保険。
-    if (age > 780) return json({ status: "error", error: "timeout" });
-    return json({ status: "pending" });
+    if (age > 780) return json({ status: "error", error: "timeout", diag: pdiag });
+    return json({ status: "pending", diag: pdiag });
   }
 
   if (!messages.length) return json({ error: "empty_prompt" }, 400);
@@ -1339,7 +1356,7 @@ Deno.serve(async (req) => {
       // 失敗したらこのインスタンスで従来どおり生成（残り寿命内のタイムアウトが守る）。
       const moved = await dispatchRun({ k: SUPA_SRV, job: id, messages, prevHtml, spec: buildSpec, uspec });
       if (moved) return;
-      DIAG = []; diag("direct build (dispatch failed)");
+      DIAG = []; CUR_JOB = id; diag("direct build (dispatch failed)");
       let r; try { r = await buildOnce(key, messages, prevHtml, buildSpec, uspec); } catch (e) { r = buildErr(e); }
       await finishJob(id, withDiag(r));
     })();
