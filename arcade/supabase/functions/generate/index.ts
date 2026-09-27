@@ -810,7 +810,8 @@ function buildErr(e: unknown) {
   if (s.indexOf("refused") >= 0) return { error: "refused" };
   if (s === "timeout") return { error: "timeout" };   // 自前タイムアウト＝時間切れとして通知
   // Anthropic（"credit balance is too low"）と DeepSeek（402 "Insufficient Balance"）の残高切れ
-  if (/credit balance is too low|Insufficient Balance|upstream:402/i.test(s)) return { error: "insufficient_credit" };
+  // detail に生のエラーを残す（どのAIが・なぜ失敗したか。キー等の秘密は含まれない）
+  if (/credit balance is too low|Insufficient Balance|upstream:402/i.test(s)) return { error: "insufficient_credit", detail: s.slice(0, 400) };
   // テストモデルのAPIキー未設定（管理者向け：Supabase Secrets に該当キーを追加する）
   if (s.indexOf("missing_env:") >= 0) return { error: "generate_error", detail: s.slice(0, 200) };
   return { error: "generate_error", detail: s.slice(0, 200) };
@@ -1101,7 +1102,14 @@ async function callBuildFB(key: string, spec: ModelSpec, system: string, message
     if (spec.provider === "anthropic" || msg === "timeout" || remainMs() < 90000) throw e;
     console.warn("build: " + spec.model + " failed (" + msg.slice(0, 120) + ") → Claude fallback");
     if (onFallback) onFallback(BUILD_FALLBACK);
-    return await callBuild(key, BUILD_FALLBACK, system, messages, schema, Math.max(20000, Math.min(timeoutMs, remainMs())), acc);
+    try {
+      return await callBuild(key, BUILD_FALLBACK, system, messages, schema, Math.max(20000, Math.min(timeoutMs, remainMs())), acc);
+    } catch (e2) {
+      // 両方ダメだった時は「なぜ最初のモデルが失敗したか」も残す（保険側のエラーだけだと
+      // 本当の原因＝最初の失敗理由が消えて、調査が推測頼みになる）。
+      const msg2 = String((e2 as Error)?.message || e2);
+      throw new Error(spec.model + ": " + msg.slice(0, 160) + " || " + BUILD_FALLBACK.model + ": " + msg2.slice(0, 160));
+    }
   }
 }
 
