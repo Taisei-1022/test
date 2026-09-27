@@ -1,0 +1,16 @@
+{
+  "name": "松島 島めぐり航海",
+  "short_name": "松島航海",
+  "description": "国土地理院の実測地形で再現した松島湾を船でめぐる3Dゲーム",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0b1524",
+  "theme_color": "#101c2a",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

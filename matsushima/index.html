@@ -3,6 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="松島航海">
 <title>松島 島めぐり航海</title>
 <meta name="theme-color" content="#101c2a">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -278,7 +285,7 @@ kbd{font-family:var(--gothic);font-size:11px;border:1px solid var(--panel-line);
 <div id="toast" class="pnl"></div>
 <button id="showui" class="pill hidden">UIを表示</button>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="three.min.js"></script>
 <script>
 (function(){
 'use strict';
@@ -1324,4 +1331,5 @@ if(hot&&hot.ready)hot.ready(boot);else boot(hot&&hot.data||{});
 })();
 </script>
 
+<script>if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));</script>
 </html>
