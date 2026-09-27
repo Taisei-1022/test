@@ -604,15 +604,22 @@ const SUPA_SRV = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const ADMIN_CODE = Deno.env.get("ADMIN_CODE") || "";
 
 // ---- インスタンス寿命 ----
-// Supabaseの実行上限(400秒)は「リクエストごと」ではなく「インスタンス起動から」の壁時計。
+// Supabaseの実行上限は「リクエストごと」ではなく「インスタンス起動から」の壁時計。
 // 相談ターンで温まったインスタンスがビルドを拾うと持ち時間が目減りしており、
 // 上限到達で黙って殺されると結果もエラーも書けない（=ユーザーに何も届かない）。
 // そこで残り寿命を常に把握し、(1)自前タイムアウトを残り寿命内に収めて必ずエラーを書く、
 // (2)ビルドは自己呼び出しで新しいインスタンスに回してフルの持ち時間を確保する。
+//
+// ★上限はプランで違う：Free=150秒 / 有料(Pro等)=400秒（公式 Functions Limits）。
+//   以前は 400 秒で決め打ちしていたが、Free プランでは 150 秒で強制終了されるため
+//   自前タイムアウト(約380秒)が一度も発火せず、150秒を超えるビルドが結果もエラーも
+//   書かずに消えていた（2026-09 本番で確認）。既定は安全側の Free=150 秒にし、
+//   有料プランでは Secret EDGE_WALL_MS=400000 を設定する。
+//   （小さすぎる分には「早めに打ち切って引き継ぐ」だけで壊れない。大きすぎると無言で死ぬ）
 const BOOT = Date.now();
-const WALL_MS = 400000;
+const WALL_MS = Math.max(60000, Number(Deno.env.get("EDGE_WALL_MS")) || 150000);
 function remainMs(buffer = 20000) { return WALL_MS - (Date.now() - BOOT) - buffer; }
-// ビルドが時間切れ(400秒の壁)になったら、失敗として書かず新しいインスタンスへ
+// ビルドが時間切れ(壁時計)になったら、失敗として書かず新しいインスタンスへ
 // 引き継いで再挑戦する回数の上限。1回目=選択モデル、2回目(=最終)=最速モデル(思考オフ)。
 // これで「時間がかかりすぎた」表示は、DeepSeekが本当に連続で死んでいる時しか出なくなる。
 const MAX_BUILD_ATT = 2;
@@ -739,7 +746,9 @@ function validateGame(html: string): string | null {
 
 // 本生成（重い1回）。生成→自動チェック→ダメなら1回だけ自動修正。
 // spec で使用モデルを差し替え可能（管理者テスト用。既定は本番モデル）。
-async function buildOnce(key: string, messages: Msg[], prevHtml: string, spec?: ModelSpec, userSpec?: string) {
+// skipSpec: 設計書づくりを省く（時間切れ後の2回目用。Free プランの150秒では設計書に
+//   最大60秒使うと本体の時間が足りなくなるため、確実に「何か動くもの」を作ることを優先）
+async function buildOnce(key: string, messages: Msg[], prevHtml: string, spec?: ModelSpec, userSpec?: string, skipSpec = false) {
   const mspec = spec || specFor();
   let used = mspec;   // 実際に使ったモデル（DeepSeek 失敗で Claude に切り替わったらこちらが変わる）
   const fb = (s: ModelSpec) => { used = s; };
@@ -792,6 +801,7 @@ async function buildOnce(key: string, messages: Msg[], prevHtml: string, spec?: 
     // 設計書：ユーザーが確認・編集済みのものがあればそれを最優先。
     // 無ければ相談ログを賢いモデルで設計書に整理してからビルド（一発ヒット率を上げる）。
     if (userSpec) { specText = userSpec; }
+    else if (skipSpec) { diag("spec skipped (retry)"); }
     else {
       try {
         let sres;
@@ -1257,7 +1267,9 @@ Deno.serve(async (req) => {
     CUR_JOB = typeof irun.job === "string" ? irun.job : "";
     diag("instance att=" + (irun.att || 1) + " hop=" + hop + " model=" + ((irun.spec && irun.spec.model) || "default"));
     // このインスタンスも寿命が残り少なければ、さらに新しいインスタンスへ回す（最大2回）
-    if (remainMs() < 330000 && hop < 2) {
+    // 起動から50秒以上経った（=寿命が目減りした）インスタンスなら新しいインスタンスへ回す。
+    // 以前は remainMs() < 330000（400秒前提）と書いていたので、壁時計に対する相対で書く。
+    if (remainMs() < WALL_MS - 70000 && hop < 2) {
       const moved = await dispatchRun({ ...irun, hop: hop + 1, pdiag: DIAG });
       if (moved) { CUR_JOB = ""; return json({ ok: true, moved: true }); }
     }
@@ -1268,7 +1280,7 @@ Deno.serve(async (req) => {
     const rJob = irun.job;
     const att = irun.att || 1;
     const rWork = (async () => {
-      let r; try { r = await buildOnce(key, rMsgs, rPrev, rSpec, rUspec); } catch (e) { r = buildErr(e); }
+      let r; try { r = await buildOnce(key, rMsgs, rPrev, rSpec, rUspec, att >= 2); } catch (e) { r = buildErr(e); }
       // 時間切れは「失敗」として確定させず、新しいインスタンス（＝まっさらな400秒）へ
       // 引き継いで再挑戦する。最終回は思考オフの最速モデルで確実性を上げる。
       if (r && (r as { error?: string }).error === "timeout" && att < MAX_BUILD_ATT) {
