@@ -163,20 +163,21 @@
       <!-- 生成テストモデル（管理者のみ表示。サーバー側でも admin 判定してから適用） -->
       <div id="testmodelBox" hidden>
         <div class="section">生成モデル（テスト）</div>
+        <div style="font-size:11px;color:#9a93b5;margin:0 2px 6px">目安は夜・週末の価格。DeepSeekは平日昼（10-13時/15-19時）は約2倍。Opus/Sonnet は Anthropic の残高が必要。</div>
         <label class="name"><select id="testmodel" style="width:240px;padding:.5rem;background:#1d1a2e;border:1px solid #2c2740;color:#fff;border-radius:8px;font:inherit">
-          <option value="">標準：DeepSeek V4 Flash・思考high（既定・〜¥1）</option>
+          <option value="">標準：DeepSeek Flash(V4.1)・思考high（既定・〜¥2）</option>
           <option value="opus">Opus 4.8・思考中（〜¥40）</option>
           <option value="opus-h">Opus 4.8・思考高</option>
           <option value="opus-x">Opus 4.8・思考最高</option>
-          <option value="sonnet-m">Sonnet 5・思考中（〜¥8）</option>
-          <option value="sonnet-h">Sonnet 5・思考高（〜¥12）</option>
-          <option value="sonnet-x">Sonnet 5・思考最高（〜¥15）</option>
-          <option value="ds-flash">DeepSeek V4 Flash・思考オフ（〜¥1）</option>
-          <option value="ds-flash-h">DeepSeek V4 Flash・思考high（〜¥1）</option>
-          <option value="ds-flash-x">DeepSeek V4 Flash・思考max（〜¥2）</option>
-          <option value="ds-pro">DeepSeek V4 Pro・思考オフ（〜¥2）</option>
-          <option value="ds-pro-h">DeepSeek V4 Pro・思考high（〜¥3）</option>
-          <option value="ds-pro-x">DeepSeek V4 Pro・思考max（〜¥5）</option>
+          <option value="sonnet-m">Sonnet 5・思考中（〜¥12）</option>
+          <option value="sonnet-h">Sonnet 5・思考高（〜¥18）</option>
+          <option value="sonnet-x">Sonnet 5・思考最高（〜¥23）</option>
+          <option value="ds-flash">DeepSeek Flash(V4.1)・思考オフ（〜¥1）</option>
+          <option value="ds-flash-h">DeepSeek Flash(V4.1)・思考high（〜¥2）</option>
+          <option value="ds-flash-x">DeepSeek Flash(V4.1)・思考max（〜¥4）</option>
+          <option value="ds-pro">DeepSeek V4 Pro・思考オフ（〜¥5）</option>
+          <option value="ds-pro-h">DeepSeek V4 Pro・思考high（〜¥7）</option>
+          <option value="ds-pro-x">DeepSeek V4 Pro・思考max（〜¥11）</option>
           <option value="grok">Grok 4.3（〜¥4）</option>
           <option value="grok-b">Grok Build 0.1・構築特化（〜¥3）</option>
           <option value="grok-45">Grok 4.5（〜¥8）</option>
@@ -282,7 +283,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.81";
+  var APP_VERSION = "0.9.82";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -1298,10 +1299,20 @@
           : reason==="global_busy" ? "いま全体が混み合っています。少し時間をおいてね。"
           : "リクエストが多すぎます。少し待ってからにしてね。";
     }
+    // 管理者には生の原因（どのAIが・なぜ失敗したか）と選択中のテストモデルも見せる。
+    // 一般ユーザーには出さない（運営の内部事情なので）。
+    var isAdm = !!(window.Ai && Ai.getAdmin && Ai.getAdmin());
+    var admTail = "";
+    if(isAdm){
+      var m = /insufficient_credit:([\s\S]*)$/.exec(s);
+      var tm = (Ai.getTestModel && Ai.getTestModel()) || "";
+      admTail = "\n\n【管理者向け】テストモデル: " + (tm || "標準（DeepSeek）") +
+        (m ? "\n原因: " + m[1].slice(0, 300) : "");
+    }
     return /not_configured/.test(s)
       ? "AI生成が未設定です。SupabaseのEdge Functionとキーを設定してね。"
       : /insufficient_credit/.test(s)
-      ? "いまAIの利用枠が足りず、ゲームを作れませんでした（運営側の問題です）。\n補充されるまで少し待ってから、もう一度試してね。"
+      ? "いまAIの利用枠が足りず、ゲームを作れませんでした（運営側の問題です）。\n補充されるまで少し待ってから、もう一度試してね。" + admTail
       : /timeout/.test(s)
       ? "いま生成が混み合っていて、時間がかかりすぎたみたい。\nもう一度「作る」を押すと、たいてい通るよ。"
       : "うまくいかなかった…もう一度試してみて。\n("+s.slice(0,90)+")";
