@@ -248,7 +248,7 @@ kbd{font-family:var(--gothic);font-size:11px;border:1px solid var(--panel-line);
       <span class="lab">音</span><div class="seg"><button class="pill" id="sndBtn">オン</button></div>
       <span class="lab">画質</span><div class="seg" id="qSeg"><button class="pill" data-q="low">軽量</button><button class="pill" data-q="mid">標準</button><button class="pill" data-q="high">高画質</button></div>
       <span class="lab">船</span><div class="seg" id="boatSeg"><button class="pill" data-b="cruiser">遊覧船</button><button class="pill" data-b="runabout">小型ボート</button></div>
-      <span class="lab">その他</span><div class="seg"><button class="pill" id="photoBtn">写真モード</button><button class="pill" id="helpBtn">操作方法</button><button class="pill" id="homeBtn">松島港に戻る</button><button class="pill" id="resetBtn">印をリセット</button></div>
+      <span class="lab">その他</span><div class="seg"><button class="pill" id="photoBtn">写真モード</button><button class="pill" id="helpBtn">操作方法</button><button class="pill" id="homeBtn">松島港に戻る</button><button class="pill" id="resetBtn">印をリセット</button><button class="pill pri" id="endBtn" hidden>航海を終えて記録する</button></div>
     </div>
   </div>
 </div>
@@ -1114,7 +1114,7 @@ function cycleCam(){camMode=(camMode+1)%3;camYaw=0;camPitch=camMode===1?.05:camM
 $('#bFeed').onclick=()=>{sound.resume();throwSnack();};$('#bHorn').onclick=horn;$('#bCam').onclick=cycleCam;$('#bAuto').onclick=toggleAuto;
 
 /* ════════════ Target / autopilot ════════════ */
-let target=null,timeScale=1,dbgCam=null;
+let target=null,timeScale=1,dbgCam=null,paused=false;
 $('#ffBtn').onclick=()=>{timeScale=timeScale>1?1:4;$('#ffBtn').classList.toggle('on',timeScale>1);$('#ffBtn').textContent=timeScale>1?'≫ 早送り中 ×4':'≫ 早送り';};
 function setTarget(s){target=s;$('#tname').textContent=s?s.n:'自由航行';$('#mapSel').textContent='目的地：'+(s?s.n+'（'+s.k+'）':'—');drawBigMap();}
 function nextTarget(){let best=null,bd=1e18;for(const s of SPOTS){if(stamps[s.id])continue;const d=Math.hypot(s.x-boat.pos.x,s.z-boat.pos.z);if(d<bd){bd=d;best=s;}}setTarget(best);}
@@ -1195,7 +1195,8 @@ let resetArm=0;$('#resetBtn').onclick=()=>{if(performance.now()-resetArm<3000){s
 let arriveT=0;
 function arrive(s){stamps[s.id]=Date.now();store.set('stamps',stamps);$('#arrSeal').innerHTML=vert(s.n);$('#arrKana').textContent=s.k;$('#arrName').textContent=s.n;$('#arrDesc').textContent=s.d;
   const el=$('#arrive');el.classList.remove('show');void el.offsetWidth;el.classList.add('show');arriveT=14;sound.chime();renderBook();
-  if(target===s){cancelAuto();nextTarget();}}
+  if(target===s){cancelAuto();nextTarget();}
+  if(ARC&&SPOTS.every(x=>stamps[x.id]))setTimeout(()=>ARC.gameOver(SPOTS.length),5000);}
 $('#arrOk').onclick=()=>{$('#arrive').classList.remove('show');arriveT=0;};
 
 /* ════════════ Simulation ════════════ */
@@ -1274,7 +1275,7 @@ function cull(){const cx=camera.position.x,cz=camera.position.z,td=Q.treeDist+ca
   for(const m of world.houseChunks){m.visible=Math.hypot(m.position.x-cx,m.position.z-cz)<hd+500;}}
 /* ════════════ Main loop ════════════ */
 let last=performance.now(),fpsAcc=0,fpsN=0,fpsT=0,hudT=0,lblT=0;
-function frame(now){requestAnimationFrame(frame);let dt=(now-last)/1000;last=now;if(dt>.1)dt=.1;t+=dt;U.uTime.value=t;tickTod(dt);
+function frame(now){requestAnimationFrame(frame);let dt=(now-last)/1000;last=now;if(dt>.1)dt=.1;if(paused)dt=0;t+=dt;U.uTime.value=t;tickTod(dt);
   if(dbgCam){camera.position.copy(dbgCam.p);camera.lookAt(dbgCam.l);}else if(gameOn&&boat.mesh){stepBoat(dt);for(let k=1;k<timeScale&&autopilot;k++){t+=dt;U.uTime.value=t;stepBoat(dt);stepFerries(dt);}stepCamera(dt);}else titleCamera();
   stepFerries(dt);if(gullMesh&&boat.mesh)updateGulls(dt,t);spray.update(dt);
   if(buoyMesh){/* blink handled by night emission */}
@@ -1293,6 +1294,12 @@ function frame(now){requestAnimationFrame(frame);let dt=(now-last)/1000;last=now
   fpsAcc+=dt;fpsN++;fpsT+=dt;if(fpsT>2.5){const fps=fpsN/fpsAcc;fpsAcc=fpsN=fpsT=0;const maxPR=Math.min(devicePixelRatio||1,Q.pr);
     if(fps<40&&pr>.75){pr=Math.max(.75,pr-.2);renderer.setPixelRatio(pr);}else if(fps>57&&pr<maxPR){pr=Math.min(maxPR,pr+.1);renderer.setPixelRatio(pr);}}
 }
+/* ════════════ Vappa arcade shell (only when embedded with arcade-sdk.js) ════════════ */
+const ARC=(window.Arcade&&window.parent!==window)?window.Arcade:null;
+if(ARC){$('#endBtn').hidden=false;
+  $('#endBtn').onclick=()=>{closeModals();ARC.gameOver(SPOTS.filter(x=>stamps[x.id]).length);};
+  ARC.onPause(()=>{paused=true;});ARC.onResume(()=>{paused=false;});
+  ARC.onRestart(()=>{if(!gameOn)return;cancelAuto();placeBoat(START.px,START.py,START.hdg);resetGulls();});}
 /* ════════════ Boot ════════════ */
 document.querySelectorAll('.boat').forEach(b=>b.onclick=()=>{boatType=b.dataset.b;document.querySelectorAll('.boat').forEach(x=>x.setAttribute('aria-pressed',x===b));});
 function startGame(data){$('#title').classList.add('out');$('#hud').classList.remove('hidden');sound.resume();
@@ -1312,6 +1319,7 @@ async function boot(data){
   if(hot&&hot.snapshot)try{hot.snapshot(()=>({pos:[boat.pos.x,boat.pos.z],hdg:boat.hdg,boat:boatType,on:gameOn}));}catch(e){}
   const btn=$('#start');btn.disabled=false;$('#startTxt').textContent='出航する';$('#bar').style.width='0';
   btn.onclick=()=>startGame(null);
+  if(ARC)ARC.ready();
   if(data.on)startGame(data);
   window.__mts={cam(px,py,h,lx,ly,lh){dbgCam=h==null?null:{p:V3(px2x(px),h,py2z(py)),l:V3(px2x(lx),lh,py2z(ly))};},setBoat,sim(sec){const dt=1/30;for(let i=0;i<sec*30;i++){t+=dt;U.uTime.value=t;stepBoat(dt);stepFerries(dt);}stepCamera(1);},setTarget,startAuto,get auto(){return autopilot;},stamps:()=>stamps,wake,placeBoat,boat,world,camera,U,setTod:changeTod,startGame,hAt,SPOTS,PLACES:()=>PLACES,ferries,rafts,renderer};
 }
