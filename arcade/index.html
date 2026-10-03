@@ -257,7 +257,8 @@
   <div class="howtobox">
     <h3>作るにはログインしてね</h3>
     <p class="lead">ゲームを作るには、Googleアカウントでのログインが必要です。<br>パスワードを新しく作る必要はありません。<br><small style="opacity:.75">遊ぶだけならログインは要りません。ログイン前にこの端末で作ったゲームは、そのままあなたのアカウントに引き継がれます。</small></p>
-    <button class="ok" id="loginGateGo" type="button">Googleでログイン</button>
+    <p class="lead" style="font-size:12px;margin:10px 0 0"><a href="terms.html" target="_blank" rel="noopener">利用規約</a>と<a href="privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a>（作る時のチャット内容を外部のAIサービスに送ることを含みます）をお読みください。</p>
+    <button class="ok" id="loginGateGo" type="button">同意してGoogleでログイン</button>
     <button class="ok" id="loginGateBack" type="button" style="background:transparent;border:1px solid #3a3460;color:#cdbcff;margin-top:8px">遊ぶにもどる</button>
   </div>
 </div>
@@ -298,7 +299,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.87";
+  var APP_VERSION = "0.9.88";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -557,7 +558,7 @@
     Auth.googleEnabled().then(function(on){
       if(!on){ box.hidden=true; return; }
       box.hidden=false;
-      info.innerHTML='ログインしていません<br><small style="opacity:.75">作るにはログインが必要です</small><br><button type="button" class="ghostbtn" id="acctIn" style="margin-top:8px">Googleでログイン</button>';
+      info.innerHTML='ログインしていません<br><small style="opacity:.75">作るにはログインが必要です</small><br><small style="opacity:.75;display:block;margin-top:6px"><a href="terms.html" target="_blank" rel="noopener">利用規約</a>と<a href="privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a>に同意のうえログインしてください</small><button type="button" class="ghostbtn" id="acctIn" style="margin-top:8px">同意してGoogleでログイン</button>';
       document.getElementById("acctIn").onclick=function(){ Auth.login(location.pathname.replace(/[^/]*$/,"")+"#mypage"); };
     });
   }
