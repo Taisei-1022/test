@@ -374,7 +374,7 @@
   function mixCol(a,b,t){return [Math.round(lerp(a[0],b[0],t)),Math.round(lerp(a[1],b[1],t)),Math.round(lerp(a[2],b[2],t))];}
   function rgb(c){return "rgb("+c[0]+","+c[1]+","+c[2]+")";}
   function drawBG(){
-    var hh=cam/S,t1=clamp((hh-900)/700,0,1),t2=clamp((hh-2600)/1200,0,1);
+    var hh=cam/S,t1=clamp((hh-480)/620,0,1),t2=clamp((hh-2400)/1200,0,1);
     var top=mixCol(mixCol([255,226,236],[150,205,255],t1),[30,24,70],t2);
     var bot=mixCol(mixCol([255,246,232],[214,238,255],t1),[70,50,120],t2);
     var g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,rgb(top));g.addColorStop(1,rgb(bot));ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
