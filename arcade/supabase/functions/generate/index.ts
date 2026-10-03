@@ -889,6 +889,106 @@ async function migrateThumbs() {
   return { ok: true, moved, left: Math.max(0, rows.length - moved) };
 }
 
+// ===== さくら（賑わい演出のアカウント）の一括管理 =====
+// 一覧：プロフィール・フォロー・作ったことになっている作品・ゲームごとの記録。編集もここから。
+type Q = (path: string, init?: RequestInit) => Promise<Response>;
+async function handleBots(p: Record<string, unknown>, q: Q) {
+  const id = String(p.id || ""), isUuid = (x: string) => /^[0-9a-f-]{36}$/.test(x);
+  const j = async (r: Response) => (r.ok ? await r.json() : []);
+  const botIds = async () => (await j(await q("bots?select=user_id")) as { user_id: string }[]).map((b) => b.user_id);
+  if (p.op === "bots") {
+    const ids = await botIds();
+    if (!ids.length) return { ok: true, bots: [] };
+    const inIds = "(" + ids.join(",") + ")";
+    const [bots, profs, fo, fe, games, scores] = await Promise.all([
+      j(await q("bots?select=user_id,name")),
+      j(await q("profiles?select=user_id,handle,display_name,bio,created_at&user_id=in." + inIds)),
+      j(await q("follows?select=follower,followee&follower=in." + inIds)),
+      j(await q("follows?select=follower,followee&followee=in." + inIds)),
+      j(await q("games?select=id,title,published,hidden,created_at,user_id&user_id=in." + inIds + "&order=created_at.desc")),
+      j(await q("scores?select=id,game_id,score,created_at,user_id&user_id=in." + inIds + "&order=created_at.desc&limit=5000")),
+    ]);
+    // フォロー先・フォロワーの名前
+    const others = [...new Set([...(fo as { followee: string }[]).map((x) => x.followee), ...(fe as { follower: string }[]).map((x) => x.follower)])];
+    const op = others.length ? await j(await q("profiles?select=user_id,handle,display_name&user_id=in.(" + others.join(",") + ")")) : [];
+    return { ok: true, bots, profiles: profs, following: fo, followers: fe, games, scores, people: op };
+  }
+  if (p.op === "bot_add") {   // さくらを1人増やす（表示名と @ID）
+    const name = String(p.display_name || "").trim(), h = String(p.handle || "").trim().toLowerCase().replace(/^@/, "");
+    if (!name || name.length > 20) return { error: "bad_name" };
+    if (!HANDLE_RE.test(h) || h.includes("vappa")) return { error: "bad_handle" };
+    if ((await j(await q("reserved_handles?handle=eq." + h + "&select=handle"))).length) return { error: "reserved_handle" };
+    if ((await j(await q("profiles?handle=eq." + h + "&select=user_id"))).length) return { error: "handle_taken" };
+    const nid = crypto.randomUUID();
+    const b = await q("bots", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ user_id: nid, name }) });
+    if (!b.ok) return { error: "name_taken" };
+    await q("profiles", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ user_id: nid, handle: h, display_name: name, bio: "" }) });
+    return { ok: true, id: nid };
+  }
+  if (!isUuid(id)) return { error: "bad_id" };
+  const ids = await botIds();
+  if (!ids.includes(id)) return { error: "not_bot" };   // さくら以外は触らせない
+  if (p.op === "bot_profile") {   // 表示名・ひとこと・@ID（さくらは30日ルールなし。重複・予約・形式は確認）
+    const patch: Record<string, string> = {};
+    if (typeof p.display_name === "string") { const n = p.display_name.trim(); if (!n || n.length > 20) return { error: "bad_name" }; patch.display_name = n; }
+    if (typeof p.bio === "string") patch.bio = p.bio.trim().slice(0, 160);
+    if (typeof p.handle === "string") {
+      const h = p.handle.trim().toLowerCase().replace(/^@/, "");
+      if (!HANDLE_RE.test(h) || h.includes("vappa")) return { error: "bad_handle" };
+      if ((await j(await q("reserved_handles?handle=eq." + h + "&select=handle"))).length) return { error: "reserved_handle" };
+      const t = await j(await q("profiles?handle=eq." + h + "&select=user_id")) as { user_id: string }[];
+      if (t.length && t[0].user_id !== id) return { error: "handle_taken" };
+      patch.handle = h;
+    }
+    const r = await q("profiles?user_id=eq." + id, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ ...patch, updated_at: new Date().toISOString() }) });
+    if (patch.display_name) {
+      await q("bots?user_id=eq." + id, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ name: patch.display_name }) });
+      await q("games?user_id=eq." + id, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ author: patch.display_name }) });
+    }
+    return r.ok ? { ok: true } : { error: "update_failed" };
+  }
+  if (p.op === "bot_follow" || p.op === "bot_unfollow") {   // さくらが誰かをフォロー／解除（相手は @ID で指定）
+    const h = String(p.target || "").trim().toLowerCase().replace(/^@/, "");
+    const t = await j(await q("profiles?handle=eq." + encodeURIComponent(h) + "&select=user_id")) as { user_id: string }[];
+    if (!t.length) return { error: "no_such_handle" };
+    if (t[0].user_id === id) return { error: "self" };
+    const r = p.op === "bot_follow"
+      ? await q("follows", { method: "POST", headers: { Prefer: "return=minimal,resolution=ignore-duplicates" }, body: JSON.stringify({ follower: id, followee: t[0].user_id }) })
+      : await q("follows?follower=eq." + id + "&followee=eq." + t[0].user_id, { method: "DELETE" });
+    return r.ok || r.status === 409 ? { ok: true } : { error: "follow_failed" };
+  }
+  if (p.op === "bot_assign_game") {   // 作品を「このさくらが作った」ことにする（運営の作品・さくらの作品だけ付け替え可。一般ユーザーの作品は不可）
+    const gid = String(p.game_id || "");
+    if (!isUuid(gid)) return { error: "bad_game" };
+    const g = await j(await q("games?id=eq." + gid + "&select=user_id")) as { user_id: string }[];
+    if (!g.length) return { error: "no_game" };
+    if (g[0].user_id !== "00000000-0000-0000-0000-00000000a0a0" && !ids.includes(g[0].user_id)) return { error: "owned_by_user" };
+    const pr = await j(await q("profiles?user_id=eq." + id + "&select=display_name")) as { display_name: string }[];
+    const r = await q("games?id=eq." + gid, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ user_id: id, owner: "bot", author: pr[0]?.display_name || "" }) });
+    return r.ok ? { ok: true } : { error: "assign_failed" };
+  }
+  if (p.op === "bot_unassign_game") {   // 公式（@vappa）に戻す
+    const gid = String(p.game_id || "");
+    if (!isUuid(gid)) return { error: "bad_game" };
+    const r = await q("games?id=eq." + gid + "&user_id=eq." + id, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ user_id: "00000000-0000-0000-0000-00000000a0a0", owner: "official", author: "Vappa公式" }) });
+    return r.ok ? { ok: true } : { error: "unassign_failed" };
+  }
+  if (p.op === "bot_score_delete") {
+    const sid = String(p.score_id || "");
+    if (!/^[0-9a-f-]+$/.test(sid)) return { error: "bad_score" };
+    const r = await q("scores?id=eq." + sid + "&user_id=eq." + id, { method: "DELETE" });
+    return r.ok ? { ok: true } : { error: "delete_failed" };
+  }
+  if (p.op === "bot_score_add") {   // このさくらの記録を1件足す
+    const gid = String(p.game_id || ""), sc = Math.round(Number(p.score));
+    if (!gid || !Number.isFinite(sc) || sc < 0 || sc >= SCORE_MAX) return { error: "bad_score" };
+    const pr = await j(await q("profiles?user_id=eq." + id + "&select=display_name")) as { display_name: string }[];
+    const r = await q("scores", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ game_id: gid, score: sc, player: pr[0]?.display_name || "", user_id: id }) });
+    return r.ok ? { ok: true } : { error: "add_failed" };
+  }
+  return { error: "unknown_op" };
+}
+
 // ===== 管理画面（arcade/manage.html・admin.html）=====
 // Googleでログインし、admins テーブルに登録された運営アカウントだけが使える（パスワード方式は廃止）。
 async function isPanelAdmin(user: { id: string } | null): Promise<boolean> {
@@ -992,6 +1092,7 @@ async function handlePanel(p: { op?: string; id?: string; msg?: string; filter?:
   }
 
   if (p.op === "migrate_thumbs") return await migrateThumbs();
+  if (typeof p.op === "string" && p.op.startsWith("bot")) return await handleBots(p as Record<string, unknown>, q);
   // 既定：ダッシュボード（開いたついでに、古い形式のサムネが残っていれば裏で画像置き場へ移す）
   try { const ER = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime; if (ER && ER.waitUntil) ER.waitUntil(migrateThumbs()); } catch { /* ignore */ }
   const d = today();

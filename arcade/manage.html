@@ -68,6 +68,7 @@
       <button data-tab="reports" type="button">通報<span class="n" id="nRep" hidden></span></button>
       <button data-tab="users" type="button">ユーザー</button>
       <button data-tab="games" type="button">作品</button>
+      <button data-tab="bots" type="button">さくら</button>
       <button data-tab="tools" type="button">その他</button>
     </nav>
 
@@ -104,6 +105,14 @@
       <div id="games"><div class="empty">読み込み中…</div></div>
     </section>
 
+    <section id="tab-bots" hidden>
+      <p class="help">賑わい演出のアカウント（さくら）の一覧です。運営だけが見られます。行を押すと、プロフィール・フォロー・作ったことになっている作品・記録を見て編集できます。</p>
+      <div class="bar"><input id="bq" placeholder="名前・@IDで絞り込み" /></div>
+      <details class="detail" style="margin:4px 0 12px"><summary>さくらを1人増やす</summary>
+        <div class="bar"><input id="bnName" maxlength="20" placeholder="表示名（例：ねこまる）" /><input id="bnHandle" maxlength="15" placeholder="@ID（例：nekomaru_7）" /><button id="bnGo" type="button">追加</button></div></details>
+      <div id="bots"><div class="empty">読み込み中…</div></div>
+    </section>
+
     <section id="tab-tools" hidden>
       <div class="bar">
         <a class="btn sec" href="admin.html">賑わい演出（サクラのスコア）</a>
@@ -116,6 +125,7 @@
   </div>
 </div>
 <div class="toast" id="toast"></div>
+<script src="js/games.js?v=10"></script>
 <script src="js/config.js?v=7"></script>
 <script src="js/catalog.js?v=14"></script>
 <script src="js/auth.js?v=4"></script>
@@ -125,7 +135,7 @@
   var cfg = window.ARCADE_CONFIG || {};
   var url = cfg.supabaseUrl.replace(/\/$/, "") + "/functions/v1/generate";
   var $ = function (id) { return document.getElementById(id); };
-  var DASH = null, USERS = null, GAMES = null, openUser = "";
+  var DASH = null, USERS = null, GAMES = null, openUser = "", BOTS = null, openBot = "", ALLG = null;
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function when(t) { if (!t) return "—"; var d = new Date(t); return d.getFullYear() + "/" + (d.getMonth() + 1) + "/" + d.getDate() + " " + ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2); }
   function toast(m) { var t = $("toast"); t.textContent = m; t.classList.add("show"); setTimeout(function () { t.classList.remove("show"); }, 1600); }
@@ -155,8 +165,9 @@
   function setTab(t) {
     cur = t; try { sessionStorage.setItem("vappa.manage.tab", t); } catch (e) {}
     document.querySelectorAll(".tabs button").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-tab") === t); });
-    ["home", "reports", "users", "games", "tools"].forEach(function (k) { $("tab-" + k).hidden = k !== t; });
+    ["home", "reports", "users", "games", "bots", "tools"].forEach(function (k) { $("tab-" + k).hidden = k !== t; });
     if (t === "users" && !USERS) loadUsers();
+    if (t === "bots" && !BOTS) loadBots();
     if (t === "games" && !GAMES) loadGames();
   }
   document.querySelector(".tabs").addEventListener("click", function (e) { var b = e.target.closest("button[data-tab]"); if (b) setTab(b.getAttribute("data-tab")); });
@@ -257,6 +268,90 @@
       setTimeout(function () { if (!b.disabled) { delete b.dataset.armed; b.textContent = t; } }, 4000);
     };
   }
+
+  // ---- さくら ----
+  var ERRJ = { bad_handle: "@ID の形が正しくありません（英小文字・数字・_ の3〜15文字、最初は英字）", reserved_handle: "予約されている@IDです", handle_taken: "その@IDは使われています",
+    bad_name: "表示名は1〜20文字にしてください", name_taken: "その名前のさくらは既にいます", no_such_handle: "その@IDの人はいません", self: "自分自身はフォローできません",
+    owned_by_user: "一般ユーザーの作品は付け替えられません", bad_score: "点数が正しくありません" };
+  function errMsg(d) { return ERRJ[d.error] || ("できませんでした（" + (d.error || "") + "）"); }
+  function titleOf(gid) {
+    var sd = (window.GAMES || []).filter(function (g) { return g.id === gid; })[0]; if (sd) return sd.title + "（公式）";
+    var g = (ALLG || []).filter(function (x) { return x.id === gid; })[0]; return g ? g.title : gid;
+  }
+  function loadBots() {
+    $("bots").innerHTML = '<div class="empty">読み込み中…</div>';
+    return Promise.all([call({ op: "bots" }), ALLG ? Promise.resolve({ games: ALLG }) : call({ op: "games", filter: "all" })]).then(function (r) {
+      ALLG = r[1].games || []; var d = r[0]; if (!d.ok) { $("bots").innerHTML = '<div class="empty">' + esc(errMsg(d)) + '</div>'; return; }
+      var pm = {}; d.profiles.forEach(function (p) { pm[p.user_id] = p; });
+      var people = {}; (d.people || []).concat(d.profiles).forEach(function (p) { people[p.user_id] = p; });
+      BOTS = d.bots.map(function (b) {
+        var p = pm[b.user_id] || {};
+        var sc = d.scores.filter(function (x) { return x.user_id === b.user_id; });
+        return { id: b.user_id, name: p.display_name || b.name, handle: p.handle || "", bio: p.bio || "",
+          following: d.following.filter(function (f) { return f.follower === b.user_id; }).map(function (f) { return people[f.followee] || { handle: "?", display_name: "?" }; }),
+          followers: d.followers.filter(function (f) { return f.followee === b.user_id; }).map(function (f) { return people[f.follower] || { handle: "?", display_name: "?" }; }),
+          games: d.games.filter(function (g) { return g.user_id === b.user_id; }), scores: sc };
+      });
+      renderBots();
+    });
+  }
+  function renderBots() {
+    var q = $("bq").value.trim().toLowerCase();
+    var list = BOTS.filter(function (b) { return !q || (b.name + " " + b.handle).toLowerCase().indexOf(q) >= 0; })
+      .sort(function (a, b) { return a.name.localeCompare(b.name, "ja"); });
+    $("bots").innerHTML = list.map(function (b) {
+      var played = {}; b.scores.forEach(function (s) { played[s.game_id] = 1; });
+      return '<div class="row click" data-bot="' + esc(b.id) + '"><div class="nm"><b>' + esc(b.name) + ' <small style="color:var(--dim);font-weight:400">@' + esc(b.handle) + '</small></b><small>' + esc(b.bio || "") + '</small></div>' +
+        '<div class="nums"><span>作品 <b>' + b.games.length + '</b></span><span>フォロー <b>' + b.following.length + '</b></span><span>フォロワー <b>' + b.followers.length + '</b></span><span>遊んだ <b>' + Object.keys(played).length + '</b>本・<b>' + b.scores.length + '</b>件</span></div></div>' +
+        (openBot === b.id ? botDetail(b) : "");
+    }).join("") || '<div class="empty">該当するさくらはいません。</div>';
+    if (openBot) wireBot(openBot);
+  }
+  function botDetail(b) {
+    var byG = {}; b.scores.forEach(function (s) { (byG[s.game_id] = byG[s.game_id] || []).push(s); });
+    var assignable = (ALLG || []).filter(function (g) { return g.user_id === "00000000-0000-0000-0000-00000000a0a0"; });
+    var gameOpts = (window.GAMES || []).map(function (g) { return '<option value="' + esc(g.id) + '">' + esc(g.title) + '（公式）</option>'; }).join("") +
+      (ALLG || []).filter(function (g) { return g.published !== false; }).map(function (g) { return '<option value="' + esc(g.id) + '">' + esc(g.title) + '</option>'; }).join("");
+    return '<div class="detail" id="bd">' +
+      '<div class="sec2"><b>プロフィール</b><div class="bar"><input id="bdName" maxlength="20" value="' + esc(b.name) + '" placeholder="表示名" /><input id="bdHandle" maxlength="15" value="' + esc(b.handle) + '" placeholder="@ID" /></div>' +
+      '<textarea id="bdBio" rows="2" maxlength="160" placeholder="ひとこと">' + esc(b.bio) + '</textarea><div class="bar"><button id="bdSave" type="button">保存</button><a class="btn sec" href="creator.html?u=' + encodeURIComponent(b.handle) + '" target="_blank" rel="noopener">ページを見る</a></div></div>' +
+      '<div class="sec2"><b>フォローしている人（' + b.following.length + '）</b><div class="bar">' + b.following.map(function (p) { return '<button class="sec" data-unf="' + esc(p.handle) + '" type="button">' + esc(p.display_name) + ' @' + esc(p.handle) + ' ✕</button>'; }).join("") + '</div>' +
+      '<div class="bar"><input id="bdFol" placeholder="フォローする @ID" /><button class="sec" id="bdFolGo" type="button">フォローさせる</button></div>' +
+      '<div class="help">フォロワー（' + b.followers.length + '）：' + (b.followers.map(function (p) { return esc(p.display_name) + " @" + esc(p.handle); }).join("、") || "なし") + '</div></div>' +
+      '<div class="sec2"><b>作ったことになっている作品（' + b.games.length + '）</b>' + b.games.map(function (g) {
+        return '<div class="row"><div class="nm"><b>' + gamePills(g) + esc(g.title) + '</b></div><a class="btn sec" href="play.html?game=' + encodeURIComponent(g.id) + '" target="_blank" rel="noopener">遊ぶ</a><button class="sec" data-unassign="' + esc(g.id) + '" type="button">公式に戻す</button></div>';
+      }).join("") +
+      '<div class="bar"><select id="bdAssign"><option value="">公式（@vappa）の作品から選んで付け替え…</option>' + assignable.map(function (g) { return '<option value="' + esc(g.id) + '">' + esc(g.title) + '</option>'; }).join("") + '</select><button class="sec" id="bdAssignGo" type="button">このさくらの作品にする</button></div></div>' +
+      '<div class="sec2"><b>記録（ゲームごとの最高点・件数）</b>' + (Object.keys(byG).length ? Object.keys(byG).map(function (gid) {
+        var arr = byG[gid].slice().sort(function (a, c) { return c.score - a.score; });
+        return '<details style="margin:4px 0"><summary>' + esc(titleOf(gid)) + '：最高 ' + arr[0].score + '・' + arr.length + '件</summary><div class="bar">' +
+          arr.map(function (s) { return '<button class="sec" data-sdel="' + esc(String(s.id)) + '" type="button">' + s.score + '（' + when(s.created_at) + '）✕</button>'; }).join("") + '</div></details>';
+      }).join("") : '<div class="empty">まだ記録はありません。</div>') +
+      '<div class="bar"><select id="bdScG"><option value="">ゲームを選ぶ…</option>' + gameOpts + '</select><input id="bdScV" type="number" min="0" placeholder="点数" style="max-width:120px" /><button class="sec" id="bdScGo" type="button">記録を足す</button></div></div>' +
+      '</div>';
+  }
+  function wireBot(id) {
+    var box = $("bd"); if (!box) return;
+    var done = function (d, m) { if (d && d.ok) { toast(m); BOTS = null; loadBots(); } else toast(errMsg(d || {})); };
+    $("bdSave").onclick = function () { call({ op: "bot_profile", id: id, display_name: $("bdName").value, handle: $("bdHandle").value, bio: $("bdBio").value }).then(function (d) { done(d, "保存しました"); }); };
+    $("bdFolGo").onclick = function () { call({ op: "bot_follow", id: id, target: $("bdFol").value }).then(function (d) { done(d, "フォローさせました"); }); };
+    box.querySelectorAll("[data-unf]").forEach(function (b) { b.onclick = function () { call({ op: "bot_unfollow", id: id, target: b.getAttribute("data-unf") }).then(function (d) { done(d, "フォローを外しました"); }); }; });
+    $("bdAssignGo").onclick = function () { var g = $("bdAssign").value; if (!g) return; call({ op: "bot_assign_game", id: id, game_id: g }).then(function (d) { ALLG = null; done(d, "付け替えました"); }); };
+    box.querySelectorAll("[data-unassign]").forEach(function (b) { b.onclick = function () { call({ op: "bot_unassign_game", id: id, game_id: b.getAttribute("data-unassign") }).then(function (d) { ALLG = null; done(d, "公式に戻しました"); }); }; });
+    box.querySelectorAll("[data-sdel]").forEach(function (b) { b.onclick = function () { call({ op: "bot_score_delete", id: id, score_id: b.getAttribute("data-sdel") }).then(function (d) { done(d, "記録を消しました"); }); }; });
+    $("bdScGo").onclick = function () { var g = $("bdScG").value, v = $("bdScV").value; if (!g || v === "") return; call({ op: "bot_score_add", id: id, game_id: g, score: Number(v) }).then(function (d) { done(d, "記録を足しました"); }); };
+  }
+  $("bq").addEventListener("input", function () { if (BOTS) renderBots(); });
+  $("bots").addEventListener("click", function (e) {
+    if (e.target.closest("#bd")) return;   // 詳細の中の操作は別扱い
+    var r = e.target.closest(".row.click"); if (!r) return;
+    var id = r.getAttribute("data-bot"); openBot = openBot === id ? "" : id; renderBots();
+  });
+  $("bnGo").addEventListener("click", function () {
+    call({ op: "bot_add", display_name: $("bnName").value, handle: $("bnHandle").value }).then(function (d) {
+      if (d.ok) { toast("さくらを追加しました"); $("bnName").value = ""; $("bnHandle").value = ""; BOTS = null; loadBots(); } else toast(errMsg(d));
+    });
+  });
 
   // ---- 作品 ----
   function loadGames() {
