@@ -66,18 +66,22 @@ window.Ai = (function () {
   }
 
   // 非同期生成：完成までポーリング。通信が一時的に切れても続行（サーバー側は生成し続ける）。
-  // 待つ上限はサーバー側の安全網（ジョブ作成から780秒で timeout を返す）より少し長くする。
-  // サーバーは1回目が時間切れになると新インスタンスへ引き継いで2回目を試すので、
-  // 以前の395秒だと「2回目で完成しているのに、アプリが先に諦めて失敗表示」になっていた。
-  // 780秒を過ぎればサーバーが明示的に timeout を返すので、無限に待つことはない。
+  // 待つ上限は、サーバーが返すジョブ全体の上限（limit 秒＝プランの壁時計から算出。
+  // Free≒320秒 / 400秒プラン≒820秒）＋30秒。サーバーは1回目が時間切れになると新インスタンスへ
+  // 引き継いで2回目を試すので、アプリが先に諦めると「2回目で完成しているのに失敗表示」になる。
+  // limit を過ぎればサーバーが明示的に timeout を返すので、無限に待つことはない。
+  // limit を返さない古いサーバー向けの既定は 900 秒。
   async function pollJob(jobId) {
-    var start = Date.now();
-    while (Date.now() - start < 800000) {
+    var start = Date.now(), limitMs = 900000, retrying = false;
+    while (Date.now() - start < limitMs) {
       await sleep(2500);
-      // 経過秒を画面へ知らせる（長く待たせる時に「止まっていない」ことを見せる用）
-      try { window.dispatchEvent(new CustomEvent("vappa:genwait", { detail: { sec: Math.round((Date.now() - start) / 1000) } })); } catch (e) {}
       var d = null;
       try { d = await pollOnce(jobId); } catch (e) { d = null; }
+      if (d && d.limit > 0) limitMs = (d.limit + 30) * 1000;
+      // 途中経過に「引き継ぎ」が出たら＝1回目が時間切れで、2回目を作っている
+      if (d && Array.isArray(d.diag) && d.diag.some(function (x) { return /handoff/.test(x); })) retrying = true;
+      // 経過を画面へ知らせる（長く待たせる時に「止まっていない」ことを見せる用）
+      try { window.dispatchEvent(new CustomEvent("vappa:genwait", { detail: { sec: Math.round((Date.now() - start) / 1000), limit: Math.round(limitMs / 1000), retrying: retrying } })); } catch (e) {}
       if (!d) continue;                       // 一時的な失敗 → 次のポーリングで再確認
       if (d.status === "pending") continue;
       if (d.status === "error") {

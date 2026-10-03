@@ -11,7 +11,7 @@ var CORE = [
   "./manifest.webmanifest", "./logo.png?v=1",
   "./css/app.css?v=40",
   "./js/games.js?v=10", "./js/assets.js?v=1", "./js/config.js?v=6", "./js/netstate.js?v=1", "./js/store.js?v=8",
-  "./js/ai.js?v=18", "./js/catalog.js?v=11", "./js/share.js?v=6", "./js/arcade-embed.js?v=3", "./js/pwa.js?v=1"
+  "./js/ai.js?v=19", "./js/catalog.js?v=11", "./js/share.js?v=6", "./js/arcade-embed.js?v=3", "./js/pwa.js?v=1"
 ];
 
 self.addEventListener("install", function (e) {

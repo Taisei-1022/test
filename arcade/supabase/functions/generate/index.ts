@@ -623,6 +623,11 @@ function remainMs(buffer = 20000) { return WALL_MS - (Date.now() - BOOT) - buffe
 // 引き継いで再挑戦する回数の上限。1回目=選択モデル、2回目(=最終)=最速モデル(思考オフ)。
 // これで「時間がかかりすぎた」表示は、DeepSeekが本当に連続で死んでいる時しか出なくなる。
 const MAX_BUILD_ATT = 2;
+// ジョブ全体の上限秒（ポーリングの安全網）。各回は最大 WALL_MS-20秒 で自分から打ち切るので、
+// 2回分＋引き継ぎの余裕60秒。Free=320秒 / 400秒プラン=820秒。以前は 780 秒固定で、
+// 400秒プランだと2回目が正常に作っている最中に「時間切れ」を返してしまう値だった。
+// アプリにもこの値を返し、待つ長さと経過表示をサーバーの実際の上限に合わせる。
+const JOB_LIMIT_S = Math.round((MAX_BUILD_ATT * (WALL_MS - 20000) + 60000) / 1000);
 
 // 1ビルド分のAI呼び出し記録（どのモデルを・何秒・どう終わったか・何トークン使ったか）。
 // ジョブ結果に diag として添付する。V4.1 移行後に「空の回答」「時間切れ」が続いたが、
@@ -777,7 +782,7 @@ async function buildOnce(key: string, messages: Msg[], prevHtml: string, spec?: 
     let title = g.title || "無題のゲーム", html = g.html, category = g.category || "その他";
     const problem = validateGame(html);
     const fixTmo0 = Math.min(150000, remainMs());
-    if (problem && (Date.now() - t0) < 180000 && fixTmo0 > 45000) {
+    if (problem && fixTmo0 > 45000) {   // 残り寿命で判定（以前は「180秒以内」固定で、400秒プランでも修理を諦めていた）
       try {
         const fixUser = "あなたが作った次のHTMLゲームに問題が見つかりました：「" + problem +
           "」。原因を必ず直し、最後まで完結した完全な単一HTMLだけを返してください（</html>まで）。タイトルは維持。\n\n【HTML】\n" + html;
@@ -824,7 +829,7 @@ async function buildOnce(key: string, messages: Msg[], prevHtml: string, spec?: 
   // 自動チェック → 問題があれば1回だけAIに直させる（jsだけなので修正も安い）
   const problem2 = validateJs(g.js);
   const fixTmo = Math.min(150000, remainMs());
-  if (problem2 && (Date.now() - t0) < 180000 && fixTmo > 45000) {
+  if (problem2 && fixTmo > 45000) {   // 残り寿命で判定（以前の「180秒以内」固定は撤廃）
     try {
       const fixUser = "あなたが書いたゲームロジック(js)に問題が見つかりました：「" + problem2 +
         "」。原因を必ず直し、全フィールド（title/howto/unit/css/js/category）を完全な形で返してください。\n\n【title】" + (g.title || "") +
@@ -1327,8 +1332,8 @@ Deno.serve(async (req) => {
     const age = (Date.now() - new Date(row.created_at).getTime()) / 1000;
     // 引き継ぎ再挑戦（最大 MAX_BUILD_ATT 回・各〜400秒）を待てるだけの安全網。
     // 通常は引き継ぎ先が結果/エラーを書くのでこれより前に解決する。純粋な保険。
-    if (age > 780) return json({ status: "error", error: "timeout", diag: pdiag });
-    return json({ status: "pending", diag: pdiag });
+    if (age > JOB_LIMIT_S) return json({ status: "error", error: "timeout", diag: pdiag });
+    return json({ status: "pending", diag: pdiag, limit: JOB_LIMIT_S });
   }
 
   if (!messages.length) return json({ error: "empty_prompt" }, 400);
