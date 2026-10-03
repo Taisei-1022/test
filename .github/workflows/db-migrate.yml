@@ -1,0 +1,46 @@
+name: Apply DB SQL
+
+# arcade/supabase/sql/migrations/*.sql を追加・変更して push すると、その SQL を Supabase に流す。
+# （以前は SQL Editor に手で貼っていた作業の自動化。Edge Function のデプロイと同じ SUPABASE_ACCESS_TOKEN を使う）
+# SQL は何度流しても壊れないように書くこと（create ... if not exists / create or replace など）。
+# 結果はこのジョブのログに出る（確認用の select もここで見られる）。
+
+on:
+  push:
+    branches: [claude/railway-switching-game-4p5ijn, main]
+    paths:
+      - "arcade/supabase/sql/migrations/**"
+  workflow_dispatch:
+    inputs:
+      file:
+        description: "流すファイル（arcade/supabase/sql/migrations/ 以下のファイル名）"
+        required: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: httrzepweyxzbkosdoau
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply changed SQL files
+        run: |
+          set -e
+          if [ -n "${{ github.event.inputs.file }}" ]; then
+            FILES="arcade/supabase/sql/migrations/${{ github.event.inputs.file }}"
+          else
+            FILES=$(git diff --name-only --diff-filter=AM "${{ github.event.before }}" "${{ github.sha }}" -- 'arcade/supabase/sql/migrations/*.sql' | sort)
+          fi
+          [ -z "$FILES" ] && { echo "no sql changes"; exit 0; }
+          for f in $FILES; do
+            echo "=== $f"
+            body=$(jq -Rs '{query: .}' < "$f")
+            code=$(curl -sS -o out.json -w '%{http_code}' -X POST \
+              "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query" \
+              -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" -d "$body")
+            echo "HTTP $code"; cat out.json; echo
+            [ "$code" -ge 300 ] && exit 1
+          done
