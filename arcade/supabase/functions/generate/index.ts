@@ -824,8 +824,16 @@ async function buildOnce(key: string, messages: Msg[], prevHtml: string, spec?: 
       : "次の相談で決まった内容で、ミニゲームのロジックを作ってください。\n\n【相談ログ】\n" + transcript;
     reply = "作ったよ！";
   }
-  let g = await callBuildFB(key, used, BUILD2_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA2, buildTmo(), acc, fb);
-  if (!g || !g.js) return { error: "empty_html" };
+  const callMain = async () => normalizeGame(await callBuildFB(key, used, BUILD2_SYSTEM, [{ role: "user", content: userContent }], GAME_SCHEMA2, buildTmo(), acc, fb));
+  let g = await callMain();
+  // ゲーム本体(js)が無い返答への対処（本番評価で10本中2本：思考を使い切って本文343字だけ／
+  // 本文9,504字あるのに js の欄が無い）。残り時間があれば1回だけ作り直す（課金して何も届かないよりよい）
+  if (!g || !g.js) {
+    diag("no js in reply: keys=" + (g && typeof g === "object" ? Object.keys(g).join(",") : String(g)).slice(0, 80) +
+      " sample=" + JSON.stringify(g || null).slice(0, 160));
+    if (remainMs() > 150000) { diag("retry build once (no js)"); g = await callMain(); }
+    if (!g || !g.js) return { error: "empty_html" };
+  }
   // 自動チェック → 問題があれば1回だけAIに直させる（jsだけなので修正も安い）
   const problem2 = validateJs(g.js);
   const fixTmo = Math.min(150000, remainMs());
@@ -834,7 +842,7 @@ async function buildOnce(key: string, messages: Msg[], prevHtml: string, spec?: 
       const fixUser = "あなたが書いたゲームロジック(js)に問題が見つかりました：「" + problem2 +
         "」。原因を必ず直し、全フィールド（title/howto/unit/css/js/category）を完全な形で返してください。\n\n【title】" + (g.title || "") +
         "\n【howto】" + (g.howto || "") + "\n【unit】" + (g.unit || "") + "\n\n【css】\n" + (g.css || "") + "\n\n【js】\n" + g.js;
-      const g2 = await callBuildFB(key, used, BUILD2_SYSTEM, [{ role: "user", content: fixUser }], GAME_SCHEMA2, fixTmo, acc, fb);
+      const g2 = normalizeGame(await callBuildFB(key, used, BUILD2_SYSTEM, [{ role: "user", content: fixUser }], GAME_SCHEMA2, fixTmo, acc, fb));
       if (g2 && g2.js && !validateJs(g2.js)) g = g2;
     } catch { /* 修正に失敗したら元の生成結果をそのまま返す */ }
   }
@@ -1049,6 +1057,20 @@ function parseJsonLoose(text: string) {
     }
     throw eLast;
   }
+}
+// AIの返答の形のゆれを吸収して { title, howto, unit, css, js, category } に揃える。
+// js が 1段下に入っている（{"game":{...}} など）／別名（code, javascript など）の場合を拾う。
+function normalizeGame(g: unknown) {
+  if (!g || typeof g !== "object" || Array.isArray(g)) return g as Record<string, string> | null;
+  const o = g as Record<string, unknown>;
+  if (typeof o.js === "string" && o.js.trim()) return o as Record<string, string>;
+  for (const v of Object.values(o)) {
+    if (v && typeof v === "object" && !Array.isArray(v) && typeof (v as Record<string, unknown>).js === "string") return { ...o, ...(v as object) } as Record<string, string>;
+  }
+  for (const k of ["javascript", "code", "script", "logic", "game_js", "gameJs", "jsCode"]) {
+    if (typeof o[k] === "string" && (o[k] as string).length > 100) return { ...o, js: o[k] } as Record<string, string>;
+  }
+  return o as Record<string, string>;
 }
 // 文字列（"..."）の中の括弧を無視して、最上位の {...} を順に取り出す
 function topLevelObjects(s: string): string[] {
