@@ -8,6 +8,7 @@ var CACHE = "vappa-0.9.86";
 var CORE = [
   "./", "./index.html", "./play.html", "./leaderboard.html",
   "./privacy.html", "./terms.html", "./about.html", "./contact.html",
+  "./guide.html", "./faq.html", "./guidelines.html",
   "./manifest.webmanifest", "./logo.png?v=1",
   "./css/app.css?v=40",
   "./js/games.js?v=10", "./js/assets.js?v=1", "./js/config.js?v=6", "./js/netstate.js?v=1", "./js/store.js?v=8",

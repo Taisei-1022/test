@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /arcade/manage.html
+Disallow: /arcade/admin.html
+Disallow: /arcade/auth.html
+Disallow: /arcade/eval/
+Disallow: /arcade/diag/
+Disallow: /arcade/sim.html
+Disallow: /tests/
+
+Sitemap: https://vappa.app/sitemap.xml

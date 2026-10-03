@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://vappa.app/arcade/</loc><lastmod>2026-10-03</lastmod><changefreq>daily</changefreq><priority>1.0</priority></url>
+  <url><loc>https://vappa.app/arcade/guide.html</loc><lastmod>2026-10-03</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://vappa.app/arcade/faq.html</loc><lastmod>2026-10-03</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://vappa.app/arcade/guidelines.html</loc><lastmod>2026-10-03</lastmod><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://vappa.app/arcade/about.html</loc><lastmod>2026-10-03</lastmod><changefreq>yearly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://vappa.app/arcade/terms.html</loc><lastmod>2026-10-03</lastmod><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://vappa.app/arcade/privacy.html</loc><lastmod>2026-10-03</lastmod><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://vappa.app/arcade/contact.html</loc><lastmod>2026-10-03</lastmod><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://vappa.app/arcade/play.html?game=matsushima</loc><lastmod>2026-10-03</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://vappa.app/arcade/play.html?game=city</loc><lastmod>2026-10-03</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://vappa.app/arcade/play.html?game=train</loc><lastmod>2026-10-03</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://vappa.app/arcade/play.html?game=railway</loc><lastmod>2026-10-03</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://vappa.app/arcade/play.html?game=reflex</loc><lastmod>2026-10-03</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://vappa.app/arcade/play.html?game=dodge</loc><lastmod>2026-10-03</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://vappa.app/arcade/play.html?game=royale</loc><lastmod>2026-10-03</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://vappa.app/arcade/play.html?game=burger</loc><lastmod>2026-10-03</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://vappa.app/arcade/play.html?game=pingpong</loc><lastmod>2026-10-03</lastmod><changefreq>weekly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://vappa.app/arcade/leaderboard.html?game=matsushima</loc><lastmod>2026-10-03</lastmod><changefreq>daily</changefreq><priority>0.4</priority></url>
+  <url><loc>https://vappa.app/arcade/leaderboard.html?game=city</loc><lastmod>2026-10-03</lastmod><changefreq>daily</changefreq><priority>0.4</priority></url>
+  <url><loc>https://vappa.app/arcade/leaderboard.html?game=train</loc><lastmod>2026-10-03</lastmod><changefreq>daily</changefreq><priority>0.4</priority></url>
+  <url><loc>https://vappa.app/arcade/leaderboard.html?game=railway</loc><lastmod>2026-10-03</lastmod><changefreq>daily</changefreq><priority>0.4</priority></url>
+  <url><loc>https://vappa.app/arcade/leaderboard.html?game=reflex</loc><lastmod>2026-10-03</lastmod><changefreq>daily</changefreq><priority>0.4</priority></url>
+  <url><loc>https://vappa.app/arcade/leaderboard.html?game=dodge</loc><lastmod>2026-10-03</lastmod><changefreq>daily</changefreq><priority>0.4</priority></url>
+  <url><loc>https://vappa.app/arcade/leaderboard.html?game=royale</loc><lastmod>2026-10-03</lastmod><changefreq>daily</changefreq><priority>0.4</priority></url>
+  <url><loc>https://vappa.app/arcade/leaderboard.html?game=burger</loc><lastmod>2026-10-03</lastmod><changefreq>daily</changefreq><priority>0.4</priority></url>
+  <url><loc>https://vappa.app/arcade/leaderboard.html?game=pingpong</loc><lastmod>2026-10-03</lastmod><changefreq>daily</changefreq><priority>0.4</priority></url>
+</urlset>

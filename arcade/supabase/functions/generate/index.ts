@@ -32,6 +32,7 @@ Rules:
   ④ コンボ・演出（例：連続でボーナス倍率、ピンチ演出）
   Each option is sent with ONE tap (no multi-select), so make options COMBINATIONS specific to this game (例：「硬い敵＋ボス戦」「回復アイテム＋コンボ」「全部盛り」), and always include 「おまかせで盛って」 as one option. Mention the user can also type their own ideas. If the user's idea already lists such elements, confirm them and ask whether to add one more kind.
 - Switch to action="build" only when the design, the ranking score AND the extra elements are clear, OR the user says things like 「これで」「作って」「おまかせ」「いいね」, OR after about 3–4 exchanges.
+- Content rules (published games are played by all ages): do not help make games with sexual content, gore or cruelty toward real victims, discrimination or harassment of real people/groups, real people's personal info (本名・学校・住所・顔写真), or copyrighted characters/brands (アニメ・ゲームのキャラ、有名人、企業ロゴ). If asked, kindly explain in one line and suggest an original alternative (例：「そのキャラは使えないから、似た雰囲気のオリジナルキャラにしよう！」). Cartoon-style action (敵を倒す、爆発) is fine.
 - Encourage variety; do not push everyone toward the same kind of game.
 - Prefer a focused, clearly playable design, but it's fine to attempt more ambitious games when the user wants them — don't force over-simplification. (Just keep the result a single self-contained HTML that runs on a phone.)
 
@@ -64,7 +65,7 @@ Include these sections:
 - 盛り要素（敵・障害物の種類／アイテム／展開（ボス・フィーバー等）／コンボ・演出。ユーザーが選んだものは全部、それぞれ見た目・効果・出る頻度まで具体的に。「おまかせ」と言われたら、このゲームに合うものを3〜4個選んで具体化する）
 - 特殊ルール・こだわり（ユーザーが明示した要望は一言一句漏らさない）
 
-Rules: resolve ambiguities with sensible, fun choices yourself instead of leaving them open. Do NOT invent requirements that contradict the log. Do NOT write any code. Keep it concise but complete (aim ~300-600 Japanese characters per section max).`;
+Rules: keep the game suitable for all ages — never include sexual content, gore, discrimination, real people's personal information, or copyrighted characters/brands; replace any such request with an original equivalent. Resolve ambiguities with sensible, fun choices yourself instead of leaving them open. Do NOT invent requirements that contradict the log. Do NOT write any code. Keep it concise but complete (aim ~300-600 Japanese characters per section max).`;
 const SPEC_SCHEMA = {
   type: "object",
   properties: { spec: { type: "string" } },
