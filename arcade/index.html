@@ -267,7 +267,7 @@
   <div class="howtobox">
     <h3>ようこそ Vappa へ！</h3>
     <p class="lead">ランキングや作品に表示される<b>なまえ</b>を決めてね。<br>（あとからマイページで変更できます）</p>
-    <label class="name" style="display:block;margin:12px 0;"><input id="nameGateInput" maxlength="16" placeholder="例：たいせい" autocomplete="off" style="width:100%;box-sizing:border-box" /></label>
+    <label class="name" style="display:block;margin:12px 0;"><input id="nameGateInput" maxlength="16" placeholder="例：ぷりん" autocomplete="off" style="width:100%;box-sizing:border-box" /></label>
     <button class="ok" id="nameGateOk" type="button">これではじめる</button>
   </div>
 </div>
@@ -298,7 +298,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.86";
+  var APP_VERSION = "0.9.87";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
