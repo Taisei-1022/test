@@ -53,11 +53,12 @@ h1{font-family:var(--display);font-weight:800;font-size:26px;margin:0;text-wrap:
 var GAMES = [
   { id:"beer",  title:"ビール注ぎ名人", emoji:"🍺", blurb:"泡7:3をねらって長押しで注ぐ。ジョッキがどんどん変になる。", unit:"点" },
   { id:"steak", title:"ステーキ等分",   emoji:"🥩", blurb:"指でなぞってステーキを切る。ぴったり等分できる？", unit:"点" },
-  { id:"hata",  title:"旗あげ",         emoji:"🚩", blurb:"赤あげて、白さげない。指示がどんどんひねくれる。", unit:"回" }
+  { id:"hata",  title:"旗あげ",         emoji:"🚩", blurb:"赤あげて、白さげない。指示がどんどんひねくれる。", unit:"回" },
+  { id:"lturn", title:"L字路 切り返し", emoji:"🚗", blurb:"せまいL字路を切り返しで曲がれ。全5ステージの合計タイム勝負。", unit:"秒", low:true }
 ];
 var READY = []; // 遊べる状態のゲームID
 function best(id){ try{ return localStorage.getItem("best_"+id); }catch(e){ return null; } }
-function setBest(id,v){ try{ var b=best(id); if(b===null||+v>+b) localStorage.setItem("best_"+id,v); }catch(e){} }
+function setBest(id,v,low){ try{ var b=best(id); if(b===null||(low?+v<+b:+v>+b)) localStorage.setItem("best_"+id,v); }catch(e){} }
 var list=document.getElementById("list"), stage=document.getElementById("stage"), frame=document.getElementById("frame"), cur=null;
 function render(){
   list.innerHTML="";
@@ -76,7 +77,7 @@ document.getElementById("close").addEventListener("click",function(){ stage.hidd
 window.addEventListener("message",function(e){
   var d=e.data; if(!d||!d.__arcade||!cur) return;
   if(d.call==="gameOver"&&d.payload&&typeof d.payload.score!=="undefined"){
-    setBest(cur.id,d.payload.score); document.getElementById("last").textContent="今回 "+d.payload.score+cur.unit;
+    setBest(cur.id,d.payload.score,cur.low); document.getElementById("last").textContent="今回 "+d.payload.score+cur.unit;
   }
 });
 render();

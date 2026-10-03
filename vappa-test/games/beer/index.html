@@ -26,7 +26,7 @@
 <div id="ov">
   <div class="emo">🍺</div>
   <h1>ビール注ぎ名人</h1>
-  <p><b>長押しで注いで、離して止める。</b><br>泡は あとから少しふくらむぞ！<br>ふちピッタリ・<b>ビール7：泡3</b>をねらえ。</p><p style="font-size:13px;opacity:.85">一気に注ぐと泡モコモコ／ちょんちょん注ぐと泡ひかえめ</p>
+  <p><b>長押しで注いで、点線で指をはなす。</b><br>泡は あとから増えるよ！</p>
   <button id="startBtn">はじめる</button>
 </div>
 <script src="../../js/arcade-sdk.js?v=2"></script>
@@ -38,7 +38,7 @@
   function resize(){
     W=window.innerWidth;H=window.innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);
     counterY=Math.round(H*0.78);
-    nozzleY=Math.round(Math.max(186,Math.min(H*0.235,215)));
+    nozzleY=Math.round(Math.max(200,Math.min(H*0.24,220)));
     var avail=counterY-nozzleY-40;
     S=Math.max(0.55,Math.min(1.25,W/390,avail/330));
   }
@@ -56,7 +56,7 @@
     tall: {name:"ほそながグラス", H:255,T:2.0,rise:0.10,hw:function(t){return 26+7*t;}, tip:"細いからグングン上がる！"},
     bowl: {name:"どんぶりグラス", H:118,T:2.7,rise:0.08,hw:function(t){return 34+84*Math.pow(t,0.65);}, tip:"上にいくほど ゆっくり…"},
     gourd:{name:"ひょうたんグラス",H:240,T:2.4,rise:0.09,hw:function(t){return 15+46*Math.exp(-Math.pow((t-0.27)/0.2,2))+30*Math.exp(-Math.pow((t-0.75)/0.13,2));}, tip:"くびれで急に上がるぞ！"},
-    shot: {name:"ちびショット",   H:74, T:1.1,rise:0.12,hw:function(t){return 19+6*t;}, tip:"一瞬で満タン！集中！"},
+    shot: {name:"ちびショット",   H:74, T:1.45,rise:0.12,hw:function(t){return 19+6*t;}, tip:"一瞬で満タン！集中！"},
     giant:{name:"メガジョッキ",   H:320,T:3.7,rise:0.07,handle:true, hw:function(t){return 82+7*t;}, tip:"でかい！じっくり注げ！"}
   };
   var SEQ=["jug","jug","jug","tall","tall","bowl","bowl","gourd","gourd","shot","shot","giant","giant"];
@@ -70,7 +70,7 @@
   }
   function levelOf(sh,v){ // 体積→高さ(0..1, ふち超えはドーム)
     if(v<=0)return 0;
-    if(v>=sh.cap)return 1+(v-sh.cap)/sh.domeA;
+    if(v>=sh.cap)return 1+(v-sh.cap)/sh.cap*0.6;
     var lo=0,hi=NSL;
     while(hi-lo>1){var mid=(lo+hi)>>1;if(sh.cum[mid]<v)lo=mid;else hi=mid;}
     var f=(v-sh.cum[lo])/((sh.cum[hi]-sh.cum[lo])||1);
@@ -117,8 +117,8 @@
 
   var ORDERS={
     std:   {type:"std",  target:0.30,title:"ふつうで！",  sub:"ビール7：泡3"},
-    more:  {type:"more", target:0.50,title:"泡多めで！",  sub:"ビール5：泡5　一気に注ぐと泡モコモコ"},
-    nofoam:{type:"nofoam",target:0.0,title:"泡なしで！",  sub:"ちょんちょん注ぐと泡ひかえめ"}
+    more:  {type:"more", target:0.50,title:"泡多めで！",  sub:"蛇口が泡多めモードに。点線でストップ！"},
+    nofoam:{type:"nofoam",target:0.08,title:"泡なしで！",  sub:"泡ひかえめで注ぐよ。点線でストップ！"}
   };
   var FACES=["🧔","👩","👨‍🦲","👵","🧑‍💼","👱‍♀️","🧑‍🍳","👴"];
 
@@ -144,7 +144,7 @@
     if(ot==="nofoam"&&tap==="max")tap="normal";
     var speed=Math.max(0.72,1-n*0.012);
     cur={key:key,sh:sh,tap:tap,order:ORDERS[ot],face:FACES[(Math.random()*FACES.length)|0],
-      L:0,F:0,P:0,m:0,pres:1,presT:1,sputT:0,T:sh.T*speed,
+      L:0,F:0,P:0,LP:0,m:0,f:0,fj:0,pres:1,presT:1,sputT:0,T:sh.T*speed,
       state:"enter",st:0,x:W+200,idle:0,poured:false,result:null,over:false,
       overT:0,react:null,tilt:0,cardT:0};
     // 目標ライン：泡がふちまで来たとき、ビールがここまで
@@ -152,55 +152,53 @@
     bubbles=[];for(var i=0;i<34;i++)bubbles.push({u:Math.random()*1.7-0.85,t:Math.random(),v:0.18+Math.random()*0.35,r:0.8+Math.random()*1.6});
     // 告知
     if(!sh.seen){sh.seen=true;showBanner((n===0?"":"NEW！ ")+sh.name,sh.tip,"#ffd166");}
-    else if(tap==="max")showBanner("勢いMAX！","ドバッと出るぞ！泡も出やすい","#ff6b6b");
+    else if(tap==="max")showBanner("勢いMAX！","ドバッと出るぞ！早めにストップ","#ff6b6b");
     else if(tap==="sputter")showBanner("蛇口がゴボゴボ…","出たり止まったり！気をつけて","#7ad3ff");
-    else if(ot!=="std")showBanner("ご注文です！",cur.order.title,"#9cff8f");
+    else if(ot!=="std")showBanner(cur.order.title,cur.order.sub,"#9cff8f");
   }
   function showBanner(t,s,col){banner={t:t,s:s,col:col,age:0,dur:1.9};}
 
   /* ===================== 注ぐ ===================== */
   function pourStep(c,dt){
-    var sh=c.sh,q=sh.cap/c.T,tauM=0.6*c.T*(c.tap==="max"?0.55:1);
-    // 蛇口の圧
-    if(c.tap==="max")c.presT=1.75;
+    var sh=c.sh,q=sh.cap/c.T,r=c.order.target;
+    // 蛇口の圧（勢いMAX＝速い／ゴボゴボ＝出たり止まったり、泡も少しブレる）
+    if(c.tap==="max"){c.presT=1.6;c.fj=0;}
     else if(c.tap==="sputter"){
       c.sputT-=dt;
-      if(c.sputT<=0){var r=Math.random();
-        if(r<0.36){c.presT=1.9;c.sputT=0.22+Math.random()*0.2;}
-        else if(r<0.68){c.presT=0.1;c.sputT=0.18+Math.random()*0.22;}
-        else{c.presT=1;c.sputT=0.25+Math.random()*0.35;}
+      if(c.sputT<=0){var rn=Math.random();
+        if(rn<0.36){c.presT=1.7;c.fj=0.08;c.sputT=0.2+Math.random()*0.2;}
+        else if(rn<0.68){c.presT=0.15;c.fj=-0.04;c.sputT=0.18+Math.random()*0.2;}
+        else{c.presT=1;c.fj=0;c.sputT=0.25+Math.random()*0.35;}
       }
-    } else c.presT=1;
+    } else {c.presT=1;c.fj=0;}
     c.pres+=(c.presT-c.pres)*Math.min(1,dt*14);
     var pouring=holding&&!needRelease&&c.state==="pour";
     if(pouring){
-      c.m=Math.min(1,c.m+dt/tauM);
-      var flow=c.pres*(0.45+0.55*c.m),dv=q*flow*dt,f=0.02+0.55*c.m*c.m;
-      if(c.tap==="sputter"&&c.presT>1.5)f=Math.min(0.9,f+0.25);
-      c.L+=dv*(1-f);c.F+=dv*f;c.P+=dv*(sh.rise*c.T/0.45)*c.m;
-      c.idle=0;c.poured=true;c.flow=flow;
+      c.m=Math.min(1,c.m+dt/0.35);
+      var flow=c.pres*(0.55+0.45*c.m),dv=q*flow*dt,f=clamp(r+c.fj,0.02,0.9);
+      // 泡の割合は「蛇口（注文）」で決まる。注ぎ方では変わらない
+      c.LP+=dv*(1-f);c.F+=dv*f*0.1;c.P+=dv*f*0.9;
+      c.idle=0;c.poured=true;c.flow=flow;c.f=f;
     } else {c.m=Math.max(0,c.m-dt/0.25);c.flow=0;if(c.poured)c.idle+=dt;}
-    // 遅れてふくらむ泡
-    var cv2=c.P*(1-Math.exp(-dt/0.45));c.F+=cv2;c.P-=cv2;
-    // 泡は少しずつ落ち着く
-    var s=c.F*0.035*dt;c.F-=s;c.L+=0.3*s;
+    // 落下中のビール（すぐ届く）と、あとからふくらむ泡（約1秒）
+    var cl=c.LP*(1-Math.exp(-dt/0.05));c.L+=cl;c.LP-=cl;
+    var cf=c.P*(1-Math.exp(-dt/0.6));c.F+=cf;c.P-=cf;
     c.top=levelOf(sh,c.L+c.F);c.liq=levelOf(sh,c.L);
   }
 
   function judge(over){
-    var c=cur;c.F+=c.P;c.P=0;
-    var tot=c.L+c.F,top=levelOf(c.sh,tot),r=tot>0?c.F/tot:0,tg=c.order.target;
-    var fillS=top>=0.96?1:clamp((top-0.60)/0.36,0,1);
-    var err=c.order.type==="nofoam"?Math.max(0,r-0.02):Math.abs(r-tg);
+    var c=cur;c.F+=c.P;c.P=0;c.L+=c.LP;c.LP=0;
+    var tot=c.L+c.F,vf=tot/c.sh.cap,r=tot>0?c.F/tot:0,tg=c.order.target;
+    var fillS=vf>=0.96?1:clamp((vf-0.60)/0.36,0,1);
+    var err=Math.abs(r-tg);
     var ratioS=clamp(1-(err-0.06)/0.26,0,1);
     var pts=over?0:Math.round(100*fillS*(0.35+0.65*ratioS));
     var v,col="#fff";
     if(over){v="あふれた…";col="#ff6b6b";}
     else if(pts>=97){v="神の泡！";col="#ffe066";}
     else if(pts>=90){v="お見事！";col="#ffd166";}
-    else if(top<0.72){v="ぜんぜん足りない…";col="#ff8f6b";}
-    else if(top<0.94){v="ちょっと少なめ";col="#ffb36b";}
-    else if(c.order.type==="nofoam"&&r>0.1){v=r>0.3?"泡なしって言ったのに！":"ちょい泡あり";col="#ffb36b";}
+    else if(vf<0.72){v="ぜんぜん足りない…";col="#ff8f6b";}
+    else if(vf<0.94){v="ちょっと少なめ";col="#ffb36b";}
     else if(r>tg+0.06){v=r-tg>0.2?"泡だらけ！":"ちょい泡多め";col="#ffe9c2";}
     else if(r<tg-0.06){v=tg-r>0.2?"泡がなさすぎ…":"ちょい泡少なめ";col="#ffe9c2";}
     else {v="いい感じ！";col="#c8ff8f";}
@@ -249,7 +247,7 @@
       pourStep(c,dt);
     } else if(c.state==="pour"){
       pourStep(c,dt);
-      if(c.top>1.07){c.over=true;judge(true);}
+      if((c.L+c.F)/c.sh.cap>1.07){c.over=true;judge(true);}
       else if(c.poured&&c.idle>1.3)judge(false);
     } else if(c.state==="result"){
       pourStep(c,dt);
@@ -367,8 +365,8 @@
     for(i=steps;i>=0;i--){t=i/steps;y=lerp(y0,y1,t);ww=w*(1-0.3*t)+Math.sin(time*40+t*12+1)*0.6;ctx.lineTo(x+ww/2,y);}
     ctx.closePath();ctx.fill();
     // 白い泡すじ（勢いが強いほど）
-    if(c.m>0.3){ctx.fillStyle="rgba(255,255,255,"+(0.25+0.5*c.m)+")";
-      for(var k=0;k<5;k++){var yy=lerp(y0,y1,((time*3+k/5)%1));ctx.beginPath();ctx.arc(x+(Math.sin(k*9+time*20))*w*0.25,yy,1.2+c.m*1.4,0,Math.PI*2);ctx.fill();}}
+    if(c.f>0.2){ctx.fillStyle="rgba(255,255,255,"+(0.2+c.f)+")";
+      for(var k=0;k<5;k++){var yy=lerp(y0,y1,((time*3+k/5)%1));ctx.beginPath();ctx.arc(x+(Math.sin(k*9+time*20))*w*0.25,yy,1.2+c.f*2.5,0,Math.PI*2);ctx.fill();}}
     // しぶき
     ctx.fillStyle="rgba(255,250,235,.85)";
     for(var j=0;j<4;j++){var a=time*13+j*1.7;ctx.beginPath();ctx.arc(x+Math.sin(a)*w*1.4,y1-2-Math.abs(Math.cos(a*1.3))*6*c.flow,1.5+c.flow*1.5,0,Math.PI*2);ctx.fill();}
@@ -441,7 +439,7 @@
       var lyT=base-c.lineT*Hm,lw=sh.hw(c.lineT)*S;
       ctx.strokeStyle="rgba(255,255,255,.7)";ctx.setLineDash([5,5]);ctx.lineWidth=1.5;
       ctx.beginPath();ctx.moveTo(x-lw-10,lyT);ctx.lineTo(x+lw+10,lyT);ctx.stroke();ctx.setLineDash([]);
-      var lbl=c.order.type==="nofoam"?"ビールだけで ふちまで":"ビールはここまで";
+      var lbl="ビールはここまで";
       ctx.font="800 11px "+FONT;ctx.textBaseline="middle";
       var tx=x+lw+14,tw2=ctx.measureText(lbl).width;
       var left=tx+tw2+14>W;if(left)tx=x-lw-14-tw2-10;
@@ -466,11 +464,11 @@
     ctx.fillStyle=spec?"#c2410c":"#5a3412";ctx.font="800 16px "+FONT;ctx.textAlign="left";
     ctx.fillText(o.title,56,22);
     // ミニ比率バー
-    var bx=56,by=38,bw=w-66,bh=12,fr=o.type==="nofoam"?0:o.target;
+    var bx=56,by=38,bw=w-66,bh=12,fr=o.target;
     ctx.fillStyle="#f2a516";rr(bx,by,bw,bh,6);ctx.fill();
     if(fr>0){ctx.save();rr(bx,by,bw,bh,6);ctx.clip();ctx.fillStyle="#fffdf6";ctx.fillRect(bx+bw*(1-fr),by,bw*fr,bh);ctx.strokeStyle="#d9b77a";ctx.lineWidth=1;ctx.strokeRect(bx+bw*(1-fr),by,bw*fr,bh);ctx.restore();}
     ctx.fillStyle="#7a5530";ctx.font="700 10px "+FONT;
-    ctx.fillText(o.type==="nofoam"?"泡ゼロ":"ビール"+Math.round((1-o.target)*10)+"：泡"+Math.round(o.target*10),bx,by+bh+11);
+    ctx.fillText(o.type==="nofoam"?"ほぼ泡なし":"ビール"+Math.round((1-o.target)*10)+"：泡"+Math.round(o.target*10),bx,by+bh+11);
     ctx.restore();
   }
 
@@ -503,30 +501,25 @@
   }
 
   function drawPower(c){
-    // 勢いメーター（カウンター手前）
-    var w=Math.min(260,W-80),x=(W-w)/2,y=counterY+Math.min(56,(H-counterY)*0.32);
-    ctx.font="800 12px "+FONT;ctx.textAlign="center";ctx.textBaseline="middle";
-    ctx.fillStyle="rgba(255,240,220,.85)";ctx.fillText("勢い",W/2,y-14);
-    ctx.fillStyle="rgba(0,0,0,.35)";rr(x,y,w,12,6);ctx.fill();
-    var m=c?c.m:0;
-    if(m>0.01){var g=ctx.createLinearGradient(x,0,x+w,0);g.addColorStop(0,"#f2a516");g.addColorStop(0.6,"#ffd27a");g.addColorStop(1,"#ffffff");
-      ctx.fillStyle=g;rr(x,y,Math.max(12,w*m),12,6);ctx.fill();}
-    ctx.font="700 10px "+FONT;ctx.fillStyle="rgba(255,240,220,.7)";
-    ctx.textAlign="left";ctx.fillText("ちょろちょろ＝泡少",x,y+24);
-    ctx.textAlign="right";ctx.fillText("ドバドバ＝泡多",x+w,y+24);
-    // 操作ヒント
-    if(c&&c.state==="pour"&&!c.poured&&n<3){
-      var a=0.6+0.4*Math.sin(time*5);ctx.globalAlpha=a;
-      ctx.textAlign="center";ctx.font="800 16px "+FONT;ctx.fillStyle="#fff";
-      ctx.fillText("👆 画面を長押しで注ぐ",W/2,Math.min(H-24,y+52));ctx.globalAlpha=1;
+    // カウンター手前のガイド
+    if(!c)return;
+    var gy=Math.round(counterY+Math.min(64,(H-counterY)*0.4)),txt=null,pulse=false;
+    if(c.state==="pour"&&!c.poured){txt="👆 長押しで注ぐ";pulse=true;}
+    else if(c.state==="pour"&&c.flow>0)txt="点線で 指をはなす！";
+    ctx.textAlign="center";ctx.textBaseline="middle";
+    if(txt){
+      ctx.font="800 17px "+FONT;var tw=ctx.measureText(txt).width;
+      ctx.globalAlpha=pulse?0.65+0.35*Math.sin(time*5):1;
+      ctx.fillStyle="rgba(0,0,0,.35)";rr(W/2-tw/2-18,gy-19,tw+36,38,19);ctx.fill();
+      ctx.fillStyle="#fff";ctx.fillText(txt,W/2,gy+1);ctx.globalAlpha=1;
     }
     // 判定待ちリング
-    if(c&&c.state==="pour"&&c.poured&&!holding&&c.idle>0.05){
+    if(c.state==="pour"&&c.poured&&!holding&&c.idle>0.05){
       var k=clamp(c.idle/1.3,0,1);
-      var wt="泡がおちつくのを待ってるよ…";ctx.font="700 12px "+FONT;var ww=ctx.measureText(wt).width,gx=W/2-(ww+26)/2,gy=Math.min(H-26,y+52);
+      var wt="泡がふくらむよ…（つぎ足しもOK）";ctx.font="700 13px "+FONT;var ww=ctx.measureText(wt).width,gx=W/2-(ww+26)/2;
       ctx.strokeStyle="rgba(255,255,255,.18)";ctx.lineWidth=3;ctx.beginPath();ctx.arc(gx+9,gy,8,0,Math.PI*2);ctx.stroke();
       ctx.strokeStyle="#ffd166";ctx.beginPath();ctx.arc(gx+9,gy,8,-Math.PI/2,-Math.PI/2+Math.PI*2*k);ctx.stroke();
-      ctx.fillStyle="rgba(255,255,255,.8)";ctx.textAlign="left";ctx.fillText(wt,gx+26,gy+1);
+      ctx.fillStyle="rgba(255,255,255,.85)";ctx.textAlign="left";ctx.fillText(wt,gx+26,gy+1);
     }
   }
 

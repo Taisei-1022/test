@@ -36,7 +36,7 @@
   #padR{background:linear-gradient(#ff5560,#d91e2c);color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.2);}
   #padW{background:linear-gradient(#ffffff,#e6e6ea);color:#3a3a46;}
   .pad.hit{transform:translateY(4px);box-shadow:0 2px 0 rgba(0,0,0,.25);}
-  #fever{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 126px);z-index:3;pointer-events:none;
+  #fever{position:fixed;left:50%;transform:translateX(-50%);top:220px;z-index:3;pointer-events:none;
     background:linear-gradient(90deg,#ff4d6d,#ffb02e);color:#fff;font-weight:900;font-size:14px;border-radius:999px;padding:5px 14px;white-space:nowrap;
     box-shadow:0 3px 10px rgba(0,0,0,.3);animation:fv .5s ease-in-out infinite alternate;}
   #fever[hidden]{display:none;}
@@ -73,7 +73,7 @@
   <h1>旗あげ</h1>
   <p>「赤あげて、白さげて！」<br>先生の言うとおりに旗を動かそう。<br><b>画面の左半分タップで<span class="r">赤</span>、右半分で<span class="w">白</span></b>が<br>あがる⇔さがる（タップのたびに切り替え）。</p>
   <p class="warn">⚠️ 正解は<b>「ことば」</b>だけ！<br>文字の色や先生の看板にだまされないで。<br>セリフは最後まで聞いてから動こう。</p>
-  <p>3回ミスで終了。10連続正解で<b>お祭りモード</b>（得点2倍）！</p>
+  <p>3回ミスで終了。<br>10連続正解で<b>お祭りモード</b>（得点2倍）！</p>
   <button id="startBtn">はじめる</button>
 </div>
 <script src="../../js/arcade-sdk.js?v=2"></script>
@@ -302,7 +302,7 @@
     }
     else if(phase==="result"){if(phaseT>=resDelay){if(misses>=3)gameOver();else nextCmd();}}
     if(feverOn){feverT+=dt;fwT-=dt;if(fwT<=0){firework();fwT=0.7+Math.random()*0.6;}
-      if(Math.random()<dt*30)parts.push({x:Math.random()*W,y:-10,vx:(Math.random()-.5)*40,vy:80+Math.random()*80,r:Math.random()*6,vr:(Math.random()-.5)*8,w:5+Math.random()*5,h:8+Math.random()*6,col:CONF[(Math.random()*CONF.length)|0],life:6,age:0,k:"c"});}
+      if(Math.random()<dt*14)parts.push({x:Math.random()*W,y:-10,vx:(Math.random()-.5)*40,vy:80+Math.random()*80,r:Math.random()*6,vr:(Math.random()-.5)*8,w:5+Math.random()*5,h:8+Math.random()*6,col:CONF[(Math.random()*CONF.length)|0],life:6,age:0,k:"c"});}
     stepParts(dt);
   }
   function stepParts(dt){
@@ -391,7 +391,7 @@
     else{circ(x-8,y+3,3);ctx.fill();circ(x+8,y+3,3);ctx.fill();}
     ctx.fillStyle="rgba(255,120,120,.4)";circ(x-15,y+11,5);ctx.fill();circ(x+15,y+11,5);ctx.fill();
     if(whistleT>0){ctx.fillStyle="#c8ccd4";rr(x-3,y+12,14,7,3);ctx.fill();
-      ctx.fillStyle="#fff";ctx.strokeStyle="#3a2a1a";ctx.lineWidth=3;ctx.font="900 15px "+FONT;ctx.textAlign="left";ctx.textBaseline="middle";ctx.strokeText("ピーッ！",x+16,y+40);ctx.fillText("ピーッ！",x+16,y+40);}
+      ctx.fillStyle="#fff";ctx.strokeStyle="#3a2a1a";ctx.lineWidth=3;ctx.font="900 15px "+FONT;ctx.textAlign="left";ctx.textBaseline="middle";ctx.textAlign="center";ctx.font="900 17px "+FONT;ctx.strokeText("ピーッ！",x,y+112);ctx.fillText("ピーッ！",x,y+112);}
     else if(talk){ctx.fillStyle="#7a2a2a";ctx.beginPath();ctx.ellipse(x,y+15,6,5,0,0,Math.PI*2);ctx.fill();}
     else{ctx.strokeStyle="#7a2a2a";ctx.lineWidth=2.2;ctx.beginPath();ctx.arc(x,y+11,5,0.2,Math.PI-0.2);ctx.stroke();}
     // 腕・看板
@@ -539,7 +539,7 @@
     PFY=padTop-14;
     var avail=PFY-(bb.top+150);
     S=Math.max(0.8,Math.min(1.45,Math.min(W/330,avail/262)));
-    PX=W/2;HZ=PFY-170*S;CX=60;CY=bb.top+38;
+    PX=W/2;HZ=PFY-170*S;CX=60;CY=bb.top+38;$("fever").style.top=Math.round(CY+128)+"px";
   }
   window.addEventListener("resize",resize);
   function loop(t){var dt=Math.min(0.05,(t-last)/1000)||0;last=t;

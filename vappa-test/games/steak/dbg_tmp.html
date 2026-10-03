@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1" />
 <title>ステーキ等分</title>
+<link rel="icon" href="data:," />
 <style>
   *{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;}
   html,body{height:100%;background:#1c120d;overflow:hidden;font-family:"Hiragino Maru Gothic ProN","Hiragino Sans",system-ui,sans-serif;color:#fff;touch-action:none;overscroll-behavior:none;}
@@ -97,8 +98,8 @@
       var meat=polyPath(polar(function(t){return at(t,1);},72));
       // 上のふちに沿った背骨＋まん中を縦に走る骨（T字）
       var band=[],t1=-Math.PI+0.62,t2=-0.62,i,n=24;
-      for(i=0;i<=n;i++)band.push(at(t1+(t2-t1)*i/n,1.08));
-      for(i=n;i>=0;i--)band.push(at(t1+(t2-t1)*i/n,0.86));
+      for(i=0;i<=n;i++)band.push(at(t1+(t2-t1)*i/n,1.06));
+      for(i=n;i>=0;i--)band.push(at(t1+(t2-t1)*i/n,0.89));
       var bone=smoothPath(band);
       rrPath(bone,-0.45,-0.86,0.17,1.36,0.085);
       bone.moveTo(-0.365+0.11,0.47);bone.arc(-0.365,0.47,0.11,0,Math.PI*2);bone.closePath();
@@ -181,15 +182,20 @@
     }
     return out;
   }
-  function buildRegions(comps,cuts){
-    var seen={},regs=[];
-    for(var i=0;i<comps.length;i++){
-      var k=comps[i].key;if(seen[k]!=null)continue;seen[k]=regs.length;
-      var poly=[{x:-3,y:-3},{x:3,y:-3},{x:3,y:3},{x:-3,y:3}],ox=0,oy=0;
-      for(var j=0;j<cuts.length;j++){var c=cuts[j],pos=!!(k&(1<<j));poly=clipHalf(poly,c.nx,c.ny,c.d,pos);ox+=(pos?1:-1)*c.nx;oy+=(pos?1:-1)*c.ny;}
-      var m=Math.hypot(ox,oy);if(m>3.2){ox*=3.2/m;oy*=3.2/m;}
-      regs.push({key:k,poly:poly,ox:ox,oy:oy});
+  function buildRegions(comps,cuts,sh){
+    var seen={},regs=[],i,r;
+    for(i=0;i<comps.length;i++){
+      var k=comps[i].key;
+      if(seen[k]==null){
+        seen[k]=regs.length;
+        var poly=[{x:-3,y:-3},{x:3,y:-3},{x:3,y:3},{x:-3,y:3}];
+        for(var j=0;j<cuts.length;j++){var c=cuts[j];poly=clipHalf(poly,c.nx,c.ny,c.d,!!(k&(1<<j)));}
+        regs.push({key:k,poly:poly,a:0,sx:0,sy:0});
+      }
+      r=regs[seen[k]];r.a+=comps[i].area;r.sx+=comps[i].cx*comps[i].area;r.sy+=comps[i].cy*comps[i].area;
     }
+    // 中心から外へ「ばらける」方向（重心の位置に比例）
+    for(i=0;i<regs.length;i++){r=regs[i];r.ox=(r.sx/r.a-sh.mcx)*2.2;r.oy=(r.sy/r.a-sh.mcy)*2.2;}
     return{regs:regs,map:seen};
   }
 
@@ -229,7 +235,7 @@
     var s={sh:sh,order:mkOrder(p.o),cuts:[],comps:null,regs:null,
       angle:p.tilt?rnd(-0.6,0.6):0,rot:(p.rot||0)*(Math.random()<0.5?-1:1),
       slideAmp:p.slide?1:0,slideT:Math.random()*6,no:r+1};
-    s.comps=computePieces(sh,s.cuts);s.regs=buildRegions(s.comps,s.cuts);
+    s.comps=computePieces(sh,s.cuts);s.regs=buildRegions(s.comps,s.cuts,sh);
     return s;
   }
   function mkDeco(R,style){
@@ -319,7 +325,7 @@
     var sh=steak.sh,pos=sideCount(sh,c);
     if(pos<sh.total*0.004||pos>sh.total*0.996){sfx.miss();pop("空振り！",(d.x0+d.x1)/2,(d.y0+d.y1)/2-24,20,"#ffd166",0.9);return;}
     steak.cuts.push(c);
-    steak.comps=computePieces(sh,steak.cuts);steak.regs=buildRegions(steak.comps,steak.cuts);
+    steak.comps=computePieces(sh,steak.cuts);steak.regs=buildRegions(steak.comps,steak.cuts,sh);
     sep=0;sepTarget=0.022;
     flashes.push({c:c,t:0});sfx.slash();shake=Math.max(shake,4);
     juiceAlong(c);
@@ -701,7 +707,7 @@
   window.__steak={get:function(){var f=steakXf();return{phase:phase,round:round,total:total,lives:lives,combo:combo,x:f.x,y:f.y,a:f.a,S:f.s,
     mcx:steak?steak.sh.mcx:0,mcy:steak?steak.sh.mcy:0,res:res?{score:res.score,verdict:res.v[1],pts:res.pts}:null};}};
 
-  window.__G=function(c,k){var o=ctx;ctx=c;var d=SHAPES[k],R=mkRng(7),sh=d.build(R);sh.style=d.style;sh.deco=mkDeco(R,sh.style);drawMeat(sh);ctx=o;};resize();steak=newSteak(0);steak.rot=0.12;updateHud();
+  window.__G=function(c,k,m){var o=ctx;ctx=c;var d=SHAPES[k],R=mkRng(7),sh=d.build(R);sh.style=d.style;sh.deco=mkDeco(R,sh.style);if(m)buildMask(sh);drawMeat(sh);ctx=o;};window.__X=function(c){var o=ctx;ctx=c;drawMeat(steak.sh);ctx=o;};resize();steak=newSteak(0);steak.rot=0.12;updateHud();
   last=performance.now();requestAnimationFrame(loop);
 })();
 </script>
