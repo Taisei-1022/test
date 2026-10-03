@@ -149,6 +149,10 @@
   <section id="view-mypage" class="view">
     <div class="app">
       <div class="top"><div class="brand"><img class="logo" src="logo.png?v=1" alt="Vappa" /><small>マイページ</small></div></div>
+      <div id="acctBox" hidden>
+        <div class="section">アカウント</div>
+        <div class="usagebox" id="acctInfo">—</div>
+      </div>
       <div class="section">なまえ</div>
       <label class="name"><input id="name" maxlength="16" placeholder="ゲスト" style="width:180px" /></label>
       <div class="section">今日のAI作成</div>
@@ -187,7 +191,7 @@
       </div>
       <div class="section">作ったゲーム</div>
       <div id="myCreations"></div>
-      <div class="legal"><a href="about.html">運営者情報</a> ・ <a href="terms.html">利用規約</a> ・ <a href="privacy.html">プライバシーポリシー</a> ・ <a href="contact.html">お問い合わせ</a></div>
+      <div class="legal"><a href="guide.html">作り方ガイド</a> ・ <a href="faq.html">よくある質問</a> ・ <a href="guidelines.html">投稿ガイドライン</a><br><a href="about.html">運営者情報</a> ・ <a href="terms.html">利用規約</a> ・ <a href="privacy.html">プライバシーポリシー</a> ・ <a href="contact.html">お問い合わせ</a></div>
     </div>
   </section>
 </div>
@@ -248,6 +252,16 @@
   </div>
 </div>
 
+<!-- 作る時のログイン（Google）。遊ぶだけなら不要。閉じると「遊ぶ」に戻る -->
+<div class="howto" id="loginGate" hidden>
+  <div class="howtobox">
+    <h3>作るにはログインしてね</h3>
+    <p class="lead">ゲームを作るには、Googleアカウントでのログインが必要です。<br>パスワードを新しく作る必要はありません。<br><small style="opacity:.75">遊ぶだけならログインは要りません。ログイン前にこの端末で作ったゲームは、そのままあなたのアカウントに引き継がれます。</small></p>
+    <button class="ok" id="loginGateGo" type="button">Googleでログイン</button>
+    <button class="ok" id="loginGateBack" type="button" style="background:transparent;border:1px solid #3a3460;color:#cdbcff;margin-top:8px">遊ぶにもどる</button>
+  </div>
+</div>
+
 <!-- 初回：なまえ必須ゲート（入れるまで閉じない＝閉じる/背景タップ無し） -->
 <div class="howto" id="nameGate" hidden>
   <div class="howtobox">
@@ -273,8 +287,9 @@
 <script src="js/config.js?v=6"></script>
 <script src="js/netstate.js?v=1"></script>
 <script src="js/store.js?v=8"></script>
-<script src="js/ai.js?v=19"></script>
-<script src="js/catalog.js?v=11"></script>
+<script src="js/auth.js?v=1"></script>
+<script src="js/ai.js?v=20"></script>
+<script src="js/catalog.js?v=12"></script>
 <script src="js/share.js?v=6"></script>
 <script src="js/arcade-embed.js?v=4"></script>
 <script src="js/pwa.js?v=1"></script>
@@ -283,7 +298,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.85";
+  var APP_VERSION = "0.9.86";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -327,7 +342,7 @@
     tabs.forEach(function(b){ b.classList.toggle("on", b.dataset.tab===tab); });
     if(tab==="play") renderFeed();
     if(tab==="mypage") renderMypage();
-    if(tab==="create"){ enterCreate(); crShow(cr||"list"); maybeHowto(); }
+    if(tab==="create"){ enterCreate(); crShow(cr||"list"); maybeHowto(); maybeLoginGate(); }
   }
   function curCr(){ var on=document.querySelector("#view-create .crscreen.on"); return on? on.id.replace("cr-",""):"list"; }
   function navState(){ var v=document.querySelector(".view.active"); var tab=v?v.id.replace("view-",""):"play"; return {tab:tab, cr: tab==="create"?curCr():null}; }
@@ -518,6 +533,39 @@
   });
   sortSel.addEventListener("change", function(){ feedSort=sortSel.value; paintFeed(); });
 
+  /* ---------- ログイン（作る時だけ必須） ---------- */
+  // 必須かどうかはサーバーが決める（Ai.usage の login_required）。Googleログインを
+  // Supabase で有効にした時点で自動的に必須になる。それまでは何も出さない。
+  var loginReq=false, loginGate=document.getElementById("loginGate");
+  function showLoginGate(){ if(loginGate && !(window.Auth&&Auth.user())) loginGate.hidden=false; }
+  function maybeLoginGate(){ if(loginReq) showLoginGate(); }
+  if(loginGate){
+    document.getElementById("loginGateGo").addEventListener("click", function(){ Auth.login(); });
+    document.getElementById("loginGateBack").addEventListener("click", function(){ loginGate.hidden=true; show("play"); });
+  }
+  window.addEventListener("vappa:needlogin", function(){ loginReq=true; showLoginGate(); });
+  function renderAccount(){
+    var box=document.getElementById("acctBox"), info=document.getElementById("acctInfo"); if(!box||!window.Auth) return;
+    var u=Auth.user();
+    if(u){
+      box.hidden=false;
+      info.innerHTML='Googleでログイン中<br><b></b><br><button type="button" class="ghostbtn" id="acctOut" style="margin-top:8px">ログアウト</button>';
+      info.querySelector("b").textContent=u.email||u.name||"";
+      document.getElementById("acctOut").onclick=function(){ Auth.logout().then(function(){ renderAccount(); renderMypage(); showToast("ログアウトしました"); }); };
+      return;
+    }
+    Auth.googleEnabled().then(function(on){
+      if(!on){ box.hidden=true; return; }
+      box.hidden=false;
+      info.innerHTML='ログインしていません<br><small style="opacity:.75">作るにはログインが必要です</small><br><button type="button" class="ghostbtn" id="acctIn" style="margin-top:8px">Googleでログイン</button>';
+      document.getElementById("acctIn").onclick=function(){ Auth.login(location.pathname.replace(/[^/]*$/,"")+"#mypage"); };
+    });
+  }
+  window.addEventListener("vappa:auth", function(){ renderAccount(); });
+  if(window.Ai && Ai.available && Ai.available() && Ai.usage){
+    Ai.usage().then(function(u){ loginReq=!!(u&&u.login_required&&!u.admin); if(loginReq && (navState().tab==="create")) maybeLoginGate(); }).catch(function(){});
+  }
+
   /* ---------- マイページ ---------- */
   var nameEl=document.getElementById("name");
   nameEl.addEventListener("change", function(){
@@ -547,7 +595,7 @@
     nameEl.value=Store.name();
     if(adminEl && window.Ai && Ai.getAdmin){ adminEl.value=Ai.getAdmin(); }
     renderCreationsInto("myCreations");
-    renderUsage();
+    renderUsage(); renderAccount();
   }
   function renderUsage(){
     var el=document.getElementById("usage"); if(!el) return;
@@ -1304,6 +1352,7 @@
   }
   // エラーメッセージの組み立て（相談ターン・ビルド両方で共用）
   function chatErrMsg(s){
+    if(/login_required/.test(s)){ showLoginGate(); return "作るにはログインが必要です。Googleアカウントでログインしてね。"; }
     if(/rate_limited/.test(s)){
       var reason=s.split(":")[1]||"";
       var sec=parseInt(s.split(":")[2],10);

@@ -22,6 +22,7 @@
     <a class="back" href="index.html" aria-label="戻る">‹</a>
     <div class="t" id="title">…</div>
     <button class="rankbtn shareic2" id="shareBtn" aria-label="共有"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button>
+    <button class="rankbtn shareic2" id="reportBtn" aria-label="この作品を通報" title="通報" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg></button>
     <a class="rankbtn" id="rankBtn">ランキング</a>
     <div class="best"><span>自己ベスト</span><b id="best">—</b></div>
   </div>
@@ -33,7 +34,9 @@
 <script src="js/config.js?v=6"></script>
 <script src="js/netstate.js?v=1"></script>
 <script src="js/store.js?v=8"></script>
-<script src="js/catalog.js?v=11"></script>
+<script src="js/auth.js?v=1"></script>
+<script src="js/catalog.js?v=12"></script>
+<script src="js/ai.js?v=20"></script>
 <script src="js/share.js?v=6"></script>
 <script src="js/sw-reg.js?v=2"></script>
 <script src="js/arcade-embed.js?v=4"></script>
@@ -165,6 +168,13 @@
     row.appendChild(again); row.appendChild(rank);
     sheet.appendChild(row);
 
+    if (GAME && GAME.source !== "seed" && window.Ai) {
+      var rl = document.createElement("button");
+      rl.type = "button"; rl.textContent = "この作品を通報";
+      rl.setAttribute("style", "background:none;border:0;color:#9aa0b5;font-size:12px;text-decoration:underline;margin-top:10px;cursor:pointer");
+      rl.addEventListener("click", openReport);
+      sheet.appendChild(rl);
+    }
     var cl = sheetBtn("とじる", false);
     cl.style.marginTop = "12px";
     cl.style.opacity = "0.85";
@@ -173,6 +183,54 @@
 
     ov.appendChild(sheet);
     ov.addEventListener("click", function (e) { if (!(e.target.closest && e.target.closest("button"))) closeResult(); });
+    document.body.appendChild(ov);
+  }
+
+  // ---- 通報（ユーザーが作った作品だけ）----
+  // 理由を選んで送る。同じ人の2回目は数えない。別々の人から3件で自動的に一覧から外れ、運営が確認する。
+  function openReport() {
+    if (!GAME) return;
+    closeResult();
+    var ov = document.createElement("div");
+    ov.id = "__reportov";
+    ov.setAttribute("style", "position:fixed;inset:0;z-index:9995;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center");
+    var sh = document.createElement("div");
+    sh.setAttribute("style", "width:100%;max-width:520px;background:#181a27;border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));color:#f1eefb");
+    sh.innerHTML = '<div style="font-weight:900;font-size:16px;margin-bottom:4px">この作品を通報</div>' +
+      '<div style="font-size:12px;color:#9aa0b5;line-height:1.6;margin-bottom:10px">運営が内容を確認します。通報した人の情報は作者には伝わりません。<a href="guidelines.html" style="color:#cdbcff">投稿ガイドライン</a></div>';
+    var reason = "";
+    var wrap = document.createElement("div");
+    wrap.setAttribute("style", "display:flex;flex-wrap:wrap;gap:6px");
+    ["不適切な内容", "暴力・差別的", "著作権・なりすまし", "個人情報", "動かない・壊れている", "その他"].forEach(function (r) {
+      var b = document.createElement("button");
+      b.type = "button"; b.textContent = r;
+      b.setAttribute("style", "flex:1 1 45%;padding:11px 8px;border-radius:12px;border:1px solid #3a3d52;background:#23263a;color:#fff;font-weight:800;font-size:13px");
+      b.addEventListener("click", function () {
+        reason = r;
+        wrap.querySelectorAll("button").forEach(function (x) { x.style.background = "#23263a"; x.style.borderColor = "#3a3d52"; });
+        b.style.background = "#7b61ff"; b.style.borderColor = "#7b61ff";
+      });
+      wrap.appendChild(b);
+    });
+    sh.appendChild(wrap);
+    var ta = document.createElement("textarea");
+    ta.maxLength = 500; ta.rows = 3; ta.placeholder = "くわしく（任意）";
+    ta.setAttribute("style", "width:100%;box-sizing:border-box;margin-top:10px;background:#0f1019;border:1px solid #3a3d52;color:#fff;border-radius:12px;padding:10px;font:inherit;font-size:14px");
+    sh.appendChild(ta);
+    var send = sheetBtn("通報する", true), cancel = sheetBtn("やめる", false);
+    send.addEventListener("click", function () {
+      if (!reason) { showToast("理由を選んでね"); return; }
+      send.disabled = true; send.textContent = "送信中…";
+      Ai.report(GAME.id, reason, ta.value.trim()).then(function () {
+        ov.remove(); showToast("通報しました。ご協力ありがとうございます");
+      }).catch(function () {
+        send.disabled = false; send.textContent = "通報する"; showToast("送れませんでした。時間をおいてもう一度試してね");
+      });
+    });
+    cancel.addEventListener("click", function () { ov.remove(); });
+    sh.appendChild(send); sh.appendChild(cancel);
+    ov.appendChild(sh);
+    ov.addEventListener("click", function (e) { if (e.target === ov) ov.remove(); });
     document.body.appendChild(ov);
   }
 
@@ -190,6 +248,9 @@
       var s = (lastScore != null) ? lastScore : myBestScore;
       Share.open({ gameId: game.id, gameTitle: game.title, unit: unit, score: s, by: player });
     });
+
+    var rb = document.getElementById("reportBtn");
+    if (rb && game.source !== "seed" && window.Ai) { rb.hidden = false; rb.addEventListener("click", openReport); }
 
     if (game.source === "seed") frame.src = game.path;        // シード：ファイルを読み込む
     else loadGameFrame(frame, game.html);                      // 生成・持ち込み：隔離（sandbox+CSP）して再生

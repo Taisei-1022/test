@@ -672,6 +672,122 @@ function limitReason(scope: "req" | "bld", g: { reason?: string } | null) {
   return "rate";                                    // req の user 上限
 }
 
+// ===== ログイン（Google / Supabase Auth）=====
+// 作る（相談・生成・設計書）にはログインが必要。遊ぶだけなら不要。
+// 必須かどうか：Secret REQUIRE_LOGIN が "1"=必須 / "0"=不要。未設定なら「Googleログインが
+// 有効になっていれば必須」（＝Supabase で Google を有効にした瞬間から自動で必須になる）。
+const SRV_BASE = SUPA_URL.replace(/\/$/, "");
+const srvHeaders = { apikey: SUPA_SRV, Authorization: "Bearer " + SUPA_SRV, "content-type": "application/json" };
+let googleCache: { v: boolean; at: number } | null = null;
+async function loginRequired(): Promise<boolean> {
+  const env = Deno.env.get("REQUIRE_LOGIN");
+  if (env === "1") return true;
+  if (env === "0") return false;
+  if (googleCache && Date.now() - googleCache.at < 300000) return googleCache.v;
+  let v = false;
+  try {
+    const r = await fetch(SRV_BASE + "/auth/v1/settings", { headers: { apikey: SUPA_SRV } });
+    const d = await r.json();
+    v = !!(d && d.external && d.external.google);
+  } catch { v = googleCache ? googleCache.v : false; }
+  googleCache = { v, at: Date.now() };
+  return v;
+}
+// リクエストの Authorization（ログイン中のユーザーのトークン）を確かめて、ユーザーIDを返す
+async function authUser(req: Request): Promise<{ id: string; email?: string } | null> {
+  const h = req.headers.get("authorization") || "";
+  const t = h.replace(/^Bearer\s+/i, "");
+  if (!t || !/^eyJ/.test(t) || !SRV_BASE) return null;
+  try {
+    // 公開キー（anon の JWT）はユーザーではないので、payload の role で先に除外する
+    const p = JSON.parse(atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    if (!p || p.role !== "authenticated") return null;
+    const r = await fetch(SRV_BASE + "/auth/v1/user", { headers: { apikey: SUPA_SRV, Authorization: "Bearer " + t } });
+    if (!r.ok) return null;
+    const u = await r.json();
+    return u && u.id ? { id: u.id, email: u.email } : null;
+  } catch { return null; }
+}
+
+// ===== 通報 =====
+// 別々の人（端末 or アカウント）から REPORT_HIDE 件届いた作品は、自動で一覧から外す（hidden=true）。
+// 運営は管理画面で確認して、戻す／非表示のままにするを決める。
+const REPORT_HIDE = 3;
+const REPORT_REASONS = ["不適切な内容", "暴力・差別的", "著作権・なりすまし", "個人情報", "動かない・壊れている", "その他"];
+async function handleReport(rep: { game_id?: string; reason?: string; detail?: string }, reporter: string, ip: string) {
+  const gid = String(rep.game_id || "").slice(0, 80);
+  const reason = REPORT_REASONS.includes(String(rep.reason)) ? String(rep.reason) : "その他";
+  if (!gid || !SRV_BASE || !SUPA_SRV) return { error: "bad_request" };
+  const d = today();
+  const g = await gate("u:rep:" + reporter + ":" + d, "i:rep:" + ip + ":" + d, "g:rep:" + d, 20, 60, 2000, 0);
+  if (g && g.allowed === false) return { error: "rate_limited", reason: "rate" };
+  const r = await fetch(SRV_BASE + "/rest/v1/reports?on_conflict=game_id,reporter", {
+    method: "POST", headers: { ...srvHeaders, Prefer: "resolution=ignore-duplicates,return=minimal" },
+    body: JSON.stringify({ game_id: gid, reason, detail: String(rep.detail || "").slice(0, 500), reporter }),
+  });
+  if (!r.ok && r.status !== 409) return { error: "report_failed", detail: String(r.status) };
+  // 未対応の通報が何人分たまったか
+  const c = await fetch(SRV_BASE + "/rest/v1/reports?game_id=eq." + encodeURIComponent(gid) + "&status=eq.open&select=id",
+    { headers: { ...srvHeaders, Prefer: "count=exact", Range: "0-0" } });
+  const n = parseInt((c.headers.get("content-range") || "/0").split("/")[1], 10) || 0;
+  if (n >= REPORT_HIDE && /^[0-9a-f-]{36}$/.test(gid)) {
+    await fetch(SRV_BASE + "/rest/v1/games?id=eq." + gid, { method: "PATCH", headers: { ...srvHeaders, Prefer: "return=minimal" }, body: JSON.stringify({ hidden: true }) });
+  }
+  return { ok: true };
+}
+
+// ===== 管理画面（arcade/manage.html）=====
+// パスワードは Secret ADMIN_PANEL_PASS（未設定の間は暫定で "password"）。
+// Supabase → Edge Functions → Secrets で ADMIN_PANEL_PASS を設定すれば、コードを変えずに変更できる。
+const PANEL_PASS = Deno.env.get("ADMIN_PANEL_PASS") || "password";
+async function handlePanel(p: { pass?: string; op?: string; id?: string }, ip: string) {
+  if (String(p.pass || "") !== PANEL_PASS) {
+    // 総当たり対策：失敗は回線ごとに1日30回まで
+    const g = await gate("u:pan:" + ip + ":" + today(), "i:pan:" + ip + ":" + today(), "g:pan:" + today(), 30, 30, 1000, 2);
+    if (g && g.allowed === false) return { error: "rate_limited" };
+    return { error: "bad_password" };
+  }
+  const q = (path: string, init: RequestInit = {}) => fetch(SRV_BASE + "/rest/v1/" + path, { ...init, headers: { ...srvHeaders, ...(init.headers || {}) } });
+  const cnt = async (path: string) => {
+    const r = await q(path + (path.includes("?") ? "&" : "?") + "select=id", { headers: { Prefer: "count=exact", Range: "0-0" } });
+    return parseInt((r.headers.get("content-range") || "/0").split("/")[1], 10) || 0;
+  };
+  const id = String(p.id || "");
+  if (p.op === "hide" || p.op === "unhide") {
+    if (!/^[0-9a-f-]{36}$/.test(id)) return { error: "bad_id" };
+    await q("games?id=eq." + id, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ hidden: p.op === "hide" }) });
+    if (p.op === "unhide") await q("reports?game_id=eq." + id + "&status=eq.open", { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ status: "done" }) });
+    return { ok: true };
+  }
+  if (p.op === "resolve") {   // この作品への通報を「対応済み」にする（表示はそのまま）
+    await q("reports?game_id=eq." + encodeURIComponent(id) + "&status=eq.open", { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ status: "done" }) });
+    return { ok: true };
+  }
+  // 既定：ダッシュボード
+  const d = today();
+  const [total, published, hidden, withUser, openReports, recentR, repR, bld, req] = await Promise.all([
+    cnt("games"), cnt("games?published=eq.true&hidden=is.false"), cnt("games?hidden=is.true"), cnt("games?user_id=not.is.null"),
+    cnt("reports?status=eq.open"),
+    q("games?select=id,title,author,published,hidden,user_id,created_at&order=created_at.desc&limit=40"),
+    q("reports?select=id,game_id,reason,detail,created_at,status&status=eq.open&order=created_at.desc&limit=200"),
+    readUsage("g:bld:" + d), readUsage("g:req:" + d),
+  ]);
+  const recent = recentR.ok ? await recentR.json() : [];
+  const reports = repR.ok ? await repR.json() : [];
+  // 通報された作品のタイトル
+  const ids = [...new Set((reports as { game_id: string }[]).map((r) => r.game_id).filter((x) => /^[0-9a-f-]{36}$/.test(x)))];
+  let titles: Record<string, { title: string; hidden: boolean }> = {};
+  if (ids.length) {
+    const tr = await q("games?select=id,title,hidden&id=in.(" + ids.join(",") + ")");
+    if (tr.ok) for (const g of await tr.json()) titles[g.id] = { title: g.title, hidden: g.hidden };
+  }
+  return {
+    ok: true, today: d, login_required: await loginRequired(),
+    stats: { total, published, hidden, withUser, openReports, buildsToday: bld || 0, requestsToday: req || 0, buildLimit: LIMITS.bldGlobal },
+    recent, reports, titles, reasons: REPORT_REASONS, hideAt: REPORT_HIDE,
+  };
+}
+
 // ===== 生成ジョブ（非同期化）=====
 // gen_jobs テーブルに service_role で読み書き。テーブルが無ければ null を返し、
 // 呼び出し側は従来の同期（ストリーミング）にフォールバックする。
@@ -1300,9 +1416,12 @@ Deno.serve(async (req) => {
 
   let messages: Msg[] = [], prevHtml = "", token = "?", jobId = "", wantUsage = false, isAdmin = false, forceBuild = false, testModel = "";
   let irun: IRun | null = null, wantSpec = false, uspec = "";
+  let report: Record<string, string> | null = null, panel: Record<string, string> | null = null;
   try {
     const b = await req.json();
     if (b && typeof b.irun === "object" && b.irun) irun = b.irun as IRun;
+    if (b && typeof b.report === "object" && b.report) report = b.report;   // 通報
+    if (b && typeof b.panel === "object" && b.panel) panel = b.panel;       // 管理画面
     if (b?.makeSpec === true) wantSpec = true;               // 設計書だけ作る（生成カウント消費なし）
     if (typeof b?.spec === "string") uspec = b.spec.slice(0, 8000);   // ユーザー確認・編集済みの設計書
     if (typeof b?.job === "string") jobId = b.job;
@@ -1322,6 +1441,13 @@ Deno.serve(async (req) => {
   } catch { /* ignore */ }
 
   const ip = (req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "?").split(",")[0].trim() || "?";
+
+  if (panel) return json(await handlePanel(panel, ip));
+
+  // ログイン中ならユーザーIDを、レート制限・通報の「誰か」に使う（端末をまたいでも同じ人）
+  const user = irun ? null : await authUser(req);
+  if (user) token = "uid:" + user.id;
+  if (report) return json(await handleReport(report, token, ip));
 
   // ---- 内部ラン：自己呼び出しされたビルド本体（サービスロールキー必須）----
   if (irun) {
@@ -1363,16 +1489,18 @@ Deno.serve(async (req) => {
   }
 
   // ---- 使用量の確認（加算しない・上限チェックもしない）----
+  const needLogin = (wantUsage || (!jobId && !irun)) ? await loginRequired() : false;
   if (wantUsage) {
+    const lr = { login_required: needLogin, logged_in: !!user };
     // 管理者はテストモデル選択を反映した「実際に使われるモデル」を返す（チャット画面の表記と実生成を一致させる）
-    if (isAdmin) return json({ enabled: true, admin: true, model: specLabel(specFor(testModel)) });
+    if (isAdmin) return json({ ...lr, enabled: true, admin: true, model: specLabel(specFor(testModel)) });
     const d = today();
     const used = await readUsage("u:bld:" + token + ":" + d);
-    if (used === null) return json({ enabled: false, model: specLabel(specFor()) });   // rate_limit.sql 未実行 = 無制限
+    if (used === null) return json({ ...lr, enabled: false, model: specLabel(specFor()) });   // rate_limit.sql 未実行 = 無制限
     const ipU = await readUsage("i:bld:" + ip + ":" + d);
     const gU = await readUsage("g:bld:" + d);
     return json({
-      enabled: true, model: specLabel(specFor()),
+      ...lr, enabled: true, model: specLabel(specFor()),
       bldUsed: used, bldLimit: LIMITS.bldUser, bldRemaining: Math.max(0, LIMITS.bldUser - used),
       ipUsed: ipU || 0, ipLimit: LIMITS.bldIp,
       globalUsed: gU || 0, globalLimit: LIMITS.bldGlobal,
@@ -1396,6 +1524,9 @@ Deno.serve(async (req) => {
   }
 
   if (!messages.length) return json({ error: "empty_prompt" }, 400);
+
+  // 作る（相談・設計書・生成）はログイン必須（管理者コードは例外）
+  if (needLogin && !user && !isAdmin) return json({ error: "login_required" });
 
   // ---- 設計書のみ生成（ビルド前の確認・編集用。生成カウントは消費しない）----
   if (wantSpec) {

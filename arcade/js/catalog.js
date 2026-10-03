@@ -19,6 +19,9 @@ window.Catalog = (function () {
     opts = opts || {};
     var h = { apikey: cfg.supabaseKey, "Content-Type": "application/json" };
     if (/^eyJ/.test(cfg.supabaseKey)) h.Authorization = "Bearer " + cfg.supabaseKey; // 旧anon(JWT)のみ
+    // ログイン中は本人のトークンを付ける（ログインして作った作品は本人しか更新・削除できない＝DB側で判定）
+    var ut = (window.Auth && Auth.tokenSync) ? Auth.tokenSync() : "";
+    if (ut) h.Authorization = "Bearer " + ut;
     opts.headers = Object.assign(h, opts.headers || {});
     // 通信の成否を1か所で見張る。400は「任意列があるか探る」通常運用なので
     // Net 側で無視される（schemaErr の再試行と競合しない）。
@@ -49,7 +52,7 @@ window.Catalog = (function () {
     return f;
   }
   function schemaErr(status, text) {
-    return status === 400 && /category|published|chat|updated_at|column|schema cache|PGRST204/i.test(text || "");
+    return status === 400 && /category|published|chat|updated_at|hidden|column|schema cache|PGRST204/i.test(text || "");
   }
   async function writeRow(path, method, row) {
     var res = await rq(path, { method: method, headers: { Prefer: "return=representation" }, body: JSON.stringify(row) });
@@ -70,7 +73,7 @@ window.Catalog = (function () {
     if (res.ok) return res;
     var t = ""; try { t = await res.text(); } catch (e) {}
     if (schemaErr(res.status, t)) {
-      var p2 = path; OPTIONAL.forEach(function (k) { p2 = p2.replace("," + k, ""); });
+      var p2 = path.replace("&hidden=is.false", ""); OPTIONAL.forEach(function (k) { p2 = p2.replace("," + k, ""); });
       if (p2 !== path) { var res2 = await rq(p2); if (res2.ok) return res2; }
     }
     throw new Error("read_failed:" + res.status);
@@ -84,6 +87,8 @@ window.Catalog = (function () {
     // 新規公開。新しい行（id付き）を返す。
     publish: async function (g) {
       var row = fields(g); row.owner = owner();
+      var u = (window.Auth && Auth.user) ? Auth.user() : null;
+      if (u && remote) row.user_id = u.id;   // ログイン中の作品＝本人だけが編集できる
       if (remote) {
         var res = await writeRow("games", "POST", row);
         return (await res.json())[0];
@@ -129,7 +134,7 @@ window.Catalog = (function () {
       if (remote) {
         try {
           var q = "games?select=id,title,author,accent,description,thumb,owner,created_at,updated_at,category,published&order=created_at.desc&limit=100";
-          if (opts.publishedOnly) q += "&published=eq.true";
+          if (opts.publishedOnly) q += "&published=eq.true&hidden=is.false";   // 通報・運営判断で非表示の作品は一覧に出さない
           if (opts.owner) q += "&owner=eq." + enc(opts.owner);
           var res = await getSel(q);
           return await res.json();
