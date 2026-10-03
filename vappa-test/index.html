@@ -54,7 +54,10 @@ var GAMES = [
   { id:"beer",  title:"ビール注ぎ名人", emoji:"🍺", blurb:"泡7:3をねらって長押しで注ぐ。ジョッキがどんどん変になる。", unit:"点" },
   { id:"steak", title:"ステーキ等分",   emoji:"🥩", blurb:"指でなぞってステーキを切る。ぴったり等分できる？", unit:"点" },
   { id:"hata",  title:"旗あげ",         emoji:"🚩", blurb:"赤あげて、白さげない。指示がどんどんひねくれる。", unit:"回" },
-  { id:"lturn", title:"L字路 切り返し", emoji:"🚗", blurb:"せまいL字路を切り返しで曲がれ。全5ステージの合計タイム勝負。", unit:"秒", low:true }
+  { id:"lturn", title:"L字路 切り返し", emoji:"🚗", blurb:"せまいL字路を切り返しで曲がれ。全5ステージの合計タイム勝負。", unit:"秒", low:true },
+  { id:"darts", title:"ネコダーツ", emoji:"🎯", blurb:"的をねらうと、ネコがじゃまをする。理不尽すぎるダーツ。", unit:"点" },
+  { id:"softcream", title:"ソフトクリーム職人", emoji:"🍦", blurb:"タップでうず巻きを重ねる。どこまで高く巻ける？", unit:"cm" },
+  { id:"yuka", title:"落ちる床", emoji:"🟥", blurb:"言われた色の床へ逃げろ。ほかの床は落ちる。", unit:"回" }
 ];
 var READY = ["beer","steak","hata","lturn"]; // 遊べる状態のゲームID
 function best(id){ try{ return localStorage.getItem("best_"+id); }catch(e){ return null; } }
