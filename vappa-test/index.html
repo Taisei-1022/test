@@ -60,7 +60,8 @@ var GAMES = [
   { id:"yuka", title:"落ちる床", emoji:"🟥", blurb:"言われた色の床へ逃げろ。ほかの床は落ちる。", unit:"点" },
   { id:"kazuate", title:"数字当て", emoji:"🔐", blurb:"かくれた数字を、ヒントだけで当てる金庫破り。", unit:"点" },
   { id:"shinkei", title:"神経衰弱タイムアタック", emoji:"🃏", blurb:"3面連続の神経衰弱。いたずら札がカードをまぜる。", unit:"秒", low:true },
-  { id:"tsunagi", title:"一筆書きつなぎ", emoji:"🍡", blurb:"同じおもちを指でなぞってつなげる。長いほど大爆発。", unit:"点" }
+  { id:"tsunagi", title:"一筆書きつなぎ", emoji:"🍡", blurb:"同じおもちを指でなぞってつなげる。長いほど大爆発。", unit:"点" },
+  { id:"fukuwarai", title:"福笑い", emoji:"👺", blurb:"流れてくる目・鼻・口をタップで落とす。どんな顔になる？", unit:"点" }
 ];
 var READY = ["beer","steak","hata","lturn","yuka","darts","kazuate","softcream"]; // 遊べる状態のゲームID
 function best(id){ try{ return localStorage.getItem("best_"+id); }catch(e){ return null; } }

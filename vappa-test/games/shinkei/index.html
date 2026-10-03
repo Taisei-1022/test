@@ -321,7 +321,7 @@
     if(a.kind==="clock"){
       S.clockBon+=addBon(CLOCK_BON);SFX.clock();bumpTimer("minus");flash("#ffd23a");
       floatText("⏱ −"+CLOCK_BON+"秒！",(pa.x+pb.x)/2,(pa.y+pb.y)/2,"gold");
-      floatText("−"+CLOCK_BON,t.x,t.y+28,"grn");
+      floatText("−"+CLOCK_BON,t.x,t.y+36,"grn");
       sparks(pb.x,pb.y,["#ffd23a","#fff3b0","#ffffff"],14);
     }else sparks(pb.x,pb.y,["#4fe08a","#ffd23a","#ffffff","#7f5cff"],10);
     if(S.combo>=3){
@@ -329,7 +329,7 @@
       after(0.08,function(){SFX.combo(S.combo);});
       banner("れんぞく！","🔥 "+S.combo+"コンボ　−"+bonus.toFixed(1)+"秒",false,true);
       flash("rgba(255,170,40,.6)");bumpTimer("minus");
-      floatText("−"+bonus.toFixed(1),t.x+(a.kind==="clock"?46:0),t.y+28,"grn");
+      floatText("−"+bonus.toFixed(1),t.x+(a.kind==="clock"?46:0),t.y+36,"grn");
       sparks(pa.x,pa.y,["#ff9f2e","#ffd66b","#ff4d6d"],14);
       cbEl.classList.remove("bump");void cbEl.offsetWidth;cbEl.classList.add("bump");
     }
@@ -343,7 +343,7 @@
     SFX.miss();bumpTimer("plus");
     var pb=center(b.el),t=center(tmEl);
     floatText("ミス +"+MISS_PEN+"秒",pb.x,pb.y-10,"red");
-    floatText("+"+MISS_PEN,t.x,t.y+28,"red");
+    floatText("+"+MISS_PEN,t.x,t.y+36,"red");
     after(0.12,function(){a.el.classList.add("ng");b.el.classList.add("ng");});
     S.pending={a:a,b:b,task:after(0.7,function(){if(S.pending&&S.pending.a===a)resolvePending();})};
     updHud();
@@ -395,14 +395,14 @@
     S.state="over";updHud();SFX.fin();
     var tot=Math.round(total()*100)/100;
     var nb=!best||tot<best; if(nb){best=tot;try{localStorage.setItem("vappa_shinkei_best",String(best));}catch(e){}}
-    var msg=tot<40?"神の記憶力！ 目にやきついてる！":tot<60?"すばらしい！ 記憶の達人！":tot<85?"いい感じ！ もっと縮められる？":"つぎは最初の1.5秒に集中！";
+    var msg=tot<35?"神の記憶力！ 目にやきついてる！":tot<55?"すばらしい！ 記憶の達人！":tot<80?"いい感じ！ もっと縮められる？":"つぎは最初の1.5秒に集中！";
     var bonusTot=S.clockBon+S.comboBon;
     var rows='';
     for(var i=0;i<S.boardTimes.length;i++)rows+='<div><span>ボード'+(i+1)+'</span><b>'+fmt(S.boardTimes[i])+'</b></div>';
     rows+='<div><span>ミス</span><b class="r">'+S.misses+'回（+'+(S.misses*MISS_PEN)+'秒）</b></div>';
     rows+='<div><span>さいだいれんぞく</span><b>🔥 '+S.bestCombo+'</b></div>';
     rows+='<div><span>ボーナス</span><b class="g">−'+bonusTot.toFixed(1)+'秒</b></div>';
-    ov.innerHTML='<div class="emo emj">'+(tot<60?"🏆":tot<85?"🃏":"🐢")+'</div><h1>ぜんぶクリア！</h1>'+
+    ov.innerHTML='<div class="emo emj">'+(tot<55?"🏆":tot<80?"🃏":"🐢")+'</div><h1>ぜんぶクリア！</h1>'+
       '<div class="big">'+fmt(tot)+'</div>'+
       '<div class="sub">タイムが短いほどえらい！'+(nb?'<span class="nb">自己ベスト！</span>':'<br><span style="font-size:13px;color:#cdbfe8">ベスト '+fmt(best)+'</span>')+'</div>'+
       '<div class="stats">'+rows+'</div><p>'+msg+'</p><button id="rb">もう一回</button>';
