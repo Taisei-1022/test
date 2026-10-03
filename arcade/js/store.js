@@ -176,7 +176,47 @@ window.Store = (function () {
     });
   }
 
-  var impl = remote ? remoteStore() : localStore();
+  // ---- いいね（サーバー経由。同じ人は1ゲーム1回）----
+  function fnCall(body) {
+    var tok = ""; try { tok = (window.Catalog && Catalog.owner) ? Catalog.owner() : ""; } catch (e) {}
+    return ((window.Auth && Auth.token) ? Auth.token() : Promise.resolve("")).then(function (ut) {
+      return fetch(cfg.supabaseUrl.replace(/\/$/, "") + "/functions/v1/generate", {
+        method: "POST",
+        headers: { apikey: cfg.supabaseKey, Authorization: "Bearer " + (ut || cfg.supabaseKey), "Content-Type": "application/json" },
+        body: JSON.stringify(Object.assign({ token: tok }, body))
+      }).then(function (r) { return r.json(); });
+    });
+  }
+  var LIKED = "arcade.liked";
+  function likedLocal() { try { return JSON.parse(localStorage.getItem(LIKED)) || {}; } catch (e) { return {}; } }
+  var likeApi = {
+    // { game_id: {total, d7, d30} }（全ゲーム分を1回で）
+    likeStats: async function () {
+      if (!remote) return {};
+      try {
+        var r = await fetch(cfg.supabaseUrl.replace(/\/$/, "") + "/rest/v1/rpc/like_stats", { method: "POST", headers: { apikey: cfg.supabaseKey, "Content-Type": "application/json" }, body: "{}" });
+        if (!r.ok) return {};
+        var m = {}; (await r.json()).forEach(function (x) { m[x.game_id] = { total: +x.total || 0, d7: +x.d7 || 0, d30: +x.d30 || 0 }; });
+        return m;
+      } catch (e) { return {}; }
+    },
+    isLiked: function (gid) { return !!likedLocal()[gid]; },
+    // 自分がいいねしたゲーム（サーバーの記録で端末の控えを更新）
+    syncLikes: async function () {
+      if (!remote) return likedLocal();
+      try { var d = await fnCall({ myLikes: true }); if (d && d.ok) { var m = {}; d.games.forEach(function (g) { m[g] = 1; }); localStorage.setItem(LIKED, JSON.stringify(m)); return m; } } catch (e) {}
+      return likedLocal();
+    },
+    like: async function (gid, on) {
+      var d = await fnCall({ like: { game_id: gid, on: on } });
+      if (!d || !d.ok) throw new Error((d && d.error) || "like_failed");
+      var m = likedLocal(); if (on) m[gid] = 1; else delete m[gid];
+      try { localStorage.setItem(LIKED, JSON.stringify(m)); } catch (e) {}
+      return d;   // { liked, total }
+    }
+  };
+
+  var impl = Object.assign(remote ? remoteStore() : localStore(), likeApi);
   impl.isRemote = remote;
 
   // 名前を変更し、共有ランキング側の自分の記録（旧名義の行）も新名義へ付け替える。

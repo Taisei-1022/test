@@ -446,3 +446,5 @@ a.ghostbtn{text-decoration:none;display:inline-block}
 .searchbtn{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:12px;border:1px solid var(--rule);color:var(--ink)}
 .searchbtn svg{width:19px;height:19px}
 a.authlink{color:inherit;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px}
+/* いいね */
+.m-like{color:var(--dim);margin-right:6px}.m-like b{font-weight:800}.m-like.on{color:#f472b6}

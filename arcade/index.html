@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-180.png?v=3" />
 <link rel="icon" href="icon-192.png?v=3" />
-<link rel="stylesheet" href="css/app.css?v=42" />
+<link rel="stylesheet" href="css/app.css?v=43" />
 <title>Vappa</title>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6804943232069371" crossorigin="anonymous"></script>
 <meta property="og:type" content="website" />
@@ -39,6 +39,7 @@
               <option value="pop_week">人気順（週間）</option>
               <option value="pop_today">人気順（今日）</option>
               <option value="pop_year">人気順（年間）</option>
+              <option value="likes">いいね順</option>
               <option value="new">新着順</option>
               <option value="title">名前順</option>
             </select>
@@ -317,7 +318,7 @@
 <script src="js/assets.js?v=1"></script>
 <script src="js/config.js?v=7"></script>
 <script src="js/netstate.js?v=1"></script>
-<script src="js/store.js?v=11"></script>
+<script src="js/store.js?v=12"></script>
 <script src="js/auth.js?v=4"></script>
 <script src="js/ai.js?v=21"></script>
 <script src="js/catalog.js?v=14"></script>
@@ -329,7 +330,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.97";
+  var APP_VERSION = "0.9.98";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -467,7 +468,7 @@
       '<span class="cat">'+esc(it.category)+'</span>'+
       '<button class="shareic" data-share="'+it.id+'" data-title="'+esc(it.title)+'" aria-label="共有">'+SHARE_SVG+'</button>'+
       '<div class="ttl">'+esc(it.title)+'</div>'+
-      '<div class="meta">作 '+(it.handle?'<a class="authlink" href="creator.html?u='+encodeURIComponent(it.handle)+'">'+esc(it.author)+'</a>':esc(it.author))+' ・ <span class="m-plays">'+(row.plays||0)+'プレイ</span>'+(it.created?(' ・ 作成日 '+fmtYmd(it.created)):'')+'</div>'+
+      '<div class="meta"><span class="m-like'+(Store.isLiked&&Store.isLiked(it.id)?" on":"")+'">♥ <b>'+(row.likes||0)+'</b></span> 作 '+(it.handle?'<a class="authlink" href="creator.html?u='+encodeURIComponent(it.handle)+'">'+esc(it.author)+'</a>':esc(it.author))+' ・ <span class="m-plays">'+(row.plays||0)+'プレイ</span>'+(it.created?(' ・ 作成日 '+fmtYmd(it.created)):'')+'</div>'+
       '<div class="blurb">'+esc(it.blurb)+'</div>'+
       '<div class="meta m-top" style="margin-top:6px;color:var(--gold)">1位 '+esc(topTxt)+'</div>'+
       '<div class="cardbtns">'+
@@ -481,6 +482,7 @@
     rows.sort(function(a,b){
       if(isPop && statsLoaded) return popOf(b)-popOf(a) || (b.ts-a.ts);
       if(feedSort==="title") return String(a.it.title).localeCompare(String(b.it.title),"ja");
+      if(feedSort==="likes") return (b.likes||0)-(a.likes||0) || (b.ts-a.ts);
       return b.ts-a.ts; // new（人気順でも統計未取得時はこれにフォールバック）
     });
     return rows;
@@ -520,9 +522,10 @@
     // ① ゲーム一覧 と ② 全ゲームの統計(1リクエスト) を並行取得。個別の per-game 取得はしない。
     Promise.all([
       Catalog.listGenerated({publishedOnly:true}),
-      (Store.feedStats ? Store.feedStats() : Promise.resolve(null))
+      (Store.feedStats ? Store.feedStats() : Promise.resolve(null)),
+      (Store.likeStats ? Store.likeStats() : Promise.resolve({}))
     ]).then(function(res){
-      var gen=res[0]||[], smap=res[1];
+      var gen=res[0]||[], smap=res[1], lmap=res[2]||{};
       statsLoaded=!!smap;
       var items = GAMES.map(function(g){
         // シードも created を持てば新着順に並び、カードに作成日が出る（無ければ従来通り末尾）
@@ -538,7 +541,8 @@
         var s = smap && smap[it.id];
         var stats = s ? {total:s.total,today:s.today,week:s.week,year:s.year} : {total:0,today:0,week:0,year:0};
         var top = s ? (it.score.type==="low" ? s.lo : s.hi) : null;
-        return {it:it, stats:stats, plays:stats.total, top:top, ts:it.ts};
+        var lk = lmap[it.id] || {total:0,d7:0,d30:0};
+        return {it:it, stats:stats, plays:stats.total, top:top, ts:it.ts, likes:lk.total, likes7:lk.d7, likes30:lk.d30};
       });
       if(feedCat!=="all" && feedCat!=="__follow" && !feedRows.some(function(r){return r.it.category===feedCat;})) feedCat="all";
       renderTrending(); renderCatChips(); paintFeed();
@@ -635,6 +639,7 @@
     });
   }
   window.addEventListener("vappa:auth", function(){ renderAccount(); });
+  if(Store.syncLikes) Store.syncLikes();   // 自分のいいねを端末の控えに反映（カードのハートの色）
   window.addEventListener("vappa:profile", function(){ renderAccount(); });
 
   /* ---------- プロフィール（@ID・表示名） ---------- */

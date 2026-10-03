@@ -989,6 +989,30 @@ async function handleBots(p: Record<string, unknown>, q: Q) {
   return { error: "unknown_op" };
 }
 
+// ===== いいね =====
+// 同じ人（ログイン中はアカウント、未ログインは端末）が同じゲームに付けられるのは1回。回線ごとに1日300回まで。
+async function handleLike(lk: { game_id?: string; on?: boolean }, token: string, user: { id: string } | null, ip: string) {
+  const gid = String(lk.game_id || "").slice(0, 80);
+  if (!token || token === "?") return { error: "no_token" };
+  if (!(await gameExists(gid))) return { error: "unknown_game" };
+  const d = today();
+  const g = await gate("u:lik:" + token + ":" + d, "i:lik:" + ip + ":" + d, "g:lik:" + d, 300, 300, 100000, 1);
+  if (g && g.allowed === false) return { error: "rate_limited" };
+  const on = lk.on !== false;
+  const r = on
+    ? await fetch(SRV_BASE + "/rest/v1/likes?on_conflict=game_id,liker", { method: "POST", headers: { ...srvHeaders, Prefer: "resolution=ignore-duplicates,return=minimal" },
+        body: JSON.stringify({ game_id: gid, liker: token, ...(user ? { user_id: user.id } : {}) }) })
+    : await fetch(SRV_BASE + "/rest/v1/likes?game_id=eq." + encodeURIComponent(gid) + "&liker=eq." + encodeURIComponent(token), { method: "DELETE", headers: srvHeaders });
+  if (!r.ok && r.status !== 409) return { error: "like_failed" };
+  const c = await fetch(SRV_BASE + "/rest/v1/likes?game_id=eq." + encodeURIComponent(gid) + "&select=liker", { headers: { ...srvHeaders, Prefer: "count=exact", Range: "0-0" } });
+  return { ok: true, liked: on, total: parseInt((c.headers.get("content-range") || "/0").split("/")[1], 10) || 0 };
+}
+async function myLikes(token: string) {
+  if (!token || token === "?") return { ok: true, games: [] };
+  const r = await fetch(SRV_BASE + "/rest/v1/likes?liker=eq." + encodeURIComponent(token) + "&select=game_id&limit=2000", { headers: srvHeaders });
+  return { ok: true, games: r.ok ? (await r.json() as { game_id: string }[]).map((x) => x.game_id) : [] };
+}
+
 // ===== 管理画面（arcade/manage.html・admin.html）=====
 // Googleでログインし、admins テーブルに登録された運営アカウントだけが使える（パスワード方式は廃止）。
 async function isPanelAdmin(user: { id: string } | null): Promise<boolean> {
@@ -1759,6 +1783,7 @@ Deno.serve(async (req) => {
   let report: Record<string, string> | null = null, panel: Record<string, unknown> | null = null, wantAck = false;
   let scoreReq: { game_id?: string; score?: number; player?: string } | null = null;
   let profileReq: { handle?: string; display_name?: string; bio?: string } | null = null;
+  let likeReq: { game_id?: string; on?: boolean } | null = null, wantMyLikes = false;
   try {
     const b = await req.json();
     if (b && typeof b.irun === "object" && b.irun) irun = b.irun as IRun;
@@ -1766,7 +1791,9 @@ Deno.serve(async (req) => {
     if (b && typeof b.panel === "object" && b.panel) panel = b.panel;       // 管理画面
     if (b?.ack === true) wantAck = true;
     if (b && typeof b.score === "object" && b.score) scoreReq = b.score;   // スコア登録
-    if (b && typeof b.profile === "object" && b.profile) profileReq = b.profile;   // プロフィール保存                                       // 運営からのお知らせを読んだ
+    if (b && typeof b.profile === "object" && b.profile) profileReq = b.profile;   // プロフィール保存
+    if (b && typeof b.like === "object" && b.like) likeReq = b.like;               // いいね
+    if (b?.myLikes === true) wantMyLikes = true;                                       // 運営からのお知らせを読んだ
     if (b?.makeSpec === true) wantSpec = true;               // 設計書だけ作る（生成カウント消費なし）
     if (typeof b?.spec === "string") uspec = b.spec.slice(0, 8000);   // ユーザー確認・編集済みの設計書
     if (typeof b?.job === "string") jobId = b.job;
@@ -1793,6 +1820,8 @@ Deno.serve(async (req) => {
   if (panel) return json(await handlePanel(panel, user));
   if (scoreReq) return json(await handleScore(scoreReq, token, user, ip));
   if (profileReq) return json(await handleProfileSet(profileReq, user));
+  if (likeReq) return json(await handleLike(likeReq, token, user, ip));
+  if (wantMyLikes) return json(await myLikes(token));
   if (report) return json(await handleReport(report, token, ip));
   // 運営からの警告を「読んだ」にする
   if (user && wantAck) {
