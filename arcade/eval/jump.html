@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
-<title>サボテンジャンプ</title>
-<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%82%B5%E3%83%9C%E3%83%86%E3%83%B3%E3%82%B8%E3%83%A3%E3%83%B3%E3%83%97%22%2C%22h%22%3A%22%E3%82%BF%E3%83%83%E3%83%97%E3%81%A7%E3%82%B8%E3%83%A3%E3%83%B3%E3%83%97%EF%BC%81%E8%BF%AB%E3%81%A3%E3%81%A6%E3%81%8F%E3%82%8B%E3%82%B5%E3%83%9C%E3%83%86%E3%83%B3%F0%9F%8C%B5%E3%82%92%E8%B7%B3%E3%81%B3%E8%B6%8A%E3%81%88%E3%81%A6%E3%82%B9%E3%82%B3%E3%82%A2%E3%82%92%E4%BC%B8%E3%81%B0%E3%81%9D%E3%81%86%E3%80%82%5Cn1%E5%9B%9E%E3%81%A7%E3%82%82%E3%81%B6%E3%81%A4%E3%81%8B%E3%81%A3%E3%81%9F%E3%82%89%E5%8D%B3%E3%82%B2%E3%83%BC%E3%83%A0%E3%82%AA%E3%83%BC%E3%83%90%E3%83%BC%E3%80%82%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
+<title>ジャンプランナー🦖</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%82%B8%E3%83%A3%E3%83%B3%E3%83%97%E3%83%A9%E3%83%B3%E3%83%8A%E3%83%BC%F0%9F%A6%96%22%2C%22h%22%3A%22%E7%94%BB%E9%9D%A2%E3%82%BF%E3%83%83%E3%83%97%E3%81%A7%F0%9F%A6%96%E3%81%8C%E3%82%B8%E3%83%A3%E3%83%B3%E3%83%97%EF%BC%81%F0%9F%8C%B5%E3%82%84%F0%9F%AA%A8%E3%82%92%E8%B7%B3%E3%81%B3%E8%B6%8A%E3%81%88%E3%81%A6%2B1%E7%82%B9%E3%80%82%F0%9F%A6%85%E3%81%AF%E4%BD%8E%E3%81%8F%E9%A3%9B%E3%81%B6%E3%81%AE%E3%81%A7%E8%B7%B3%E3%81%B0%E3%81%9A%E3%81%AB%E3%82%84%E3%82%8A%E9%81%8E%E3%81%94%E3%81%9D%E3%81%86%E3%80%82%F0%9F%AA%99%E3%82%92%E5%8F%96%E3%82%8B%E3%81%A8%E3%81%95%E3%82%89%E3%81%AB%2B1%E7%82%B9%E3%80%82%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
@@ -36,9 +36,8 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
   <div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
   <div class="vp-toast" id="vptoast"></div>
   <div class="vp-ov" id="vpov">
-    <h1>サボテンジャンプ</h1>
-    <p>タップでジャンプ！迫ってくるサボテン🌵を跳び越えてスコアを伸ばそう。
-1回でもぶつかったら即ゲームオーバー。</p>
+    <h1>ジャンプランナー🦖</h1>
+    <p>画面タップで🦖がジャンプ！🌵や🪨を跳び越えて+1点。🦅は低く飛ぶので跳ばずにやり過ごそう。🪙を取るとさらに+1点。</p>
     <button class="vp-btn" id="vpstart">スタート</button>
   </div>
 </div>
@@ -205,323 +204,324 @@ window.__vpTap=function(){
 <script id="vpgame">
 /*__VAPPA_JS__*/
 var TUNE = {
-  speed0:   { v: 260,  label: '開始スピード', min: 120, max: 500,  step: 10 },
-  speedUp:  { v: 7,    label: '加速ペース',   min: 0,   max: 30,   step: 1 },
-  speedMax: { v: 620,  label: '最高スピード', min: 300, max: 1000, step: 10 },
-  jumpPow:  { v: 640,  label: 'ジャンプ力',   min: 400, max: 1000, step: 10 },
-  gravity:  { v: 2300, label: '重力',         min: 900, max: 4000, step: 50 },
-  gapDist:  { v: 320,  label: '障害物の間隔', min: 160, max: 640,  step: 10 }
+  speed0:    { v: 270,  label: '開始スピード',     min: 120,  max: 500,  step: 10 },
+  speedMax:  { v: 640,  label: '最高スピード',     min: 300,  max: 950,  step: 20 },
+  ramp:      { v: 10,   label: '加速ペース',       min: 0,    max: 30,   step: 1 },
+  gravity:   { v: 2400, label: '重力',             min: 1200, max: 4000, step: 100 },
+  jumpPower: { v: 950,  label: 'ジャンプ力',       min: 600,  max: 1400, step: 25 },
+  gapMin:    { v: 0.85, label: '障害物間隔の下限', min: 0.5,  max: 2.0,  step: 0.05 },
+  gapMax:    { v: 1.60, label: '障害物間隔の上限', min: 0.8,  max: 3.0,  step: 0.05 },
+  coinRate:  { v: 0.75, label: 'コイン出現率',     min: 0,    max: 1,    step: 0.05 }
 };
 
-var GROUND_Y = 580;
-var HORIZON_Y = 500;
+var PAL = [
+  { sky: [[38,26,84],[172,66,108],[255,138,66],[255,210,142]], gnd: [[96,56,74],[34,22,40]], star: 0 },
+  { sky: [[4,6,24],[10,18,46],[22,34,74],[34,44,86]],          gnd: [[28,30,54],[10,12,26]], star: 1 },
+  { sky: [[30,62,116],[118,176,220],[255,220,166],[255,244,216]], gnd: [[122,96,76],[60,46,40]], star: 0 }
+];
+var PNAME  = ['🌆夕方', '🌙夜', '🌅朝'];
+var PSHORT = ['夕方', '夜', '朝'];
+var PER_PHASE = 15;
 
-var dino, obs, parts, marks, clouds;
-var speed, sinceSpawn, nextGap, score, state, dieT, shake, elapsed, ended;
+var groundY, player, obstacles, coins, parts, stars;
+var speed, elapsed, dist, score, phaseIdx, spawnT, coinT, shake, dead, tAcc, jumpBuf, lastType;
+var palSky, palGnd, starAmt;
+
+function clonePal(p){
+  var o = [], i;
+  for (i = 0; i < p.length; i++) o.push([p[i][0], p[i][1], p[i][2]]);
+  return o;
+}
+function rgb(a){ return 'rgb(' + (a[0]|0) + ',' + (a[1]|0) + ',' + (a[2]|0) + ')'; }
 
 function init(){
-  dino = { x: 106, y: GROUND_Y, vy: 0, onGround: true, angle: 0 };
-  obs = [];
-  parts = [];
-  marks = [];
-  clouds = [];
-  var i;
-  for (i = 0; i < 22; i++){
-    marks.push({ x: Math.random()*W, y: GROUND_Y + 26 + Math.random()*100,
-                 w: 10 + Math.random()*20, a: 0.08 + Math.random()*0.16 });
+  groundY = 620;
+  player = { x: 96, y: groundY - 26, vy: 0, onGround: true, rot: 0 };
+  obstacles = []; coins = []; parts = [];
+  speed = TUNE.speed0.v; elapsed = 0; dist = 0; score = 0;
+  phaseIdx = 0; spawnT = 1.2; coinT = 1.9; shake = 0; dead = false; tAcc = 0;
+  jumpBuf = 0; lastType = -1;
+  palSky = clonePal(PAL[0].sky);
+  palGnd = clonePal(PAL[0].gnd);
+  starAmt = 0;
+  stars = [];
+  for (var i = 0; i < 52; i++){
+    stars.push({ x: Math.random()*W, y: 60 + Math.random()*300, r: 0.8 + Math.random()*1.5, ph: Math.random()*6.283 });
   }
-  for (i = 0; i < 4; i++){
-    clouds.push({ x: Math.random()*W, y: 100 + Math.random()*190,
-                  s: 24 + Math.random()*16, v: 0.05 + Math.random()*0.08 });
-  }
-  speed = TUNE.speed0.v;
-  sinceSpawn = 0;
-  nextGap = 340;
-  score = 0;
-  state = 'run';
-  dieT = 0;
-  shake = 0;
-  elapsed = 0;
-  ended = false;
   Game.score(0);
-  Game.hud('');
+  Game.hud(PNAME[0]);
 }
 
-function updateParts(dt){
-  for (var i = parts.length - 1; i >= 0; i--){
-    var p = parts[i];
-    p.life -= dt;
-    if (p.life <= 0){ parts.splice(i, 1); continue; }
-    p.x += p.vx*dt;
-    p.y += p.vy*dt;
-    p.vy += 620*dt;
-    p.vx *= 0.97;
-  }
-}
-
-function puff(n){
-  for (var i = 0; i < n; i++){
-    parts.push({
-      x: dino.x + (Math.random()-0.5)*20,
-      y: GROUND_Y - 3,
-      vx: -40 - Math.random()*70 - speed*0.05,
-      vy: -Math.random()*60,
-      life: 0.4, max: 0.4,
-      r: 2 + Math.random()*3,
-      c: '#ffd9a0'
-    });
+function doJump(){
+  player.onGround = false;
+  player.vy = -TUNE.jumpPower.v;
+  for (var i = 0; i < 6; i++){
+    parts.push({ x: player.x + (Math.random()-0.5)*20, y: groundY - 4, vx: (Math.random()-0.5)*170, vy: -Math.random()*90, life: 0.4, max: 0.4, c: '#ffffff', r: 2 + Math.random()*3 });
   }
 }
 
 function spawnObstacle(){
-  var count = 1;
-  if (speed > 400 && Math.random() < 0.4) count = 2;
-  if (speed > 540 && Math.random() < 0.22) count = 3;
-  var size = 34 + Math.random()*20;
-  var sp = size*0.62;
-  var w = sp*count;
-  obs.push({ x: W + w*0.5 + 20, size: size, count: count, sp: sp, w: w, passed: false });
+  var r = Math.random(), type;
+  if (r < 0.50) type = 0;
+  else if (r < 0.78) type = 1;
+  else type = 2;
+  var gap = TUNE.gapMin.v + Math.random()*(TUNE.gapMax.v - TUNE.gapMin.v);
+  if (type === 1) gap = Math.max(gap, 1.0);
+  spawnT = gap;
+  lastType = type;
+  var o = { type: type, x: W + 50, scored: false, bob: Math.random()*6.283 };
+  if (type === 0){ o.hw = 15; o.top = groundY - 48;  o.bot = groundY - 2;  o.size = 48; }
+  else if (type === 1){ o.hw = 26; o.top = groundY - 84; o.bot = groundY - 4; o.size = 86; }
+  else { o.hw = 20; o.top = groundY - 116; o.bot = groundY - 72; o.size = 46; }
+  obstacles.push(o);
 }
 
-function computeGap(){
-  var minG = speed*0.62;
-  var base = TUNE.gapDist.v * (0.85 + Math.random()*(0.5 + speed/900));
-  return Math.max(minG, base);
-}
-
-function hitTest(){
-  var dLeft = dino.x - 15, dRight = dino.x + 15;
-  var dTop = dino.y - 46, dBot = dino.y - 2;
-  for (var i = 0; i < obs.length; i++){
-    var o = obs[i];
-    var oLeft = o.x - o.w*0.5 + 3;
-    var oRight = o.x + o.w*0.5 - 3;
-    var oTop = GROUND_Y - o.size*0.82;
-    var oBot = GROUND_Y - 4;
-    if (dLeft < oRight && dRight > oLeft && dTop < oBot && dBot > oTop) return true;
+function spawnCoins(){
+  var n = 1;
+  if (Math.random() < 0.45) n++;
+  if (Math.random() < 0.30) n++;
+  var baseX = W + 60 + Math.random()*90;
+  for (var i = 0; i < obstacles.length; i++){
+    if (Math.abs(obstacles[i].x - baseX) < 130) return;
   }
-  return false;
+  var baseY = groundY - 148;
+  for (var k = 0; k < n; k++){
+    var t = (n === 1) ? 0.5 : k/(n-1);
+    coins.push({ x: baseX + k*50, y: baseY - 34*Math.sin(Math.PI*t), r: 15, ph: Math.random()*6.283 });
+  }
+}
+
+function hitObs(o){
+  var px1 = player.x - 16, px2 = player.x + 16;
+  var py1 = player.y - 22, py2 = player.y + 20;
+  if (px2 < o.x - o.hw || px1 > o.x + o.hw) return false;
+  if (py2 < o.top || py1 > o.bot) return false;
+  return true;
 }
 
 function die(){
-  state = 'die';
-  dieT = 0;
-  shake = 0.6;
-  for (var i = 0; i < 16; i++){
-    parts.push({
-      x: dino.x + (Math.random()-0.5)*22,
-      y: dino.y - 26 + (Math.random()-0.5)*34,
-      vx: (Math.random()-0.5)*200 - 60,
-      vy: -Math.random()*240 - 40,
-      life: 0.9, max: 0.9,
-      r: 3 + Math.random()*4,
-      c: (i % 2 === 0) ? '#ffb347' : '#ffe9a8'
-    });
+  dead = true; shake = 0.6;
+  Game.float(player.x, player.y - 44, '💥', '#ff6b6b');
+  for (var i = 0; i < 18; i++){
+    parts.push({ x: player.x, y: player.y, vx: (Math.random()-0.5)*430, vy: (Math.random()-0.75)*430, life: 0.85, max: 0.85, c: '#ffb703', r: 2 + Math.random()*4 });
   }
+  Game.over(score);
+}
+
+function stepParts(dt){
+  for (var i = parts.length - 1; i >= 0; i--){
+    var p = parts[i];
+    p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 900*dt; p.life -= dt;
+    if (p.life <= 0) parts.splice(i, 1);
+  }
+}
+
+function blendBG(dt){
+  var tgt = PAL[Math.floor(score / PER_PHASE) % 3];
+  var k = Math.min(1, dt * 3.2);
+  var i, j;
+  for (i = 0; i < 4; i++) for (j = 0; j < 3; j++) palSky[i][j] += (tgt.sky[i][j] - palSky[i][j]) * k;
+  for (i = 0; i < 2; i++) for (j = 0; j < 3; j++) palGnd[i][j] += (tgt.gnd[i][j] - palGnd[i][j]) * k;
+  starAmt += (tgt.star - starAmt) * k;
 }
 
 function update(dt){
-  var i;
-  updateParts(dt);
-  if (shake > 0) shake = Math.max(0, shake - dt*1.8);
-
-  for (i = 0; i < clouds.length; i++){
-    var cl = clouds[i];
-    cl.x -= speed*cl.v*dt;
-    if (cl.x < -50){ cl.x = W + 50; cl.y = 100 + Math.random()*190; }
-  }
-
-  if (state === 'die'){
-    dino.angle += (1.0 - dino.angle)*Math.min(1, dt*6);
-    dieT += dt;
-    if (!ended && dieT > 0.8){ ended = true; Game.over(score); }
-    return;
-  }
+  tAcc += dt;
+  if (shake > 0) shake = Math.max(0, shake - dt);
+  blendBG(dt);
+  if (dead){ stepParts(dt); return; }
 
   elapsed += dt;
-  speed = Math.min(TUNE.speedMax.v, speed + TUNE.speedUp.v*dt);
+  speed = Math.min(TUNE.speedMax.v, TUNE.speed0.v + TUNE.ramp.v * elapsed);
+  dist += speed * dt;
 
-  if (!dino.onGround){
-    dino.vy += TUNE.gravity.v*dt;
-    dino.y += dino.vy*dt;
-    if (dino.y >= GROUND_Y){
-      dino.y = GROUND_Y;
-      dino.vy = 0;
-      dino.onGround = true;
-      puff(7);
+  if (!player.onGround){
+    player.vy += TUNE.gravity.v * dt;
+    player.y += player.vy * dt;
+    if (player.y >= groundY - 26){
+      player.y = groundY - 26; player.vy = 0; player.onGround = true;
     }
   }
+  var tr = player.onGround ? 0 : Math.max(-0.42, Math.min(0.42, player.vy * 0.0005));
+  player.rot += (tr - player.rot) * Math.min(1, dt * 12);
 
-  var ta = dino.onGround ? 0 : (dino.vy/TUNE.jumpPow.v)*0.5;
-  if (ta > 0.45) ta = 0.45;
-  if (ta < -0.45) ta = -0.45;
-  dino.angle += (ta - dino.angle)*Math.min(1, dt*16);
-
-  var dx = speed*dt;
-
-  for (i = 0; i < marks.length; i++){
-    var mk = marks[i];
-    mk.x -= dx;
-    if (mk.x < -40){
-      mk.x += W + 80;
-      mk.y = GROUND_Y + 26 + Math.random()*100;
-      mk.w = 10 + Math.random()*20;
-      mk.a = 0.08 + Math.random()*0.16;
-    }
+  if (jumpBuf > 0){
+    jumpBuf -= dt;
+    if (player.onGround){ doJump(); jumpBuf = 0; }
   }
 
-  sinceSpawn += dx;
-  if (sinceSpawn >= nextGap){
-    sinceSpawn = 0;
-    spawnObstacle();
-    nextGap = computeGap();
+  spawnT -= dt;
+  if (spawnT <= 0) spawnObstacle();
+
+  coinT -= dt;
+  if (coinT <= 0){
+    coinT = 1.5 + Math.random()*1.8;
+    if (Math.random() < TUNE.coinRate.v) spawnCoins();
   }
 
-  for (i = obs.length - 1; i >= 0; i--){
-    var o = obs[i];
-    o.x -= dx;
-    if (!o.passed && o.x + o.w*0.5 < dino.x - 12){
-      o.passed = true;
+  var i, o;
+  for (i = obstacles.length - 1; i >= 0; i--){
+    o = obstacles[i];
+    o.x -= speed * dt;
+    if (hitObs(o)){ die(); return; }
+    if (!o.scored && o.x + o.hw < player.x - 16){
+      o.scored = true;
       score++;
       Game.score(score);
-      Game.float(dino.x + 46, GROUND_Y - 130, '+1', '#ffe066');
+      Game.float(o.x, o.top - 24, '+1', '#ffe08a');
     }
-    if (o.x + o.w*0.5 < -40) obs.splice(i, 1);
+    if (o.x < -90) obstacles.splice(i, 1);
   }
 
-  if (hitTest()) die();
+  for (i = coins.length - 1; i >= 0; i--){
+    var c = coins[i];
+    c.x -= speed * dt;
+    var dx = Math.abs(c.x - player.x), dy = Math.abs(c.y - player.y);
+    if (dx < 33 && dy < 38){
+      coins.splice(i, 1);
+      score++;
+      Game.score(score);
+      Game.float(c.x, c.y - 18, '+1', '#ffd166');
+      for (var q = 0; q < 5; q++){
+        parts.push({ x: c.x, y: c.y, vx: (Math.random()-0.5)*190, vy: -Math.random()*200, life: 0.5, max: 0.5, c: '#ffd166', r: 2 + Math.random()*2.5 });
+      }
+      continue;
+    }
+    if (c.x < -40) coins.splice(i, 1);
+  }
+
+  var ph = Math.floor(score / PER_PHASE) % 3;
+  if (ph !== phaseIdx){
+    phaseIdx = ph;
+    Game.hud(PNAME[ph]);
+    Game.toast(PSHORT[ph] + 'になった');
+  }
+
+  stepParts(dt);
+}
+
+function drawBG(){
+  var g = ctx.createLinearGradient(0, 0, 0, groundY);
+  g.addColorStop(0, rgb(palSky[0]));
+  g.addColorStop(0.38, rgb(palSky[1]));
+  g.addColorStop(0.74, rgb(palSky[2]));
+  g.addColorStop(1, rgb(palSky[3]));
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, groundY);
+
+  if (starAmt > 0.03){
+    for (var i = 0; i < stars.length; i++){
+      var s = stars[i];
+      var a = starAmt * (0.35 + 0.65 * Math.abs(Math.sin(tAcc*1.7 + s.ph)));
+      ctx.fillStyle = 'rgba(255,255,255,' + a.toFixed(2) + ')';
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 6.2832); ctx.fill();
+    }
+  }
+
+  var sx = 372, sy = 170;
+  var sr = 255 - 30*starAmt, sg = 236, sb = 170 + 85*starAmt;
+  var col = 'rgb(' + (sr|0) + ',' + (sg|0) + ',' + (sb|0) + ')';
+  var rg = ctx.createRadialGradient(sx, sy, 6, sx, sy, 100);
+  rg.addColorStop(0, 'rgba(' + (sr|0) + ',' + (sg|0) + ',' + (sb|0) + ',0.55)');
+  rg.addColorStop(1, 'rgba(' + (sr|0) + ',' + (sg|0) + ',' + (sb|0) + ',0)');
+  ctx.fillStyle = rg;
+  ctx.beginPath(); ctx.arc(sx, sy, 100, 0, 6.2832); ctx.fill();
+  ctx.fillStyle = col;
+  ctx.beginPath(); ctx.arc(sx, sy, 34, 0, 6.2832); ctx.fill();
+
+  ctx.fillStyle = 'rgba(0,0,0,0.13)';
+  ctx.beginPath();
+  ctx.moveTo(-20, groundY);
+  for (var x = -20; x <= W + 20; x += 40){
+    ctx.lineTo(x, groundY - 56 - 38*Math.sin(x*0.011) - 20*Math.sin(x*0.031 + 1.7));
+  }
+  ctx.lineTo(W + 20, groundY); ctx.closePath(); ctx.fill();
+
+  ctx.fillStyle = 'rgba(0,0,0,0.20)';
+  ctx.beginPath();
+  ctx.moveTo(-20, groundY);
+  for (var x2 = -20; x2 <= W + 20; x2 += 40){
+    ctx.lineTo(x2, groundY - 20 - 26*Math.sin(x2*0.019 + 0.8) - 12*Math.sin(x2*0.043));
+  }
+  ctx.lineTo(W + 20, groundY); ctx.closePath(); ctx.fill();
 }
 
 function draw(){
-  var i, k;
-  var ox = 0, oy = 0;
-  if (shake > 0){
-    ox = (Math.random() - 0.5)*12*(shake/0.6);
-    oy = (Math.random() - 0.5)*10*(shake/0.6);
-  }
+  var sh = shake > 0 ? shake * 14 : 0;
   ctx.save();
-  ctx.translate(ox, oy);
+  if (sh > 0) ctx.translate((Math.random()-0.5)*sh, (Math.random()-0.5)*sh);
 
-  ctx.fillStyle = '#1b1040';
-  ctx.fillRect(-30, -30, W + 60, H + 60);
+  drawBG();
 
-  var g = ctx.createLinearGradient(0, 0, 0, HORIZON_Y);
-  g.addColorStop(0, '#231046');
-  g.addColorStop(0.34, '#6d2a63');
-  g.addColorStop(0.62, '#c2503f');
-  g.addColorStop(0.85, '#f08840');
-  g.addColorStop(1, '#ffc46b');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, HORIZON_Y + 2);
+  var gg = ctx.createLinearGradient(0, groundY, 0, H);
+  gg.addColorStop(0, rgb(palGnd[0]));
+  gg.addColorStop(1, rgb(palGnd[1]));
+  ctx.fillStyle = gg;
+  ctx.fillRect(0, groundY, W, H - groundY);
+
+  ctx.fillStyle = rgb(palSky[3]);
+  ctx.globalAlpha = 0.85;
+  ctx.fillRect(0, groundY - 3, W, 3);
+  ctx.globalAlpha = 1;
+
+  var off = dist % 72, x;
+  ctx.fillStyle = 'rgba(255,255,255,0.10)';
+  for (x = -off; x < W + 72; x += 72) ctx.fillRect(x, groundY + 32, 40, 5);
+  var off2 = (dist * 0.7) % 96;
+  ctx.fillStyle = 'rgba(0,0,0,0.16)';
+  for (x = -off2; x < W + 96; x += 96) ctx.fillRect(x, groundY + 62, 56, 6);
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  var sx = 350, sy = 462, sr = 46;
-  var sg = ctx.createRadialGradient(sx, sy, 4, sx, sy, sr*2.8);
-  sg.addColorStop(0, 'rgba(255,240,190,0.95)');
-  sg.addColorStop(0.3, 'rgba(255,200,110,0.5)');
-  sg.addColorStop(1, 'rgba(255,150,80,0)');
-  ctx.fillStyle = sg;
-  ctx.beginPath(); ctx.arc(sx, sy, sr*2.8, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = '#fff4c8';
-  ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI*2); ctx.fill();
-
-  ctx.globalAlpha = 0.7;
-  for (i = 0; i < clouds.length; i++){
-    var cl = clouds[i];
-    ctx.font = cl.s + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-    ctx.fillText('☁️', cl.x, cl.y);
-  }
-  ctx.globalAlpha = 1;
-
-  ctx.fillStyle = 'rgba(255,210,140,0.5)';
-  ctx.fillRect(0, HORIZON_Y - 2, W, 3);
-
-  var gg = ctx.createLinearGradient(0, HORIZON_Y, 0, GROUND_Y);
-  gg.addColorStop(0, '#8a3a5c');
-  gg.addColorStop(1, '#452040');
-  ctx.fillStyle = gg;
-  ctx.fillRect(0, HORIZON_Y, W, GROUND_Y - HORIZON_Y);
-
-  ctx.fillStyle = '#2a1330';
-  ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
-
-  ctx.fillStyle = '#ffbe7a';
-  for (i = 0; i < marks.length; i++){
-    var mk = marks[i];
-    ctx.globalAlpha = mk.a;
-    ctx.fillRect(mk.x, mk.y, mk.w, 3);
-  }
-  ctx.globalAlpha = 1;
-
-  ctx.fillStyle = '#ffd88f';
-  ctx.fillRect(0, GROUND_Y - 2, W, 3);
-
-  ctx.fillStyle = '#12060f';
-  for (i = 0; i < obs.length; i++){
-    var o = obs[i];
-    ctx.globalAlpha = 0.35;
-    ctx.beginPath();
-    ctx.ellipse(o.x, GROUND_Y + 12, o.w*0.6, 6, 0, 0, Math.PI*2);
-    ctx.fill();
-  }
-  var air = GROUND_Y - dino.y;
-  var sc = 1 - Math.min(0.65, air/200);
-  ctx.globalAlpha = 0.3*sc;
-  ctx.beginPath();
-  ctx.ellipse(dino.x, GROUND_Y + 12, 24*sc, 7*sc, 0, 0, Math.PI*2);
-  ctx.fill();
-  ctx.globalAlpha = 1;
-
-  for (i = 0; i < obs.length; i++){
-    var ob = obs[i];
-    ctx.font = ob.size + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-    var cy = GROUND_Y - ob.size*0.46;
-    for (k = 0; k < ob.count; k++){
-      ctx.fillText('🌵', ob.x - ob.w*0.5 + ob.sp*(k + 0.5), cy);
-    }
+  var i;
+  for (i = 0; i < coins.length; i++){
+    var c = coins[i];
+    ctx.font = "30px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText('🪙', c.x, c.y + Math.sin(tAcc*5 + c.ph)*3);
   }
 
-  var bob = dino.onGround ? Math.abs(Math.sin(elapsed*16))*2 : 0;
+  for (i = 0; i < obstacles.length; i++){
+    var o = obstacles[i];
+    var em = o.type === 0 ? '🌵' : (o.type === 1 ? '🪨' : '🦅');
+    ctx.font = o.size + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    var cy = (o.type === 2) ? groundY - 94 + Math.sin(tAcc*7 + o.bob)*4 : groundY - o.size*0.46;
+    ctx.fillText(em, o.x, cy);
+  }
+
+  var air = Math.max(0, (groundY - 26) - player.y);
+  var ssc = 1 - Math.min(0.55, air / 340);
   ctx.save();
-  ctx.translate(dino.x, dino.y - 26 - bob);
-  ctx.rotate(dino.angle);
-  ctx.scale(-1, 1);
-  ctx.font = "46px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  ctx.translate(player.x, groundY + 6);
+  ctx.scale(ssc, ssc * 0.26);
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.beginPath(); ctx.arc(0, 0, 26, 0, 6.2832); ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(player.x, player.y + (player.onGround ? -Math.abs(Math.sin(tAcc*15))*3 : 0));
+  ctx.rotate(player.rot);
+  ctx.font = "52px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText('🦖', 0, 0);
   ctx.restore();
 
   for (i = 0; i < parts.length; i++){
     var p = parts[i];
-    ctx.globalAlpha = Math.max(0, p.life/p.max);
+    ctx.globalAlpha = Math.max(0, p.life / p.max);
     ctx.fillStyle = p.c;
-    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.2832); ctx.fill();
   }
   ctx.globalAlpha = 1;
-
-  if (state === 'run' && elapsed < 2.4){
-    ctx.globalAlpha = Math.max(0, 1 - elapsed/2.4);
-    ctx.fillStyle = '#fff1cf';
-    ctx.font = 'bold 20px sans-serif';
-    ctx.fillText('タップでジャンプ！', W/2, 300);
-    ctx.globalAlpha = 1;
-  }
 
   ctx.restore();
 }
 
 function onDown(x, y, id){
-  if (state !== 'run') return;
-  if (!dino.onGround) return;
-  dino.vy = -TUNE.jumpPow.v;
-  dino.onGround = false;
-  puff(4);
+  if (dead) return;
+  if (player.onGround) doJump();
+  else jumpBuf = 0.16;
 }
-
-function onMove(x, y, id){}
-function onUp(x, y, id){}
-function onResize(){}
 
 /*__VAPPA_JS_END__*/
 </script>

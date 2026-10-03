@@ -3,13 +3,14 @@
    - 自動採点は「動くか」しか見ないので、「面白いか・頼んだ通りか」は人が遊んで ○△× を付ける。
    - 評価は端末内に保存し、「評価をコピー」でまとめてコピーできる（チャットに貼って共有する用）。 */
 const fs = require("fs"), path = require("path");
-const CASES = require("./cases.js");
+const CASES = require(process.argv.includes("--set=rich") ? "./cases_rich.js" : "./cases.js"); // --set=rich: 要素を足した設計書
 const args = {};
 process.argv.slice(2).forEach(a => { const m = /^--([^=]+)(?:=(.*))?$/.exec(a); if (m) args[m[1]] = m[2] === undefined ? true : m[2]; });
 const TAG = args.tag; if (!TAG) { console.error("--tag が必要です"); process.exit(1); }
 const LABEL = args.label || TAG;
 const SRC = path.join(__dirname, "results", TAG), OUT = path.join(__dirname, "../../arcade/eval");
 const report = JSON.parse(fs.readFileSync(path.join(SRC, "report.json"), "utf8"));
+const ELEM = fs.existsSync(path.join(SRC, "elements.json")) ? JSON.parse(fs.readFileSync(path.join(SRC, "elements.json"), "utf8")) : {};  // elements.js の結果
 const esc = s => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const NAMES = { struct: "構造", loads: "起動", starts: "スタート", animates: "動き", input: "操作反応", probe: "固有挙動", score: "スコア", layout: "レイアウト", errors: "エラー無", gameover: "終了到達", restart: "再開" };
 
@@ -27,6 +28,7 @@ for (const c of CASES) {
   ${has && g.title ? `<div class="gt">できたゲーム：「${esc(g.title)}」</div>` : ""}
   <div class="badges">${badges}</div>
   <div class="meta">${meta}</div>
+  ${ELEM[c.id] && ELEM[c.id].items ? `<div class="adds"><b>足した要素</b>${ELEM[c.id].items.map(it => `<div>${it.code ? "✓" : "✗"} ${esc(it.name)}<span>${it.screen ? "画面でも確認" : "コードのみ確認"}</span></div>`).join("")}</div>` : ""}
   <div class="acts">${has ? `<a class="play" href="${c.id}.html">▶ 遊んでみる</a>` : `<span class="play off">生成できなかった</span>`}
     <div class="rate" role="group" aria-label="${esc(c.title)} の評価">
       <span class="rl">遊んだ感想</span>
@@ -55,6 +57,7 @@ h1{font-size:20px;margin:4px 0 2px} .sub{color:var(--dim);font-size:12.5px;line-
 .badges{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0 6px}
 .b{font-size:10px;font-weight:700;border-radius:6px;padding:2px 6px}
 .b.ok{background:rgba(52,211,153,.13);color:#34d399} .b.ng{background:rgba(248,113,113,.15);color:#f87171}
+.adds{font-size:12px;line-height:1.7;margin-bottom:8px}.adds b{display:block;font-size:11px;color:var(--dim)}.adds span{color:var(--dim);font-size:10.5px;margin-left:6px}
 .meta{font-size:11px;color:var(--dim);margin-bottom:8px}
 .acts{display:flex;flex-direction:column;gap:8px}
 .play{display:block;text-align:center;background:var(--gold);color:#fff;text-decoration:none;font-weight:900;border-radius:12px;padding:11px;font-size:15px}
@@ -72,7 +75,7 @@ pre{white-space:pre-wrap;font-size:11.5px;line-height:1.7;color:var(--ink);backg
 #cnt{font-size:12px;color:var(--dim);flex:none}
 </style></head><body>
 <h1>生成品質チェック（管理者用）</h1>
-<p class="sub">${esc(LABEL)}。いつもの10本の設計書から、本番のサーバーで生成したもの。<br>バッジは自動テストプレイの採点（<b>動くかどうか</b>）。<b>面白いか・頼んだ通りか</b>は、遊んで ○△× を付けてください。</p>
+<p class="sub">${esc(LABEL)}。${CASES[0].adds ? "要素を足した10本の設計書から" : "いつもの10本の設計書から"}、本番のサーバーで生成したもの。<br>バッジは自動テストプレイの採点（<b>動くかどうか</b>）。<b>面白いか・頼んだ通りか</b>は、遊んで ○△× を付けてください。</p>
 <div class="total">自動採点 ${esc(report.__grand)}</div>
 ${cards}
 <div class="bar"><span id="cnt"></span><button id="copy">評価をコピー</button></div>

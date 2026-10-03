@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
-<title>もぐらたたき</title>
-<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%82%82%E3%81%90%E3%82%89%E3%81%9F%E3%81%9F%E3%81%8D%22%2C%22h%22%3A%22%E7%A9%B4%E3%81%8B%E3%82%89%E5%87%BA%E3%81%A6%E3%81%8F%E3%82%8B%E3%83%A2%E3%82%B0%E3%83%A9%F0%9F%90%B9%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%E3%81%97%E3%81%A6%E5%8F%A9%E3%81%93%E3%81%86%EF%BC%81%F0%9F%92%A3%E3%82%92%E5%8F%A9%E3%81%8F%E3%81%A8%E3%83%A9%E3%82%A4%E3%83%95%E3%81%8C1%E6%B8%9B%E3%82%8B%E3%80%82%E5%88%B6%E9%99%90%E6%99%82%E9%96%9330%E7%A7%92%E3%81%A7%E3%83%8F%E3%82%A4%E3%82%B9%E3%82%B3%E3%82%A2%E3%82%92%E7%9B%AE%E6%8C%87%E3%81%9B%EF%BC%81%22%2C%22u%22%3A%22%E5%8C%B9%22%7D-->
+<title>もぐらたたきフィーバー</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%82%82%E3%81%90%E3%82%89%E3%81%9F%E3%81%9F%E3%81%8D%E3%83%95%E3%82%A3%E3%83%BC%E3%83%90%E3%83%BC%22%2C%22h%22%3A%22%E7%A9%B4%E3%81%8B%E3%82%89%E5%87%BA%E3%81%A6%E3%81%8F%E3%82%8B%E3%83%A2%E3%82%B0%E3%83%A9%F0%9F%90%B9%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%E3%81%97%E3%81%A6%E5%8F%A9%E3%81%93%E3%81%86%EF%BC%81%5Cn%F0%9F%92%A3%E3%82%92%E5%8F%A9%E3%81%8F%E3%81%A8%E3%83%A9%E3%82%A4%E3%83%95-1%E3%80%823%E3%82%B3%E3%83%B3%E3%83%9C%E4%BB%A5%E4%B8%8A%E3%81%A7%E3%83%9C%E3%83%BC%E3%83%8A%E3%82%B9%E3%80%81%E6%AE%8B%E3%82%8A10%E7%A7%92%E3%81%AF%E3%83%95%E3%82%A3%E3%83%BC%E3%83%90%E3%83%BC%E3%82%BF%E3%82%A4%E3%83%A0%EF%BC%81%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
@@ -33,11 +33,12 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
 <canvas id="vpc"></canvas>
 <div id="vpstage">
   <div id="vpdom"></div>
-  <div class="vp-hud" id="vphud" hidden><span id="vphl">0匹</span><span id="vphr"></span></div>
+  <div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
   <div class="vp-toast" id="vptoast"></div>
   <div class="vp-ov" id="vpov">
-    <h1>もぐらたたき</h1>
-    <p>穴から出てくるモグラ🐹をタップして叩こう！💣を叩くとライフが1減る。制限時間30秒でハイスコアを目指せ！</p>
+    <h1>もぐらたたきフィーバー</h1>
+    <p>穴から出てくるモグラ🐹をタップして叩こう！
+💣を叩くとライフ-1。3コンボ以上でボーナス、残り10秒はフィーバータイム！</p>
     <button class="vp-btn" id="vpstart">スタート</button>
   </div>
 </div>
@@ -95,7 +96,7 @@ window.addEventListener("resize",rs);rs();
 // 実画面座標→論理座標（タッチ入力用）
 function toLX(x){return (x-__OX)/__SC;}
 function toLY(y){return (y-__OY)/__SC;}
-var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="匹";
+var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="点";
 // ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
 var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
 var hud=document.getElementById("vphud"),hl=document.getElementById("vphl"),hr=document.getElementById("vphr");
@@ -204,286 +205,320 @@ window.__vpTap=function(){
 <script id="vpgame">
 /*__VAPPA_JS__*/
 var TUNE = {
-  spawnStart: { v: 0.85, label: '出現間隔(開始)', min: 0.3, max: 1.5, step: 0.05 },
-  spawnMin:   { v: 0.35, label: '出現間隔(最速)', min: 0.15, max: 1, step: 0.05 },
-  upTime:     { v: 1,    label: '滞在時間(開始)', min: 0.4, max: 2, step: 0.05 },
-  upTimeMin:  { v: 0.55, label: '滞在時間(最短)', min: 0.25, max: 1.4, step: 0.05 },
-  bombRate:   { v: 0.18, label: '爆弾の割合', min: 0, max: 0.5, step: 0.02 },
-  lives:      { v: 3,    label: 'ライフ', min: 1, max: 5, step: 1 },
-  gameTime:   { v: 30,   label: '制限時間(秒)', min: 10, max: 60, step: 5 },
-  maxUp:      { v: 3,    label: '同時出現の最大数', min: 1, max: 5, step: 1 }
+  timeLimit: { v: 30, label: '制限時間(秒)', min: 15, max: 60, step: 5 },
+  upTime: { v: 1.05, label: 'モグラの滞在時間', min: 0.5, max: 2, step: 0.05 },
+  spawnGap: { v: 0.85, label: '出現インターバル', min: 0.3, max: 1.5, step: 0.05 },
+  bombRate: { v: 0.17, label: '爆弾の割合', min: 0, max: 0.4, step: 0.01 },
+  goldRate: { v: 0.08, label: '金モグラの割合', min: 0, max: 0.35, step: 0.01 },
+  helmetRate: { v: 0.10, label: 'ヘルメットの割合', min: 0, max: 0.4, step: 0.01 },
+  feverAt: { v: 10, label: 'フィーバー開始(残り秒)', min: 0, max: 20, step: 1 },
+  lives: { v: 3, label: 'ライフ数', min: 1, max: 5, step: 1 }
 };
+var holeX = [], holeY = [], cellW = 0, cellH = 0;
+var slots = [], particles = [], tufts = [];
+var score = 0, lives = 3, combo = 0, timeLeft = 30, spawnT = 0;
+var fever = false, feverT = 0, flash = 0, shake = 0, over = false, hudText = '';
 
-var holes, particles, ripples, blades;
-var score, lives, timeLeft, elapsed, spawnT, flash, shake, ended, hudStr;
+function rep(s, n) { var r = ''; for (var i = 0; i < n; i++) r += s; return r; }
 
-function rep(s, n){
-  var o = '';
-  for (var i = 0; i < n; i++) o += s;
-  return o;
-}
-
-function ellipse(x, y, rx, ry){
-  ctx.beginPath();
-  ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-function layout(){
-  holes = [];
-  var margin = 24, gap = 12;
-  var cw = (W - margin * 2 - gap * 2) / 3;
-  var top = 56, rh = (712 - 56) / 3;
-  for (var r = 0; r < 3; r++){
-    for (var c = 0; c < 3; c++){
-      holes.push({ x: margin + cw / 2 + c * (cw + gap), y: top + rh * 0.5 + r * rh, mole: null });
+function layout() {
+  var mx = 16, gx = 12, mt = 172, mb = 8, gy = 14;
+  cellW = (W - mx * 2 - gx * 2) / 3;
+  cellH = (H - mt - mb - gy * 2) / 3;
+  holeX = []; holeY = [];
+  for (var r = 0; r < 3; r++) {
+    for (var c = 0; c < 3; c++) {
+      holeX.push(mx + cellW / 2 + c * (cellW + gx));
+      holeY.push(mt + cellH / 2 + r * (cellH + gy) + 26);
     }
   }
 }
 
-function init(){
+function init() {
   layout();
+  slots = [];
+  var i;
+  for (i = 0; i < 9; i++) slots.push(null);
   particles = [];
-  ripples = [];
-  blades = [];
-  for (var i = 0; i < 42; i++){
-    blades.push({
-      x: 12 + Math.random() * (W - 24),
-      y: 70 + Math.random() * (712 - 70),
-      h: 8 + Math.random() * 13,
-      l: (Math.random() - 0.5) * 9,
-      c: Math.random() < 0.5
-    });
-  }
+  tufts = [];
+  for (i = 0; i < 24; i++) tufts.push({ x: 10 + Math.random() * (W - 20), y: 62 + Math.random() * (H - 84), s: 5 + Math.random() * 7 });
   score = 0;
-  Game.score(0);
   lives = TUNE.lives.v;
-  timeLeft = TUNE.gameTime.v;
-  elapsed = 0;
+  combo = 0;
+  timeLeft = TUNE.timeLimit.v;
   spawnT = 0.5;
-  flash = 0;
-  shake = 0;
-  ended = false;
-  hudStr = '';
-  updateHud();
+  fever = false; feverT = 0; flash = 0; shake = 0; over = false;
+  hudText = '';
+  Game.score(0);
+  refreshHud();
 }
 
-function updateHud(){
-  var s = '⏱' + Math.ceil(timeLeft) + ' ' + rep('❤️', lives);
-  if (s !== hudStr){ hudStr = s; Game.hud(s); }
+function refreshHud() {
+  var t = '⏱' + Math.ceil(timeLeft) + ' ' + rep('❤️', Math.max(0, lives));
+  if (t !== hudText) { hudText = t; Game.hud(t); }
 }
 
-function prog(){
-  return Math.min(1, elapsed / Math.max(1, TUNE.gameTime.v));
+function molePhase(m) {
+  if (m.t < 0.1) return m.t / 0.1;
+  var rem = m.upT - m.t;
+  if (rem < 0.12) return rem > 0 ? rem / 0.12 : 0;
+  return 1;
 }
 
-function trySpawn(){
-  var free = [], up = 0;
-  for (var i = 0; i < holes.length; i++){
-    if (holes[i].mole) up++; else free.push(i);
+function spawnOne(prog) {
+  var free = [];
+  for (var i = 0; i < 9; i++) if (!slots[i]) free.push(i);
+  if (free.length === 0) return;
+  var idx = free[(Math.random() * free.length) | 0];
+  var r = Math.random(), type = 'normal';
+  if (r < TUNE.bombRate.v) type = 'bomb';
+  else if (r < TUNE.bombRate.v + TUNE.goldRate.v) type = 'gold';
+  else if (r < TUNE.bombRate.v + TUNE.goldRate.v + TUNE.helmetRate.v) type = 'helmet';
+  var base = TUNE.upTime.v * (0.5 + 0.5 * prog);
+  var up = base;
+  if (type === 'gold') up = base * 0.62;
+  else if (type === 'helmet') up = base * 1.5;
+  else if (type === 'bomb') up = base * 1.2;
+  if (up < 0.35) up = 0.35;
+  slots[idx] = { type: type, t: 0, upT: up, hits: 0 };
+}
+
+function burst(x, y, txt, n) {
+  for (var i = 0; i < n; i++) {
+    var a = Math.random() * Math.PI * 2, sp = 60 + Math.random() * 150;
+    particles.push({ x: x, y: y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 70, life: 0.6, txt: txt, sz: 16 + Math.random() * 12 });
   }
-  if (!free.length || up >= TUNE.maxUp.v) return false;
-  var p = prog();
-  var dur = TUNE.upTime.v + (TUNE.upTimeMin.v - TUNE.upTime.v) * p;
-  var bomb = elapsed > 2.5 && Math.random() < TUNE.bombRate.v;
-  var idx = free[Math.floor(Math.random() * free.length)];
-  holes[idx].mole = { bomb: bomb, t: 0, dur: dur };
-  return true;
 }
 
-function riseOf(m){
-  var r = m.t / 0.13;
-  var f = (m.dur - m.t) / 0.13;
-  if (f < r) r = f;
-  if (r > 1) r = 1;
-  if (r < 0) r = 0;
-  return r;
-}
-
-function finish(){
-  if (ended) return;
-  ended = true;
-  Game.over(score);
-}
-
-function update(dt){
-  if (flash > 0) flash -= dt * 2.2;
-  if (shake > 0) shake -= dt * 2.5;
-  for (var i = particles.length - 1; i >= 0; i--){
-    var p = particles[i];
-    p.t += dt;
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-    p.vy += 520 * dt;
-    if (p.t >= p.life) particles.splice(i, 1);
-  }
-  for (var r = ripples.length - 1; r >= 0; r--){
-    ripples[r].t += dt;
-    if (ripples[r].t >= 0.32) ripples.splice(r, 1);
-  }
-  if (ended) return;
-
-  timeLeft -= dt;
-  if (timeLeft <= 0){
-    timeLeft = 0;
-    updateHud();
-    finish();
+function tapSlot(i) {
+  var m = slots[i];
+  if (!m) return;
+  if (molePhase(m) < 0.25) return;
+  var hx = holeX[i], hy = holeY[i];
+  if (m.type === 'bomb') {
+    lives--;
+    combo = 0;
+    flash = 0.9;
+    shake = 0.5;
+    slots[i] = null;
+    burst(hx, hy - 24, '💥', 6);
+    Game.float(hx, hy - 46, '💣ライフ-1', '#ff6b6b');
+    refreshHud();
+    if (lives <= 0) { over = true; Game.over(score); }
     return;
   }
-  elapsed += dt;
-
-  for (var h = 0; h < holes.length; h++){
-    var m = holes[h].mole;
-    if (!m) continue;
-    m.t += dt;
-    if (m.t >= m.dur) holes[h].mole = null;
+  var base = 1;
+  if (m.type === 'gold') base = 3;
+  if (m.type === 'helmet' && m.hits === 0) {
+    m.hits = 1;
+    m.type = 'normal';
+    m.upT = m.t + 0.55;
+    burst(hx, hy - 52, '⛑️', 3);
+  } else {
+    slots[i] = null;
   }
-
-  spawnT -= dt;
-  if (spawnT <= 0){
-    var ok = trySpawn();
-    var p2 = prog();
-    var iv = TUNE.spawnStart.v + (TUNE.spawnMin.v - TUNE.spawnStart.v) * p2;
-    spawnT = ok ? iv * (0.75 + Math.random() * 0.5) : 0.08;
-  }
-  updateHud();
+  combo++;
+  var bonus = combo >= 3 ? 1 : 0;
+  var gain = base + bonus;
+  score += gain;
+  Game.score(score);
+  Game.float(hx + (Math.random() * 24 - 12), hy - 46, '+' + gain, bonus > 0 ? '#ffd166' : '#ffffff');
+  burst(hx, hy - 34, '⭐', 5);
 }
 
-function draw(){
-  var g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, '#4ea345');
-  g.addColorStop(1, '#2b6b2d');
-  ctx.fillStyle = g;
+function update(dt) {
+  if (over) return;
+  timeLeft -= dt;
+  if (timeLeft <= 0) {
+    timeLeft = 0;
+    refreshHud();
+    over = true;
+    Game.over(score);
+    return;
+  }
+  if (!fever && TUNE.feverAt.v > 0.5 && timeLeft <= TUNE.feverAt.v) {
+    fever = true;
+    feverT = 2.2;
+    Game.toast('フィーバー！');
+  }
+  if (feverT > 0) feverT -= dt;
+  if (flash > 0) flash -= dt * 2.2;
+  if (shake > 0) shake -= dt * 1.8;
+
+  var prog = timeLeft / TUNE.timeLimit.v;
+
+  spawnT -= dt;
+  if (spawnT <= 0) {
+    var n = 1;
+    if (fever && Math.random() < 0.55) n = 2;
+    for (var k = 0; k < n; k++) spawnOne(prog);
+    spawnT = TUNE.spawnGap.v * (0.45 + 0.55 * prog) * (0.8 + Math.random() * 0.4);
+  }
+
+  for (var i = 0; i < 9; i++) {
+    var m = slots[i];
+    if (!m) continue;
+    m.t += dt;
+    if (m.t >= m.upT) slots[i] = null;
+  }
+
+  for (i = particles.length - 1; i >= 0; i--) {
+    var p = particles[i];
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vy += 420 * dt;
+    p.life -= dt;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+  refreshHud();
+}
+
+function rr(x, y, w, h, r) {
+  if (w < 0) w = 0;
+  if (r > w / 2) r = w / 2;
+  if (r > h / 2) r = h / 2;
+  if (r < 0) r = 0;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
+function draw() {
+  var i, m, p, hx, hy;
+  if (fever) {
+    var g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#5c2a52');
+    g.addColorStop(0.4, '#c94f47');
+    g.addColorStop(0.75, '#ec8a4a');
+    g.addColorStop(1, '#f6c26b');
+    ctx.fillStyle = g;
+  } else {
+    ctx.fillStyle = '#3f9e4d';
+  }
   ctx.fillRect(0, 0, W, H);
 
-  ctx.fillStyle = 'rgba(255,255,255,0.045)';
-  for (var y = 0; y < H; y += 72) ctx.fillRect(0, y, W, 36);
-
-  ctx.lineCap = 'round';
-  ctx.lineWidth = 3;
-  for (var b = 0; b < blades.length; b++){
-    var bl = blades[b];
-    ctx.strokeStyle = bl.c ? 'rgba(126,205,116,0.5)' : 'rgba(26,84,36,0.42)';
+  ctx.fillStyle = fever ? 'rgba(255,225,160,0.10)' : 'rgba(255,255,255,0.08)';
+  for (i = 0; i < tufts.length; i++) {
+    var t = tufts[i];
     ctx.beginPath();
-    ctx.moveTo(bl.x, bl.y);
-    ctx.lineTo(bl.x + bl.l, bl.y - bl.h);
-    ctx.stroke();
-  }
-
-  var ox = 0, oy = 0;
-  if (shake > 0){
-    ox = (Math.random() - 0.5) * 16 * shake;
-    oy = (Math.random() - 0.5) * 16 * shake;
-  }
-  ctx.save();
-  ctx.translate(ox, oy);
-
-  for (var i = 0; i < holes.length; i++){
-    var h = holes[i];
-    ctx.fillStyle = '#6b4a24';
-    ellipse(h.x, h.y + 4, 69, 29);
-    ctx.fillStyle = '#5a3a1c';
-    ellipse(h.x, h.y, 66, 28);
-    ctx.fillStyle = '#20120a';
-    ellipse(h.x, h.y, 53, 21);
+    ctx.ellipse(t.x, t.y, t.s, t.s * 0.45, 0, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  for (var j = 0; j < holes.length; j++){
-    var ho = holes[j];
-    var mo = ho.mole;
-    if (!mo) continue;
-    var rz = riseOf(mo);
-    if (rz <= 0.02) continue;
+
+  var ox = 0, oy = 0;
+  if (shake > 0) { ox = (Math.random() * 2 - 1) * 7; oy = (Math.random() * 2 - 1) * 6; }
+  ctx.save();
+  ctx.translate(ox, oy);
+
+  for (i = 0; i < 9; i++) {
+    hx = holeX[i]; hy = holeY[i];
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath(); ctx.ellipse(hx, hy + 5, 60, 25, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = fever ? '#6b3a1c' : '#4a2b13';
+    ctx.beginPath(); ctx.ellipse(hx, hy, 56, 23, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath(); ctx.ellipse(hx, hy + 3, 47, 16, 0, 0, Math.PI * 2); ctx.fill();
+  }
+
+  for (i = 0; i < 9; i++) {
+    m = slots[i];
+    if (!m) continue;
+    hx = holeX[i]; hy = holeY[i];
+    p = molePhase(m);
+    var my = hy + 42 - 74 * p;
     ctx.save();
     ctx.beginPath();
-    ctx.rect(ho.x - 84, ho.y - 132, 168, 132);
+    ctx.rect(hx - 72, hy - 130, 144, 140);
     ctx.clip();
-    var sz = Math.round(44 + rz * 22);
-    ctx.font = sz + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-    ctx.fillText(mo.bomb ? '💣' : '🐹', ho.x, ho.y + 30 - rz * 76);
+    ctx.font = "62px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText(m.type === 'bomb' ? '💣' : '🐹', hx, my);
+    if (m.type === 'gold') {
+      ctx.font = "30px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+      ctx.fillText('✨', hx + 27, my - 26);
+      ctx.fillText('✨', hx - 27, my + 16);
+    } else if (m.type === 'helmet') {
+      ctx.font = "36px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+      ctx.fillText('⛑️', hx, my - 26);
+    }
     ctx.restore();
-  }
-
-  for (var k = 0; k < ripples.length; k++){
-    var rp = ripples[k];
-    var kk = rp.t / 0.32;
-    ctx.globalAlpha = 1 - kk;
-    ctx.strokeStyle = rp.hit ? '#ffe066' : 'rgba(255,255,255,0.85)';
-    ctx.lineWidth = 4;
+    ctx.fillStyle = fever ? '#7a4423' : '#5a3519';
     ctx.beginPath();
-    ctx.arc(rp.x, rp.y, 10 + kk * 54, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
+    ctx.ellipse(hx, hy + 6, 56, 17, 0, 0, Math.PI);
+    ctx.fill();
   }
 
-  for (var pi = 0; pi < particles.length; pi++){
-    var pa = particles[pi];
-    var a = 1 - pa.t / pa.life;
-    if (a < 0) a = 0;
-    ctx.globalAlpha = a;
-    ctx.font = Math.round(26 * (0.5 + 0.5 * a)) + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-    ctx.fillText(pa.e, pa.x, pa.y);
+  for (i = 0; i < particles.length; i++) {
+    var pt = particles[i];
+    ctx.globalAlpha = Math.max(0, Math.min(1, pt.life / 0.7));
+    ctx.font = pt.sz + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText(pt.txt, pt.x, pt.y);
   }
   ctx.globalAlpha = 1;
-
   ctx.restore();
 
-  if (flash > 0){
-    ctx.globalAlpha = Math.min(0.6, flash * 0.6);
-    ctx.fillStyle = '#ff2b2b';
-    ctx.fillRect(0, 0, W, H);
+  var bw = W - 96, bx = 48, by = 60, bh = 14;
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  rr(bx, by, bw, bh, 7);
+  ctx.fill();
+  var frac = timeLeft / TUNE.timeLimit.v;
+  if (frac < 0) frac = 0;
+  if (frac > 1) frac = 1;
+  if (frac > 0.005) {
+    ctx.fillStyle = fever ? '#ffd166' : '#8ef58a';
+    rr(bx, by, bw * frac, bh, 7);
+    ctx.fill();
+  }
+
+  if (combo >= 2) {
+    ctx.font = 'bold 24px sans-serif';
+    ctx.fillStyle = combo >= 3 ? '#ffd166' : 'rgba(255,255,255,0.8)';
+    ctx.fillText(combo + 'コンボ！', W / 2, 112);
+  }
+
+  if (feverT > 0) {
+    var a = feverT > 1.7 ? (2.2 - feverT) / 0.5 : feverT / 0.5;
+    if (a < 0) a = 0;
+    if (a > 1) a = 1;
+    ctx.globalAlpha = a;
+    ctx.font = 'bold 30px sans-serif';
+    ctx.fillStyle = '#fff3c4';
+    ctx.fillText('フィーバータイム！', W / 2, 152);
     ctx.globalAlpha = 1;
   }
-}
 
-function onDown(x, y){
-  if (ended) return;
-  var best = -1, bestD = 1e9;
-  for (var i = 0; i < holes.length; i++){
-    var h = holes[i];
-    if (!h.mole) continue;
-    var dx = Math.abs(x - h.x);
-    var dy = Math.abs(y - (h.y - 30));
-    if (dx < 62 && dy < 68){
-      var d = dx + dy;
-      if (d < bestD){ bestD = d; best = i; }
+  if (flash > 0) {
+    var fa = flash * 0.6;
+    if (fa > 0.55) fa = 0.55;
+    if (fa > 0) {
+      ctx.fillStyle = 'rgba(255,40,40,' + fa + ')';
+      ctx.fillRect(0, 0, W, H);
     }
-  }
-
-  if (best < 0){
-    ripples.push({ x: x, y: y, t: 0, hit: false });
-    return;
-  }
-
-  var hole = holes[best];
-  var m = hole.mole;
-  hole.mole = null;
-
-  if (m.bomb){
-    lives--;
-    flash = 1;
-    shake = 1;
-    for (var k = 0; k < 10; k++){
-      particles.push({ x: hole.x, y: hole.y - 44, vx: (Math.random() - 0.5) * 320, vy: -Math.random() * 220 - 30, t: 0, life: 0.7, e: '💥' });
-    }
-    ripples.push({ x: hole.x, y: hole.y - 30, t: 0, hit: true });
-    Game.float(hole.x, hole.y - 80, '💥', '#ff8080');
-    updateHud();
-    if (lives <= 0) finish();
-  } else {
-    score++;
-    Game.score(score);
-    for (var k2 = 0; k2 < 6; k2++){
-      particles.push({ x: hole.x, y: hole.y - 44, vx: (Math.random() - 0.5) * 240, vy: -Math.random() * 210 - 50, t: 0, life: 0.6, e: '⭐' });
-    }
-    ripples.push({ x: hole.x, y: hole.y - 30, t: 0, hit: true });
-    Game.float(hole.x, hole.y - 82, '+1', '#fff3b0');
   }
 }
 
-function onResize(){ layout(); }
+function onDown(x, y) {
+  if (over) return;
+  for (var i = 0; i < 9; i++) {
+    var cx = holeX[i], cy = holeY[i] - 26;
+    if (Math.abs(x - cx) < cellW * 0.5 && Math.abs(y - cy) < cellH * 0.5) {
+      tapSlot(i);
+      return;
+    }
+  }
+}
+
+function onResize() { layout(); }
 
 /*__VAPPA_JS_END__*/
 </script>

@@ -2,7 +2,7 @@
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
 <title>ふうせんチキンレース</title>
-<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%81%B5%E3%81%86%E3%81%9B%E3%82%93%E3%83%81%E3%82%AD%E3%83%B3%E3%83%AC%E3%83%BC%E3%82%B9%22%2C%22h%22%3A%22%E7%94%BB%E9%9D%A2%E3%82%92%E3%81%8A%E3%81%97%E3%81%A6%E3%81%84%E3%82%8B%E9%96%93%E3%81%A0%E3%81%91%E9%A2%A8%E8%88%B9%F0%9F%8E%88%E3%81%8C%E3%81%B5%E3%81%8F%E3%82%89%E3%82%80%E3%80%82%5Cn%E3%81%AF%E3%81%AA%E3%81%97%E3%81%9F%E5%A4%A7%E3%81%8D%E3%81%95%E3%81%A7%E5%BE%97%E7%82%B9%E7%A2%BA%E5%AE%9A%E3%80%82%E5%89%B2%E3%82%8C%E3%81%9F%E3%82%890%E7%82%B9%EF%BC%815%E5%80%8B%E3%81%AE%E5%90%88%E8%A8%88%E3%82%92%E7%AB%B6%E3%81%88%E3%80%82%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%81%B5%E3%81%86%E3%81%9B%E3%82%93%E3%83%81%E3%82%AD%E3%83%B3%E3%83%AC%E3%83%BC%E3%82%B9%22%2C%22h%22%3A%22%E7%94%BB%E9%9D%A2%E3%82%92%E6%8A%BC%E3%81%97%E3%81%A6%E3%81%84%E3%82%8B%E9%96%93%E3%81%A0%E3%81%91%E9%A2%A8%E8%88%B9%F0%9F%8E%88%E3%81%8C%E8%86%A8%E3%82%89%E3%82%80%E3%80%82%E5%A4%A7%E3%81%8D%E3%81%84%E3%81%BB%E3%81%A9%E9%AB%98%E5%BE%97%E7%82%B9%E3%80%81%E5%89%B2%E3%82%8C%E3%81%9F%E3%82%890%E7%82%B9%EF%BC%81%5Cn%E9%87%91%E3%81%AE%E9%A2%A8%E8%88%B9%E3%81%AF%E5%BE%97%E7%82%B92%E5%80%8D%E3%80%81%E3%83%89%E3%82%AF%E3%83%AD%E9%A2%A8%E8%88%B9%E3%81%AF%E3%81%99%E3%81%90%E5%89%B2%E3%82%8C%E3%82%8B%E3%80%8270%E7%82%B9%E4%BB%A5%E4%B8%8A%E3%82%923%E5%80%8B%E9%80%A3%E7%B6%9A%E3%81%A7%E9%80%A3%E7%B6%9A%E3%83%9C%E3%83%BC%E3%83%8A%E3%82%B9%2B30%E7%82%B9%E3%80%82%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
@@ -37,8 +37,8 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
   <div class="vp-toast" id="vptoast"></div>
   <div class="vp-ov" id="vpov">
     <h1>ふうせんチキンレース</h1>
-    <p>画面をおしている間だけ風船🎈がふくらむ。
-はなした大きさで得点確定。割れたら0点！5個の合計を競え。</p>
+    <p>画面を押している間だけ風船🎈が膨らむ。大きいほど高得点、割れたら0点！
+金の風船は得点2倍、ドクロ風船はすぐ割れる。70点以上を3個連続で連続ボーナス+30点。</p>
     <button class="vp-btn" id="vpstart">スタート</button>
   </div>
 </div>
@@ -204,295 +204,318 @@ window.__vpTap=function(){
 </script>
 <script id="vpgame">
 /*__VAPPA_JS__*/
+/* ふうせんチキンレース */
 var TUNE = {
-  growSpeed: { v: 0.22, label: '膨らむ速さ', min: 0.08, max: 0.6, step: 0.01 },
-  accel:     { v: 0.9,  label: '限界前の加速', min: 0, max: 3, step: 0.1 },
-  shakeZone: { v: 0.10, label: '震えの余裕', min: 0.02, max: 0.3, step: 0.01 },
-  spread:    { v: 1,    label: '後半のばらつき', min: 0, max: 2, step: 0.1 },
-  balloons:  { v: 5,    label: '風船の数', min: 3, max: 10, step: 1 },
-  wait:      { v: 1.1,  label: '結果表示の長さ', min: 0.4, max: 2.5, step: 0.1 }
+  growth:      { v: 68,   label: '膨らむ速さ',       min: 30,  max: 160, step: 5 },
+  limitNormal: { v: 165,  label: '普通の風船の限界', min: 110, max: 210, step: 5 },
+  limitGold:   { v: 130,  label: '金の風船の限界',   min: 90,  max: 180, step: 5 },
+  limitSkull:  { v: 88,   label: 'ドクロの限界',     min: 65,  max: 130, step: 5 },
+  spread:      { v: 30,   label: '限界のばらつき',   min: 0,   max: 60,  step: 5 },
+  goldRate:    { v: 0.28, label: '金の風船の割合',   min: 0,   max: 0.6, step: 0.02 },
+  skullRate:   { v: 0.25, label: 'ドクロの割合',     min: 0,   max: 0.6, step: 0.02 },
+  bonusPts:    { v: 30,   label: '連続ボーナス点',   min: 0,   max: 100, step: 5 }
 };
 
-var CX = 240, CY = 330, R_MIN = 34, R_MAX = 165;
-var HUES = [340, 200, 45, 160, 275, 15, 300, 120];
-var idx, total, phase, g, B, timer, shakeT, parts, hue, resScore, resKind, bob, blobs, bgGrad, touches;
-
-function pickB(i){
-  var n = Math.max(1, TUNE.balloons.v - 1);
-  var t = i / n;
-  var s = TUNE.spread.v;
-  var lo = 0.58 - 0.22 * t * s;
-  var hi = 0.88 + 0.12 * t * s;
-  if (lo < 0.18) lo = 0.18;
-  if (hi > 1) hi = 1;
-  if (hi < lo + 0.06) hi = Math.min(1, lo + 0.06);
-  return lo + Math.random() * (hi - lo);
-}
-
-function rad(){ return R_MIN + (R_MAX - R_MIN) * g; }
-
-function anyTouch(){
-  for (var k in touches){ if (touches[k]) return true; }
-  return false;
-}
+var R0 = 34, MAXB = 200, MCX = 240, MCY = 332, TOTAL = 5;
+var phase, radius, burstR, btype, idx, score, streak, timer;
+var pointerDown, activeId, armed, shake, particles, pulseT, ringA, ringR, popped, flash;
 
 function init(){
-  idx = 0; total = 0; phase = 'ready'; g = 0; timer = 0; shakeT = 0;
-  parts = []; hue = HUES[0]; resScore = 0; resKind = ''; bob = 0;
-  touches = {};
-  B = pickB(0);
-  bgGrad = ctx.createLinearGradient(0, 0, 0, H);
-  bgGrad.addColorStop(0, '#fff1f9');
-  bgGrad.addColorStop(0.45, '#eef3ff');
-  bgGrad.addColorStop(1, '#e4fbf3');
-  var cols = ['#ffd6ea', '#cfe4ff', '#ffe9b8', '#c9f5e0', '#e2d6ff'];
-  blobs = [];
-  for (var i = 0; i < 9; i++){
-    blobs.push({ x: 30 + Math.random() * (W - 60), y: 80 + Math.random() * (H - 170), r: 26 + Math.random() * 58, c: cols[i % cols.length] });
-  }
+  phase = 'wait'; radius = R0; burstR = 165; btype = 'normal';
+  idx = 0; score = 0; streak = 0; timer = 0;
+  pointerDown = false; activeId = null; armed = true;
+  shake = 0; particles = []; pulseT = 0; ringA = 0; ringR = 0;
+  popped = false; flash = 0;
+  spawnBalloon();
   Game.score(0);
-  Game.hud('🎈 1/' + TUNE.balloons.v);
 }
 
-function onDown(x, y, id){
-  touches[id] = true;
+function updateHud(){
+  Game.hud('🎈' + (idx + 1) + '/' + TOTAL + (streak > 0 ? ' 🔥' + streak : ''));
 }
 
-function onUp(x, y, id){
-  touches[id] = false;
-  if (phase === 'inflate' && !anyTouch()) doRelease();
-}
-
-function doRelease(){
-  var gg = g;
-  if (gg > 1) gg = 1;
-  var sc = Math.round(1 + 99 * gg);
-  if (sc < 1) sc = 1;
-  if (sc > 100) sc = 100;
-  total += sc;
-  Game.score(total);
-  resScore = sc; resKind = 'ok';
-  phase = 'result';
-  timer = TUNE.wait.v;
-  Game.float(CX, CY - rad() - 14, '+' + sc, '#7c3aed');
-  if (sc >= 80){
-    for (var i = 0; i < 10; i++) sparkle(CX + (Math.random() * 2 - 1) * 90, CY + (Math.random() * 2 - 1) * 90, hue);
-  }
-}
-
-function doBurst(){
-  resKind = 'burst'; resScore = 0;
-  phase = 'result';
-  timer = TUNE.wait.v;
-  shakeT = 0.45;
-  boom(CX, CY, hue);
-  Game.float(CX, CY - 70, '0点', '#ef4455');
-}
-
-function nextBalloon(){
-  idx++;
-  if (idx >= TUNE.balloons.v){ phase = 'done'; Game.over(total); return; }
-  g = 0;
-  B = pickB(idx);
-  hue = HUES[idx % HUES.length];
-  resKind = ''; resScore = 0;
-  phase = 'ready';
-  Game.hud('🎈 ' + (idx + 1) + '/' + TUNE.balloons.v);
-}
-
-function sparkle(x, y, huev){
-  var ang = Math.random() * Math.PI * 2;
-  parts.push({
-    x: x, y: y,
-    vx: Math.cos(ang) * 60, vy: Math.sin(ang) * 60 - 70,
-    life: 0.7 + Math.random() * 0.5,
-    s: 2.5 + Math.random() * 3,
-    c: 'hsl(' + norm(huev + 40) + ',95%,72%)'
-  });
-}
-
-function norm(h){ var v = h % 360; if (v < 0) v += 360; return v; }
-
-function boom(x, y, huev){
-  for (var i = 0; i < 24; i++){
-    var ang = Math.random() * Math.PI * 2;
-    var sp = 70 + Math.random() * 290;
-    parts.push({
-      x: x, y: y,
-      vx: Math.cos(ang) * sp,
-      vy: Math.sin(ang) * sp - 90,
-      life: 0.8 + Math.random() * 0.7,
-      s: 4 + Math.random() * 7,
-      c: 'hsl(' + norm(huev + (Math.random() * 70 - 35)) + ',88%,' + (56 + Math.random() * 22) + '%)'
-    });
-  }
+function spawnBalloon(){
+  radius = R0;
+  phase = 'wait';
+  popped = false;
+  timer = 0;
+  var rnd = Math.random();
+  var g = TUNE.goldRate.v, s = TUNE.skullRate.v;
+  if (rnd < g) btype = 'gold';
+  else if (rnd < g + s) btype = 'skull';
+  else btype = 'normal';
+  var base = btype === 'gold' ? TUNE.limitGold.v : (btype === 'skull' ? TUNE.limitSkull.v : TUNE.limitNormal.v);
+  var sp = TUNE.spread.v * (0.45 + 0.55 * idx);
+  var cap = (base - R0) * 0.45;
+  if (sp > cap) sp = cap;
+  burstR = base + (Math.random() * 2 - 1) * sp;
+  if (burstR < R0 + 26) burstR = R0 + 26;
+  if (burstR > MAXB) burstR = MAXB;
+  armed = !pointerDown;
+  ringA = 0;
+  updateHud();
 }
 
 function update(dt){
-  bob += dt;
-  if (shakeT > 0) shakeT -= dt;
-  for (var i = parts.length - 1; i >= 0; i--){
-    var p = parts[i];
+  pulseT += dt;
+  if (shake > 0) shake = Math.max(0, shake - dt * 2.2);
+  if (ringA > 0) ringA = Math.max(0, ringA - dt * 0.75);
+  if (flash > 0) flash = Math.max(0, flash - dt * 3.6);
+  for (var i = particles.length - 1; i >= 0; i--){
+    var p = particles[i];
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.vy += 430 * dt;
+    p.vx *= 0.99;
     p.life -= dt;
-    if (p.life <= 0){ parts.splice(i, 1); continue; }
-    p.vy += 640 * dt;
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-    p.vx *= (1 - 0.9 * dt);
+    if (p.life <= 0) particles.splice(i, 1);
   }
-  if (phase === 'done') return;
-  if (phase === 'ready'){
-    if (anyTouch()){ phase = 'inflate'; g = 0; }
-  } else if (phase === 'inflate'){
-    var rate = TUNE.growSpeed.v * (1 + TUNE.accel.v * g);
-    g += rate * dt;
-    if (g >= B) doBurst();
+  if (phase === 'wait'){
+    if (pointerDown && armed) phase = 'blow';
+  } else if (phase === 'blow'){
+    var r = radius / burstR;
+    var rate = TUNE.growth.v * (1 + 0.45 * r);
+    radius += rate * dt;
+    if (radius >= burstR){ radius = burstR; doPop(); }
   } else if (phase === 'result'){
     timer -= dt;
-    if (timer <= 0) nextBalloon();
+    if (timer <= 0){
+      idx++;
+      if (idx >= TOTAL){ phase = 'end'; Game.over(score); return; }
+      spawnBalloon();
+    }
   }
 }
 
-function epath(x, y, rx, ry){
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(rx, ry);
-  ctx.beginPath();
-  ctx.arc(0, 0, 1, 0, Math.PI * 2);
-  ctx.restore();
+function doPop(){
+  popped = true; phase = 'result'; timer = 1.5;
+  shake = 0.6; flash = 1; streak = 0;
+  ringR = burstR; ringA = 1.1;
+  var col = btype === 'gold' ? '#f59e0b' : (btype === 'skull' ? '#a78bfa' : '#fb7185');
+  for (var i = 0; i < 30; i++){
+    var a = Math.random() * Math.PI * 2;
+    var sp = 80 + Math.random() * 310;
+    particles.push({
+      x: MCX + Math.cos(a) * radius * 0.7,
+      y: MCY + Math.sin(a) * radius * 0.8,
+      vx: Math.cos(a) * sp,
+      vy: Math.sin(a) * sp - 70,
+      life: 0.45 + Math.random() * 0.7,
+      c: col,
+      s: 3 + Math.random() * 5
+    });
+  }
+  Game.float(MCX, MCY + 46, 'パンッ！', '#ef4444');
+  updateHud();
 }
 
-function drawBalloon(x, y, r, alpha, huev, gv){
-  var sat = 72 + 24 * gv;
-  var lit = 80 - 32 * gv;
-  var dark = Math.max(30, lit - 26);
-  ctx.globalAlpha = alpha;
-  var knotY = y + r * 1.20;
-  ctx.strokeStyle = 'rgba(130,120,150,0.5)';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(x, knotY);
-  var slen = 30 + r * 0.15;
-  for (var i = 1; i <= 4; i++){
-    var t = i / 4;
-    ctx.lineTo(x + Math.sin(t * 7 + bob * 3) * 9 * t, knotY + slen * t);
+function doConfirm(){
+  var p = (radius - R0) / (burstR - R0);
+  if (p < 0) p = 0;
+  if (p > 1) p = 1;
+  var pts = 1 + Math.round(99 * p);
+  if (btype === 'gold') pts *= 2;
+  var bonus = 0;
+  if (pts >= 70) streak++; else streak = 0;
+  if (streak > 0 && streak % 3 === 0) bonus = TUNE.bonusPts.v;
+  score += pts + bonus;
+  Game.score(score);
+  phase = 'result'; timer = 1.35;
+  ringR = burstR; ringA = 1.1;
+  Game.float(MCX, MCY - radius * 0.55, '+' + pts, btype === 'gold' ? '#d97706' : '#0284c7');
+  if (bonus > 0){
+    Game.toast('連続ボーナス +' + bonus + '点！');
+    Game.float(MCX, MCY + 60, '🔥+' + bonus, '#ef4444');
   }
-  ctx.stroke();
-  epath(x, y, r, r * 1.12);
-  var grd = ctx.createRadialGradient(x - r * 0.35, y - r * 0.45, r * 0.1, x, y, r * 1.3);
-  grd.addColorStop(0, 'hsl(' + huev + ',' + Math.max(20, sat - 20) + '%,' + Math.min(97, lit + 16) + '%)');
-  grd.addColorStop(1, 'hsl(' + huev + ',' + sat + '%,' + lit + '%)');
-  ctx.fillStyle = grd;
-  ctx.fill();
-  ctx.strokeStyle = 'hsl(' + huev + ',' + sat + '%,' + dark + '%)';
-  ctx.lineWidth = 2.5;
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(x - r * 0.15, y + r * 1.05);
-  ctx.lineTo(x + r * 0.15, y + r * 1.05);
-  ctx.lineTo(x, y + r * 1.22);
-  ctx.closePath();
-  ctx.fillStyle = 'hsl(' + huev + ',' + sat + '%,' + dark + '%)';
-  ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.5)';
-  epath(x - r * 0.34, y - r * 0.40, r * 0.20, r * 0.30);
-  ctx.fill();
-  ctx.globalAlpha = 1;
+  updateHud();
+}
+
+function onDown(x, y, id){
+  if (activeId !== null) return;
+  activeId = id;
+  pointerDown = true;
+  armed = true;
+  if (phase === 'wait') phase = 'blow';
+}
+
+function onUp(x, y, id){
+  if (id !== activeId) return;
+  activeId = null;
+  pointerDown = false;
+  armed = true;
+  if (phase === 'blow') doConfirm();
 }
 
 function draw(){
-  ctx.fillStyle = bgGrad;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  var ratio = radius / burstR;
+  if (ratio > 1) ratio = 1;
+  if (phase === 'wait' || phase === 'end') ratio = 0;
+
+  var g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#fdf2ff');
+  g.addColorStop(0.55, '#eef4ff');
+  g.addColorStop(1, '#e2f7ff');
+  ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
-  ctx.globalAlpha = 0.4;
-  for (var i = 0; i < blobs.length; i++){
-    var b = blobs[i];
-    ctx.fillStyle = b.c;
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
 
-  var sx = 0, sy = 0;
-  if (shakeT > 0){
-    var k = (shakeT / 0.45) * 10;
-    sx = (Math.random() * 2 - 1) * k;
-    sy = (Math.random() * 2 - 1) * k;
+  if (ratio > 0.3){
+    var a = (ratio - 0.3) / 0.7;
+    ctx.fillStyle = 'rgba(255,70,70,' + (0.26 * a * a).toFixed(3) + ')';
+    ctx.fillRect(0, 0, W, H);
   }
+
   ctx.save();
-  ctx.translate(sx, sy);
+  var ox = shake > 0 ? (Math.random() * 2 - 1) * 10 * shake : 0;
+  var oy = shake > 0 ? (Math.random() * 2 - 1) * 10 * shake : 0;
+  ctx.translate(ox, oy);
 
-  if (phase !== 'done'){
-    var skip = (phase === 'result' && resKind === 'burst');
-    if (!skip){
-      var r = rad();
-      var bx = CX, by = CY;
-      var alpha = 1;
-      if (phase === 'ready'){
-        by = CY + Math.sin(bob * 2.2) * 7;
-      } else if (phase === 'inflate'){
-        var remain = B - g;
-        var inten = 0;
-        if (remain < TUNE.shakeZone.v) inten = 1 - remain / TUNE.shakeZone.v;
-        if (inten > 1) inten = 1;
-        if (inten > 0){
-          var amp = 2 + 8 * inten;
-          bx += (Math.random() * 2 - 1) * amp;
-          by += (Math.random() * 2 - 1) * amp;
-        }
-      } else if (phase === 'result' && resKind === 'ok'){
-        var tt = Math.max(0, timer / TUNE.wait.v);
-        alpha = tt;
-        by = CY - (1 - tt) * 100;
-        r = r * (0.65 + 0.35 * tt);
+  // 足元の影
+  ctx.fillStyle = 'rgba(110,120,170,0.16)';
+  ctx.beginPath();
+  ctx.ellipse(MCX, 594, 70 + radius * 0.6, 13, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 破裂ポイントのリング
+  if (ringA > 0){
+    ctx.save();
+    if (ctx.setLineDash) ctx.setLineDash([10, 9]);
+    ctx.strokeStyle = 'rgba(239,68,68,' + (0.6 * Math.min(1, ringA)).toFixed(3) + ')';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(MCX, MCY, ringR, ringR * 1.15, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  if (!popped){
+    var tremor = ratio > 0.78 ? (ratio - 0.78) / 0.22 : 0;
+    if (phase !== 'blow') tremor = 0;
+    var jx = tremor > 0 ? (Math.random() * 2 - 1) * 6 * tremor : 0;
+    var jy = tremor > 0 ? (Math.random() * 2 - 1) * 6 * tremor : 0;
+    var pr = ratio > 0.55 ? (ratio - 0.55) / 0.45 : 0;
+    var pulse = 1 + 0.04 * pr * Math.sin(pulseT * 12);
+    var rx = radius * pulse, ry = radius * 1.15 * pulse;
+    var bx = MCX + jx, by = MCY + jy;
+
+    var hue = btype === 'gold' ? 45 : (btype === 'skull' ? 272 : 345);
+    var sat = btype === 'skull' ? 62 : 88;
+    var l0 = btype === 'gold' ? 80 : (btype === 'skull' ? 82 : 85);
+    var l1 = btype === 'gold' ? 46 : (btype === 'skull' ? 54 : 47);
+    var l = l0 + (l1 - l0) * ratio;
+
+    var grd = ctx.createRadialGradient(bx - rx * 0.35, by - ry * 0.42, rx * 0.1, bx, by, rx * 1.2);
+    grd.addColorStop(0, 'hsl(' + hue + ',' + sat + '%,' + Math.min(97, l + 20) + '%)');
+    grd.addColorStop(1, 'hsl(' + hue + ',' + sat + '%,' + Math.max(28, l - 12) + '%)');
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.ellipse(bx, by, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.beginPath();
+    ctx.ellipse(bx - rx * 0.34, by - ry * 0.42, rx * 0.2, ry * 0.13, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 結び目
+    ctx.fillStyle = 'hsl(' + hue + ',' + sat + '%,' + Math.max(26, l - 18) + '%)';
+    ctx.beginPath();
+    ctx.moveTo(bx - rx * 0.1, by + ry * 0.98);
+    ctx.lineTo(bx + rx * 0.1, by + ry * 0.98);
+    ctx.lineTo(bx, by + ry * 1.14);
+    ctx.closePath();
+    ctx.fill();
+
+    // ひも
+    ctx.strokeStyle = 'rgba(120,120,150,0.55)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(bx, by + ry * 1.12);
+    ctx.quadraticCurveTo(bx + 26, by + ry * 1.12 + 32, bx + 4, by + ry * 1.12 + 64);
+    ctx.stroke();
+
+    if (btype === 'gold'){
+      ctx.font = "26px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+      for (var k = 0; k < 4; k++){
+        var ang = pulseT * 1.6 + k * Math.PI / 2;
+        ctx.fillText('✨', bx + Math.cos(ang) * rx * 1.06, by + Math.sin(ang) * ry * 1.06);
       }
-      drawBalloon(bx, by, r, alpha, hue, g);
+    }
+    if (btype === 'skull'){
+      var fs = Math.max(22, radius * 0.8);
+      ctx.font = fs + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+      ctx.fillText('💀', bx, by);
     }
   }
 
-  for (var j = 0; j < parts.length; j++){
-    var p = parts[j];
-    ctx.globalAlpha = Math.max(0, Math.min(1, p.life / 0.7));
+  // 破片
+  for (var i = 0; i < particles.length; i++){
+    var p = particles[i];
+    ctx.globalAlpha = Math.max(0, Math.min(1, p.life * 1.6));
     ctx.fillStyle = p.c;
     ctx.beginPath();
     ctx.arc(p.x, p.y, p.s, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.globalAlpha = 1;
+
+  // 破裂演出
+  if (popped && phase === 'result'){
+    var t = 1.5 - timer;
+    if (t < 0.9){
+      ctx.globalAlpha = Math.max(0, 1 - t / 0.9);
+      ctx.font = "70px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+      ctx.fillText('💥', MCX, MCY - 34);
+      ctx.fillStyle = '#dc2626';
+      ctx.font = 'bold ' + Math.round(40 + t * 34) + 'px sans-serif';
+      ctx.fillText('パンッ！', MCX, MCY + 44);
+      ctx.globalAlpha = 1;
+    }
+  }
+
   ctx.restore();
 
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  if (phase === 'ready'){
-    ctx.globalAlpha = 0.55 + 0.45 * Math.sin(bob * 4);
-    ctx.fillStyle = '#7c3aed';
+  // 種類ラベル
+  var label = btype === 'gold' ? '✨ 金の風船 ・ 得点2倍' : (btype === 'skull' ? '💀 ドクロ風船 ・ すぐ割れる' : '🎈 ふつうの風船');
+  ctx.fillStyle = '#475569';
+  ctx.font = 'bold 19px sans-serif';
+  ctx.fillText(label, MCX, 616);
+
+  // ヒント
+  if (phase === 'wait'){
+    ctx.fillStyle = '#0f172a';
     ctx.font = 'bold 21px sans-serif';
-    ctx.fillText('おして ふくらませろ！', CX, 655);
-    ctx.globalAlpha = 1;
-  } else if (phase === 'inflate'){
-    ctx.fillStyle = 'rgba(90,80,120,0.7)';
-    ctx.font = 'bold 17px sans-serif';
-    ctx.fillText('はなすと その大きさで確定！', CX, 655);
-  } else if (phase === 'result' && resKind === 'burst'){
-    var kk = Math.min(1, (TUNE.wait.v - timer) * 6);
-    ctx.save();
-    ctx.translate(CX, 300);
-    ctx.scale(1 + 0.45 * (1 - kk), 1 + 0.45 * (1 - kk));
-    ctx.globalAlpha = Math.max(0, Math.min(1, timer * 2.5));
-    ctx.fillStyle = '#ef4455';
-    ctx.font = 'bold 54px sans-serif';
-    ctx.fillText('パンッ！', 0, 0);
-    ctx.restore();
-    ctx.globalAlpha = 1;
-  } else if (phase === 'result' && resKind === 'ok'){
-    ctx.globalAlpha = Math.min(1, timer * 3);
-    ctx.fillStyle = '#7c3aed';
-    ctx.font = 'bold 42px sans-serif';
-    ctx.fillText('+' + resScore + '点', CX, 630);
-    ctx.globalAlpha = 1;
+    ctx.fillText('押して膨らませろ！', MCX, 652);
+  } else if (phase === 'blow'){
+    var bl = 0.55 + 0.45 * Math.sin(pulseT * 9);
+    ctx.fillStyle = 'rgba(200,30,60,' + (0.4 + 0.6 * bl).toFixed(3) + ')';
+    ctx.font = 'bold 21px sans-serif';
+    ctx.fillText('離して確定！', MCX, 652);
+  } else if (phase === 'result'){
+    ctx.fillStyle = '#64748b';
+    ctx.font = 'bold 19px sans-serif';
+    ctx.fillText('つぎの風船…', MCX, 652);
+  } else {
+    ctx.fillStyle = '#64748b';
+    ctx.font = 'bold 19px sans-serif';
+    ctx.fillText('おしまい！', MCX, 652);
+  }
+
+  // 残り風船
+  for (var d = 0; d < TOTAL; d++){
+    var dx = MCX + (d - 2) * 48;
+    ctx.globalAlpha = d < idx ? 1 : (d === idx && phase !== 'end' ? 1 : 0.22);
+    ctx.font = "28px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText('🎈', dx, 686);
+  }
+  ctx.globalAlpha = 1;
+
+  if (flash > 0){
+    ctx.fillStyle = 'rgba(255,255,255,' + (0.5 * flash).toFixed(3) + ')';
+    ctx.fillRect(0, 0, W, H);
   }
 }
-
 /*__VAPPA_JS_END__*/
 </script>
 </body></html>

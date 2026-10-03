@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
-<title>コインあつめ</title>
-<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%82%B3%E3%82%A4%E3%83%B3%E3%81%82%E3%81%A4%E3%82%81%22%2C%22h%22%3A%22%E3%81%B5%E3%82%8F%E3%81%B5%E3%82%8F%E6%B3%B3%E3%81%90%E3%82%B3%E3%82%A4%E3%83%B3%F0%9F%AA%99%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%E3%81%97%E3%81%A6%E9%9B%86%E3%82%81%E3%82%88%E3%81%86%EF%BC%81%E8%99%B9%E3%82%B3%E3%82%A4%E3%83%B3%F0%9F%8C%88%E3%81%AF%2B5%E7%82%B9%E3%80%8230%E7%A7%92%E3%81%A7%E3%83%8F%E3%82%A4%E3%82%B9%E3%82%B3%E3%82%A2%E3%82%92%E7%9B%AE%E6%8C%87%E3%81%9B%EF%BC%81%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
+<title>コインあつめ30秒</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%82%B3%E3%82%A4%E3%83%B3%E3%81%82%E3%81%A4%E3%82%8130%E7%A7%92%22%2C%22h%22%3A%22%E6%B3%B3%E3%81%8E%E5%9B%9E%E3%82%8B%E3%82%B3%E3%82%A4%E3%83%B3%F0%9F%AA%99%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%E3%81%97%E3%81%A630%E7%A7%92%E3%81%A7%E3%83%8F%E3%82%A4%E3%82%B9%E3%82%B3%E3%82%A2%EF%BC%81%20%E8%99%B9%E3%82%B3%E3%82%A4%E3%83%B3%E3%82%84%E5%AE%9D%E7%AE%B1%E3%81%A7%E3%82%B3%E3%83%B3%E3%83%9C%E3%82%92%E3%81%A4%E3%81%AA%E3%81%92%E3%80%815%E3%82%B3%E3%83%B3%E3%83%9C%E3%81%A7%C3%972%E3%83%BB10%E3%82%B3%E3%83%B3%E3%83%9C%E3%81%A7%C3%973%E3%80%82%E7%88%86%E5%BC%BE%F0%9F%92%A3%E3%82%92%E5%8F%A9%E3%81%8F%E3%81%A8%E6%B8%9B%E7%82%B9%EF%BC%86%E3%82%B3%E3%83%B3%E3%83%9C%E3%83%AA%E3%82%BB%E3%83%83%E3%83%88%E3%80%81%E6%99%82%E8%A8%88%E2%8F%B0%E3%81%A73%E7%A7%92%E3%82%B9%E3%83%AD%E3%83%BC%E3%80%82%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
@@ -36,8 +36,8 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
   <div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
   <div class="vp-toast" id="vptoast"></div>
   <div class="vp-ov" id="vpov">
-    <h1>コインあつめ</h1>
-    <p>ふわふわ泳ぐコイン🪙をタップして集めよう！虹コイン🌈は+5点。30秒でハイスコアを目指せ！</p>
+    <h1>コインあつめ30秒</h1>
+    <p>泳ぎ回るコイン🪙をタップして30秒でハイスコア！ 虹コインや宝箱でコンボをつなげ、5コンボで×2・10コンボで×3。爆弾💣を叩くと減点＆コンボリセット、時計⏰で3秒スロー。</p>
     <button class="vp-btn" id="vpstart">スタート</button>
   </div>
 </div>
@@ -204,308 +204,366 @@ window.__vpTap=function(){
 <script id="vpgame">
 /*__VAPPA_JS__*/
 var TUNE = {
-  gameTime:    { v: 30,   label: '制限時間(秒)',       min: 15, max: 60,  step: 5 },
-  coinSpeed:   { v: 85,   label: 'コインの速さ',       min: 20, max: 220, step: 5 },
-  rushMul:     { v: 1.9,  label: 'ラストスパート倍率', min: 1,  max: 4,   step: 0.1 },
-  rushTime:    { v: 10,   label: '加速開始(残り秒)',   min: 3,  max: 20,  step: 1 },
-  coinsMin:    { v: 3,    label: 'コインの最小数',     min: 2,  max: 8,   step: 1 },
-  coinsMax:    { v: 5,    label: 'コインの最大数',     min: 3,  max: 12,  step: 1 },
-  rainbowRate: { v: 0.18, label: '虹コインの割合',     min: 0,  max: 0.6, step: 0.02 },
-  coinSize:    { v: 40,   label: 'コインの大きさ',     min: 24, max: 64,  step: 2 }
+  duration:    { v: 30,   label: '制限時間(秒)',     min: 15, max: 60,  step: 5 },
+  coinSpeed:   { v: 85,   label: 'コインの速さ',     min: 30, max: 240, step: 10 },
+  coinCount:   { v: 4,    label: 'コインの枚数',     min: 3,  max: 8,   step: 1 },
+  rainbowRate: { v: 0.12, label: '虹コインの割合',   min: 0,  max: 0.4, step: 0.02 },
+  chestRate:   { v: 0.10, label: '宝箱の割合',       min: 0,  max: 0.4, step: 0.02 },
+  clockRate:   { v: 0.08, label: '時計の割合',       min: 0,  max: 0.4, step: 0.02 },
+  bombRate:    { v: 0.14, label: '爆弾の割合',       min: 0,  max: 0.5, step: 0.02 },
+  rushBoost:   { v: 1.6,  label: 'ラスト10秒の倍速', min: 1,  max: 3,   step: 0.1 }
 };
 
-var FT = 72, FB = 694, FL = 16, FR = 464;
-var coins = [], particles = [], rings = [], popups = [], clouds = [];
-var lastTap = { x: -999, y: -999 };
-var score = 0, timeLeft = 30, running = false, shake = 0, t = 0, lastSec = -1, rushed = false, bgGrad = null;
-
-function ease(v){
-  if (v > 1) v = 1;
-  if (v < 0) v = 0;
-  return 1 - Math.pow(1 - v, 3);
-}
+var PL = 22, PR = 458, PT = 64, PB = 668;
+var EMO = { coin: '🪙', rainbow: '🌈', chest: '🎁', bomb: '💣', clock: '⏰' };
+var ents, parts, clouds, bigPop, timeLeft, score, combo, comboT, mult, slowT, shake, et, hudT, finished;
 
 function init(){
-  coins = []; particles = []; rings = []; popups = []; clouds = [];
-  score = 0;
-  timeLeft = TUNE.gameTime.v;
-  running = true;
-  shake = 0;
-  t = 0;
-  lastSec = -1;
-  rushed = false;
-  lastTap.x = -999;
-  lastTap.y = -999;
-  bgGrad = ctx.createLinearGradient(0, 0, 0, H);
-  bgGrad.addColorStop(0, '#3fb8f5');
-  bgGrad.addColorStop(0.5, '#9ad9f7');
-  bgGrad.addColorStop(1, '#dcf3ff');
-  var i;
-  for (i = 0; i < 7; i++){
-    clouds.push({
-      x: Math.random()*W,
-      y: 70 + Math.random()*(H - 160),
-      s: 0.5 + Math.random()*0.9,
-      v: 8 + Math.random()*18,
-      a: 0.40 + Math.random()*0.35
-    });
+  PL = 22; PR = W - 22; PT = 64; PB = H - 52;
+  ents = []; parts = []; clouds = []; bigPop = null;
+  for (var i = 0; i < 6; i++){
+    clouds.push({ x: Math.random() * W, y: 120 + Math.random() * 520, s: 0.6 + Math.random() * 0.9, v: 6 + Math.random() * 16 });
   }
-  var lo = Math.min(TUNE.coinsMin.v, TUNE.coinsMax.v);
-  var hi = Math.max(TUNE.coinsMin.v, TUNE.coinsMax.v);
-  var n = lo + Math.round(Math.random()*(hi - lo));
-  for (i = 0; i < n; i++) spawnCoin(true);
+  timeLeft = TUNE.duration.v;
+  score = 0; combo = 0; comboT = 0; mult = 1;
+  slowT = 0; shake = 0; et = 0; hudT = -1; finished = false;
+  var n = Math.round(TUNE.coinCount.v);
+  for (var j = 0; j < n; j++) spawnEnt(true, undefined, undefined);
   Game.score(0);
-  updateHud();
+  Game.hud('⏱ ' + Math.ceil(timeLeft));
 }
 
-function updateHud(){
-  var s = Math.ceil(timeLeft);
-  if (s < 0) s = 0;
-  Game.hud('⏱ ' + s + 's' + (rushed ? ' 🔥' : ''));
-}
-
-function spawnCoin(initial){
-  var rainbow = false;
-  if (!initial && Math.random() < TUNE.rainbowRate.v){
-    var has = false;
-    for (var k = 0; k < coins.length; k++){ if (coins[k].rainbow) has = true; }
-    if (!has) rainbow = true;
+function pickType(){
+  var coinN = 0, bombN = 0, chestN = 0;
+  for (var i = 0; i < ents.length; i++){
+    var t = ents[i].type;
+    if (t === 'coin') coinN++;
+    else if (t === 'bomb') bombN++;
+    else if (t === 'chest') chestN++;
   }
-  var r = TUNE.coinSize.v * (rainbow ? 0.32 : 0.5);
-  var x = FL + r, y = FT + r, ok = false, tries = 0;
-  while (tries < 40 && !ok){
+  var need = Math.ceil(TUNE.coinCount.v * 0.5);
+  if (coinN < need) return 'coin';
+  if (bombN >= Math.max(1, Math.floor(TUNE.coinCount.v * 0.5))) return 'coin';
+  if (chestN >= Math.max(1, Math.ceil(TUNE.coinCount.v * 0.25))) return 'coin';
+  var r = Math.random();
+  if (r < TUNE.rainbowRate.v) return 'rainbow';
+  r -= TUNE.rainbowRate.v;
+  if (r < TUNE.chestRate.v) return 'chest';
+  r -= TUNE.chestRate.v;
+  if (r < TUNE.clockRate.v) return 'clock';
+  r -= TUNE.clockRate.v;
+  if (r < TUNE.bombRate.v) return 'bomb';
+  return 'coin';
+}
+
+function spawnEnt(initial, ax, ay){
+  var type = pickType();
+  var r = 26;
+  if (type === 'rainbow') r = 18;
+  else if (type === 'chest') r = 28;
+  else if (type === 'clock') r = 25;
+  var sp = TUNE.coinSpeed.v;
+  if (type === 'rainbow') sp *= 1.8;
+  else if (type === 'chest') sp *= 0.5;
+  else if (type === 'clock') sp *= 0.85;
+  sp *= 0.7 + Math.random() * 0.6;
+  var x = W / 2, y = H / 2, tries = 0;
+  do {
+    x = PL + r + Math.random() * (PR - PL - r * 2);
+    y = PT + r + Math.random() * (PB - PT - r * 2);
     tries++;
-    x = FL + r + Math.random()*(FR - FL - r*2);
-    y = FT + r + Math.random()*(FB - FT - r*2);
-    ok = true;
-    for (var j = 0; j < coins.length; j++){
-      var o = coins[j];
-      var dx = o.x - x, dy = o.y - y;
-      if (Math.sqrt(dx*dx + dy*dy) < o.r + r + 34){ ok = false; break; }
-    }
-    if (ok){
-      var tx = x - lastTap.x, ty = y - lastTap.y;
-      if (Math.sqrt(tx*tx + ty*ty) < 86) ok = false;
-    }
-  }
-  var a = Math.random()*6.2832;
-  var sp = TUNE.coinSpeed.v * (rainbow ? 1.6 : 1) * (0.8 + Math.random()*0.4);
-  coins.push({
-    x: x, y: y, r: r, ang: a, spd: sp,
-    rainbow: rainbow, pop: 0, wob: Math.random()*6.2832
+  } while (ax !== undefined && tries < 14 && Math.sqrt((x - ax) * (x - ax) + (y - ay) * (y - ay)) < 100);
+  var a = Math.random() * Math.PI * 2;
+  ents.push({
+    x: x, y: y, r: r, type: type, hp: 3,
+    vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+    wob: Math.random() * 6.283, scale: initial ? 1 : 0.2, pop: 0
   });
 }
 
-function burst(x, y, rainbow){
-  var cols = rainbow
-    ? ['#f87171', '#fbbf24', '#34d399', '#60a5fa', '#c084fc', '#ffffff']
-    : ['#fde68a', '#fbbf24', '#f59e0b', '#ffffff'];
-  for (var i = 0; i < 16; i++){
-    var a = Math.random()*6.2832;
-    var sp = 60 + Math.random()*220;
-    particles.push({
-      x: x, y: y,
-      vx: Math.cos(a)*sp,
-      vy: Math.sin(a)*sp - 40,
-      life: 0.5 + Math.random()*0.35,
-      max: 0.85,
-      c: cols[(Math.random()*cols.length) | 0],
-      s: 2 + Math.random()*3.5
-    });
+function refill(ax, ay){
+  var target = Math.round(TUNE.coinCount.v);
+  var guard = 0;
+  while (ents.length < target && guard < 12){ spawnEnt(false, ax, ay); guard++; }
+}
+
+function burst(x, y, color, n){
+  for (var i = 0; i < n; i++){
+    var a = Math.random() * Math.PI * 2;
+    var s = 70 + Math.random() * 200;
+    parts.push({ x: x, y: y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 60, life: 0.45 + Math.random() * 0.35, c: color, r: 2 + Math.random() * 3.5 });
   }
-  rings.push({ x: x, y: y, r: 6, life: 0.32, max: 0.32, c: rainbow ? '#f472b6' : '#fbbf24' });
+}
+
+function gain(e, base, color){
+  combo = comboT > 0 ? combo + 1 : 1;
+  comboT = 0.8;
+  mult = combo >= 10 ? 3 : (combo >= 5 ? 2 : 1);
+  var pts = base * mult;
+  score += pts;
+  Game.score(score);
+  burst(e.x, e.y, color, 12);
+  shake = 0.16;
+  if (base >= 5){
+    bigPop = { text: '+' + pts + '!', t: 0.9, max: 0.9, color: color };
+  } else {
+    Game.float(e.x, e.y - 20, '+' + pts, color);
+  }
+}
+
+function hit(i){
+  var e = ents[i];
+  if (!e) return;
+  if (e.type === 'bomb'){
+    score = Math.max(0, score - 3);
+    Game.score(score);
+    combo = 0; comboT = 0; mult = 1;
+    shake = 0.45;
+    burst(e.x, e.y, '#ff6b6b', 16);
+    Game.float(e.x, e.y - 26, '-3', '#ff5f6d');
+    ents.splice(i, 1);
+    refill(e.x, e.y);
+    return;
+  }
+  if (e.type === 'chest'){
+    e.hp--;
+    e.pop = 1;
+    if (e.hp > 0){
+      burst(e.x, e.y, '#ffd166', 6);
+      shake = 0.1;
+      return;
+    }
+    gain(e, 10, '#ff8f1f');
+    ents.splice(i, 1);
+    refill(e.x, e.y);
+    return;
+  }
+  if (e.type === 'clock'){
+    slowT = 3;
+    gain(e, 2, '#2f9bff');
+    Game.toast('⏰ スローモーション！');
+    ents.splice(i, 1);
+    refill(e.x, e.y);
+    return;
+  }
+  if (e.type === 'rainbow'){
+    gain(e, 5, '#ff4fd8');
+    ents.splice(i, 1);
+    refill(e.x, e.y);
+    return;
+  }
+  gain(e, 1, '#ffb703');
+  ents.splice(i, 1);
+  refill(e.x, e.y);
 }
 
 function onDown(x, y){
-  lastTap.x = x;
-  lastTap.y = y;
-  if (!running) return;
+  if (finished) return;
   var best = -1, bd = 1e9;
-  for (var i = 0; i < coins.length; i++){
-    var c = coins[i];
-    var dx = c.x - x, dy = c.y - y;
-    var d = Math.sqrt(dx*dx + dy*dy);
-    var hit = Math.max(c.r*1.5, 30);
-    if (d < hit && d < bd){ bd = d; best = i; }
+  for (var i = 0; i < ents.length; i++){
+    var e = ents[i];
+    var dx = e.x - x, dy = e.y - y;
+    var d2 = dx * dx + dy * dy;
+    var rad = e.r + 20;
+    if (d2 < rad * rad && d2 < bd){ bd = d2; best = i; }
   }
-  if (best < 0) return;
-  var co = coins[best];
-  coins.splice(best, 1);
-  var gain = co.rainbow ? 5 : 1;
-  score += gain;
-  Game.score(score);
-  burst(co.x, co.y, co.rainbow);
-  if (co.rainbow){
-    popups.push({ x: W/2, y: 130, life: 1.1 });
-    Game.float(W/2, 168, '🌈 +5', '#f472b6');
-    shake = 0.22;
-  } else {
-    Game.float(co.x, co.y - 16, '+1', '#f59e0b');
-  }
-  spawnCoin(false);
+  if (best >= 0) hit(best);
 }
 
 function update(dt){
-  t += dt;
-  var i;
-  for (i = 0; i < clouds.length; i++){
-    var cl = clouds[i];
-    cl.x += cl.v*dt;
-    if (cl.x > W + 140){
-      cl.x = -140;
-      cl.y = 70 + Math.random()*(H - 160);
-    }
+  if (finished) return;
+  et += dt;
+  if (shake > 0) shake -= dt;
+  if (slowT > 0) slowT -= dt;
+  if (comboT > 0){
+    comboT -= dt;
+    if (comboT <= 0){ comboT = 0; combo = 0; mult = 1; }
   }
-  for (i = particles.length - 1; i >= 0; i--){
-    var p = particles[i];
-    p.vy += 320*dt;
-    p.x += p.vx*dt;
-    p.y += p.vy*dt;
-    p.life -= dt;
-    if (p.life <= 0) particles.splice(i, 1);
-  }
-  for (i = rings.length - 1; i >= 0; i--){
-    var rg = rings[i];
-    rg.r += 320*dt;
-    rg.life -= dt;
-    if (rg.life <= 0) rings.splice(i, 1);
-  }
-  for (i = popups.length - 1; i >= 0; i--){
-    popups[i].life -= dt;
-    if (popups[i].life <= 0) popups.splice(i, 1);
-  }
-  if (shake > 0) shake = Math.max(0, shake - dt*1.4);
-  if (!running) return;
 
   timeLeft -= dt;
   if (timeLeft <= 0){
     timeLeft = 0;
-    running = false;
-    updateHud();
+    Game.hud('⏱ 0');
+    finished = true;
     Game.over(score);
     return;
   }
-  var sec = Math.ceil(timeLeft);
-  if (sec !== lastSec){ lastSec = sec; updateHud(); }
-  if (!rushed && timeLeft <= TUNE.rushTime.v){
-    rushed = true;
-    shake = 0.32;
-    updateHud();
-    Game.toast('ラストスパート！🔥');
+  var ht = Math.ceil(timeLeft);
+  if (ht !== hudT){ hudT = ht; Game.hud('⏱ ' + ht); }
+
+  var rush = 1;
+  if (timeLeft <= 10) rush = 1 + (TUNE.rushBoost.v - 1) * (1 - timeLeft / 10);
+  var ts = rush * (slowT > 0 ? 0.35 : 1);
+
+  for (var i = 0; i < ents.length; i++){
+    var e = ents[i];
+    e.wob += dt * 2.4;
+    e.x += e.vx * dt * ts;
+    e.y += (e.vy + Math.sin(e.wob) * 26) * dt * ts;
+    if (e.x < PL + e.r){ e.x = PL + e.r; e.vx = Math.abs(e.vx); }
+    if (e.x > PR - e.r){ e.x = PR - e.r; e.vx = -Math.abs(e.vx); }
+    if (e.y < PT + e.r){ e.y = PT + e.r; e.vy = Math.abs(e.vy); }
+    if (e.y > PB - e.r){ e.y = PB - e.r; e.vy = -Math.abs(e.vy); }
+    if (e.scale < 1) e.scale = Math.min(1, e.scale + dt * 4);
+    if (e.pop > 0) e.pop -= dt * 3;
   }
-  var mult = rushed ? TUNE.rushMul.v : 1;
-  for (i = 0; i < coins.length; i++){
-    var c = coins[i];
-    c.pop = Math.min(1, c.pop + dt*4.5);
-    c.ang += Math.sin(t*1.6 + c.wob)*1.1*dt;
-    var sp = c.spd*mult;
-    c.x += Math.cos(c.ang)*sp*dt;
-    c.y += Math.sin(c.ang)*sp*dt;
-    if (c.x < FL + c.r){ c.x = FL + c.r; c.ang = Math.PI - c.ang; }
-    if (c.x > FR - c.r){ c.x = FR - c.r; c.ang = Math.PI - c.ang; }
-    if (c.y < FT + c.r){ c.y = FT + c.r; c.ang = -c.ang; }
-    if (c.y > FB - c.r){ c.y = FB - c.r; c.ang = -c.ang; }
+
+  for (var p = parts.length - 1; p >= 0; p--){
+    var q = parts[p];
+    q.x += q.vx * dt;
+    q.y += q.vy * dt;
+    q.vy += 520 * dt;
+    q.life -= dt;
+    if (q.life <= 0) parts.splice(p, 1);
+  }
+
+  if (bigPop){ bigPop.t -= dt; if (bigPop.t <= 0) bigPop = null; }
+
+  for (var c = 0; c < clouds.length; c++){
+    var cl = clouds[c];
+    cl.x += cl.v * dt * (slowT > 0 ? 0.35 : 1);
+    if (cl.x > W + 100) cl.x = -100;
   }
 }
 
-function drawCloud(x, y, s, a){
-  ctx.globalAlpha = a;
-  ctx.fillStyle = '#ffffff';
+function drawCloud(x, y, s){
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
   ctx.beginPath();
-  ctx.arc(x, y, 26*s, 0, 6.2832);
-  ctx.arc(x + 30*s, y + 6*s, 20*s, 0, 6.2832);
-  ctx.arc(x - 30*s, y + 8*s, 17*s, 0, 6.2832);
-  ctx.arc(x + 6*s, y - 15*s, 19*s, 0, 6.2832);
+  ctx.arc(x, y, 24 * s, 0, Math.PI * 2);
+  ctx.arc(x + 26 * s, y + 8 * s, 18 * s, 0, Math.PI * 2);
+  ctx.arc(x - 28 * s, y + 9 * s, 16 * s, 0, Math.PI * 2);
+  ctx.arc(x + 4 * s, y - 16 * s, 17 * s, 0, Math.PI * 2);
   ctx.fill();
-  ctx.globalAlpha = 1;
+}
+
+function roundRect(x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
 }
 
 function draw(){
-  ctx.globalAlpha = 1;
-  ctx.fillStyle = bgGrad ? bgGrad : '#9ad9f7';
-  ctx.fillRect(0, 0, W, H);
-
-  var ox = shake > 0 ? (Math.random() - 0.5)*13 : 0;
-  var oy = shake > 0 ? (Math.random() - 0.5)*13 : 0;
-  ctx.save();
-  ctx.translate(ox, oy);
-  var i;
-
-  for (i = 0; i < clouds.length; i++){
-    var cl = clouds[i];
-    drawCloud(cl.x, cl.y, cl.s, cl.a);
-  }
-
-  for (i = 0; i < rings.length; i++){
-    var rg = rings[i];
-    ctx.globalAlpha = Math.max(0, rg.life / rg.max)*0.85;
-    ctx.strokeStyle = rg.c;
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.arc(rg.x, rg.y, rg.r, 0, 6.2832);
-    ctx.stroke();
-  }
-  ctx.globalAlpha = 1;
-
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  for (i = 0; i < coins.length; i++){
-    var c = coins[i];
-    var bob = Math.sin(t*3 + c.wob)*3;
-    var sc = 0.35 + 0.65*ease(c.pop);
-    if (c.rainbow){
-      ctx.globalAlpha = 0.35 + 0.2*Math.sin(t*8);
-      ctx.fillStyle = '#f0abfc';
-      ctx.beginPath();
-      ctx.arc(c.x, c.y + bob, c.r*2.0, 0, 6.2832);
-      ctx.fill();
-    } else {
-      ctx.globalAlpha = 0.30;
-      ctx.fillStyle = '#fffbe6';
-      ctx.beginPath();
-      ctx.arc(c.x, c.y + bob, c.r*1.4, 0, 6.2832);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-    ctx.font = (c.r*2*sc) + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-    ctx.fillText(c.rainbow ? '🌈' : '🪙', c.x, c.y + bob);
+  ctx.globalAlpha = 1;
+
+  var g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#45bdf2');
+  g.addColorStop(0.5, '#9fdcff');
+  g.addColorStop(1, '#eaf9ff');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  for (var c = 0; c < clouds.length; c++){
+    var cl = clouds[c];
+    drawCloud(cl.x, cl.y, cl.s);
   }
 
-  for (i = 0; i < particles.length; i++){
-    var p = particles[i];
-    ctx.globalAlpha = Math.max(0, p.life / p.max);
-    ctx.fillStyle = p.c;
+  var sh = shake > 0 ? shake : 0;
+  var amp = sh > 0 ? 12 * (sh / 0.45) : 0;
+  var ox = amp > 0 ? (Math.random() * 2 - 1) * amp : 0;
+  var oy = amp > 0 ? (Math.random() * 2 - 1) * amp : 0;
+
+  ctx.save();
+  ctx.translate(ox, oy);
+
+  for (var i = 0; i < ents.length; i++){
+    var e = ents[i];
+    var sc = e.scale * (e.pop > 0 ? 1 + e.pop * 0.5 : 1);
+    if (e.type === 'bomb'){
+      var pu = 0.5 + 0.5 * Math.sin(et * 8);
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, e.r * (1.15 + pu * 0.18), 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,90,90,' + (0.16 + pu * 0.18) + ')';
+      ctx.fill();
+    } else if (e.type === 'rainbow'){
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, e.r * 1.3, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.6)';
+      ctx.fill();
+    } else if (e.type === 'clock'){
+      ctx.beginPath();
+      ctx.arc(e.x, e.y, e.r * 1.2, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(120,210,255,0.4)';
+      ctx.fill();
+    }
+    ctx.font = Math.round(e.r * 2 * sc) + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText(EMO[e.type], e.x, e.y);
+    if (e.type === 'chest' && e.hp < 3){
+      for (var k = 0; k < 3; k++){
+        ctx.beginPath();
+        ctx.arc(e.x - 14 + k * 14, e.y + e.r + 13, 5, 0, Math.PI * 2);
+        ctx.fillStyle = k < e.hp ? '#ff9f1c' : 'rgba(255,255,255,0.7)';
+        ctx.fill();
+      }
+    }
+  }
+
+  for (var p = 0; p < parts.length; p++){
+    var q = parts[p];
+    var a = Math.max(0, Math.min(1, q.life / 0.45));
+    ctx.globalAlpha = a;
     ctx.beginPath();
-    ctx.arc(p.x, p.y, p.s, 0, 6.2832);
+    ctx.arc(q.x, q.y, q.r * (0.4 + a), 0, Math.PI * 2);
+    ctx.fillStyle = q.c;
     ctx.fill();
   }
   ctx.globalAlpha = 1;
-
-  for (i = 0; i < popups.length; i++){
-    var pu = popups[i];
-    var k = 1 - pu.life / 1.1;
-    var sc2 = 0.5 + 1.1*Math.min(1, k*4);
-    ctx.save();
-    ctx.globalAlpha = pu.life > 0.35 ? 1 : Math.max(0, pu.life / 0.35);
-    ctx.translate(pu.x, pu.y);
-    ctx.scale(sc2, sc2);
-    ctx.font = 'bold 56px sans-serif';
-    ctx.lineWidth = 9;
-    ctx.strokeStyle = '#ffffff';
-    ctx.strokeText('+5!', 0, 0);
-    ctx.fillStyle = '#f43f5e';
-    ctx.fillText('+5!', 0, 0);
-    ctx.restore();
-  }
-
   ctx.restore();
 
-  if (rushed && running){
-    ctx.fillStyle = 'rgba(255,90,60,' + (0.05 + 0.035*Math.sin(t*9)) + ')';
+  if (slowT > 0){
+    ctx.fillStyle = 'rgba(70,190,255,0.14)';
     ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(70,190,255,0.8)';
+    ctx.fillRect(0, 56, W * Math.min(1, slowT / 3), 6);
+  }
+
+  if (bigPop){
+    var kk = Math.max(0, bigPop.t / bigPop.max);
+    var al = Math.min(1, kk * 3);
+    var fs = Math.round(44 + (1 - kk) * 16);
+    ctx.globalAlpha = al;
+    ctx.font = 'bold ' + fs + 'px sans-serif';
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.strokeText(bigPop.text, W / 2, 116);
+    ctx.fillStyle = bigPop.color;
+    ctx.fillText(bigPop.text, W / 2, 116);
+    ctx.globalAlpha = 1;
+  }
+
+  if (combo > 0){
+    var label = mult > 1 ? ('コンボ ' + combo + '  ×' + mult) : ('コンボ ' + combo);
+    ctx.font = 'bold 20px sans-serif';
+    var tw = ctx.measureText(label).width;
+    var pw = tw + 52, ph = 40;
+    var px = W / 2 - pw / 2, py = 690 - ph / 2;
+    roundRect(px, py, pw, ph, 20);
+    ctx.fillStyle = mult > 1 ? 'rgba(255,213,74,0.95)' : 'rgba(255,255,255,0.85)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(11,61,92,0.25)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = '#0b3d5c';
+    ctx.fillText(label, W / 2, 690);
+    var frac = Math.max(0, comboT / 0.8);
+    roundRect(px + 16, py + ph - 9, (pw - 32) * frac, 4, 2);
+    ctx.fillStyle = 'rgba(11,61,92,0.55)';
+    ctx.fill();
+  } else if (!finished){
+    ctx.font = 'bold 18px sans-serif';
+    ctx.fillStyle = 'rgba(11,61,92,0.55)';
+    ctx.fillText('コインをタップしてあつめよう！', W / 2, 690);
   }
 }
-
 /*__VAPPA_JS_END__*/
 </script>
 </body></html>

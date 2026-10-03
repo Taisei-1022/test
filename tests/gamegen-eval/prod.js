@@ -6,7 +6,7 @@
    各ケースの設計書(spec)をそのまま渡すので、AIが設計書を作る段は飛ばして本体の生成だけを比べる。
    --flow を付けると設計書を渡さず、相談の会話として送る＝本番どおりAIが設計書から作る（時間も本番どおり）。 */
 const fs = require("fs"), path = require("path");
-const CASES = require("./cases.js");
+const CASES = require(process.argv.includes("--set=rich") ? "./cases_rich.js" : "./cases.js"); // --set=rich: 要素を足した設計書
 const args = {};
 process.argv.slice(2).forEach(a => { const m = /^--([^=]+)(?:=(.*))?$/.exec(a); if (m) args[m[1]] = m[2] === undefined ? true : m[2]; });
 const TAG = args.tag || "prod";

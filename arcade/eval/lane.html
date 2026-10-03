@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
-<title>3レーン カーレース</title>
-<!--VAPPA_TPL1 %7B%22t%22%3A%223%E3%83%AC%E3%83%BC%E3%83%B3%20%E3%82%AB%E3%83%BC%E3%83%AC%E3%83%BC%E3%82%B9%22%2C%22h%22%3A%22%E7%94%BB%E9%9D%A2%E3%81%AE%E5%B7%A6%E5%8D%8A%E5%88%86%E3%82%BF%E3%83%83%E3%83%97%E3%81%A7%E5%B7%A6%E3%81%AE%E8%BB%8A%E7%B7%9A%E3%80%81%E5%8F%B3%E5%8D%8A%E5%88%86%E3%82%BF%E3%83%83%E3%83%97%E3%81%A7%E5%8F%B3%E3%81%AE%E8%BB%8A%E7%B7%9A%E3%81%B8%E3%82%B9%E3%83%83%E3%81%A8%E7%A7%BB%E5%8B%95%E3%80%82%E5%89%8D%E3%81%8B%E3%82%89%E6%9D%A5%E3%82%8B%E8%BB%8A%E3%82%84%E3%83%90%E3%83%AA%E3%82%B1%E3%83%BC%E3%83%89%E3%82%92%E3%82%88%E3%81%91%E3%81%A6%E8%B5%B0%E8%A1%8C%E8%B7%9D%E9%9B%A2%E3%82%92%E4%BC%B8%E3%81%B0%E3%81%9D%E3%81%86%EF%BC%81%22%2C%22u%22%3A%22m%22%7D-->
+<title>3レーンカーレース</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%223%E3%83%AC%E3%83%BC%E3%83%B3%E3%82%AB%E3%83%BC%E3%83%AC%E3%83%BC%E3%82%B9%22%2C%22h%22%3A%22%E7%94%BB%E9%9D%A2%E3%81%AE%E5%B7%A6%E5%8D%8A%E5%88%86%E3%82%BF%E3%83%83%E3%83%97%E3%81%A7%E5%B7%A6%E8%BB%8A%E7%B7%9A%E3%80%81%E5%8F%B3%E5%8D%8A%E5%88%86%E3%82%BF%E3%83%83%E3%83%97%E3%81%A7%E5%8F%B3%E8%BB%8A%E7%B7%9A%E3%81%B8%E3%82%B9%E3%83%A9%E3%82%A4%E3%83%89%EF%BC%81%E5%89%8D%E3%81%8B%E3%82%89%E6%9D%A5%E3%82%8B%E8%BB%8A%E3%83%BB%E3%83%88%E3%83%A9%E3%83%83%E3%82%AF%E3%83%BB%E3%82%B3%E3%83%BC%E3%83%B3%E3%82%92%E3%82%88%E3%81%91%E3%81%A6%E8%B5%B0%E3%82%8D%E3%81%86%E3%80%82%E3%82%B3%E3%82%A4%E3%83%B3%F0%9F%AA%99%E3%81%A7%2B50m%E3%80%81%E3%83%8B%E3%83%88%E3%83%AD%E2%9A%A1%E3%81%AF3%E7%A7%92%E7%84%A1%E6%95%B5%EF%BC%86%E5%8A%A0%E9%80%9F%E3%80%81%E3%82%AA%E3%82%A4%E3%83%AB%F0%9F%9B%A2%EF%B8%8F%E3%81%AF%E3%82%B9%E3%83%AA%E3%83%83%E3%83%97%E6%B3%A8%E6%84%8F%E3%80%82%22%2C%22u%22%3A%22m%22%7D-->
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
@@ -36,8 +36,8 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
   <div class="vp-hud" id="vphud" hidden><span id="vphl">0m</span><span id="vphr"></span></div>
   <div class="vp-toast" id="vptoast"></div>
   <div class="vp-ov" id="vpov">
-    <h1>3レーン カーレース</h1>
-    <p>画面の左半分タップで左の車線、右半分タップで右の車線へスッと移動。前から来る車やバリケードをよけて走行距離を伸ばそう！</p>
+    <h1>3レーンカーレース</h1>
+    <p>画面の左半分タップで左車線、右半分タップで右車線へスライド！前から来る車・トラック・コーンをよけて走ろう。コイン🪙で+50m、ニトロ⚡は3秒無敵＆加速、オイル🛢️はスリップ注意。</p>
     <button class="vp-btn" id="vpstart">スタート</button>
   </div>
 </div>
@@ -204,236 +204,352 @@ window.__vpTap=function(){
 <script id="vpgame">
 /*__VAPPA_JS__*/
 var TUNE = {
-  startSpeed:  { v: 260,  label: '開始スピード',     min: 120, max: 500,  step: 20 },
-  maxSpeed:    { v: 720,  label: '最高スピード',     min: 300, max: 1200, step: 20 },
-  accel:       { v: 10,   label: '加速ペース',       min: 0,   max: 40,   step: 1 },
-  spawnInt:    { v: 1.0,  label: '出現間隔(秒)',     min: 0.5, max: 1.8,  step: 0.05 },
-  spawnIntMin: { v: 0.55, label: '最短出現間隔(秒)', min: 0.3, max: 1.2,  step: 0.05 },
-  twoRate:     { v: 0.4,  label: '2台同時の割合',    min: 0,   max: 0.9,  step: 0.05 },
-  slide:       { v: 16,   label: '車線変更の速さ',   min: 6,   max: 30,   step: 1 }
+  startSpeed: { v: 14,   label: '開始スピード(m/s)', min: 6,   max: 30,   step: 1 },
+  maxSpeed:   { v: 36,   label: '最高スピード(m/s)', min: 15,  max: 70,   step: 1 },
+  speedUp:    { v: 0.5,  label: '加速ペース',        min: 0,   max: 2,    step: 0.05 },
+  spawnGap:   { v: 1.6,  label: '障害物の出現間隔',  min: 0.4, max: 3,    step: 0.1 },
+  laneSpeed:  { v: 1200, label: '車線変更の速さ',    min: 400, max: 4000, step: 100 },
+  coinGap:    { v: 1.4,  label: 'コインの出る間隔',  min: 0.4, max: 3,    step: 0.1 },
+  nitroTime:  { v: 3,    label: 'ニトロ時間(秒)',    min: 1,   max: 6,    step: 0.5 },
+  oilTime:    { v: 1,    label: 'オイルの滑る時間',  min: 0.3, max: 3,    step: 0.1 }
 };
 
-var roadX, roadW, laneW, lanes, player, obstacles, particles;
-var speed, meters, scrollY, spawnT, shake, dead, deathT, finalScore, reported, lastKmh;
+var LANES = [100, 240, 380];
+var ROAD_L = 30, ROAD_R = 450;
+var CAR_Y = 600, PX_PER_M = 14, NITRO_MULT = 1.7;
+
+var SCENES = [
+  { name: '昼',   grass: '#3f8a4a', road: '#5c6169', tint: null },
+  { name: '夕方', grass: '#7c5a2e', road: '#59505a', tint: 'rgba(255,140,60,0.14)' },
+  { name: '夜',   grass: '#1b2438', road: '#343a45', tint: 'rgba(8,12,40,0.42)' }
+];
+
+var OBST = {
+  car:   { e: '🚙', vy: 0.62, hw: 18, hh: 26, sz: 38 },
+  truck: { e: '🚚', vy: 0.32, hw: 21, hh: 34, sz: 46 },
+  cone:  { e: '🚧', vy: 1.0,  hw: 15, hh: 15, sz: 32 }
+};
+
+var lane, carX, carTilt, dist, coinBonus, elapsed, baseSpeed, scrollY, score, dead, sceneIdx;
+var obstacles, pickups, parts, scenery;
+var spawnT, coinT, nitroT, oilT, oilDur, shake, lastHud;
 
 function init(){
-  roadX = 48;
-  roadW = 384;
-  laneW = roadW / 3;
-  lanes = [ roadX + laneW * 0.5, roadX + laneW * 1.5, roadX + laneW * 2.5 ];
-  player = { lane: 1, x: lanes[1], y: 606, tilt: 0 };
-  obstacles = [];
-  particles = [];
-  speed = TUNE.startSpeed.v;
-  meters = 0;
-  scrollY = 0;
-  spawnT = 0.9;
-  shake = 0;
-  dead = false;
-  deathT = 0;
-  finalScore = 0;
-  reported = false;
-  lastKmh = -1;
+  lane = 1; carX = LANES[1]; carTilt = 0;
+  dist = 0; coinBonus = 0; elapsed = 0; baseSpeed = TUNE.startSpeed.v;
+  scrollY = 0; score = 0; dead = false; sceneIdx = 0;
+  obstacles = []; pickups = []; parts = [];
+  spawnT = 1.3; coinT = 1.6;
+  nitroT = 0; oilT = 0; oilDur = TUNE.oilTime.v;
+  shake = 0; lastHud = '';
+  scenery = [];
+  for (var i = 0; i < 11; i++){
+    scenery.push({ side: i % 2, y: i * 74 - 70, s: 20 + (i % 3) * 5 });
+  }
   Game.score(0);
   Game.hud('0km/h');
+  lastHud = '0km/h';
 }
 
-function spawnWave(){
-  var idx = [0, 1, 2];
-  for (var i = 2; i > 0; i--){
-    var j = Math.floor(Math.random() * (i + 1));
-    var t = idx[i]; idx[i] = idx[j]; idx[j] = t;
+function spawnObstacle(){
+  var blocked = [false, false, false];
+  var i, o;
+  for (i = 0; i < obstacles.length; i++){
+    o = obstacles[i];
+    if (o.y < CAR_Y + 20) blocked[o.lane] = true;
   }
-  var p2 = TUNE.twoRate.v * Math.min(1, 0.35 + meters / 900);
-  var n = (Math.random() < p2) ? 2 : 1;
-  for (var k = 0; k < n; k++){
-    var ln = idx[k];
-    var r = Math.random();
-    var emo = r < 0.45 ? '🚙' : (r < 0.75 ? '🚚' : '🚧');
-    obstacles.push({ x: lanes[ln], lane: ln, y: 18, emoji: emo });
+  var free = [];
+  for (i = 0; i < 3; i++){ if (!blocked[i]) free.push(i); }
+  if (free.length < 2) return;
+  var l = free[(Math.random() * free.length) | 0];
+  var r = Math.random();
+  var type = r < 0.17 ? 'truck' : (r < 0.46 ? 'cone' : 'car');
+  var d = OBST[type];
+  obstacles.push({
+    type: type, lane: l, x: LANES[l], y: -60 - Math.random() * 30,
+    vy: d.vy, hw: d.hw, hh: d.hh, sz: d.sz, e: d.e
+  });
+}
+
+function spawnPickupRow(){
+  var blocked = [false, false, false];
+  var i, o;
+  for (i = 0; i < obstacles.length; i++){
+    o = obstacles[i];
+    if (o.y < CAR_Y + 20) blocked[o.lane] = true;
+  }
+  var free = [];
+  for (i = 0; i < 3; i++){ if (!blocked[i]) free.push(i); }
+  if (free.length === 0) return;
+  var l = free[(Math.random() * free.length) | 0];
+  var canHaz = free.length >= 2;
+  var r = Math.random();
+  if (canHaz && r < 0.09){
+    pickups.push({ type: 'nitro', x: LANES[l], y: -50 });
+  } else if (canHaz && r < 0.2){
+    pickups.push({ type: 'oil', x: LANES[l], y: -50 });
+  } else {
+    for (var k = 0; k < 3; k++){
+      pickups.push({ type: 'coin', x: LANES[l], y: -50 - k * 48 });
+    }
   }
 }
 
-function updateParticles(dt){
-  for (var i = particles.length - 1; i >= 0; i--){
-    var p = particles[i];
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-    p.vy += 420 * dt;
-    p.life -= dt;
-    if (p.life <= 0) particles.splice(i, 1);
+function boom(x, y){
+  for (var i = 0; i < 14; i++){
+    var a = Math.random() * 6.2832, sp = 60 + Math.random() * 220;
+    parts.push({ x: x, y: y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      r: 3 + Math.random() * 4, life: 0.35 + Math.random() * 0.4, max: 0.75,
+      c: i % 2 ? '#fbbf24' : '#f87171' });
   }
 }
 
-function crash(o){
-  dead = true;
-  deathT = 0.45;
-  shake = 0.45;
-  finalScore = Math.floor(meters);
-  Game.score(finalScore);
-  var cx = (player.x + o.x) * 0.5;
-  var cy = (player.y + o.y) * 0.5;
-  for (var i = 0; i < 18; i++){
-    particles.push({
-      x: cx, y: cy,
-      vx: (Math.random() * 2 - 1) * 280,
-      vy: (Math.random() * 2 - 1) * 280 - 90,
-      life: 0.45 + Math.random() * 0.4,
-      col: Math.random() < 0.55 ? '#ffd166' : '#ff6b6b'
-    });
+function sparkle(x, y, c){
+  for (var i = 0; i < 8; i++){
+    var a = Math.random() * 6.2832, sp = 40 + Math.random() * 130;
+    parts.push({ x: x, y: y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      r: 2 + Math.random() * 3, life: 0.25 + Math.random() * 0.3, max: 0.55, c: c });
   }
 }
 
 function update(dt){
-  if (shake > 0) shake -= dt;
-  updateParticles(dt);
+  if (dead) return;
+  elapsed += dt;
+  if (nitroT > 0) nitroT = Math.max(0, nitroT - dt);
+  if (oilT > 0) oilT = Math.max(0, oilT - dt);
 
-  if (dead){
-    if (!reported){
-      deathT -= dt;
-      if (deathT <= 0){
-        reported = true;
-        Game.over(finalScore);
-      }
-    }
-    return;
+  baseSpeed = Math.min(TUNE.maxSpeed.v, TUNE.startSpeed.v + elapsed * TUNE.speedUp.v);
+  var spd = nitroT > 0 ? baseSpeed * NITRO_MULT : baseSpeed;
+  dist += spd * dt;
+  var roadPx = spd * PX_PER_M;
+  scrollY += roadPx * dt;
+
+  var si = Math.floor(dist / 500) % 3;
+  if (si !== sceneIdx){
+    sceneIdx = si;
+    Game.toast(SCENES[si].name + 'になった');
   }
 
-  speed = Math.min(TUNE.maxSpeed.v, speed + TUNE.accel.v * dt);
-  scrollY += speed * dt;
-  meters += 10 * dt * (speed / TUNE.startSpeed.v);
-
-  var sc = Math.floor(meters);
-  Game.score(sc);
-
-  var kmh = Math.round(speed * 0.22);
-  if (kmh !== lastKmh){ lastKmh = kmh; Game.hud(kmh + 'km/h'); }
-
-  var tx = lanes[player.lane];
-  var d = tx - player.x;
-  player.x += d * Math.min(1, dt * TUNE.slide.v);
-  if (Math.abs(tx - player.x) < 0.6) player.x = tx;
-  player.tilt = Math.max(-0.3, Math.min(0.3, (tx - player.x) / laneW * 0.55));
+  if (oilT > 0){
+    var ot = 1 - oilT / oilDur;
+    carX = LANES[lane] + Math.sin(ot * Math.PI * 4) * 46 * (1 - ot);
+    carTilt = Math.cos(ot * Math.PI * 4) * 0.3 * (1 - ot);
+  } else {
+    var dx = LANES[lane] - carX;
+    var mv = TUNE.laneSpeed.v * dt;
+    if (Math.abs(dx) <= mv){
+      carX = LANES[lane];
+      carTilt *= 0.55;
+    } else {
+      carX += (dx > 0 ? 1 : -1) * mv;
+      carTilt = (dx > 0 ? 1 : -1) * 0.2;
+    }
+  }
 
   spawnT -= dt;
-  if (spawnT <= 0){
-    spawnWave();
-    spawnT = Math.max(TUNE.spawnIntMin.v, TUNE.spawnInt.v - meters * 0.0006);
+  var guard = 0;
+  while (spawnT <= 0 && guard < 6){
+    guard++;
+    spawnObstacle();
+    spawnT += Math.max(TUNE.spawnGap.v * 0.3, TUNE.spawnGap.v - dist * 0.0007);
+  }
+  if (spawnT <= 0) spawnT = TUNE.spawnGap.v * 0.3;
+
+  coinT -= dt;
+  if (coinT <= 0){
+    spawnPickupRow();
+    coinT = TUNE.coinGap.v * (0.7 + Math.random() * 0.8);
   }
 
-  var rel = speed * 0.85;
-  for (var i = obstacles.length - 1; i >= 0; i--){
-    var o = obstacles[i];
-    o.y += rel * dt;
-    if (Math.abs(o.x - player.x) < 30 && Math.abs(o.y - player.y) < 46){
-      crash(o);
-      return;
+  var i, o, p, q;
+  for (i = obstacles.length - 1; i >= 0; i--){
+    o = obstacles[i];
+    o.y += roadPx * o.vy * dt;
+    if (o.y > 790){ obstacles.splice(i, 1); continue; }
+    if (Math.abs(o.x - carX) < o.hw + 11 && Math.abs(o.y - CAR_Y) < o.hh + 18){
+      if (nitroT > 0){
+        boom(o.x, o.y);
+        obstacles.splice(i, 1);
+        shake = 0.25;
+      } else {
+        dead = true;
+        shake = 0.7;
+        boom(carX, CAR_Y - 10);
+        Game.over(score);
+        return;
+      }
     }
-    if (o.y > 800) obstacles.splice(i, 1);
   }
+
+  for (i = pickups.length - 1; i >= 0; i--){
+    p = pickups[i];
+    p.y += roadPx * dt;
+    if (p.y > 790){ pickups.splice(i, 1); continue; }
+    if (Math.abs(p.x - carX) < 34 && Math.abs(p.y - CAR_Y) < 42){
+      if (p.type === 'coin'){
+        coinBonus += 50;
+        Game.float(p.x, p.y - 18, '+50m', '#ffd166');
+        sparkle(p.x, p.y, '#ffd166');
+      } else if (p.type === 'nitro'){
+        nitroT = TUNE.nitroTime.v;
+        Game.toast('⚡ ニトロ！無敵＆加速');
+        sparkle(p.x, p.y, '#7dd3fc');
+      } else {
+        oilT = TUNE.oilTime.v; oilDur = TUNE.oilTime.v;
+        Game.toast('🛢️ オイルでスリップ！');
+        shake = 0.25;
+      }
+      pickups.splice(i, 1);
+    }
+  }
+
+  for (i = parts.length - 1; i >= 0; i--){
+    q = parts[i];
+    q.x += q.vx * dt;
+    q.y += q.vy * dt + roadPx * dt * 0.5;
+    q.life -= dt;
+    if (q.life <= 0) parts.splice(i, 1);
+  }
+
+  if (shake > 0) shake = Math.max(0, shake - dt);
+
+  var s;
+  for (i = 0; i < scenery.length; i++){
+    s = scenery[i];
+    s.y += roadPx * dt;
+    if (s.y > 790) s.y -= 814;
+  }
+
+  score = Math.floor(dist) + coinBonus;
+  Game.score(score);
+
+  var hud;
+  if (nitroT > 0) hud = '⚡' + nitroT.toFixed(1) + 's';
+  else if (oilT > 0) hud = '🛢️スリップ';
+  else hud = Math.round(baseSpeed * 3.6) + 'km/h';
+  if (hud !== lastHud){ lastHud = hud; Game.hud(hud); }
 }
 
 function draw(){
-  ctx.fillStyle = '#0d1420';
-  ctx.fillRect(0, 0, W, H);
-
-  var sh = shake > 0 ? 6 : 0;
-  var ox = sh ? (Math.random() * sh * 2 - sh) : 0;
-  var oy = sh ? (Math.random() * sh * 2 - sh) : 0;
+  var sc = SCENES[sceneIdx];
+  var amp = Math.min(1, shake * 3);
+  var ox = (Math.random() * 2 - 1) * 9 * amp;
+  var oy = (Math.random() * 2 - 1) * 9 * amp;
 
   ctx.save();
   ctx.translate(ox, oy);
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(0, 56, W, 656);
-  ctx.clip();
 
-  // 路肩（緑）
-  ctx.fillStyle = '#2c6b36';
-  ctx.fillRect(0, 56, W, 656);
-  var gOff = scrollY % 160;
-  ctx.fillStyle = '#358041';
-  for (var gy = 56 - 160 + gOff; gy < 720; gy += 160){
-    ctx.fillRect(0, gy, roadX, 70);
-    ctx.fillRect(roadX + roadW, gy, W - roadX - roadW, 70);
+  ctx.fillStyle = sc.grass;
+  ctx.fillRect(-30, -30, W + 60, H + 60);
+
+  ctx.fillStyle = sc.road;
+  ctx.fillRect(ROAD_L, -30, ROAD_R - ROAD_L, H + 60);
+
+  ctx.fillStyle = 'rgba(0,0,0,0.14)';
+  ctx.fillRect(ROAD_L, -30, 12, H + 60);
+  ctx.fillRect(ROAD_R - 12, -30, 12, H + 60);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.fillRect(ROAD_L + 6, -30, 5, H + 60);
+  ctx.fillRect(ROAD_R - 11, -30, 5, H + 60);
+
+  var period = 92, dashH = 48;
+  var off = scrollY % period;
+  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  for (var y = -period + off; y < H + period; y += period){
+    ctx.fillRect(167, y, 6, dashH);
+    ctx.fillRect(307, y, 6, dashH);
   }
 
-  // 道路
-  ctx.fillStyle = '#4d545e';
-  ctx.fillRect(roadX, 56, roadW, 656);
-  var aOff = scrollY % 240;
-  ctx.fillStyle = 'rgba(0,0,0,0.07)';
-  for (var ay = 56 - 240 + aOff; ay < 720; ay += 240){
-    ctx.fillRect(roadX, ay, roadW, 120);
-  }
-
-  // 路肩の白線
-  ctx.fillStyle = '#eef3f8';
-  ctx.fillRect(roadX + 2, 56, 5, 656);
-  ctx.fillRect(roadX + roadW - 7, 56, 5, 656);
-
-  // 車線の破線
-  var dOff = scrollY % 90;
-  ctx.fillStyle = '#f5f9ff';
-  for (var li = 0; li < 2; li++){
-    var lx = roadX + laneW * (li + 1);
-    for (var dy = 56 - 90 + dOff; dy < 720; dy += 90){
-      ctx.fillRect(lx - 4, dy, 8, 48);
-    }
-  }
-
-  // 路肩の木
-  ctx.font = "30px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  var tOff = scrollY % 190;
-  for (var t = 0; t < 5; t++){
-    var ty = 56 - 190 + tOff + t * 190;
-    if (ty > 20 && ty < 740){
-      ctx.fillText('🌲', 26, ty);
-      ctx.fillText('🌲', 454, ty + 95);
+
+  var i, s, sx;
+  for (i = 0; i < scenery.length; i++){
+    s = scenery[i];
+    sx = s.side ? 462 : 18;
+    if (sceneIdx === 2){
+      ctx.fillStyle = '#6f7787';
+      ctx.fillRect(sx - 2, s.y - 26, 4, 34);
+      ctx.fillStyle = 'rgba(255,235,150,0.16)';
+      ctx.beginPath(); ctx.arc(sx, s.y + 10, 26, 0, 6.2832); ctx.fill();
+      ctx.fillStyle = 'rgba(255,240,180,0.32)';
+      ctx.beginPath(); ctx.arc(sx, s.y + 10, 14, 0, 6.2832); ctx.fill();
+      ctx.fillStyle = '#ffef9f';
+      ctx.beginPath(); ctx.arc(sx, s.y + 10, 6, 0, 6.2832); ctx.fill();
+    } else {
+      ctx.font = s.s + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+      ctx.fillText(sceneIdx === 1 ? '🌲' : '🌳', sx, s.y);
     }
   }
 
-  // 障害物
-  ctx.font = "50px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-  for (var oi = 0; oi < obstacles.length; oi++){
-    var ob = obstacles[oi];
-    if (ob.y > 8) ctx.fillText(ob.emoji, ob.x, ob.y);
+  if (sc.tint){
+    ctx.fillStyle = sc.tint;
+    ctx.fillRect(-30, -30, W + 60, H + 60);
   }
 
-  // 自車
-  ctx.save();
-  ctx.translate(player.x, player.y);
-  ctx.fillStyle = 'rgba(0,0,0,0.25)';
-  ctx.beginPath();
-  ctx.ellipse(0, 26, 22, 8, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.rotate(player.tilt);
-  ctx.font = "52px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-  ctx.fillText('🚗', 0, 0);
-  ctx.restore();
+  if (nitroT > 0){
+    ctx.strokeStyle = 'rgba(170,225,255,0.45)';
+    ctx.lineWidth = 2;
+    for (i = 0; i < 12; i++){
+      var lx = 20 + ((i * 47 + scrollY * 0.6) % 440);
+      var ly = (i * 113 + scrollY * 2.4) % 720;
+      ctx.beginPath();
+      ctx.moveTo(lx, ly);
+      ctx.lineTo(lx, ly + 44);
+      ctx.stroke();
+    }
+  }
 
-  ctx.restore(); // clip
+  for (i = 0; i < pickups.length; i++){
+    var p = pickups[i];
+    ctx.font = "30px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText(p.type === 'coin' ? '🪙' : (p.type === 'nitro' ? '⚡' : '🛢️'), p.x, p.y);
+  }
 
-  // パーティクル
-  for (var qi = 0; qi < particles.length; qi++){
-    var pt = particles[qi];
-    ctx.globalAlpha = Math.max(0, Math.min(1, pt.life * 2.5));
-    ctx.fillStyle = pt.col;
-    ctx.fillRect(pt.x - 3, pt.y - 3, 6, 6);
+  for (i = 0; i < obstacles.length; i++){
+    var o = obstacles[i];
+    ctx.font = o.sz + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText(o.e, o.x, o.y);
+  }
+
+  for (i = 0; i < parts.length; i++){
+    var q = parts[i];
+    ctx.globalAlpha = Math.max(0, q.life / q.max);
+    ctx.fillStyle = q.c;
+    ctx.beginPath(); ctx.arc(q.x, q.y, q.r, 0, 6.2832); ctx.fill();
   }
   ctx.globalAlpha = 1;
 
-  ctx.restore(); // shake
+  ctx.save();
+  ctx.translate(carX, CAR_Y);
+  ctx.rotate(carTilt);
+  if (nitroT > 0){
+    ctx.fillStyle = 'rgba(125,211,252,0.22)';
+    ctx.beginPath(); ctx.arc(0, 0, 52, 0, 6.2832); ctx.fill();
+    ctx.fillStyle = 'rgba(180,240,255,0.35)';
+    ctx.beginPath(); ctx.arc(0, 0, 34, 0, 6.2832); ctx.fill();
+    ctx.font = "26px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText('🔥', -14, 40);
+    ctx.fillText('🔥', 14, 40);
+  } else if (oilT > 0){
+    ctx.font = "26px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText('💦', -20, -14);
+  }
+  ctx.font = "46px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  ctx.fillText('🚗', 0, 0);
+  ctx.restore();
+
+  ctx.restore();
 }
 
-function onDown(x, y){
+function onDown(x, y, id){
   if (dead) return;
+  if (oilT > 0) return;
   if (x < W / 2){
-    if (player.lane > 0) player.lane--;
+    if (lane > 0) lane--;
   } else {
-    if (player.lane < 2) player.lane++;
+    if (lane < 2) lane++;
   }
 }
 

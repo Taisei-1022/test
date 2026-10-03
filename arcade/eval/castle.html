@@ -2,7 +2,7 @@
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
 <title>キャッスルディフェンス</title>
-<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%82%AD%E3%83%A3%E3%83%83%E3%82%B9%E3%83%AB%E3%83%87%E3%82%A3%E3%83%95%E3%82%A7%E3%83%B3%E3%82%B9%22%2C%22h%22%3A%22%E5%8F%B3%E3%81%8B%E3%82%89%E6%AD%A9%E3%81%84%E3%81%A6%E3%81%8F%E3%82%8B%20%F0%9F%91%B9%20%E3%82%92%E7%9B%B4%E6%8E%A5%E3%82%BF%E3%83%83%E3%83%97%E3%81%97%E3%81%A6%E6%92%83%E9%80%80%E3%81%97%E3%82%88%E3%81%86%EF%BC%81%E5%9F%8E%F0%9F%8F%B0%E3%81%AB%E7%9D%80%E3%81%8B%E3%82%8C%E3%82%8B%E3%81%A8%E2%9D%A4%EF%B8%8F%E3%81%8C1%E3%81%A4%E6%B8%9B%E3%82%8A%E3%80%810%E3%81%AB%E3%81%AA%E3%82%8B%E3%81%A8%E3%82%B2%E3%83%BC%E3%83%A0%E3%82%AA%E3%83%BC%E3%83%90%E3%83%BC%E3%80%82%F0%9F%A7%8C%E3%81%AF1%E5%9B%9E%E3%82%BF%E3%83%83%E3%83%97%E3%81%A7%E6%80%92%E3%82%8A%E9%A1%94%E3%81%AB%E3%81%AA%E3%82%8A%E3%80%81%E3%82%82%E3%81%861%E5%9B%9E%E3%81%A7%E6%92%83%E9%80%80%E3%80%82%22%2C%22u%22%3A%22%E4%BD%93%22%7D-->
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%82%AD%E3%83%A3%E3%83%83%E3%82%B9%E3%83%AB%E3%83%87%E3%82%A3%E3%83%95%E3%82%A7%E3%83%B3%E3%82%B9%22%2C%22h%22%3A%22%E5%8F%B3%E3%81%8B%E3%82%89%E6%9D%A5%E3%82%8B%E6%95%B5%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%E3%81%A7%E6%92%83%E9%80%80%EF%BC%81%E3%80%80%E5%9F%8E%F0%9F%8F%B0%E3%81%AEHP%E3%81%8C0%E3%81%AB%E3%81%AA%E3%82%8B%E3%81%A8%E7%B5%82%E4%BA%86%E3%80%82%F0%9F%92%A3%E7%88%86%E5%BC%BE%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%E3%81%A7%E5%85%A8%E4%BD%93%E6%94%BB%E6%92%83%E3%80%8140%E7%A7%92%E3%81%94%E3%81%A8%E3%81%AE%E3%83%9C%E3%82%B9%F0%9F%90%89%E3%82%82%E5%80%92%E3%81%9D%E3%81%86%E3%80%82%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
@@ -33,11 +33,11 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
 <canvas id="vpc"></canvas>
 <div id="vpstage">
   <div id="vpdom"></div>
-  <div class="vp-hud" id="vphud" hidden><span id="vphl">0体</span><span id="vphr"></span></div>
+  <div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
   <div class="vp-toast" id="vptoast"></div>
   <div class="vp-ov" id="vpov">
     <h1>キャッスルディフェンス</h1>
-    <p>右から歩いてくる 👹 を直接タップして撃退しよう！城🏰に着かれると❤️が1つ減り、0になるとゲームオーバー。🧌は1回タップで怒り顔になり、もう1回で撃退。</p>
+    <p>右から来る敵をタップで撃退！　城🏰のHPが0になると終了。💣爆弾をタップで全体攻撃、40秒ごとのボス🐉も倒そう。</p>
     <button class="vp-btn" id="vpstart">スタート</button>
   </div>
 </div>
@@ -95,7 +95,7 @@ window.addEventListener("resize",rs);rs();
 // 実画面座標→論理座標（タッチ入力用）
 function toLX(x){return (x-__OX)/__SC;}
 function toLY(y){return (y-__OY)/__SC;}
-var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="体";
+var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="点";
 // ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
 var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
 var hud=document.getElementById("vphud"),hl=document.getElementById("vphl"),hr=document.getElementById("vphr");
@@ -204,248 +204,416 @@ window.__vpTap=function(){
 <script id="vpgame">
 /*__VAPPA_JS__*/
 var TUNE = {
-  startSpeed: { v: 50, label: '敵の初期速度', min: 20, max: 120, step: 5 },
-  speedRamp: { v: 1.4, label: '速度の増加ペース', min: 0, max: 6, step: 0.1 },
-  maxSpeed: { v: 130, label: '敵の最大速度', min: 60, max: 260, step: 10 },
-  spawnStart: { v: 1.35, label: '出現間隔(開始)', min: 0.6, max: 4, step: 0.05 },
-  spawnMin: { v: 0.5, label: '出現間隔(最小)', min: 0.2, max: 2, step: 0.05 },
-  spawnRamp: { v: 0.02, label: '出現間隔の短縮', min: 0, max: 0.08, step: 0.005 },
-  toughRate: { v: 0.4, label: 'タフな敵の出現率', min: 0, max: 0.8, step: 0.05 },
-  hp: { v: 5, label: '城のHP', min: 1, max: 10, step: 1 }
+  enemySpeed:   { v: 42,   label: '敵の速さ',       min: 15, max: 120, step: 3 },
+  speedRamp:    { v: 0.5,  label: '時間での加速',   min: 0,  max: 3,   step: 0.05 },
+  spawnMin:     { v: 0.75, label: '出現間隔の下限', min: 0.3, max: 2,  step: 0.05 },
+  batRate:      { v: 0.25, label: 'コウモリの割合', min: 0,  max: 0.6, step: 0.02 },
+  toughRate:    { v: 0.22, label: 'タフな敵の割合', min: 0,  max: 0.6, step: 0.02 },
+  bombInterval: { v: 9,    label: '爆弾の間隔',     min: 3,  max: 25,  step: 1 },
+  bossInterval: { v: 40,   label: 'ボスの間隔',     min: 15, max: 90,  step: 5 },
+  castleHP:     { v: 5,    label: '城のHP',         min: 3,  max: 10,  step: 1 }
 };
-var ROWS = [190, 300, 410, 520, 630];
-var CASTLE_X = 112;
-var enemies, parts, clouds, hp, score, elapsed, spawnT, shake, flash;
+var BOSS_HITS = 10;
+var GROUND = 596;
+var CASTLE_X = 74;
+var HIT_X = 104;
+var CLOUD_X = [190, 430, 650];
+var CLOUD_Y = [150, 240, 330];
 
-function init(){
-  enemies = [];
-  parts = [];
-  clouds = [];
-  hp = TUNE.hp.v;
-  score = 0;
-  elapsed = 0;
-  spawnT = 0.9;
-  shake = 0;
-  flash = 0;
-  var i;
-  for (i = 0; i < 5; i++){
-    clouds.push({ x: Math.random() * W, y: 84 + Math.random() * 44, v: 5 + Math.random() * 9 });
-  }
-  Game.score(0);
-  Game.hud(hearts());
-  Game.toast('👹 をタップして城を守れ！');
+var castleHP, score, enemies, bombs, particles, boss, time, spawnT, bombT, bossT;
+var shake, combo, comboT, comboPop, pinchT, flash, ended, skyGrad;
+
+function emo(size){
+  ctx.font = size + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
 }
 
-function hearts(){
-  var s = '', i;
-  for (i = 0; i < hp; i++) s += '❤️';
-  return s;
+function init(){
+  castleHP = TUNE.castleHP.v;
+  score = 0;
+  enemies = []; bombs = []; particles = []; boss = null;
+  time = 0; spawnT = 1.4;
+  bombT = TUNE.bombInterval.v;
+  bossT = TUNE.bossInterval.v;
+  shake = 0; combo = 0; comboT = 0; comboPop = 0; pinchT = 0; flash = 0;
+  ended = false;
+  skyGrad = ctx.createLinearGradient(0, 0, 0, GROUND);
+  skyGrad.addColorStop(0, '#3fa9f5');
+  skyGrad.addColorStop(0.6, '#a6dcf8');
+  skyGrad.addColorStop(1, '#e8f5fd');
+  Game.score(0);
+  Game.hud('❤️'.repeat(castleHP));
+}
+
+function spawnEnemy(mul){
+  var r = Math.random();
+  var type = 'oni';
+  if (r < TUNE.batRate.v) type = 'bat';
+  else if (time > 10 && r < TUNE.batRate.v + TUNE.toughRate.v) type = 'troll';
+  var base = TUNE.enemySpeed.v * mul;
+  var e;
+  if (type === 'bat'){
+    var by = 200 + Math.random() * 210;
+    e = { type:'bat', emoji:'🦇', size:40, r:34, hp:1, maxhp:1, pts:2, x:520, y:by, baseY:by, speed:base*2.3, t:0, ph:Math.random()*6.283, angry:false };
+  } else if (type === 'troll'){
+    e = { type:'troll', emoji:'🧌', size:50, r:38, hp:2, maxhp:2, pts:2, x:520, y:GROUND-24, baseY:GROUND-24, speed:base*0.62, t:0, ph:0, angry:false };
+  } else {
+    e = { type:'oni', emoji:'👹', size:46, r:36, hp:1, maxhp:1, pts:1, x:520, y:GROUND-24, baseY:GROUND-24, speed:base, t:0, ph:0, angry:false };
+  }
+  enemies.push(e);
+}
+
+function burst(x, y, n, color){
+  for (var i = 0; i < n; i++){
+    var a = Math.random() * 6.2832;
+    var s = 60 + Math.random() * 230;
+    particles.push({ x:x, y:y, vx:Math.cos(a)*s, vy:Math.sin(a)*s - 70, life:0.35 + Math.random()*0.45, t:0, c:color, r:2 + Math.random()*3 });
+  }
+  if (particles.length > 240) particles.splice(0, particles.length - 240);
+}
+
+function shadow(x, y, rr){
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(1, 0.26);
+  ctx.beginPath();
+  ctx.arc(0, 0, rr, 0, 6.2832);
+  ctx.fill();
+  ctx.restore();
 }
 
 function update(dt){
-  elapsed += dt;
-  var spd = Math.min(TUNE.maxSpeed.v, TUNE.startSpeed.v + elapsed * TUNE.speedRamp.v);
+  if (ended) return;
+  time += dt;
+  if (shake > 0) shake = Math.max(0, shake - dt * 2.2);
+  if (comboPop > 0) comboPop = Math.max(0, comboPop - dt * 3);
+  if (flash > 0) flash = Math.max(0, flash - dt * 2.6);
+  pinchT += dt;
+  if (comboT > 0){
+    comboT -= dt;
+    if (comboT <= 0) combo = 0;
+  }
+
+  var mul = 1 + time * TUNE.speedRamp.v * 0.02;
+
   spawnT -= dt;
   if (spawnT <= 0){
-    if (enemies.length < 16) spawnEnemy(spd);
-    spawnT = Math.max(TUNE.spawnMin.v, TUNE.spawnStart.v - elapsed * TUNE.spawnRamp.v);
+    spawnT = Math.max(TUNE.spawnMin.v, 1.7 - time * 0.02);
+    spawnEnemy(mul);
+    if (time > 22 && Math.random() < 0.4) spawnEnemy(mul);
   }
+
+  bombT -= dt;
+  if (bombT <= 0){
+    bombT = TUNE.bombInterval.v;
+    bombs.push({ x: 150 + Math.random() * 270, y: 64, vy: 132, t: 0 });
+  }
+
+  if (boss === null && bossT > 0){
+    bossT -= dt;
+    if (bossT <= 0){
+      bossT = TUNE.bossInterval.v;
+      boss = { x: 570, y: GROUND - 36, hp: BOSS_HITS, maxhp: BOSS_HITS, speed: TUNE.enemySpeed.v * 0.55 * mul, t: 0 };
+      Game.toast('🐉 ボス出現！');
+      shake = 0.5;
+    }
+  }
+
   var i, e;
   for (i = enemies.length - 1; i >= 0; i--){
     e = enemies[i];
+    e.t += dt;
     e.x -= e.speed * dt;
-    e.bob += dt * 7;
-    if (e.x <= CASTLE_X){
+    if (e.type === 'bat') e.y = e.baseY + Math.sin(e.t * 5 + e.ph) * 38;
+    else e.y = e.baseY - Math.abs(Math.sin(e.t * 5)) * 5;
+    if (e.x <= HIT_X){
       enemies.splice(i, 1);
-      hp--;
-      shake = 0.5;
-      flash = 0.35;
-      burst(CASTLE_X + 22, e.y, '#ef4444', 14);
-      Game.float(CASTLE_X + 48, e.y, '💔', '#ef4444');
-      Game.hud(hearts());
-      if (hp <= 0){ Game.over(score); return; }
+      damage(1, e.x + 10, e.y);
+      if (ended) return;
     }
   }
-  var p;
-  for (i = parts.length - 1; i >= 0; i--){
-    p = parts[i];
+
+  if (boss){
+    boss.t += dt;
+    boss.x -= boss.speed * dt;
+    boss.y = GROUND - 36 + Math.sin(boss.t * 3) * 6;
+    if (boss.x <= HIT_X + 22){
+      boss = null;
+      damage(3, 120, GROUND - 70);
+      if (ended) return;
+    }
+  }
+
+  for (i = bombs.length - 1; i >= 0; i--){
+    var b = bombs[i];
+    b.t += dt;
+    b.y += b.vy * dt;
+    if (b.y >= GROUND - 6){
+      bombs.splice(i, 1);
+      burst(b.x, GROUND - 20, 20, '#fb923c');
+      flash = 0.3;
+      shake = 0.5;
+      Game.toast('💣 着弾！ 城にダメージ');
+      damage(1, b.x, GROUND - 40);
+      if (ended) return;
+    }
+  }
+
+  for (i = particles.length - 1; i >= 0; i--){
+    var p = particles[i];
+    p.t += dt;
     p.x += p.vx * dt;
     p.y += p.vy * dt;
-    p.vy += 240 * dt;
-    p.life -= dt;
-    if (p.life <= 0) parts.splice(i, 1);
-  }
-  var c;
-  for (i = 0; i < clouds.length; i++){
-    c = clouds[i];
-    c.x -= c.v * dt;
-    if (c.x < -80){ c.x = W + 80; c.y = 84 + Math.random() * 44; }
-  }
-  if (shake > 0) shake -= dt;
-  if (flash > 0) flash -= dt;
-}
-
-function spawnEnemy(spd){
-  var rate = TUNE.toughRate.v * Math.min(1, elapsed / 55);
-  var tough = Math.random() < rate;
-  var row = pickRow();
-  enemies.push({
-    x: 500 + Math.random() * 110,
-    y: ROWS[row],
-    r: tough ? 34 : 30,
-    tough: tough,
-    angry: false,
-    speed: spd * (tough ? 0.78 : 1),
-    bob: Math.random() * 6.28
-  });
-}
-
-function pickRow(){
-  var counts = [0, 0, 0, 0, 0];
-  var i, r, e;
-  for (i = 0; i < enemies.length; i++){
-    e = enemies[i];
-    for (r = 0; r < ROWS.length; r++){
-      if (Math.abs(e.y - ROWS[r]) < 30) counts[r]++;
-    }
-  }
-  var order = [0, 1, 2, 3, 4], a, b, t;
-  for (a = order.length - 1; a > 0; a--){
-    b = Math.floor(Math.random() * (a + 1));
-    t = order[a]; order[a] = order[b]; order[b] = t;
-  }
-  var best = order[0];
-  for (i = 0; i < order.length; i++){
-    if (counts[order[i]] < counts[best]) best = order[i];
-  }
-  return best;
-}
-
-function burst(x, y, color, n){
-  var i, a, s;
-  for (i = 0; i < n; i++){
-    a = Math.random() * Math.PI * 2;
-    s = 70 + Math.random() * 190;
-    parts.push({ x: x, y: y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 70, life: 0.35 + Math.random() * 0.35, max: 0.7, color: color, r: 2 + Math.random() * 3.5 });
+    p.vy += 460 * dt;
+    if (p.t > p.life) particles.splice(i, 1);
   }
 }
 
-function onDown(x, y, id){
-  if (!enemies) return;
-  var best = -1, bd = 1000000, i, e, dx, dy, d;
-  for (i = 0; i < enemies.length; i++){
-    e = enemies[i];
-    dx = x - e.x;
-    dy = y - e.y;
-    d = Math.sqrt(dx * dx + dy * dy);
-    if (d < e.r + 16 && d < bd){ bd = d; best = i; }
+function damage(n, x, y){
+  castleHP -= n;
+  if (castleHP < 0) castleHP = 0;
+  shake = 0.45;
+  Game.hud('❤️'.repeat(castleHP));
+  Game.float(CASTLE_X + 24, GROUND - 100, '-' + n, '#f87171');
+  burst(x, y, 14, '#f87171');
+  if (castleHP <= 0){
+    ended = true;
+    Game.over(score);
   }
-  if (best < 0) return;
-  e = enemies[best];
-  if (e.tough && !e.angry){
-    e.angry = true;
-    e.speed *= 1.35;
-    shake = Math.max(shake, 0.14);
-    burst(e.x, e.y, '#fb923c', 6);
-    Game.float(e.x, e.y - 38, 'あと1発！', '#fbbf24');
-  } else {
-    enemies.splice(best, 1);
-    score += 1;
+}
+
+function checkBossDead(){
+  if (boss && boss.hp <= 0){
+    score += 20;
+    combo++; comboT = 2.5; comboPop = 1;
     Game.score(score);
-    burst(e.x, e.y, e.tough ? '#f472b6' : '#fde68a', 12);
-    Game.float(e.x, e.y - 38, '+1', '#ffe066');
+    Game.float(boss.x, boss.y - 66, '+20', '#ffd166');
+    burst(boss.x, boss.y, 40, '#ffd166');
+    Game.toast('🐉 ボス撃破！ +20');
+    boss = null;
+    shake = 0.6;
   }
+}
+
+function hitEnemy(e){
+  e.hp--;
+  shake = 0.16;
+  if (e.hp > 0){
+    e.angry = true;
+    burst(e.x, e.y, 8, '#f87171');
+    Game.float(e.x, e.y - 40, '💢', '#fca5a5');
+    return;
+  }
+  var idx = enemies.indexOf(e);
+  if (idx >= 0) enemies.splice(idx, 1);
+  score += e.pts;
+  combo++; comboT = 2.5; comboPop = 1;
+  Game.score(score);
+  var col = '#ffd166';
+  if (e.type === 'bat') col = '#c084fc';
+  else if (e.type === 'troll') col = '#86efac';
+  Game.float(e.x, e.y - 42, '+' + e.pts, col);
+  burst(e.x, e.y, 16, col);
+  shake = 0.24;
+}
+
+function hitBoss(){
+  if (!boss) return;
+  boss.hp--;
+  shake = 0.2;
+  burst(boss.x, boss.y, 8, '#fbbf24');
+  Game.float(boss.x + (Math.random() * 30 - 15), boss.y - 54, '💥', '#f87171');
+  checkBossDead();
+}
+
+function explodeBomb(b){
+  var idx = bombs.indexOf(b);
+  if (idx >= 0) bombs.splice(idx, 1);
+  burst(b.x, b.y, 34, '#fbbf24');
+  flash = 0.4;
+  shake = 0.6;
+  Game.toast('💣 全体攻撃！');
+  for (var i = enemies.length - 1; i >= 0; i--){
+    var e = enemies[i];
+    score += e.pts;
+    combo++; comboT = 2.5; comboPop = 1;
+    burst(e.x, e.y, 8, '#ffd166');
+    enemies.splice(i, 1);
+  }
+  if (boss){
+    boss.hp -= 3;
+    burst(boss.x, boss.y, 14, '#ffd166');
+  }
+  Game.score(score);
+  checkBossDead();
+}
+
+function puff(x, y){
+  for (var i = 0; i < 5; i++){
+    var a = Math.random() * 6.2832;
+    particles.push({ x:x, y:y, vx:Math.cos(a)*70, vy:Math.sin(a)*70, life:0.25, t:0, c:'#ffffff', r:2 });
+  }
+}
+
+function onDown(x, y){
+  if (ended) return;
+  var best = null, kind = '', bestD = 1e9, i;
+  for (i = 0; i < enemies.length; i++){
+    var e = enemies[i];
+    var dx = e.x - x, dy = e.y - y;
+    var d = Math.sqrt(dx * dx + dy * dy);
+    if (d < e.r && d < bestD){ bestD = d; best = e; kind = 'e'; }
+  }
+  if (boss){
+    var bx = boss.x - x, by = boss.y - y;
+    var bd = Math.sqrt(bx * bx + by * by);
+    if (bd < 56 && bd < bestD){ bestD = bd; best = boss; kind = 'b'; }
+  }
+  for (i = 0; i < bombs.length; i++){
+    var b = bombs[i];
+    var mx = b.x - x, my = b.y - y;
+    var md = Math.sqrt(mx * mx + my * my);
+    if (md < 38 && md < bestD){ bestD = md; best = b; kind = 'm'; }
+  }
+  if (kind === 'e') hitEnemy(best);
+  else if (kind === 'b') hitBoss();
+  else if (kind === 'm') explodeBomb(best);
+  else puff(x, y);
 }
 
 function draw(){
-  var i, ox = 0, oy = 0;
+  var ox = 0, oy = 0;
   if (shake > 0){
-    var m = Math.min(1, shake * 2.5) * 9;
-    ox = (Math.random() * 2 - 1) * m;
-    oy = (Math.random() * 2 - 1) * m * 0.6;
+    ox = (Math.random() * 2 - 1) * shake * 18;
+    oy = (Math.random() * 2 - 1) * shake * 18;
   }
   ctx.save();
   ctx.translate(ox, oy);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  var sky = ctx.createLinearGradient(0, 0, 0, 150);
-  sky.addColorStop(0, '#3f9fdd');
-  sky.addColorStop(1, '#c6ecff');
-  ctx.fillStyle = sky;
-  ctx.fillRect(-20, -20, W + 40, 170);
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(-40, -40, W + 80, GROUND + 40);
 
-  ctx.font = "52px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-  ctx.fillText('☀️', W - 56, 106);
-  ctx.font = "44px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-  for (i = 0; i < clouds.length; i++) ctx.fillText('☁️', clouds[i].x, clouds[i].y);
+  emo(46);
+  ctx.fillText('☀️', 412, 118);
 
-  var gd = ctx.createLinearGradient(0, 130, 0, H);
-  gd.addColorStop(0, '#7ac95a');
-  gd.addColorStop(0.45, '#5aae43');
-  gd.addColorStop(1, '#3d8636');
-  ctx.fillStyle = gd;
-  ctx.fillRect(-20, 130, W + 40, H - 110);
-
-  for (i = 0; i < ROWS.length; i++){
-    ctx.fillStyle = 'rgba(255,255,255,0.07)';
-    roundRect(110, ROWS[i] - 27, 380, 54, 27);
-    ctx.fill();
+  emo(42);
+  for (var c = 0; c < 3; c++){
+    var cx = ((CLOUD_X[c] - time * 11) % 680 + 680) % 680 - 100;
+    ctx.fillText('☁️', cx, CLOUD_Y[c]);
   }
 
-  ctx.font = "86px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-  for (i = 0; i < ROWS.length; i++) ctx.fillText('🏰', 60, ROWS[i]);
+  ctx.fillStyle = '#8ed07a';
+  ctx.beginPath(); ctx.arc(120, GROUND + 12, 180, Math.PI, 0); ctx.fill();
+  ctx.beginPath(); ctx.arc(390, GROUND + 12, 220, Math.PI, 0); ctx.fill();
+
+  ctx.fillStyle = '#5cbd4c';
+  ctx.fillRect(-40, GROUND, W + 80, H - GROUND + 40);
+  ctx.fillStyle = '#4aa73e';
+  ctx.fillRect(-40, GROUND, W + 80, 8);
+
+  emo(22);
+  ctx.fillText('🌻', 200, GROUND + 40);
+  ctx.fillText('🌷', 300, GROUND + 66);
+  ctx.fillText('🌼', 400, GROUND + 36);
+  ctx.fillText('🌿', 260, GROUND + 96);
+  ctx.fillText('🌻', 430, GROUND + 92);
+
+  emo(88);
+  ctx.fillText('🏰', CASTLE_X, GROUND - 32);
+
+  var i, e;
+  for (i = 0; i < bombs.length; i++){
+    var bb = bombs[i];
+    ctx.strokeStyle = 'rgba(255,90,90,' + (0.35 + 0.3 * Math.sin(time * 10)) + ')';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(bb.x, bb.y, 28, 0, 6.2832); ctx.stroke();
+    emo(40);
+    ctx.fillText('💣', bb.x, bb.y);
+  }
+
+  ctx.fillStyle = 'rgba(20,40,10,0.20)';
+  for (i = 0; i < enemies.length; i++){
+    e = enemies[i];
+    if (e.type !== 'bat') shadow(e.x, GROUND + 6, e.size * 0.36);
+  }
 
   for (i = 0; i < enemies.length; i++){
-    var e = enemies[i];
-    var ey = e.y + Math.sin(e.bob) * 3;
-    ctx.save();
-    ctx.translate(e.x, e.y + 26);
-    ctx.scale(1, 0.3);
-    ctx.beginPath();
-    ctx.arc(0, 0, 20, 0, 6.2832);
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
-    ctx.fill();
-    ctx.restore();
+    e = enemies[i];
     if (e.angry){
-      ctx.save();
-      ctx.globalAlpha = 0.30 + 0.18 * Math.sin(e.bob * 1.5);
-      ctx.beginPath();
-      ctx.arc(e.x, ey, 36, 0, 6.2832);
-      ctx.fillStyle = '#ff4d4d';
-      ctx.fill();
-      ctx.restore();
+      ctx.fillStyle = 'rgba(239,68,68,0.35)';
+      ctx.beginPath(); ctx.arc(e.x, e.y, e.size * 0.62, 0, 6.2832); ctx.fill();
     }
-    ctx.font = (e.tough ? 52 : 44) + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-    ctx.fillText(e.angry ? '😡' : (e.tough ? '🧌' : '👹'), e.x, ey);
+    emo(e.size);
+    ctx.fillText(e.emoji, e.x, e.y);
+    if (e.angry){
+      emo(22);
+      ctx.fillText('💢', e.x + e.size * 0.5, e.y - e.size * 0.5);
+    }
   }
 
-  for (i = 0; i < parts.length; i++){
-    var p = parts[i];
-    ctx.globalAlpha = Math.max(0, p.life / p.max);
-    ctx.fillStyle = p.color;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.r, 0, 6.2832);
-    ctx.fill();
+  if (boss){
+    shadow(boss.x, GROUND + 6, 36);
+    ctx.fillStyle = 'rgba(239,68,68,0.28)';
+    ctx.beginPath(); ctx.arc(boss.x, boss.y, 52, 0, 6.2832); ctx.fill();
+    emo(80);
+    ctx.fillText('🐉', boss.x, boss.y);
+    var bw = 112, bh = 12;
+    var bx2 = boss.x - bw / 2, by2 = boss.y - 68;
+    ctx.fillStyle = 'rgba(15,19,34,0.7)';
+    ctx.fillRect(bx2 - 3, by2 - 3, bw + 6, bh + 6);
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(bx2, by2, bw * Math.max(0, boss.hp) / boss.maxhp, bh);
+    ctx.font = 'bold 14px sans-serif';
+    ctx.fillStyle = '#fff';
+    ctx.fillText('BOSS', boss.x, by2 - 14);
+  }
+
+  for (i = 0; i < particles.length; i++){
+    var p = particles[i];
+    var a = 1 - p.t / p.life;
+    if (a < 0) a = 0;
+    ctx.globalAlpha = a;
+    ctx.fillStyle = p.c;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.2832); ctx.fill();
   }
   ctx.globalAlpha = 1;
 
-  if (flash > 0){
-    ctx.fillStyle = 'rgba(255,70,70,' + (flash * 0.45).toFixed(3) + ')';
-    ctx.fillRect(-20, -20, W + 40, H + 40);
+  if (combo >= 2 && comboT > 0){
+    var sc = 1 + comboPop * 0.45;
+    ctx.save();
+    ctx.translate(W / 2, 100);
+    ctx.scale(sc, sc);
+    ctx.font = 'bold 28px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = 'rgba(20,10,0,0.7)';
+    ctx.strokeText(combo + 'コンボ', 0, 0);
+    ctx.fillStyle = '#ffd166';
+    ctx.fillText(combo + 'コンボ', 0, 0);
+    ctx.restore();
   }
+
   ctx.restore();
+
+  if (flash > 0){
+    ctx.globalAlpha = Math.min(0.55, flash);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+
+  if (castleHP === 1 && !ended){
+    ctx.globalAlpha = 0.22 + 0.24 * Math.abs(Math.sin(pinchT * 4));
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 18;
+    ctx.strokeRect(9, 65, W - 18, H - 74);
+    ctx.globalAlpha = 1;
+  }
 }
 
-function roundRect(x, y, w, h, r){
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-}
+function onResize(){ }
 /*__VAPPA_JS_END__*/
 </script>
 </body></html>

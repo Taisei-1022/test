@@ -2,7 +2,7 @@
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
 <title>隕石よけサバイバル</title>
-<!--VAPPA_TPL1 %7B%22t%22%3A%22%E9%9A%95%E7%9F%B3%E3%82%88%E3%81%91%E3%82%B5%E3%83%90%E3%82%A4%E3%83%90%E3%83%AB%22%2C%22h%22%3A%22%E7%94%BB%E9%9D%A2%E3%82%92%E3%83%89%E3%83%A9%E3%83%83%E3%82%B0%E3%81%97%E3%81%A6%F0%9F%9A%80%E3%82%92%E5%8B%95%E3%81%8B%E3%81%9D%E3%81%86%EF%BC%8F%E9%99%8D%E3%81%A3%E3%81%A6%E3%81%8F%E3%82%8B%E2%98%84%EF%B8%8F%E3%81%AB%E5%BD%93%E3%81%9F%E3%81%A3%E3%81%9F%E3%82%89%E5%8D%B3%E3%82%B2%E3%83%BC%E3%83%A0%E3%82%AA%E3%83%BC%E3%83%90%E3%83%BC%E3%80%82%E7%94%9F%E3%81%8D%E6%AE%8B%E3%81%A3%E3%81%9F%E7%A7%92%E6%95%B0%E3%81%8C%E3%82%B9%E3%82%B3%E3%82%A2%EF%BC%81%22%2C%22u%22%3A%22%E7%A7%92%22%7D-->
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E9%9A%95%E7%9F%B3%E3%82%88%E3%81%91%E3%82%B5%E3%83%90%E3%82%A4%E3%83%90%E3%83%AB%22%2C%22h%22%3A%22%E7%94%BB%E9%9D%A2%E3%82%92%E3%83%89%E3%83%A9%E3%83%83%E3%82%B0%E3%81%97%E3%81%A6%F0%9F%9A%80%E3%82%92%E5%B7%A6%E5%8F%B3%E3%81%AB%E5%8B%95%E3%81%8B%E3%81%9D%E3%81%86%E3%80%82%E9%9A%95%E7%9F%B3%E2%98%84%EF%B8%8F%E3%81%AB%E5%BD%93%E3%81%9F%E3%82%8B%E3%81%A8%E3%82%B2%E3%83%BC%E3%83%A0%E3%82%AA%E3%83%BC%E3%83%90%E3%83%BC%EF%BC%81%E2%AD%90%E3%82%92%E5%8F%96%E3%82%8B%E3%81%A8%2B5%E7%82%B9%E3%80%81%F0%9F%9B%A1%EF%B8%8F%E3%82%92%E5%8F%96%E3%82%8B%E3%81%A81%E5%9B%9E%E3%81%A0%E3%81%91%E8%80%90%E3%81%88%E3%82%89%E3%82%8C%E3%82%8B%E3%80%8220%E7%A7%92%E3%81%94%E3%81%A8%E3%81%AE%E6%B5%81%E6%98%9F%E7%BE%A4%E3%81%AB%E6%B3%A8%E6%84%8F%EF%BC%81%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
@@ -33,11 +33,11 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
 <canvas id="vpc"></canvas>
 <div id="vpstage">
   <div id="vpdom"></div>
-  <div class="vp-hud" id="vphud" hidden><span id="vphl">0秒</span><span id="vphr"></span></div>
+  <div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
   <div class="vp-toast" id="vptoast"></div>
   <div class="vp-ov" id="vpov">
     <h1>隕石よけサバイバル</h1>
-    <p>画面をドラッグして🚀を動かそう／降ってくる☄️に当たったら即ゲームオーバー。生き残った秒数がスコア！</p>
+    <p>画面をドラッグして🚀を左右に動かそう。隕石☄️に当たるとゲームオーバー！⭐を取ると+5点、🛡️を取ると1回だけ耐えられる。20秒ごとの流星群に注意！</p>
     <button class="vp-btn" id="vpstart">スタート</button>
   </div>
 </div>
@@ -95,7 +95,7 @@ window.addEventListener("resize",rs);rs();
 // 実画面座標→論理座標（タッチ入力用）
 function toLX(x){return (x-__OX)/__SC;}
 function toLY(y){return (y-__OY)/__SC;}
-var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="秒";
+var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="点";
 // ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
 var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
 var hud=document.getElementById("vphud"),hl=document.getElementById("vphl"),hr=document.getElementById("vphr");
@@ -204,228 +204,369 @@ window.__vpTap=function(){
 <script id="vpgame">
 /*__VAPPA_JS__*/
 var TUNE = {
-  speed0:   { v: 160,  label: '隕石の初速',      min: 80,  max: 400,  step: 10 },
-  speedAdd: { v: 9,    label: '速度の増加(毎秒)', min: 0,   max: 40,   step: 1 },
-  spawn0:   { v: 0.85, label: '出現間隔の初期',   min: 0.3, max: 2,    step: 0.05 },
-  spawnDec: { v: 0.02, label: '出現間隔の短縮',   min: 0,   max: 0.08, step: 0.005 },
-  spawnMin: { v: 0.16, label: '出現間隔の下限',   min: 0.08, max: 1,   step: 0.02 },
-  bigRate:  { v: 0.3,  label: '大きい隕石の割合', min: 0,   max: 0.8,  step: 0.05 },
-  shipSize: { v: 46,   label: '宇宙船の大きさ',   min: 28,  max: 70,   step: 2 }
+  rockSpeed:  { v: 165, label: '隕石の基本速度', min: 80, max: 420, step: 10 },
+  spawnGap:   { v: 0.8, label: '隕石の出現間隔', min: 0.25, max: 2, step: 0.05 },
+  ramp:       { v: 0.05, label: '難易度上昇の速さ', min: 0, max: 0.2, step: 0.005 },
+  shipFollow: { v: 14, label: '宇宙船の追従スピード', min: 4, max: 40, step: 1 },
+  starGap:    { v: 3.2, label: '星の出現間隔', min: 1, max: 10, step: 0.2 },
+  shieldGap:  { v: 20, label: 'シールドの出現間隔', min: 6, max: 45, step: 1 },
+  showerGap:  { v: 20, label: '流星群の間隔(秒)', min: 10, max: 60, step: 1 },
+  showerTime: { v: 5, label: '流星群の長さ(秒)', min: 2, max: 12, step: 0.5 }
 };
 
-var ship, meteors, stars, parts, boom, elapsed, score, spawnT, shake, dead, deathT, overSent, curLv, bgGrad;
+var bgGrad = null;
+var ship, rocks, pickups, bgStars, parts, score, elapsed, starsGot, shielded;
+var spawnT, starT, shieldT, showerT, showerSpawnT, showerLeft, warned;
+var shake, dead, invul, shipTargetX, tick;
 
-function ef(s){ return s + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif"; }
-function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+function emojiFont(size){ ctx.font = size + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif"; }
 
 function init(){
-  var i;
-  stars = [];
-  for (i=0;i<80;i++){
-    stars.push({ x: Math.random()*W, y: Math.random()*H, s: 0.8+Math.random()*1.8, vy: 10+Math.random()*70, ph: Math.random()*6.283 });
-  }
-  meteors = []; parts = []; boom = null;
-  ship = { x: W/2, tx: W/2, y: H-96, size: TUNE.shipSize.v };
-  elapsed = 0; score = 0; spawnT = 0.9; shake = 0;
-  dead = false; deathT = 0; overSent = false; curLv = 1;
-  bgGrad = ctx.createLinearGradient(0,0,0,H);
-  bgGrad.addColorStop(0, '#0a0e22');
-  bgGrad.addColorStop(0.55, '#06070f');
-  bgGrad.addColorStop(1, '#0c0718');
-  Game.score(0);
-  Game.hud('Lv.1');
-}
-
-function updateParts(dt){
-  for (var i=parts.length-1;i>=0;i--){
-    var p = parts[i];
-    p.x += p.vx*dt; p.y += p.vy*dt;
-    p.vx *= (1 - 1.5*dt); p.vy *= (1 - 1.5*dt);
-    p.life -= dt;
-    if (p.life <= 0) parts.splice(i,1);
-  }
-  if (boom){ boom.t -= dt; if (boom.t <= 0) boom = null; }
-}
-
-function spawnMeteor(){
-  var big = Math.random() < TUNE.bigRate.v;
-  var r = big ? 36 + Math.random()*14 : 15 + Math.random()*10;
-  var margin = r + 16;
-  var bestX = margin + Math.random()*(W - 2*margin);
-  var bestD = -1;
-  for (var k=0;k<8;k++){
-    var cx = margin + Math.random()*(W - 2*margin);
-    var d = 1e9;
-    for (var j=0;j<meteors.length;j++){
-      var o = meteors[j];
-      if (o.y < 150){
-        var dd = Math.abs(o.x - cx);
-        if (dd < d) d = dd;
-      }
-    }
-    if (d > bestD){ bestD = d; bestX = cx; }
-  }
-  var spd = (TUNE.speed0.v + elapsed*TUNE.speedAdd.v) * (0.85 + Math.random()*0.4) * (big ? 0.88 : 1);
-  if (spd > 900) spd = 900;
-  meteors.push({ x: bestX, y: -r-14, r: r, vy: spd, rot: (Math.random()-0.5)*0.9, vr: (Math.random()-0.5)*1.6 });
-}
-
-function hitPlayer(m){
-  dead = true; deathT = 0.9; shake = 0.7;
-  for (var i=0;i<30;i++){
-    var a = Math.random()*6.283;
-    var sp = 60 + Math.random()*320;
-    parts.push({
-      x: m.x, y: m.y,
-      vx: Math.cos(a)*sp, vy: Math.sin(a)*sp,
-      life: 0.4 + Math.random()*0.6, max: 0.9,
-      col: (i%3===0 ? '#fff1b8' : (i%3===1 ? '#ffb703' : '#f97316')),
-      sz: 2 + Math.random()*4
+  ship = { x: W/2, y: H-86, r: 15 };
+  shipTargetX = W/2;
+  rocks = []; pickups = []; parts = []; bgStars = [];
+  for (var i = 0; i < 64; i++){
+    bgStars.push({
+      x: Math.random()*W,
+      y: 56 + Math.random()*(H-64),
+      w: 0.8 + Math.random()*1.5,
+      h: 1.5 + Math.random()*2.6,
+      s: 18 + Math.random()*95,
+      a: 0.18 + Math.random()*0.6
     });
   }
-  boom = { x: m.x, y: m.y, t: 0.75, max: 0.75 };
-  Game.float(m.x, m.y - 20, '💥', '#ffb703');
+  score = 0; elapsed = 0; starsGot = 0; tick = 0;
+  shielded = false;
+  spawnT = 1.2; starT = 2.2;
+  shieldT = TUNE.shieldGap.v * (0.7 + Math.random()*0.5);
+  showerT = TUNE.showerGap.v; showerSpawnT = 0; showerLeft = 0; warned = false;
+  shake = 0; dead = false; invul = 0;
+  Game.score(0); Game.hud('');
+}
+
+function spawnMeteor(spdMul, shower){
+  var roll = Math.random();
+  var e, rad, fs, sp, wob = false;
+  if (roll < 0.42){
+    e = '🪨'; rad = 13; fs = 30; sp = TUNE.rockSpeed.v * 1.35;
+  } else if (roll < 0.82){
+    e = '☄️'; rad = 17; fs = 42; sp = TUNE.rockSpeed.v * 1.0;
+  } else {
+    e = '🌑'; rad = 25; fs = 60; sp = TUNE.rockSpeed.v * 0.62; wob = true;
+  }
+  var x = 34 + Math.random()*(W-68);
+  var vy = sp * spdMul * (0.85 + Math.random()*0.4);
+  var vx = 0;
+  if (wob) vx = 0;
+  if (shower){
+    var side = Math.random() < 0.5 ? -1 : 1;
+    vx = side * (80 + Math.random()*130);
+    vy *= 1.12;
+  }
+  rocks.push({
+    x: x, y: 30 - Math.random()*30,
+    vx: vx, vy: vy, r: rad, fs: fs, e: e,
+    wob: wob, wt: Math.random()*6.28
+  });
+}
+
+function spawnPickup(kind){
+  var isStar = kind === 'star';
+  pickups.push({
+    x: 36 + Math.random()*(W-72),
+    y: 34,
+    vx: (Math.random()*2-1) * 45,
+    vy: isStar ? 115 : 88,
+    r: isStar ? 15 : 17,
+    fs: isStar ? 30 : 34,
+    e: isStar ? '⭐' : '🛡️',
+    kind: kind
+  });
+}
+
+function boom(x, y, n, colors){
+  for (var i = 0; i < n; i++){
+    var a = Math.random()*6.283;
+    var sp = 60 + Math.random()*230;
+    parts.push({
+      x: x, y: y,
+      vx: Math.cos(a)*sp, vy: Math.sin(a)*sp - 30,
+      life: 0.45 + Math.random()*0.5, max: 0.95,
+      c: colors[(Math.random()*colors.length)|0],
+      sz: 2 + Math.random()*3.4
+    });
+  }
 }
 
 function update(dt){
-  var i, m, st;
-
-  for (i=0;i<stars.length;i++){
-    st = stars[i];
-    st.y += st.vy * dt * (1 + elapsed*0.02);
-    if (st.y > H+4){ st.y = -4; st.x = Math.random()*W; }
-  }
-
-  if (shake > 0){ shake -= dt; if (shake < 0) shake = 0; }
-  updateParts(dt);
-
-  if (dead){
-    deathT -= dt;
-    if (deathT <= 0 && !overSent){ overSent = true; Game.over(score); }
-    return;
-  }
-
+  if (dead) return;
+  tick += dt;
   elapsed += dt;
-  var ns = Math.floor(elapsed);
-  if (ns !== score){
-    score = ns;
-    Game.score(score);
-    Game.float(ship.x, ship.y - 48, '+1', '#ffd166');
+  score = Math.floor(elapsed) + starsGot*5;
+  Game.score(score);
+
+  var k = Math.min(1, dt * TUNE.shipFollow.v);
+  ship.x += (shipTargetX - ship.x) * k;
+  if (ship.x < 22) ship.x = 22;
+  if (ship.x > W-22) ship.x = W-22;
+
+  if (invul > 0) invul -= dt;
+  if (shake > 0){ shake -= dt; if (shake < 0) shake = 0; }
+
+  var diff = 1 + elapsed * TUNE.ramp.v;
+  var spdMul = 1 + Math.min(1.7, elapsed * TUNE.ramp.v * 0.5);
+
+  // background starfield
+  for (var i = 0; i < bgStars.length; i++){
+    var s = bgStars[i];
+    s.y += s.s * dt * (1 + elapsed*0.008);
+    if (s.y > H-4){ s.y = 56; s.x = Math.random()*W; s.s = 18 + Math.random()*95; }
   }
-  var lv = 1 + Math.floor(elapsed/15);
-  if (lv !== curLv){ curLv = lv; Game.hud('Lv.' + lv); }
 
-  ship.x += (ship.tx - ship.x) * Math.min(1, dt*16);
-  var half = ship.size*0.42 + 6;
-  if (ship.x < half) ship.x = half;
-  if (ship.x > W-half) ship.x = W-half;
+  // engine trail
+  if (Math.random() < 0.7){
+    parts.push({
+      x: ship.x + (Math.random()*8-4), y: ship.y + 20,
+      vx: (Math.random()*40-20), vy: 110 + Math.random()*90,
+      life: 0.3, max: 0.3, c: '#ff9f43', sz: 1.8 + Math.random()*2
+    });
+  }
 
+  // normal meteor spawn
   spawnT -= dt;
   if (spawnT <= 0){
-    spawnMeteor();
-    var base = TUNE.spawn0.v - elapsed*TUNE.spawnDec.v;
-    if (base < TUNE.spawnMin.v) base = TUNE.spawnMin.v;
-    spawnT = base * (0.82 + Math.random()*0.36);
+    spawnMeteor(spdMul, false);
+    spawnT = Math.max(0.18, TUNE.spawnGap.v / diff) * (0.72 + Math.random()*0.6);
   }
 
-  var sr = ship.size*0.34;
-  for (i=meteors.length-1;i>=0;i--){
-    m = meteors[i];
-    m.y += m.vy*dt;
-    m.rot += m.vr*dt;
-    if (m.y - m.r > H + 50){ meteors.splice(i,1); continue; }
-    var dx = m.x - ship.x;
-    var dy = m.y - ship.y;
-    var rr = m.r + sr;
-    if (dx*dx + dy*dy < rr*rr) hitPlayer(m);
+  // meteor shower cycle
+  if (showerLeft > 0){
+    showerLeft -= dt;
+    showerSpawnT -= dt;
+    if (showerSpawnT <= 0){
+      spawnMeteor(spdMul, true);
+      showerSpawnT = 0.13 + Math.random()*0.1;
+    }
+  } else {
+    showerT -= dt;
+    if (!warned && showerT <= 2.2){
+      warned = true;
+      Game.toast('☄️ 流星群がくる！');
+    }
+    if (showerT <= 0){
+      showerT = TUNE.showerGap.v;
+      warned = false;
+      showerLeft = TUNE.showerTime.v;
+      showerSpawnT = 0;
+      Game.toast('💫 流星群発生！');
+    }
+  }
+
+  // pickups
+  starT -= dt;
+  if (starT <= 0){
+    spawnPickup('star');
+    starT = TUNE.starGap.v * (0.7 + Math.random()*0.6);
+  }
+  if (!shielded){
+    shieldT -= dt;
+    if (shieldT <= 0){
+      spawnPickup('shield');
+      shieldT = TUNE.shieldGap.v * (0.7 + Math.random()*0.6);
+    }
+  }
+
+  // meteors move + collision
+  for (var j = rocks.length-1; j >= 0; j--){
+    var m = rocks[j];
+    m.y += m.vy * dt;
+    if (m.wob){
+      m.wt += dt * 2.2;
+      m.x += Math.sin(m.wt) * 95 * dt;
+    } else {
+      m.x += m.vx * dt;
+    }
+    if (m.y > H+80 || m.x < -100 || m.x > W+100){ rocks.splice(j,1); continue; }
+    if (invul > 0) continue;
+    var dx = m.x - ship.x, dy = m.y - ship.y;
+    var rr = m.r + ship.r;
+    if (dx*dx + dy*dy < rr*rr){
+      if (shielded){
+        shielded = false;
+        Game.hud('');
+        invul = 1.5;
+        shake = 0.45;
+        boom(m.x, m.y, 24, ['#7dd3fc','#bae6fd','#ffffff']);
+        Game.float(ship.x, ship.y - 48, '🛡️ シールド防御!', '#7dd3fc');
+        rocks.splice(j,1);
+        continue;
+      } else {
+        dead = true;
+        shake = 0.7;
+        boom(ship.x, ship.y, 34, ['#ffb703','#fb5607','#ff006e','#ffffff']);
+        boom(m.x, m.y, 16, ['#ffb703','#ff8a3d','#ffffff']);
+        Game.over(score);
+        return;
+      }
+    }
+  }
+
+  // pickup move + collect
+  for (var p = pickups.length-1; p >= 0; p--){
+    var u = pickups[p];
+    u.y += u.vy * dt;
+    u.x += u.vx * dt;
+    if (u.x < 20) { u.x = 20; u.vx = Math.abs(u.vx); }
+    if (u.x > W-20){ u.x = W-20; u.vx = -Math.abs(u.vx); }
+    if (u.y > H+50){ pickups.splice(p,1); continue; }
+    var ddx = u.x - ship.x, ddy = u.y - ship.y;
+    var cr = u.r + ship.r + 10;
+    if (ddx*ddx + ddy*ddy < cr*cr){
+      if (u.kind === 'star'){
+        starsGot++;
+        score = Math.floor(elapsed) + starsGot*5;
+        Game.score(score);
+        Game.float(u.x, u.y - 18, '+5', '#ffd166');
+        boom(u.x, u.y, 12, ['#ffd166','#fff3b0','#ffffff']);
+      } else {
+        shielded = true;
+        Game.hud('🛡️');
+        Game.float(u.x, u.y - 18, '🛡️ シールド!', '#7dd3fc');
+        boom(u.x, u.y, 16, ['#7dd3fc','#bae6fd','#ffffff']);
+      }
+      if (shake < 0.15) shake = 0.15;
+      pickups.splice(p,1);
+    }
+  }
+
+  // particles
+  for (var q = parts.length-1; q >= 0; q--){
+    var pt = parts[q];
+    pt.life -= dt;
+    if (pt.life <= 0){ parts.splice(q,1); continue; }
+    pt.x += pt.vx * dt;
+    pt.y += pt.vy * dt;
+    pt.vx *= 0.96;
+    pt.vy *= 0.96;
+    pt.vy += 45 * dt;
   }
 }
 
 function draw(){
-  var i;
-  ctx.fillStyle = bgGrad;
-  ctx.fillRect(0,0,W,H);
-
-  for (i=0;i<stars.length;i++){
-    var st = stars[i];
-    ctx.globalAlpha = 0.3 + 0.7*Math.abs(Math.sin(elapsed*1.6 + st.ph));
-    ctx.fillStyle = '#cfe3ff';
-    ctx.fillRect(st.x, st.y, st.s, st.s);
+  if (!bgGrad){
+    bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+    bgGrad.addColorStop(0, '#0b0b24');
+    bgGrad.addColorStop(0.6, '#070716');
+    bgGrad.addColorStop(1, '#02020a');
   }
-  ctx.globalAlpha = 1;
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, W, H);
 
   var ox = 0, oy = 0;
   if (shake > 0){
-    var k = shake*22;
-    ox = (Math.random()-0.5)*k;
-    oy = (Math.random()-0.5)*k;
+    var mag = Math.min(1, shake*3) * 13;
+    ox = (Math.random()*2-1) * mag;
+    oy = (Math.random()*2-1) * mag;
   }
   ctx.save();
   ctx.translate(ox, oy);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  for (i=0;i<meteors.length;i++){
-    var m = meteors[i];
-    ctx.save();
-    ctx.translate(m.x, m.y);
-    ctx.rotate(m.rot);
-    ctx.font = ef(m.r*2.1);
-    ctx.fillText('☄️', 0, 0);
-    ctx.restore();
+  // background stars
+  for (var i = 0; i < bgStars.length; i++){
+    var s = bgStars[i];
+    ctx.globalAlpha = s.a;
+    ctx.fillStyle = '#bcd8ff';
+    ctx.fillRect(s.x, s.y, s.w, s.h);
   }
+  ctx.globalAlpha = 1;
 
-  for (i=0;i<parts.length;i++){
-    var p = parts[i];
-    ctx.globalAlpha = Math.max(0, p.life/p.max);
-    ctx.fillStyle = p.col;
+  // particles
+  for (var q = 0; q < parts.length; q++){
+    var pt = parts[q];
+    var a = Math.max(0, pt.life / pt.max);
+    ctx.globalAlpha = Math.min(1, a*1.3);
+    ctx.fillStyle = pt.c;
     ctx.beginPath();
-    ctx.arc(p.x, p.y, p.sz, 0, 6.2832);
+    ctx.arc(pt.x, pt.y, pt.sz*a + 0.6, 0, 6.2832);
     ctx.fill();
   }
   ctx.globalAlpha = 1;
 
-  if (!dead){
-    var tilt = clamp((ship.tx - ship.x)*0.02, -0.35, 0.35);
-    ctx.save();
-    ctx.translate(ship.x, ship.y);
-    ctx.rotate(-0.7854 + tilt);
-    var fl = 8 + Math.random()*12;
-    ctx.globalAlpha = 0.9;
-    ctx.fillStyle = '#ffb703';
-    ctx.beginPath();
-    ctx.moveTo(-5, ship.size*0.42);
-    ctx.lineTo(5, ship.size*0.42);
-    ctx.lineTo(0, ship.size*0.42 + fl);
-    ctx.closePath();
-    ctx.fill();
+  // pickups
+  for (var p = 0; p < pickups.length; p++){
+    var u = pickups[p];
+    emojiFont(u.fs);
+    ctx.globalAlpha = 0.95;
+    ctx.fillText(u.e, u.x, u.y);
     ctx.globalAlpha = 1;
-    ctx.font = ef(ship.size*1.15);
-    ctx.fillText('🚀', 0, 0);
-    ctx.restore();
   }
 
-  if (boom){
-    var q = boom.t / boom.max;
-    ctx.globalAlpha = Math.min(1, q*1.7);
-    ctx.font = ef(60 + (1-q)*70);
-    ctx.fillText('💥', boom.x, boom.y);
+  // meteors
+  for (var j = 0; j < rocks.length; j++){
+    var m = rocks[j];
+    ctx.globalAlpha = 0.16;
+    ctx.fillStyle = (m.e === '🌑') ? '#8b7bd8' : '#ff8a3d';
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, m.fs*0.55, 0, 6.2832);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    emojiFont(m.fs);
+    ctx.fillText(m.e, m.x, m.y);
+  }
+
+  // ship
+  var tilt = Math.max(-0.32, Math.min(0.32, (shipTargetX - ship.x)*0.018));
+  if (invul > 0) ctx.globalAlpha = 0.35 + 0.65*Math.abs(Math.sin(tick*22));
+  ctx.save();
+  ctx.translate(ship.x, ship.y);
+  ctx.rotate(-Math.PI/4 + tilt);
+  emojiFont(46);
+  ctx.fillText('🚀', 0, 0);
+  ctx.restore();
+  ctx.globalAlpha = 1;
+
+  // shield ring
+  if (shielded){
+    var pulse = 0.55 + Math.sin(tick*8)*0.25;
+    var rad = 33 + pulse*4;
+    ctx.globalAlpha = 0.2;
+    ctx.fillStyle = '#7dd3fc';
+    ctx.beginPath();
+    ctx.arc(ship.x, ship.y, rad, 0, 6.2832);
+    ctx.fill();
+    ctx.globalAlpha = 0.8;
+    ctx.strokeStyle = '#7dd3fc';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(ship.x, ship.y, rad, 0, 6.2832);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  // shower tint
+  if (showerLeft > 0){
+    ctx.globalAlpha = 0.07 + 0.05*Math.sin(tick*10);
+    ctx.fillStyle = '#ff4d6d';
+    ctx.fillRect(0, 56, W, H-56);
     ctx.globalAlpha = 1;
   }
 
   ctx.restore();
 }
 
-function onDown(x,y){
-  if (dead) return;
-  ship.tx = x;
-  ship.x += (x - ship.x)*0.5;
+function onDown(x, y, id){
+  shipTargetX = Math.max(24, Math.min(W-24, x));
 }
-function onMove(x,y){
-  if (dead) return;
-  ship.tx = x;
+
+function onMove(x, y, id){
+  shipTargetX = Math.max(24, Math.min(W-24, x));
 }
-function onUp(x,y){ }
+
+function onUp(x, y, id){ }
+
+function onResize(){ }
 
 /*__VAPPA_JS_END__*/
 </script>
