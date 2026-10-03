@@ -8,6 +8,7 @@
 <style>
   :root{--bg:#141221;--ink:#f1eefb;--dim:#9a93b5;--rule:#2c2740;--plate:#1d1a2e;--plate2:#24203a;--accent:#8b5cf6;--ok:#34d399;--warn:#fbbf24;--bad:#f87171}
   *{box-sizing:border-box}
+  [hidden]{display:none!important}
   body{margin:0;background:var(--bg);color:var(--ink);font-family:"Hiragino Maru Gothic ProN","Hiragino Sans",system-ui,sans-serif;font-size:14px}
   .wrap{max-width:860px;margin:0 auto;padding:16px 16px 60px}
   header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
@@ -43,6 +44,7 @@
   .bar input,.bar select{width:auto;flex:1 1 180px}
   #err{color:var(--bad);font-size:12.5px;min-height:18px;margin:6px 0}
   .detail{background:var(--plate2);border:1px solid #3a3460;border-radius:14px;padding:14px;margin:4px 0 14px}
+  .detail details{margin-top:14px} .detail summary{cursor:pointer;font-size:12px;color:var(--dim);font-weight:800;letter-spacing:.04em;margin-bottom:6px}
   .detail .sec2{margin-top:14px} .detail .sec2 > b{display:block;font-size:12px;color:var(--dim);margin-bottom:6px;letter-spacing:.04em}
   .help{font-size:12px;color:var(--dim);line-height:1.6;margin:4px 0 8px}
   .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#2b2546;border:1px solid #3a3460;padding:9px 16px;border-radius:99px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none}
@@ -220,16 +222,16 @@
         '<h3>' + statusPill(st) + esc(u.author || "（作品なし）") + '</h3>' +
         '<div class="help">' + esc(u.email) + "<br>登録 " + when(u.created_at) + " ・ 最終ログイン " + when(u.last_sign_in_at) + " ・ 今日の生成 " + d.buildsToday + "本" + "</div>" +
         (f.warning ? '<div class="help">最後の警告（' + when(f.warned_at) + "・" + (f.acked ? "本人は確認済み" : "まだ読まれていない") + "）：" + esc(f.warning) + "</div>" : "") +
-        '<div class="sec2"><b>作品（' + d.games.length + "）</b>" + (d.games.length ? d.games.map(function (g) {
-          return '<div class="row"><div class="nm"><b>' + gamePills(g) + esc(g.title) + "</b><small>" + when(g.created_at) + '</small></div><a class="btn sec" href="play.html?game=' + encodeURIComponent(g.id) + '" target="_blank" rel="noopener">遊ぶ</a>' +
-            (g.hidden ? '<button data-op="unhide" data-id="' + esc(g.id) + '">再表示</button>' : '<button class="sec" data-op="hide" data-id="' + esc(g.id) + '">非表示</button>') + "</div>";
-        }).join("") : '<div class="empty">作品はありません。</div>') + "</div>" +
         '<div class="sec2"><b>この人の作品への通報（' + d.reports.length + "）</b>" + (d.reports.length ? '<div class="rep" style="border:0;margin:0;padding:0">' + d.reports.map(function (r) { return "<div>・" + esc(r.reason) + (r.detail ? "：" + esc(r.detail) : "") + " <small>" + when(r.created_at) + (r.status === "done" ? "・対応済み" : "") + "</small></div>"; }).join("") + "</div>" : '<div class="empty">ありません。</div>') + "</div>" +
         '<div class="sec2"><b>運営メモ（本人には見えません）</b><textarea id="unote" rows="2" maxlength="1000"></textarea><div class="bar"><button class="sec" id="unoteSave" type="button">メモを保存</button></div></div>' +
         '<div class="sec2"><b>警告を送る</b><div class="help">次にアプリを開いた時、本人に「運営からのお知らせ」として表示されます。</div><textarea id="uwarn" rows="3" maxlength="500" placeholder="例：投稿された「◯◯」が投稿ガイドラインの「他人の権利の侵害」に当たるため、非表示にしました。今後同様の投稿が続く場合は、作る機能の利用を停止することがあります。"></textarea><div class="bar"><button class="warnb" id="uwarnGo" type="button">警告を送る</button>' + (st !== "ok" ? '<button class="sec" id="uclear" type="button">警告を取り消して通常に戻す</button>' : "") + "</div></div>" +
         '<div class="sec2"><b>利用停止（BAN）</b>' + (st === "banned"
           ? '<div class="help">停止中です。この人はログインもゲーム作成もできません（遊ぶことはできます）。</div><div class="bar"><button id="uunban" type="button">利用停止を解除する</button></div>'
-          : '<div class="help">ログインとゲーム作成ができなくなります。遊ぶことはできます。</div><label class="help" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="uhideall" style="width:auto"> この人の作品をすべて非表示にする</label><div class="bar"><button class="bad" id="uban" type="button">利用停止にする</button></div>') + "</div>";
+          : '<div class="help">ログインとゲーム作成ができなくなります。遊ぶことはできます。</div><label class="help" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="uhideall" style="width:auto"> この人の作品をすべて非表示にする</label><div class="bar"><button class="bad" id="uban" type="button">利用停止にする</button></div>') + "</div>" +
+        '<details><summary>作品（' + d.games.length + "）を見る</summary>" + (d.games.length ? d.games.map(function (g) {
+          return '<div class="row"><div class="nm"><b>' + gamePills(g) + esc(g.title) + "</b><small>" + when(g.created_at) + '</small></div><a class="btn sec" href="play.html?game=' + encodeURIComponent(g.id) + '" target="_blank" rel="noopener">遊ぶ</a>' +
+            (g.hidden ? '<button data-op="unhide" data-id="' + esc(g.id) + '">再表示</button>' : '<button class="sec" data-op="hide" data-id="' + esc(g.id) + '">非表示</button>') + "</div>";
+        }).join("") : '<div class="empty">作品はありません。</div>') + "</details>";
       $("unote").value = f.note || "";
       $("unoteSave").onclick = function () { call({ op: "note", id: id, msg: $("unote").value }).then(function () { toast("メモを保存しました"); }); };
       $("uwarnGo").onclick = function () {
