@@ -56,7 +56,7 @@ var GAMES = [
   { id:"hata",  title:"旗あげ",         emoji:"🚩", blurb:"赤あげて、白さげない。指示がどんどんひねくれる。", unit:"回" },
   { id:"lturn", title:"L字路 切り返し", emoji:"🚗", blurb:"せまいL字路を切り返しで曲がれ。全5ステージの合計タイム勝負。", unit:"秒", low:true }
 ];
-var READY = ["beer","steak","hata"]; // 遊べる状態のゲームID
+var READY = ["beer","steak","hata","lturn"]; // 遊べる状態のゲームID
 function best(id){ try{ return localStorage.getItem("best_"+id); }catch(e){ return null; } }
 function setBest(id,v,low){ try{ var b=best(id); if(b===null||(low?+v<+b:+v>+b)) localStorage.setItem("best_"+id,v); }catch(e){} }
 var list=document.getElementById("list"), stage=document.getElementById("stage"), frame=document.getElementById("frame"), cur=null;
