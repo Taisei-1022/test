@@ -329,7 +329,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.94";
+  var APP_VERSION = "0.9.95";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -1467,6 +1467,7 @@
   // エラーメッセージの組み立て（相談ターン・ビルド両方で共用）
   function chatErrMsg(s){
     if(/banned/.test(s)){ return "このアカウントは、投稿ガイドライン違反のため、ゲームを作る機能の利用を停止しています。\nご不明な点はお問い合わせからご連絡ください。"; }
+    if(/token_budget/.test(s)){ return "ゲームが大きすぎて、AIが最後まで作りきれなかったみたい。\n盛り要素を1〜2個減らすか、「シンプルにして」と伝えてからもう一度作ってみてね。"; }
     if(/profile_required/.test(s)){ openProfile(true); return "作る前に、@ID と表示名を決めてね。"; }
     if(/login_required/.test(s)){ showLoginGate(); return "作るにはログインが必要です。Googleアカウントでログインしてね。"; }
     if(/rate_limited/.test(s)){

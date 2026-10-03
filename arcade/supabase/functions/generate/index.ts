@@ -1181,6 +1181,7 @@ function buildErr(e: unknown) {
   const s = String((e as Error)?.message || e);
   if (s.indexOf("refused") >= 0) return { error: "refused" };
   if (s === "timeout") return { error: "timeout" };   // 自前タイムアウト＝時間切れとして通知
+  if (s === "token_budget_exhausted") return { error: "token_budget" };   // 思考で予算を使い切った（再挑戦の対象）
   // Anthropic（"credit balance is too low"）と DeepSeek（402 "Insufficient Balance"）の残高切れ
   // detail に生のエラーを残す（どのAIが・なぜ失敗したか。キー等の秘密は含まれない）
   if (/credit balance is too low|Insufficient Balance|upstream:402/i.test(s)) return { error: "insufficient_credit", detail: s.slice(0, 400) };
@@ -1487,6 +1488,8 @@ async function callOpenAICompat(spec: ModelSpec, system: string, messages: Msg[]
     // 読めなかった返答の先頭と末尾を記録（次に起きた時に形を見て直せるように。秘密情報は含まれない）
     diag(tag + " json_parse_fail: " + String((e as Error)?.message || e).slice(0, 90) +
       " | head=" + JSON.stringify(r.content.slice(0, 110)) + " | tail=" + JSON.stringify(r.content.slice(-90)));
+    // 上限まで書いて途中で切れた（finish=length）＝思考に予算を使い切った。思考なしでやり直せば通る
+    if (r.finish === "length") throw new Error("token_budget_exhausted");
     throw e;
   }
 }
@@ -1529,7 +1532,8 @@ async function callBuildFB(key: string, spec: ModelSpec, system: string, message
     return await callBuild(key, spec, system, messages, schema, timeoutMs, acc);
   } catch (e) {
     const msg = String((e as Error)?.message || e);
-    if (spec.provider === "anthropic" || msg === "timeout" || remainMs() < 90000) throw e;
+    // 時間切れ・予算切れは、新しいインスタンスで「思考なし」の再挑戦に回す（保険の Claude には回さない）
+    if (spec.provider === "anthropic" || msg === "timeout" || msg === "token_budget_exhausted" || remainMs() < 90000) throw e;
     console.warn("build: " + spec.model + " failed (" + msg.slice(0, 120) + ") → Claude fallback");
     if (onFallback) onFallback(BUILD_FALLBACK);
     try {
@@ -1538,6 +1542,9 @@ async function callBuildFB(key: string, spec: ModelSpec, system: string, message
       // 両方ダメだった時は「なぜ最初のモデルが失敗したか」も残す（保険側のエラーだけだと
       // 本当の原因＝最初の失敗理由が消えて、調査が推測頼みになる）。
       const msg2 = String((e2 as Error)?.message || e2);
+      // 保険の Claude が残高切れなだけなら、本当の原因（最初のモデルの失敗）として扱う。
+      // 以前は「AIの利用枠が足りない」と表示され、原因が見えなくなっていた。
+      if (/credit balance is too low|Insufficient Balance|upstream:402/i.test(msg2)) { diag("fallback skipped: " + BUILD_FALLBACK.model + " has no credit"); throw e; }
       throw new Error(spec.model + ": " + msg.slice(0, 160) + " || " + BUILD_FALLBACK.model + ": " + msg2.slice(0, 160));
     }
   }
@@ -1689,9 +1696,10 @@ Deno.serve(async (req) => {
       let r; try { r = await buildOnce(key, rMsgs, rPrev, rSpec, rUspec, att >= 2); } catch (e) { r = buildErr(e); }
       // 時間切れは「失敗」として確定させず、新しいインスタンス（＝まっさらな400秒）へ
       // 引き継いで再挑戦する。最終回は思考オフの最速モデルで確実性を上げる。
-      if (r && (r as { error?: string }).error === "timeout" && att < MAX_BUILD_ATT) {
+      const rerr = r && (r as { error?: string }).error;
+      if ((rerr === "timeout" || rerr === "token_budget") && att < MAX_BUILD_ATT) {
         const nextSpec = (att + 1 >= MAX_BUILD_ATT) ? TEST_MODELS["ds-flash"] : rSpec;
-        diag("att" + att + " timeout → handoff att" + (att + 1) + " " + nextSpec.model + "/" + (nextSpec.effort || "off"));
+        diag("att" + att + " " + rerr + " → handoff att" + (att + 1) + " " + nextSpec.model + "/" + (nextSpec.effort || "off"));
         const moved = await dispatchRun({ ...irun, hop: 0, att: att + 1, spec: nextSpec, pdiag: DIAG });
         if (moved) { CUR_JOB = ""; return; }   // ジョブは pending のまま。引き継ぎ先が結果を書く
       }
