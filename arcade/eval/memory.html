@@ -2,7 +2,7 @@
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
 <title>ひかりの記憶</title>
-<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%81%B2%E3%81%8B%E3%82%8A%E3%81%AE%E8%A8%98%E6%86%B6%22%2C%22h%22%3A%22%E5%85%89%E3%82%8B%E3%83%91%E3%83%8D%E3%83%AB%E3%81%AE%E9%A0%86%E7%95%AA%E3%82%92%E8%A6%9A%E3%81%88%E3%81%A6%E3%80%81%E5%90%8C%E3%81%98%E9%A0%86%E3%81%AB%E3%82%BF%E3%83%83%E3%83%97%E3%81%97%E3%82%88%E3%81%86%EF%BC%81%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%81%B2%E3%81%8B%E3%82%8A%E3%81%AE%E8%A8%98%E6%86%B6%22%2C%22h%22%3A%22%E5%85%89%E3%81%A3%E3%81%9F%E3%83%91%E3%83%8D%E3%83%AB%E3%81%AE%E9%A0%86%E7%95%AA%E3%82%92%E3%81%8A%E3%81%BC%E3%81%88%E3%82%88%E3%81%86%E3%80%82%5Cn%E5%90%8C%E3%81%98%E9%A0%86%E3%81%AB%E3%82%BF%E3%83%83%E3%83%97%EF%BC%81%20%E3%83%A9%E3%82%A6%E3%83%B3%E3%83%89%E3%81%8C%E9%80%B2%E3%82%80%E3%81%BB%E3%81%A9%E9%95%B7%E3%81%8F%E3%83%BB%E9%80%9F%E3%81%8F%E3%81%AA%E3%82%8B%E3%82%88%E3%80%82%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
@@ -37,7 +37,8 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
   <div class="vp-toast" id="vptoast"></div>
   <div class="vp-ov" id="vpov">
     <h1>ひかりの記憶</h1>
-    <p>光るパネルの順番を覚えて、同じ順にタップしよう！</p>
+    <p>光ったパネルの順番をおぼえよう。
+同じ順にタップ！ ラウンドが進むほど長く・速くなるよ。</p>
     <button class="vp-btn" id="vpstart">スタート</button>
   </div>
 </div>
@@ -204,174 +205,320 @@ window.__vpTap=function(){
 <script id="vpgame">
 /*__VAPPA_JS__*/
 var TUNE = {
-  initialLength: { v: 3, label: '初期の長さ', min: 2, max: 5, step: 1 },
-  baseSpeed: { v: 0.8, label: '光る速度(秒)', min: 0.3, max: 1.5, step: 0.1 },
-  speedDecrease: { v: 0.05, label: '速度減少(秒/ラウンド)', min: 0, max: 0.2, step: 0.01 }
+  startLen:   { v: 2,     label: '最初の枚数',       min: 1,    max: 6,    step: 1 },
+  flashOn:    { v: 0.5,   label: '光る時間',         min: 0.15, max: 1.2,  step: 0.05 },
+  flashGap:   { v: 0.22,  label: '光の間隔',         min: 0.05, max: 0.6,  step: 0.01 },
+  speedUp:    { v: 0.035, label: 'ラウンド毎の短縮', min: 0,    max: 0.12, step: 0.005 },
+  minOn:      { v: 0.18,  label: '最短の光る時間',   min: 0.08, max: 0.5,  step: 0.01 },
+  startDelay: { v: 0.5,   label: '入力前の間',       min: 0.1,  max: 2,    step: 0.1 }
 };
-var colors = ['#ff4d4d', '#4da6ff', '#4dff4d', '#ffff4d'];
-var brightColors = ['#ff8080', '#80b3ff', '#80ff80', '#ffff80'];
-var panelPositions = [];
-var sequence = [];
-var playerIndex = 0;
-var round = 0;
-var score = 0;
-var state = 'idle'; // 'idle', 'show', 'input', 'gameover'
-var currentShow = 0;
-var showTimer = 0;
-var showSpeed = 0;
-var pressedPanel = -1;
-var pressTimer = 0;
-var message = '';
+
+var COLORS = [
+  { h: 0,   e: '🍎' },
+  { h: 212, e: '💧' },
+  { h: 140, e: '🍀' },
+  { h: 48,  e: '⭐' }
+];
+
+var PAD = 24, GAP = 16;
+var CELL, GX, GY, DOTY;
+var seq, round, score, state, lit, pressed, pressT;
+var showIdx, showPhase, showT, inputIdx, readyT, clearT, overT, ended, shake, particles;
+
 function init(){
-  var margin = 30;
-  var gap = 20;
-  var totalWidth = W - 2*margin;
-  var panelSize = (totalWidth - gap) / 2;
-  var startX = margin;
-  var startY = 120;
-  panelPositions = [
-    { x: startX, y: startY, w: panelSize, h: panelSize },
-    { x: startX + panelSize + gap, y: startY, w: panelSize, h: panelSize },
-    { x: startX, y: startY + panelSize + gap, w: panelSize, h: panelSize },
-    { x: startX + panelSize + gap, y: startY + panelSize + gap, w: panelSize, h: panelSize }
-  ];
-  sequence = [];
-  round = 0;
+  CELL = (W - PAD*2 - GAP) / 2;
+  GX = PAD;
+  GY = 190;
+  DOTY = 662;
+  seq = [];
+  round = 1;
   score = 0;
-  playerIndex = 0;
-  state = 'idle';
-  currentShow = 0;
-  showTimer = 0;
-  showSpeed = TUNE.baseSpeed.v;
-  pressedPanel = -1;
-  pressTimer = 0;
-  message = '';
-  Game.score(0);
-  startRound();
-}
-function startRound(){
-  round++;
-  sequence.push(Math.floor(Math.random() * 4));
-  showSpeed = Math.max(0.2, TUNE.baseSpeed.v - (round - 1) * TUNE.speedDecrease.v);
-  playerIndex = 0;
-  currentShow = 0;
   state = 'show';
-  showTimer = 0;
-  message = 'みてね…';
+  lit = -1;
+  pressed = -1;
+  pressT = 0;
+  showIdx = 0;
+  showPhase = 0;
+  showT = 0;
+  inputIdx = 0;
+  readyT = 0;
+  clearT = 0;
+  overT = 0;
+  ended = false;
+  shake = 0;
+  particles = [];
+  for (var i = 0; i < TUNE.startLen.v; i++){
+    seq.push(Math.floor(Math.random()*4));
+  }
+  Game.score(0);
+  Game.hud('ラウンド ' + round);
+  beginShow();
 }
+
+function curOn(){
+  var t = TUNE.flashOn.v - (round - 1) * TUNE.speedUp.v;
+  if (t < TUNE.minOn.v) t = TUNE.minOn.v;
+  return t;
+}
+
+function beginShow(){
+  state = 'show';
+  showIdx = 0;
+  showPhase = 0;
+  showT = 0.45;
+  lit = -1;
+  inputIdx = 0;
+}
+
+function panelRect(i){
+  var c = i % 2;
+  var r = (i / 2) | 0;
+  return { x: GX + c*(CELL + GAP), y: GY + r*(CELL + GAP) };
+}
+
+function panelAt(x, y){
+  for (var i = 0; i < 4; i++){
+    var p = panelRect(i);
+    if (x >= p.x && x <= p.x + CELL && y >= p.y && y <= p.y + CELL) return i;
+  }
+  return -1;
+}
+
+function burst(cx, cy, hh){
+  for (var i = 0; i < 10; i++){
+    var a = Math.random() * Math.PI * 2;
+    var sp = 90 + Math.random()*180;
+    particles.push({ x: cx, y: cy, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp - 90, life: 0.1 + Math.random()*0.5, max: 0.6, h: hh });
+  }
+}
+
+function tapPanel(p){
+  if (state !== 'input') return;
+  pressed = p;
+  pressT = 0.16;
+  var pr = panelRect(p);
+  if (p === seq[inputIdx]){
+    inputIdx++;
+    burst(pr.x + CELL/2, pr.y + CELL/2, COLORS[p].h);
+    if (inputIdx >= seq.length){
+      score += round;
+      Game.score(score);
+      Game.float(W/2, GY + CELL + GAP/2 + 8, '+' + round, '#ffd166');
+      round++;
+      Game.hud('ラウンド ' + round);
+      seq.push(Math.floor(Math.random()*4));
+      state = 'clear';
+      clearT = 0.75;
+      lit = -1;
+      inputIdx = 0;
+      shake = 0.25;
+    }
+  } else {
+    state = 'over';
+    overT = 0.8;
+    ended = false;
+    shake = 0.9;
+    var pr2 = panelRect(seq[inputIdx]);
+    burst(pr2.x + CELL/2, pr2.y + CELL/2, 0);
+  }
+}
+
 function update(dt){
+  var i;
+  if (pressT > 0){
+    pressT -= dt;
+    if (pressT <= 0) pressed = -1;
+  }
+  if (shake > 0) shake -= dt * 1.6;
+  for (i = particles.length - 1; i >= 0; i--){
+    var pa = particles[i];
+    pa.vy += 460 * dt;
+    pa.x += pa.vx * dt;
+    pa.y += pa.vy * dt;
+    pa.life -= dt;
+    if (pa.life <= 0) particles.splice(i, 1);
+  }
+
   if (state === 'show'){
-    showTimer += dt;
-    if (showTimer >= showSpeed){
-      showTimer = 0;
-      currentShow++;
-      if (currentShow >= sequence.length){
-        state = 'input';
-        message = 'どうぞ！';
+    showT -= dt;
+    if (showT <= 0){
+      if (showPhase === 0){
+        lit = seq[showIdx];
+        showPhase = 1;
+        showT = curOn();
+      } else if (showPhase === 1){
+        lit = -1;
+        showPhase = 2;
+        showT = TUNE.flashGap.v;
+      } else {
+        showIdx++;
+        if (showIdx >= seq.length){
+          lit = -1;
+          state = 'ready';
+          readyT = TUNE.startDelay.v;
+        } else {
+          lit = seq[showIdx];
+          showPhase = 1;
+          showT = curOn();
+        }
       }
     }
-  } else if (state === 'input'){
-    if (pressedPanel !== -1){
-      pressTimer -= dt;
-      if (pressTimer <= 0){
-        pressedPanel = -1;
-      }
+  } else if (state === 'ready'){
+    readyT -= dt;
+    if (readyT <= 0){
+      state = 'input';
+      inputIdx = 0;
+    }
+  } else if (state === 'clear'){
+    clearT -= dt;
+    if (clearT <= 0) beginShow();
+  } else if (state === 'over'){
+    overT -= dt;
+    if (overT <= 0 && !ended){
+      ended = true;
+      Game.over(score);
     }
   }
 }
+
+function roundRect(x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
 function draw(){
-  ctx.fillStyle = '#0f1322';
+  ctx.fillStyle = '#0d1120';
   ctx.fillRect(0, 0, W, H);
-  for (var i = 0; i < 4; i++){
-    var p = panelPositions[i];
-    var isLit = false;
-    var isPressed = (pressedPanel === i);
-    if (state === 'show' && currentShow > i && i === sequence[currentShow - 1]){
-      isLit = true;
-    }
-    if (state === 'show' && currentShow > 0 && i === sequence[currentShow - 1]){
-      isLit = true;
-    }
-    // Actually we need to light the current show index, not previous. Let's correct:
-    // During show, the panel at sequence[currentShow] is lit when showTimer > 0. We'll use a different approach: store currentShow as index in sequence that is currently lit; we want to light that panel for the duration showSpeed. So we'll set isLit = (state === 'show' && currentShow < sequence.length && i === sequence[currentShow]);
-    // But we need to handle after last show: we set state to input. So modify.
-    // Let's recompute in draw:
+
+  var g = ctx.createRadialGradient(W/2, GY + CELL + GAP/2, 40, W/2, GY + CELL + GAP/2, 380);
+  g.addColorStop(0, 'rgba(80,120,220,0.16)');
+  g.addColorStop(1, 'rgba(13,17,32,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 56, W, H - 56);
+
+  ctx.save();
+  if (shake > 0){
+    ctx.translate((Math.random()*2 - 1) * 9 * shake, (Math.random()*2 - 1) * 9 * shake);
   }
-  // Actually implement properly:
-  for (var i = 0; i < 4; i++){
-    var p = panelPositions[i];
-    var isLit = false;
-    var isPressed = (pressedPanel === i);
-    if (state === 'show' && currentShow < sequence.length && i === sequence[currentShow]){
-      isLit = true;
-    }
-    if (state === 'input' && isPressed){
-      isPressed = true;
-    }
-    var baseColor = colors[i];
-    var lightColor = brightColors[i];
-    ctx.shadowBlur = 0;
-    ctx.beginPath();
-    ctx.roundRect(p.x, p.y, p.w, p.h, 15);
-    if (isLit){
-      ctx.fillStyle = lightColor;
-      ctx.shadowBlur = 20;
-      ctx.shadowColor = lightColor;
-    } else {
-      ctx.fillStyle = baseColor;
-    }
-    if (isPressed && state === 'input'){
-      ctx.fillStyle = lightColor;
-      ctx.shadowBlur = 10;
-      ctx.shadowColor = lightColor;
-    }
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    // Draw border
-    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  }
-  // Draw message
-  ctx.fillStyle = '#ffffff';
-  ctx.font = '24px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(message, W/2, 80);
-  // Draw round info
-  ctx.font = '18px sans-serif';
-  ctx.fillStyle = '#aaaaaa';
-  ctx.fillText('ラウンド: ' + round, W-80, 35);
-  // Draw score via Game.score already does HUD
-}
-function onDown(x, y, id){
-  if (state !== 'input') return;
-  for (var i = 0; i < 4; i++){
-    var p = panelPositions[i];
-    if (x >= p.x && x <= p.x + p.w && y >= p.y && y <= p.y + p.h){
-      // Check correct
-      if (i === sequence[playerIndex]){
-        playerIndex++;
-        pressedPanel = i;
-        pressTimer = 0.2;
-        if (playerIndex >= sequence.length){
-          // Round complete
-          score += round;
-          Game.score(score);
-          startRound();
-        }
+
+  var i;
+  for (i = 0; i < 4; i++){
+    var pr = panelRect(i);
+    var hh = COLORS[i].h;
+    var isOn = (lit === i) || (pressed === i);
+    var inset = (pressed === i) ? 6 : 0;
+    var px = pr.x + inset, py = pr.y + inset, w = CELL - inset*2, h = CELL - inset*2;
+
+    if (isOn){
+      ctx.shadowColor = 'hsla(' + hh + ',95%,62%,0.85)';
+      ctx.shadowBlur = 30;
+      ctx.fillStyle = 'hsl(' + hh + ',88%,60%)';
+    } else {
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'hsl(' + hh + ',42%,19%)';
+    }
+    roundRect(px, py, w, h, 26);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = isOn ? 'hsl(' + hh + ',100%,82%)' : 'hsl(' + hh + ',45%,32%)';
+    roundRect(px, py, w, h, 26);
+    ctx.stroke();
+
+    ctx.globalAlpha = isOn ? 1 : 0.45;
+    ctx.font = ((CELL*0.36) | 0) + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText(COLORS[i].e, pr.x + CELL/2, pr.y + CELL/2 + 4);
+    ctx.globalAlpha = 1;
+  }
+
+  for (i = 0; i < particles.length; i++){
+    var pa = particles[i];
+    var a = pa.life / pa.max;
+    if (a < 0) a = 0;
+    ctx.globalAlpha = a;
+    ctx.fillStyle = pa.h > 0 ? 'hsl(' + pa.h + ',90%,66%)' : '#f87171';
+    ctx.beginPath();
+    ctx.arc(pa.x, pa.y, 3 + 4*a, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  if (state === 'input'){
+    var n = seq.length;
+    var sp = Math.min(26, (W - 90) / n);
+    var rad = Math.min(9, sp*0.36);
+    var x0 = W/2 - (n - 1) * sp / 2;
+    for (i = 0; i < n; i++){
+      var cx = x0 + i*sp;
+      if (i < inputIdx){
+        ctx.fillStyle = 'hsl(' + COLORS[seq[i]].h + ',85%,62%)';
+        ctx.beginPath();
+        ctx.arc(cx, DOTY, rad, 0, Math.PI*2);
+        ctx.fill();
       } else {
-        // Wrong
-        Game.over(score);
-        state = 'gameover';
-        message = 'ミス!';
+        ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(cx, DOTY, rad, 0, Math.PI*2);
+        ctx.stroke();
       }
-      break;
     }
   }
+
+  ctx.restore();
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  var msg = 'みてね…';
+  var col = '#93c5fd';
+  var sub = 'さいしょから じゅんばんに ひかるよ';
+  if (state === 'ready'){
+    msg = 'みてね…';
+  } else if (state === 'input'){
+    msg = 'どうぞ！';
+    col = '#6ee7b7';
+    sub = 'おぼえた じゅんばんに タップ';
+  } else if (state === 'clear'){
+    msg = 'せいかい！';
+    col = '#fcd34d';
+    sub = 'つぎは もっと ながいよ';
+  } else if (state === 'over'){
+    msg = 'ざんねん…';
+    col = '#f87171';
+    sub = 'ラウンド ' + round + ' で おわり';
+  }
+  ctx.font = 'bold 30px sans-serif';
+  ctx.fillStyle = col;
+  ctx.fillText(msg, W/2, 122);
+  ctx.font = '16px sans-serif';
+  ctx.fillStyle = 'rgba(200,210,235,0.65)';
+  ctx.fillText(sub, W/2, 158);
+
+  ctx.font = '15px sans-serif';
+  ctx.fillStyle = 'rgba(170,182,210,0.55)';
+  ctx.fillText('ひかった じゅんばんに 4つの パネルを おそう', W/2, 700);
 }
-function onMove(x,y,id){}
-function onUp(x,y,id){}
+
+function onDown(x, y, id){
+  var p = panelAt(x, y);
+  if (p >= 0) tapPanel(p);
+}
+
+function onResize(){}
+
 /*__VAPPA_JS_END__*/
 </script>
 </body></html>

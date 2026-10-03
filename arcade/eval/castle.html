@@ -2,7 +2,7 @@
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
 <title>キャッスルディフェンス</title>
-<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%82%AD%E3%83%A3%E3%83%83%E3%82%B9%E3%83%AB%E3%83%87%E3%82%A3%E3%83%95%E3%82%A7%E3%83%B3%E3%82%B9%22%2C%22h%22%3A%22%E6%95%B5%F0%9F%91%B9%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%E3%81%97%E3%81%A6%E5%80%92%E3%81%9B%EF%BC%81%20%F0%9F%A7%8C%E3%81%AF2%E5%9B%9E%E3%82%BF%E3%83%83%E3%83%97%E3%81%8C%E5%BF%85%E8%A6%81%E3%80%82%E5%9F%8E%F0%9F%8F%B0%E3%81%AB%E8%BF%91%E3%81%A5%E3%81%8F%E5%89%8D%E3%81%AB%E5%85%A8%E3%81%A6%E5%80%92%E3%81%9B%EF%BC%81%22%2C%22u%22%3A%22%E5%8C%B9%22%7D-->
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%82%AD%E3%83%A3%E3%83%83%E3%82%B9%E3%83%AB%E3%83%87%E3%82%A3%E3%83%95%E3%82%A7%E3%83%B3%E3%82%B9%22%2C%22h%22%3A%22%E5%8F%B3%E3%81%8B%E3%82%89%E6%AD%A9%E3%81%84%E3%81%A6%E3%81%8F%E3%82%8B%20%F0%9F%91%B9%20%E3%82%92%E7%9B%B4%E6%8E%A5%E3%82%BF%E3%83%83%E3%83%97%E3%81%97%E3%81%A6%E6%92%83%E9%80%80%E3%81%97%E3%82%88%E3%81%86%EF%BC%81%E5%9F%8E%F0%9F%8F%B0%E3%81%AB%E7%9D%80%E3%81%8B%E3%82%8C%E3%82%8B%E3%81%A8%E2%9D%A4%EF%B8%8F%E3%81%8C1%E3%81%A4%E6%B8%9B%E3%82%8A%E3%80%810%E3%81%AB%E3%81%AA%E3%82%8B%E3%81%A8%E3%82%B2%E3%83%BC%E3%83%A0%E3%82%AA%E3%83%BC%E3%83%90%E3%83%BC%E3%80%82%F0%9F%A7%8C%E3%81%AF1%E5%9B%9E%E3%82%BF%E3%83%83%E3%83%97%E3%81%A7%E6%80%92%E3%82%8A%E9%A1%94%E3%81%AB%E3%81%AA%E3%82%8A%E3%80%81%E3%82%82%E3%81%861%E5%9B%9E%E3%81%A7%E6%92%83%E9%80%80%E3%80%82%22%2C%22u%22%3A%22%E4%BD%93%22%7D-->
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
@@ -33,11 +33,11 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
 <canvas id="vpc"></canvas>
 <div id="vpstage">
   <div id="vpdom"></div>
-  <div class="vp-hud" id="vphud" hidden><span id="vphl">0匹</span><span id="vphr"></span></div>
+  <div class="vp-hud" id="vphud" hidden><span id="vphl">0体</span><span id="vphr"></span></div>
   <div class="vp-toast" id="vptoast"></div>
   <div class="vp-ov" id="vpov">
     <h1>キャッスルディフェンス</h1>
-    <p>敵👹をタップして倒せ！ 🧌は2回タップが必要。城🏰に近づく前に全て倒せ！</p>
+    <p>右から歩いてくる 👹 を直接タップして撃退しよう！城🏰に着かれると❤️が1つ減り、0になるとゲームオーバー。🧌は1回タップで怒り顔になり、もう1回で撃退。</p>
     <button class="vp-btn" id="vpstart">スタート</button>
   </div>
 </div>
@@ -95,7 +95,7 @@ window.addEventListener("resize",rs);rs();
 // 実画面座標→論理座標（タッチ入力用）
 function toLX(x){return (x-__OX)/__SC;}
 function toLY(y){return (y-__OY)/__SC;}
-var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="匹";
+var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="体";
 // ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
 var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
 var hud=document.getElementById("vphud"),hl=document.getElementById("vphl"),hr=document.getElementById("vphr");
@@ -204,110 +204,247 @@ window.__vpTap=function(){
 <script id="vpgame">
 /*__VAPPA_JS__*/
 var TUNE = {
-  enemySpeed: { v: 60, label: '敵の速度', min: 30, max: 200, step: 5 },
-  spawnInterval: { v: 1.2, label: '出現間隔(秒)', min: 0.5, max: 2.5, step: 0.1 },
-  toughChance: { v: 0.15, label: 'タフな敵の確率', min: 0, max: 0.5, step: 0.05 },
-  toughSpeedMult: { v: 0.8, label: 'タフ敵の速度倍率', min: 0.5, max: 1.5, step: 0.1 },
-  maxEnemies: { v: 8, label: '最大同時出現数', min: 3, max: 15, step: 1 }
+  startSpeed: { v: 50, label: '敵の初期速度', min: 20, max: 120, step: 5 },
+  speedRamp: { v: 1.4, label: '速度の増加ペース', min: 0, max: 6, step: 0.1 },
+  maxSpeed: { v: 130, label: '敵の最大速度', min: 60, max: 260, step: 10 },
+  spawnStart: { v: 1.35, label: '出現間隔(開始)', min: 0.6, max: 4, step: 0.05 },
+  spawnMin: { v: 0.5, label: '出現間隔(最小)', min: 0.2, max: 2, step: 0.05 },
+  spawnRamp: { v: 0.02, label: '出現間隔の短縮', min: 0, max: 0.08, step: 0.005 },
+  toughRate: { v: 0.4, label: 'タフな敵の出現率', min: 0, max: 0.8, step: 0.05 },
+  hp: { v: 5, label: '城のHP', min: 1, max: 10, step: 1 }
 };
-var castleX = 40;
-var enemies, castleHP, score, spawnTimer, gameTime;
-function init() {
+var ROWS = [190, 300, 410, 520, 630];
+var CASTLE_X = 112;
+var enemies, parts, clouds, hp, score, elapsed, spawnT, shake, flash;
+
+function init(){
   enemies = [];
-  castleHP = 5;
+  parts = [];
+  clouds = [];
+  hp = TUNE.hp.v;
   score = 0;
-  spawnTimer = 0;
-  gameTime = 0;
-  Game.hud('❤️'.repeat(castleHP));
+  elapsed = 0;
+  spawnT = 0.9;
+  shake = 0;
+  flash = 0;
+  var i;
+  for (i = 0; i < 5; i++){
+    clouds.push({ x: Math.random() * W, y: 84 + Math.random() * 44, v: 5 + Math.random() * 9 });
+  }
   Game.score(0);
+  Game.hud(hearts());
+  Game.toast('👹 をタップして城を守れ！');
 }
-function update(dt) {
-  gameTime += dt;
-  // Difficulty ramp based on gameTime
-  var speedMult = 1 + gameTime * 0.05;
-  var spawnInterval = Math.max(0.4, TUNE.spawnInterval.v - gameTime * 0.02);
-  var toughChance = Math.min(TUNE.toughChance.v + gameTime * 0.005, 0.45);
-  // Spawn enemies
-  spawnTimer += dt;
-  if (spawnTimer >= spawnInterval && enemies.length < TUNE.maxEnemies.v) {
-    spawnTimer = 0;
-    var isTough = Math.random() < toughChance;
-    var y = 80 + Math.random() * (H - 160);
-    enemies.push({
-      x: W + 20,
-      y: y,
-      tough: isTough,
-      hits: 0,
-      speed: TUNE.enemySpeed.v * speedMult * (isTough ? TUNE.toughSpeedMult.v : 1)
-    });
+
+function hearts(){
+  var s = '', i;
+  for (i = 0; i < hp; i++) s += '❤️';
+  return s;
+}
+
+function update(dt){
+  elapsed += dt;
+  var spd = Math.min(TUNE.maxSpeed.v, TUNE.startSpeed.v + elapsed * TUNE.speedRamp.v);
+  spawnT -= dt;
+  if (spawnT <= 0){
+    if (enemies.length < 16) spawnEnemy(spd);
+    spawnT = Math.max(TUNE.spawnMin.v, TUNE.spawnStart.v - elapsed * TUNE.spawnRamp.v);
   }
-  // Move enemies
-  for (var i = enemies.length - 1; i >= 0; i--) {
-    var e = enemies[i];
+  var i, e;
+  for (i = enemies.length - 1; i >= 0; i--){
+    e = enemies[i];
     e.x -= e.speed * dt;
-    // Check if reached castle
-    if (e.x < castleX + 30) {
-      castleHP--;
-      Game.hud('❤️'.repeat(Math.max(0, castleHP)));
+    e.bob += dt * 7;
+    if (e.x <= CASTLE_X){
       enemies.splice(i, 1);
-      if (castleHP <= 0) {
-        Game.over(score);
-        return;
-      }
-      continue;
-    }
-    // Remove if off-screen left (should not happen)
-    if (e.x < -30) {
-      enemies.splice(i, 1);
+      hp--;
+      shake = 0.5;
+      flash = 0.35;
+      burst(CASTLE_X + 22, e.y, '#ef4444', 14);
+      Game.float(CASTLE_X + 48, e.y, '💔', '#ef4444');
+      Game.hud(hearts());
+      if (hp <= 0){ Game.over(score); return; }
     }
   }
+  var p;
+  for (i = parts.length - 1; i >= 0; i--){
+    p = parts[i];
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vy += 240 * dt;
+    p.life -= dt;
+    if (p.life <= 0) parts.splice(i, 1);
+  }
+  var c;
+  for (i = 0; i < clouds.length; i++){
+    c = clouds[i];
+    c.x -= c.v * dt;
+    if (c.x < -80){ c.x = W + 80; c.y = 84 + Math.random() * 44; }
+  }
+  if (shake > 0) shake -= dt;
+  if (flash > 0) flash -= dt;
 }
-function draw() {
-  // Background: sky and grass
-  ctx.fillStyle = '#87CEEB';
-  ctx.fillRect(0, 0, W, H * 0.6);
-  ctx.fillStyle = '#228B22';
-  ctx.fillRect(0, H * 0.6, W, H * 0.4);
-  // Draw castle
+
+function spawnEnemy(spd){
+  var rate = TUNE.toughRate.v * Math.min(1, elapsed / 55);
+  var tough = Math.random() < rate;
+  var row = pickRow();
+  enemies.push({
+    x: 500 + Math.random() * 110,
+    y: ROWS[row],
+    r: tough ? 34 : 30,
+    tough: tough,
+    angry: false,
+    speed: spd * (tough ? 0.78 : 1),
+    bob: Math.random() * 6.28
+  });
+}
+
+function pickRow(){
+  var counts = [0, 0, 0, 0, 0];
+  var i, r, e;
+  for (i = 0; i < enemies.length; i++){
+    e = enemies[i];
+    for (r = 0; r < ROWS.length; r++){
+      if (Math.abs(e.y - ROWS[r]) < 30) counts[r]++;
+    }
+  }
+  var order = [0, 1, 2, 3, 4], a, b, t;
+  for (a = order.length - 1; a > 0; a--){
+    b = Math.floor(Math.random() * (a + 1));
+    t = order[a]; order[a] = order[b]; order[b] = t;
+  }
+  var best = order[0];
+  for (i = 0; i < order.length; i++){
+    if (counts[order[i]] < counts[best]) best = order[i];
+  }
+  return best;
+}
+
+function burst(x, y, color, n){
+  var i, a, s;
+  for (i = 0; i < n; i++){
+    a = Math.random() * Math.PI * 2;
+    s = 70 + Math.random() * 190;
+    parts.push({ x: x, y: y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 70, life: 0.35 + Math.random() * 0.35, max: 0.7, color: color, r: 2 + Math.random() * 3.5 });
+  }
+}
+
+function onDown(x, y, id){
+  if (!enemies) return;
+  var best = -1, bd = 1000000, i, e, dx, dy, d;
+  for (i = 0; i < enemies.length; i++){
+    e = enemies[i];
+    dx = x - e.x;
+    dy = y - e.y;
+    d = Math.sqrt(dx * dx + dy * dy);
+    if (d < e.r + 16 && d < bd){ bd = d; best = i; }
+  }
+  if (best < 0) return;
+  e = enemies[best];
+  if (e.tough && !e.angry){
+    e.angry = true;
+    e.speed *= 1.35;
+    shake = Math.max(shake, 0.14);
+    burst(e.x, e.y, '#fb923c', 6);
+    Game.float(e.x, e.y - 38, 'あと1発！', '#fbbf24');
+  } else {
+    enemies.splice(best, 1);
+    score += 1;
+    Game.score(score);
+    burst(e.x, e.y, e.tough ? '#f472b6' : '#fde68a', 12);
+    Game.float(e.x, e.y - 38, '+1', '#ffe066');
+  }
+}
+
+function draw(){
+  var i, ox = 0, oy = 0;
+  if (shake > 0){
+    var m = Math.min(1, shake * 2.5) * 9;
+    ox = (Math.random() * 2 - 1) * m;
+    oy = (Math.random() * 2 - 1) * m * 0.6;
+  }
+  ctx.save();
+  ctx.translate(ox, oy);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = "64px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-  ctx.fillText('🏰', castleX, H / 2);
-  // Draw enemies
-  for (var i = 0; i < enemies.length; i++) {
-    var e = enemies[i];
-    var emoji;
-    if (e.tough && e.hits === 1) {
-      emoji = '😡';
-    } else if (e.tough) {
-      emoji = '🧌';
-    } else {
-      emoji = '👹';
-    }
-    ctx.font = "48px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-    ctx.fillText(emoji, e.x, e.y);
+
+  var sky = ctx.createLinearGradient(0, 0, 0, 150);
+  sky.addColorStop(0, '#3f9fdd');
+  sky.addColorStop(1, '#c6ecff');
+  ctx.fillStyle = sky;
+  ctx.fillRect(-20, -20, W + 40, 170);
+
+  ctx.font = "52px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  ctx.fillText('☀️', W - 56, 106);
+  ctx.font = "44px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  for (i = 0; i < clouds.length; i++) ctx.fillText('☁️', clouds[i].x, clouds[i].y);
+
+  var gd = ctx.createLinearGradient(0, 130, 0, H);
+  gd.addColorStop(0, '#7ac95a');
+  gd.addColorStop(0.45, '#5aae43');
+  gd.addColorStop(1, '#3d8636');
+  ctx.fillStyle = gd;
+  ctx.fillRect(-20, 130, W + 40, H - 110);
+
+  for (i = 0; i < ROWS.length; i++){
+    ctx.fillStyle = 'rgba(255,255,255,0.07)';
+    roundRect(110, ROWS[i] - 27, 380, 54, 27);
+    ctx.fill();
   }
+
+  ctx.font = "86px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  for (i = 0; i < ROWS.length; i++) ctx.fillText('🏰', 60, ROWS[i]);
+
+  for (i = 0; i < enemies.length; i++){
+    var e = enemies[i];
+    var ey = e.y + Math.sin(e.bob) * 3;
+    ctx.save();
+    ctx.translate(e.x, e.y + 26);
+    ctx.scale(1, 0.3);
+    ctx.beginPath();
+    ctx.arc(0, 0, 20, 0, 6.2832);
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.fill();
+    ctx.restore();
+    if (e.angry){
+      ctx.save();
+      ctx.globalAlpha = 0.30 + 0.18 * Math.sin(e.bob * 1.5);
+      ctx.beginPath();
+      ctx.arc(e.x, ey, 36, 0, 6.2832);
+      ctx.fillStyle = '#ff4d4d';
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.font = (e.tough ? 52 : 44) + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText(e.angry ? '😡' : (e.tough ? '🧌' : '👹'), e.x, ey);
+  }
+
+  for (i = 0; i < parts.length; i++){
+    var p = parts[i];
+    ctx.globalAlpha = Math.max(0, p.life / p.max);
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, 6.2832);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  if (flash > 0){
+    ctx.fillStyle = 'rgba(255,70,70,' + (flash * 0.45).toFixed(3) + ')';
+    ctx.fillRect(-20, -20, W + 40, H + 40);
+  }
+  ctx.restore();
 }
-function onDown(x, y) {
-  var hitRadius = 30;
-  for (var i = enemies.length - 1; i >= 0; i--) {
-    var e = enemies[i];
-    var dx = x - e.x;
-    var dy = y - e.y;
-    if (dx * dx + dy * dy < hitRadius * hitRadius) {
-      if (e.tough && e.hits === 0) {
-        e.hits = 1;
-        Game.float(e.x, e.y - 20, 'もう1回!', '#ffa500');
-        return;
-      } else {
-        score++;
-        Game.score(score);
-        Game.float(e.x, e.y - 20, '+1', '#ffd166');
-        enemies.splice(i, 1);
-        return;
-      }
-    }
-  }
+
+function roundRect(x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
 }
 /*__VAPPA_JS_END__*/
 </script>

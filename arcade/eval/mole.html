@@ -2,7 +2,7 @@
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
 <title>もぐらたたき</title>
-<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%82%82%E3%81%90%E3%82%89%E3%81%9F%E3%81%9F%E3%81%8D%22%2C%22h%22%3A%22%E5%87%BA%E7%8F%BE%E3%81%99%E3%82%8B%E3%83%A2%E3%82%B0%E3%83%A9%F0%9F%90%B9%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%E3%81%97%E3%81%A6%E5%8F%A9%E3%81%91%EF%BC%81%E7%88%86%E5%BC%BE%F0%9F%92%A3%E3%81%AF%E9%81%BF%E3%81%91%E3%82%8D%EF%BC%81%E5%88%B6%E9%99%90%E6%99%82%E9%96%9330%E7%A7%92%E3%80%82%22%2C%22u%22%3A%22%E5%8C%B9%22%7D-->
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%82%82%E3%81%90%E3%82%89%E3%81%9F%E3%81%9F%E3%81%8D%22%2C%22h%22%3A%22%E7%A9%B4%E3%81%8B%E3%82%89%E5%87%BA%E3%81%A6%E3%81%8F%E3%82%8B%E3%83%A2%E3%82%B0%E3%83%A9%F0%9F%90%B9%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%E3%81%97%E3%81%A6%E5%8F%A9%E3%81%93%E3%81%86%EF%BC%81%F0%9F%92%A3%E3%82%92%E5%8F%A9%E3%81%8F%E3%81%A8%E3%83%A9%E3%82%A4%E3%83%95%E3%81%8C1%E6%B8%9B%E3%82%8B%E3%80%82%E5%88%B6%E9%99%90%E6%99%82%E9%96%9330%E7%A7%92%E3%81%A7%E3%83%8F%E3%82%A4%E3%82%B9%E3%82%B3%E3%82%A2%E3%82%92%E7%9B%AE%E6%8C%87%E3%81%9B%EF%BC%81%22%2C%22u%22%3A%22%E5%8C%B9%22%7D-->
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
@@ -37,7 +37,7 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
   <div class="vp-toast" id="vptoast"></div>
   <div class="vp-ov" id="vpov">
     <h1>もぐらたたき</h1>
-    <p>出現するモグラ🐹をタップして叩け！爆弾💣は避けろ！制限時間30秒。</p>
+    <p>穴から出てくるモグラ🐹をタップして叩こう！💣を叩くとライフが1減る。制限時間30秒でハイスコアを目指せ！</p>
     <button class="vp-btn" id="vpstart">スタート</button>
   </div>
 </div>
@@ -204,97 +204,287 @@ window.__vpTap=function(){
 <script id="vpgame">
 /*__VAPPA_JS__*/
 var TUNE = {
-  gameDuration: { v: 30, label: '制限時間（秒）', min: 10, max: 60, step: 5 },
-  lives: { v: 3, label: 'ライフ数', min: 1, max: 9, step: 1 },
-  bombChance: { v: 0.2, label: '爆弾の確率', min: 0, max: 0.5, step: 0.05 },
-  initMoleDuration: { v: 1.2, label: '初期出現時間（秒）', min: 0.5, max: 2, step: 0.1 },
-  initSpawnInterval: { v: 1.5, label: '初期出現間隔（秒）', min: 0.5, max: 2.5, step: 0.1 },
-  minMoleDuration: { v: 0.4, label: '最短出現時間', min: 0.2, max: 1, step: 0.1 },
-  minSpawnInterval: { v: 0.5, label: '最短出現間隔', min: 0.2, max: 1, step: 0.1 }
+  spawnStart: { v: 0.85, label: '出現間隔(開始)', min: 0.3, max: 1.5, step: 0.05 },
+  spawnMin:   { v: 0.35, label: '出現間隔(最速)', min: 0.15, max: 1, step: 0.05 },
+  upTime:     { v: 1,    label: '滞在時間(開始)', min: 0.4, max: 2, step: 0.05 },
+  upTimeMin:  { v: 0.55, label: '滞在時間(最短)', min: 0.25, max: 1.4, step: 0.05 },
+  bombRate:   { v: 0.18, label: '爆弾の割合', min: 0, max: 0.5, step: 0.02 },
+  lives:      { v: 3,    label: 'ライフ', min: 1, max: 5, step: 1 },
+  gameTime:   { v: 30,   label: '制限時間(秒)', min: 10, max: 60, step: 5 },
+  maxUp:      { v: 3,    label: '同時出現の最大数', min: 1, max: 5, step: 1 }
 };
-var holes = [], activeMoles = [], score, lives, gameTime, flashTimer, spawnTimer, moleDuration, spawnInterval;
-function init(){
-  score = 0; lives = TUNE.lives.v; gameTime = TUNE.gameDuration.v; flashTimer = 0; spawnTimer = 0;
-  moleDuration = TUNE.initMoleDuration.v; spawnInterval = TUNE.initSpawnInterval.v;
-  activeMoles = [];
-  var cellSize = 140, margin = (480 - 3*cellSize)/2, top = 56 + (664 - 3*cellSize)/2;
+
+var holes, particles, ripples, blades;
+var score, lives, timeLeft, elapsed, spawnT, flash, shake, ended, hudStr;
+
+function rep(s, n){
+  var o = '';
+  for (var i = 0; i < n; i++) o += s;
+  return o;
+}
+
+function ellipse(x, y, rx, ry){
+  ctx.beginPath();
+  ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function layout(){
   holes = [];
-  for (var i=0; i<9; i++){
-    var col = i%3, row = Math.floor(i/3);
-    holes.push({ x: margin + col*cellSize + cellSize/2, y: top + row*cellSize + cellSize/2 });
+  var margin = 24, gap = 12;
+  var cw = (W - margin * 2 - gap * 2) / 3;
+  var top = 56, rh = (712 - 56) / 3;
+  for (var r = 0; r < 3; r++){
+    for (var c = 0; c < 3; c++){
+      holes.push({ x: margin + cw / 2 + c * (cw + gap), y: top + rh * 0.5 + r * rh, mole: null });
+    }
   }
-  Game.score(score);
-  Game.hud('\u2764\ufe0f'.repeat(lives) + ' ' + Math.ceil(gameTime) + 's');
 }
+
+function init(){
+  layout();
+  particles = [];
+  ripples = [];
+  blades = [];
+  for (var i = 0; i < 42; i++){
+    blades.push({
+      x: 12 + Math.random() * (W - 24),
+      y: 70 + Math.random() * (712 - 70),
+      h: 8 + Math.random() * 13,
+      l: (Math.random() - 0.5) * 9,
+      c: Math.random() < 0.5
+    });
+  }
+  score = 0;
+  Game.score(0);
+  lives = TUNE.lives.v;
+  timeLeft = TUNE.gameTime.v;
+  elapsed = 0;
+  spawnT = 0.5;
+  flash = 0;
+  shake = 0;
+  ended = false;
+  hudStr = '';
+  updateHud();
+}
+
+function updateHud(){
+  var s = '⏱' + Math.ceil(timeLeft) + ' ' + rep('❤️', lives);
+  if (s !== hudStr){ hudStr = s; Game.hud(s); }
+}
+
+function prog(){
+  return Math.min(1, elapsed / Math.max(1, TUNE.gameTime.v));
+}
+
+function trySpawn(){
+  var free = [], up = 0;
+  for (var i = 0; i < holes.length; i++){
+    if (holes[i].mole) up++; else free.push(i);
+  }
+  if (!free.length || up >= TUNE.maxUp.v) return false;
+  var p = prog();
+  var dur = TUNE.upTime.v + (TUNE.upTimeMin.v - TUNE.upTime.v) * p;
+  var bomb = elapsed > 2.5 && Math.random() < TUNE.bombRate.v;
+  var idx = free[Math.floor(Math.random() * free.length)];
+  holes[idx].mole = { bomb: bomb, t: 0, dur: dur };
+  return true;
+}
+
+function riseOf(m){
+  var r = m.t / 0.13;
+  var f = (m.dur - m.t) / 0.13;
+  if (f < r) r = f;
+  if (r > 1) r = 1;
+  if (r < 0) r = 0;
+  return r;
+}
+
+function finish(){
+  if (ended) return;
+  ended = true;
+  Game.over(score);
+}
+
 function update(dt){
-  if (flashTimer > 0) flashTimer -= dt;
-  gameTime -= dt;
-  if (gameTime <= 0){ Game.hud('\u2764\ufe0f'.repeat(lives) + ' 0s'); Game.over(score); return; }
-  var progress = 1 - gameTime / TUNE.gameDuration.v;
-  moleDuration = TUNE.initMoleDuration.v - (TUNE.initMoleDuration.v - TUNE.minMoleDuration.v) * progress;
-  spawnInterval = TUNE.initSpawnInterval.v - (TUNE.initSpawnInterval.v - TUNE.minSpawnInterval.v) * progress;
-  spawnTimer -= dt;
-  if (spawnTimer <= 0 && activeMoles.length < 1){
-    var free = [];
-    for (var i=0; i<9; i++){
-      var occupied = false;
-      for (var j=0; j<activeMoles.length; j++){ if (activeMoles[j].holeIndex === i) occupied = true; }
-      if (!occupied) free.push(i);
-    }
-    if (free.length > 0){
-      var idx = free[Math.floor(Math.random()*free.length)];
-      var type = Math.random() < TUNE.bombChance.v ? 'bomb' : 'mole';
-      activeMoles.push({ holeIndex: idx, type: type, timer: moleDuration });
-    }
-    spawnTimer = spawnInterval;
+  if (flash > 0) flash -= dt * 2.2;
+  if (shake > 0) shake -= dt * 2.5;
+  for (var i = particles.length - 1; i >= 0; i--){
+    var p = particles[i];
+    p.t += dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vy += 520 * dt;
+    if (p.t >= p.life) particles.splice(i, 1);
   }
-  for (var i=activeMoles.length-1; i>=0; i--){
-    activeMoles[i].timer -= dt;
-    if (activeMoles[i].timer <= 0){
-      activeMoles.splice(i,1);
-    }
+  for (var r = ripples.length - 1; r >= 0; r--){
+    ripples[r].t += dt;
+    if (ripples[r].t >= 0.32) ripples.splice(r, 1);
   }
-  Game.hud('\u2764\ufe0f'.repeat(lives) + ' ' + Math.ceil(gameTime) + 's');
+  if (ended) return;
+
+  timeLeft -= dt;
+  if (timeLeft <= 0){
+    timeLeft = 0;
+    updateHud();
+    finish();
+    return;
+  }
+  elapsed += dt;
+
+  for (var h = 0; h < holes.length; h++){
+    var m = holes[h].mole;
+    if (!m) continue;
+    m.t += dt;
+    if (m.t >= m.dur) holes[h].mole = null;
+  }
+
+  spawnT -= dt;
+  if (spawnT <= 0){
+    var ok = trySpawn();
+    var p2 = prog();
+    var iv = TUNE.spawnStart.v + (TUNE.spawnMin.v - TUNE.spawnStart.v) * p2;
+    spawnT = ok ? iv * (0.75 + Math.random() * 0.5) : 0.08;
+  }
+  updateHud();
 }
+
 function draw(){
-  ctx.fillStyle = '#4ade80'; ctx.fillRect(0,0,W,H);
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = "60px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-  for (var i=0; i<holes.length; i++){
-    ctx.fillStyle = '#8B4513'; ctx.beginPath(); ctx.arc(holes[i].x, holes[i].y, 50, 0, Math.PI*2); ctx.fill();
+  var g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#4ea345');
+  g.addColorStop(1, '#2b6b2d');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.045)';
+  for (var y = 0; y < H; y += 72) ctx.fillRect(0, y, W, 36);
+
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 3;
+  for (var b = 0; b < blades.length; b++){
+    var bl = blades[b];
+    ctx.strokeStyle = bl.c ? 'rgba(126,205,116,0.5)' : 'rgba(26,84,36,0.42)';
+    ctx.beginPath();
+    ctx.moveTo(bl.x, bl.y);
+    ctx.lineTo(bl.x + bl.l, bl.y - bl.h);
+    ctx.stroke();
   }
-  for (var i=0; i<activeMoles.length; i++){
-    var m = activeMoles[i];
-    var h = holes[m.holeIndex];
-    ctx.fillText(m.type === 'mole' ? '\ud83d\udc39' : '\ud83d\udca3', h.x, h.y-10);
+
+  var ox = 0, oy = 0;
+  if (shake > 0){
+    ox = (Math.random() - 0.5) * 16 * shake;
+    oy = (Math.random() - 0.5) * 16 * shake;
   }
-  if (flashTimer > 0){
-    ctx.fillStyle = 'rgba(255,0,0,' + (flashTimer*3) + ')';
-    ctx.fillRect(0,0,W,H);
+  ctx.save();
+  ctx.translate(ox, oy);
+
+  for (var i = 0; i < holes.length; i++){
+    var h = holes[i];
+    ctx.fillStyle = '#6b4a24';
+    ellipse(h.x, h.y + 4, 69, 29);
+    ctx.fillStyle = '#5a3a1c';
+    ellipse(h.x, h.y, 66, 28);
+    ctx.fillStyle = '#20120a';
+    ellipse(h.x, h.y, 53, 21);
+  }
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (var j = 0; j < holes.length; j++){
+    var ho = holes[j];
+    var mo = ho.mole;
+    if (!mo) continue;
+    var rz = riseOf(mo);
+    if (rz <= 0.02) continue;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(ho.x - 84, ho.y - 132, 168, 132);
+    ctx.clip();
+    var sz = Math.round(44 + rz * 22);
+    ctx.font = sz + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText(mo.bomb ? '💣' : '🐹', ho.x, ho.y + 30 - rz * 76);
+    ctx.restore();
+  }
+
+  for (var k = 0; k < ripples.length; k++){
+    var rp = ripples[k];
+    var kk = rp.t / 0.32;
+    ctx.globalAlpha = 1 - kk;
+    ctx.strokeStyle = rp.hit ? '#ffe066' : 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(rp.x, rp.y, 10 + kk * 54, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  for (var pi = 0; pi < particles.length; pi++){
+    var pa = particles[pi];
+    var a = 1 - pa.t / pa.life;
+    if (a < 0) a = 0;
+    ctx.globalAlpha = a;
+    ctx.font = Math.round(26 * (0.5 + 0.5 * a)) + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText(pa.e, pa.x, pa.y);
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
+
+  if (flash > 0){
+    ctx.globalAlpha = Math.min(0.6, flash * 0.6);
+    ctx.fillStyle = '#ff2b2b';
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
   }
 }
-function onDown(x,y){
-  for (var i=activeMoles.length-1; i>=0; i--){
-    var m = activeMoles[i];
-    var h = holes[m.holeIndex];
-    var dx = x - h.x, dy = y - h.y;
-    if (dx*dx+dy*dy < 60*60){
-      if (m.type === 'mole'){
-        score++;
-        Game.score(score);
-        Game.float(h.x, h.y-30, '\u2b50', '#ffd700');
-      } else {
-        lives--;
-        flashTimer = 0.3;
-        Game.float(h.x, h.y-30, '\ud83d\udca5', '#ff4444');
-        if (lives <= 0){ Game.over(score); return; }
-      }
-      activeMoles.splice(i,1);
-      Game.hud('\u2764\ufe0f'.repeat(lives) + ' ' + Math.ceil(gameTime) + 's');
-      return;
+
+function onDown(x, y){
+  if (ended) return;
+  var best = -1, bestD = 1e9;
+  for (var i = 0; i < holes.length; i++){
+    var h = holes[i];
+    if (!h.mole) continue;
+    var dx = Math.abs(x - h.x);
+    var dy = Math.abs(y - (h.y - 30));
+    if (dx < 62 && dy < 68){
+      var d = dx + dy;
+      if (d < bestD){ bestD = d; best = i; }
     }
   }
+
+  if (best < 0){
+    ripples.push({ x: x, y: y, t: 0, hit: false });
+    return;
+  }
+
+  var hole = holes[best];
+  var m = hole.mole;
+  hole.mole = null;
+
+  if (m.bomb){
+    lives--;
+    flash = 1;
+    shake = 1;
+    for (var k = 0; k < 10; k++){
+      particles.push({ x: hole.x, y: hole.y - 44, vx: (Math.random() - 0.5) * 320, vy: -Math.random() * 220 - 30, t: 0, life: 0.7, e: '💥' });
+    }
+    ripples.push({ x: hole.x, y: hole.y - 30, t: 0, hit: true });
+    Game.float(hole.x, hole.y - 80, '💥', '#ff8080');
+    updateHud();
+    if (lives <= 0) finish();
+  } else {
+    score++;
+    Game.score(score);
+    for (var k2 = 0; k2 < 6; k2++){
+      particles.push({ x: hole.x, y: hole.y - 44, vx: (Math.random() - 0.5) * 240, vy: -Math.random() * 210 - 50, t: 0, life: 0.6, e: '⭐' });
+    }
+    ripples.push({ x: hole.x, y: hole.y - 30, t: 0, hit: true });
+    Game.float(hole.x, hole.y - 82, '+1', '#fff3b0');
+  }
 }
+
+function onResize(){ layout(); }
+
 /*__VAPPA_JS_END__*/
 </script>
 </body></html>

@@ -2,7 +2,7 @@
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
 <title>寿司キャッチ</title>
-<!--VAPPA_TPL1 %7B%22t%22%3A%22%E5%AF%BF%E5%8F%B8%E3%82%AD%E3%83%A3%E3%83%83%E3%83%81%22%2C%22h%22%3A%22%E3%81%8A%E7%9A%BF%E3%82%92%E5%B7%A6%E5%8F%B3%E3%81%AB%E3%83%89%E3%83%A9%E3%83%83%E3%82%B0%E3%81%97%E3%81%A6%E3%80%81%E8%90%BD%E3%81%A1%E3%81%A6%E3%81%8F%E3%82%8B%E5%AF%BF%E5%8F%B8%E3%82%92%E3%82%AD%E3%83%A3%E3%83%83%E3%83%81%EF%BC%81%E3%80%80%E3%83%AF%E3%82%B5%E3%83%93%E3%81%AF%E9%81%BF%E3%81%91%E3%82%88%E3%81%86%E3%80%82%E5%90%8C%E3%81%98%E7%A8%AE%E9%A1%9E%E3%82%923%E9%80%A3%E7%B6%9A%E3%81%A7%E6%8D%95%E3%82%8B%E3%81%A8%E3%83%9C%E3%83%BC%E3%83%8A%E3%82%B9%EF%BC%81%22%2C%22u%22%3A%22%E5%80%8B%22%7D-->
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E5%AF%BF%E5%8F%B8%E3%82%AD%E3%83%A3%E3%83%83%E3%83%81%22%2C%22h%22%3A%22%E3%83%89%E3%83%A9%E3%83%83%E3%82%B0%E3%81%A7%E3%81%8A%E7%9A%BF%E3%82%92%E5%B7%A6%E5%8F%B3%E3%81%AB%E5%8B%95%E3%81%8B%E3%81%97%E3%81%A6%E3%80%81%E8%90%BD%E3%81%A1%E3%81%A6%E3%81%8F%E3%82%8B%E5%AF%BF%E5%8F%B8%F0%9F%8D%A3%F0%9F%8D%A4%F0%9F%8D%99%E3%82%92%E3%82%AD%E3%83%A3%E3%83%83%E3%83%81%EF%BC%81%20%E3%83%AF%E3%82%B5%E3%83%93%F0%9F%A5%A6%E3%82%92%E5%8F%96%E3%82%8B%E3%81%A8%E3%83%A9%E3%82%A4%E3%83%95%E3%81%8C1%E6%B8%9B%E3%82%8B%E3%80%82%E5%90%8C%E3%81%98%E5%AF%BF%E5%8F%B8%E3%82%923%E9%80%A3%E7%B6%9A%E3%81%A7%E5%8F%96%E3%82%8B%E3%81%A8%E3%80%8C%E3%82%B3%E3%83%B3%E3%83%9C%EF%BC%81%E3%80%8D%E3%81%A7%EF%BC%8B5%E7%82%B9%E3%80%82%E5%88%B6%E9%99%90%E6%99%82%E9%96%9330%E7%A7%92%E3%80%81%E3%83%A9%E3%82%A4%E3%83%950%E3%81%A7%E7%B5%82%E4%BA%86%E3%80%82%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
@@ -33,11 +33,11 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
 <canvas id="vpc"></canvas>
 <div id="vpstage">
   <div id="vpdom"></div>
-  <div class="vp-hud" id="vphud" hidden><span id="vphl">0個</span><span id="vphr"></span></div>
+  <div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
   <div class="vp-toast" id="vptoast"></div>
   <div class="vp-ov" id="vpov">
     <h1>寿司キャッチ</h1>
-    <p>お皿を左右にドラッグして、落ちてくる寿司をキャッチ！　ワサビは避けよう。同じ種類を3連続で捕るとボーナス！</p>
+    <p>ドラッグでお皿を左右に動かして、落ちてくる寿司🍣🍤🍙をキャッチ！ ワサビ🥦を取るとライフが1減る。同じ寿司を3連続で取ると「コンボ！」で＋5点。制限時間30秒、ライフ0で終了。</p>
     <button class="vp-btn" id="vpstart">スタート</button>
   </div>
 </div>
@@ -95,7 +95,7 @@ window.addEventListener("resize",rs);rs();
 // 実画面座標→論理座標（タッチ入力用）
 function toLX(x){return (x-__OX)/__SC;}
 function toLY(y){return (y-__OY)/__SC;}
-var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="個";
+var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="点";
 // ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
 var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
 var hud=document.getElementById("vphud"),hl=document.getElementById("vphl"),hr=document.getElementById("vphr");
@@ -204,95 +204,261 @@ window.__vpTap=function(){
 <script id="vpgame">
 /*__VAPPA_JS__*/
 var TUNE = {
-  fallSpeed: { v: 200, label: '落下速度', min: 100, max: 400, step: 10 },
-  speedAccel: { v: 8, label: '加速', min: 0, max: 20, step: 1 },
-  spawnInterval: { v: 0.8, label: '出現間隔', min: 0.3, max: 2, step: 0.1 },
-  spawnMin: { v: 0.3, label: '最小間隔', min: 0.15, max: 1, step: 0.05 },
-  wasabiRate: { v: 0.2, label: 'ワサビ率', min: 0, max: 0.5, step: 0.02 },
-  comboBonus: { v: 5, label: 'コンボボーナス', min: 2, max: 10, step: 1 },
-  timerDuration: { v: 30, label: '制限時間(秒)', min: 20, max: 60, step: 5 }
+  fallSpeed: { v: 170, label: '落下の速さ', min: 60, max: 400, step: 10 },
+  speedRamp: { v: 6, label: '加速ペース', min: 0, max: 20, step: 0.5 },
+  spawnStart: { v: 0.9, label: '出現間隔（開始）', min: 0.4, max: 2, step: 0.05 },
+  spawnMin: { v: 0.35, label: '出現間隔（最短）', min: 0.15, max: 1, step: 0.05 },
+  badRate: { v: 0.22, label: 'ワサビの割合', min: 0, max: 0.5, step: 0.02 },
+  lives: { v: 3, label: 'ライフ数', min: 1, max: 9, step: 1 },
+  gameTime: { v: 30, label: '制限時間（秒）', min: 15, max: 90, step: 5 },
+  comboBonus: { v: 5, label: 'コンボボーナス', min: 0, max: 20, step: 1 }
 };
-var plate, items, lives, score, timer, fallSpeed, spawnT, lastType, combo, elapsed;
-function init() {
-  plate = { x: W/2, w: 80 };
+
+var KINDS = ['🍣', '🍤', '🍙'];
+var BAD = '🥦';
+
+var items, particles, plate, targetX, score, lives, elapsed, spawnT, speed;
+var shake, flash, ended, combo, lastKind, hudCache, grains;
+
+function init(){
+  plate = { x: W/2, y: 628, half: 64 };
+  targetX = W/2;
   items = [];
-  lives = 3;
+  particles = [];
   score = 0;
-  timer = TUNE.timerDuration.v;
-  fallSpeed = TUNE.fallSpeed.v;
-  spawnT = TUNE.spawnInterval.v;
-  lastType = null;
-  combo = 0;
+  lives = TUNE.lives.v;
   elapsed = 0;
-  Game.hud('❤️❤️❤️ ' + Math.ceil(timer) + 's');
+  spawnT = 0.45;
+  speed = TUNE.fallSpeed.v;
+  shake = 0; flash = 0; ended = false;
+  combo = 0; lastKind = ''; hudCache = '';
+  grains = [];
+  for (var i = 0; i < 54; i++){
+    grains.push({ x: Math.random()*W, y: Math.random()*H, len: 18 + Math.random()*90, dy: (Math.random()*2-1)*3 });
+  }
   Game.score(0);
+  writeHud();
+  Game.toast('30秒！ 寿司をキャッチ');
 }
-function update(dt) {
-  if (timer <= 0 || lives <= 0) return;
-  timer -= dt;
+
+function writeHud(){
+  var secs = Math.max(0, Math.ceil(TUNE.gameTime.v - elapsed));
+  var txt = '❤️'.repeat(Math.max(0, lives)) + ' ⏳' + secs;
+  if (txt !== hudCache){ hudCache = txt; Game.hud(txt); }
+}
+
+function clampX(x){
+  var h = plate ? plate.half : 60;
+  if (x < h) return h;
+  if (x > W - h) return W - h;
+  return x;
+}
+
+function spawn(){
+  var bad = Math.random() < TUNE.badRate.v;
+  items.push({
+    x: 46 + Math.random()*(W - 92),
+    y: -34,
+    r: bad ? 16 : 18 + Math.random()*3,
+    bad: bad,
+    kind: bad ? BAD : KINDS[(Math.random()*KINDS.length) | 0],
+    done: false,
+    rot: (Math.random()*2 - 1) * 0.7,
+    spin: (Math.random()*2 - 1) * 1.6
+  });
+}
+
+function burst(x, y, col, n){
+  for (var i = 0; i < n; i++){
+    if (particles.length > 140) break;
+    var a = Math.random()*Math.PI*2;
+    var s = 60 + Math.random()*190;
+    var lf = 0.35 + Math.random()*0.35;
+    particles.push({ x: x, y: y, vx: Math.cos(a)*s, vy: Math.sin(a)*s - 70, r: 2 + Math.random()*3, life: lf, max: lf, col: col });
+  }
+}
+
+function finish(){
+  if (ended) return;
+  ended = true;
+  Game.over(score);
+}
+
+function catchItem(it){
+  if (it.bad){
+    lives--;
+    shake = 0.35; flash = 1;
+    combo = 0; lastKind = '';
+    Game.float(it.x, plate.y - 40, 'ワサビ！', '#a3e635');
+    burst(it.x, plate.y - 12, '#7ed957', 9);
+    writeHud();
+    if (lives <= 0){ finish(); }
+    return;
+  }
+  if (it.kind === lastKind){ combo++; } else { combo = 1; lastKind = it.kind; }
+  var gain = 1;
+  if (combo >= 3){
+    gain += TUNE.comboBonus.v;
+    combo = 0;
+    Game.float(it.x, plate.y - 68, 'コンボ！ +' + TUNE.comboBonus.v, '#ffd166');
+    burst(it.x, plate.y - 16, '#ffd166', 16);
+  }
+  score += gain;
+  Game.score(score);
+  Game.float(it.x, plate.y - 42, '+' + gain, '#fff3c4');
+  burst(it.x, plate.y - 12, '#ffb703', 5);
+}
+
+function update(dt){
+  if (ended) return;
   elapsed += dt;
-  fallSpeed += TUNE.speedAccel.v * dt;
-  var interval = Math.max(TUNE.spawnMin.v, TUNE.spawnInterval.v - elapsed * 0.02);
+  if (elapsed >= TUNE.gameTime.v){
+    elapsed = TUNE.gameTime.v;
+    writeHud();
+    finish();
+    return;
+  }
+  speed = TUNE.fallSpeed.v + elapsed * TUNE.speedRamp.v;
+  writeHud();
+
   spawnT -= dt;
-  if (spawnT <= 0) {
-    var types = ['🍣','🍤','🍙'];
-    var isWasabi = Math.random() < TUNE.wasabiRate.v;
-    var emoji = isWasabi ? '🥦' : types[Math.floor(Math.random() * 3)];
-    items.push({ x: 30 + Math.random() * (W - 60), y: -20, r: 20, emoji: emoji, wasabi: isWasabi });
-    spawnT = interval;
+  if (spawnT <= 0){
+    spawn();
+    var prog = Math.min(1, (elapsed / TUNE.gameTime.v) * 1.35);
+    var iv = TUNE.spawnStart.v + (TUNE.spawnMin.v - TUNE.spawnStart.v) * prog;
+    spawnT = iv * (0.75 + Math.random()*0.5);
   }
-  var plateY = H - 100;
-  for (var i = items.length - 1; i >= 0; i--) {
+
+  plate.x += (targetX - plate.x) * Math.min(1, dt*20);
+  plate.x = clampX(plate.x);
+
+  for (var i = items.length - 1; i >= 0; i--){
     var it = items[i];
-    it.y += fallSpeed * dt;
-    if (it.y > plateY - 20 && it.y < plateY + 20 && Math.abs(it.x - plate.x) < plate.w/2 + it.r) {
-      if (it.wasabi) {
-        lives--;
-        Game.hud('❤️'.repeat(Math.max(0, lives)) + ' ' + Math.ceil(timer) + 's');
-        Game.float(it.x, plateY - 30, '💥', '#ff6b6b');
-        if (lives <= 0) { Game.over(score); return; }
-      } else {
-        combo = (it.emoji === lastType) ? combo + 1 : 1;
-        lastType = it.emoji;
-        score++;
-        if (combo >= 3) {
-          score += TUNE.comboBonus.v;
-          Game.float(it.x, plateY - 30, 'コンボ+5!', '#ffd166');
-          combo = 0;
-        } else {
-          Game.float(it.x, plateY - 30, '+1', '#a0ffa0');
-        }
-        Game.score(score);
+    it.y += speed*dt;
+    it.rot += it.spin*dt*0.5;
+    if (!it.done && it.y >= plate.y - 12){
+      it.done = true;
+      if (Math.abs(it.x - plate.x) <= plate.half + it.r*0.45 + 4){
+        items.splice(i, 1);
+        catchItem(it);
+        if (ended) return;
+        continue;
       }
-      items.splice(i, 1);
-    } else if (it.y > H + 30) {
-      items.splice(i, 1);
     }
+    if (it.y > H + 50) items.splice(i, 1);
   }
-  Game.hud('❤️'.repeat(Math.max(0, lives)) + ' ' + Math.ceil(timer) + 's');
-  if (timer <= 0) { Game.over(score); return; }
+
+  for (var j = particles.length - 1; j >= 0; j--){
+    var p = particles[j];
+    p.x += p.vx*dt; p.y += p.vy*dt;
+    p.vy += 620*dt;
+    p.life -= dt;
+    if (p.life <= 0) particles.splice(j, 1);
+  }
+  if (shake > 0) shake -= dt;
+  if (flash > 0) flash -= dt*2.2;
 }
-function draw() {
-  ctx.fillStyle = '#8B4513';
-  ctx.fillRect(0, 56, W, H - 56);
-  ctx.fillStyle = '#D2B48C';
-  ctx.fillRect(0, H - 120, W, 50);
+
+function drawWood(){
+  ctx.fillStyle = '#3f2716';
+  ctx.fillRect(0, 0, W, H);
+  var ph = 56;
+  var rows = Math.ceil(H/ph);
+  for (var r = 0; r < rows; r++){
+    var y = r*ph;
+    var l = 23 + (r % 3)*2.2;
+    ctx.fillStyle = 'hsl(26,38%,' + l + '%)';
+    ctx.fillRect(0, y, W, ph);
+    ctx.fillStyle = 'rgba(30,14,4,0.5)';
+    ctx.fillRect(0, y + ph - 3, W, 3);
+    ctx.fillStyle = 'rgba(255,215,150,0.05)';
+    ctx.fillRect(0, y + 2, W, 2);
+  }
+  ctx.strokeStyle = 'rgba(24,10,3,0.22)';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  for (var i = 0; i < grains.length; i++){
+    var g = grains[i];
+    ctx.moveTo(g.x, g.y);
+    ctx.lineTo(g.x + g.len, g.y + g.dy);
+  }
+  ctx.stroke();
+
+  var grd = ctx.createLinearGradient(0, 0, 0, 120);
+  grd.addColorStop(0, 'rgba(8,4,0,0.6)');
+  grd.addColorStop(1, 'rgba(8,4,0,0)');
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, 0, W, 120);
+
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.fillRect(0, H - 26, W, 26);
+  ctx.fillStyle = 'rgba(255,220,160,0.08)';
+  ctx.fillRect(0, H - 28, W, 3);
+}
+
+function drawPlate(){
+  var R = plate.half;
+  ctx.save();
+  ctx.translate(plate.x, plate.y);
+  ctx.fillStyle = 'rgba(0,0,0,0.32)';
+  ctx.beginPath(); ctx.ellipse(0, 9, R, 17, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#ecdfc4';
+  ctx.beginPath(); ctx.ellipse(0, 0, R, 16, 0, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#b98f57';
+  ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.ellipse(0, 0, R - 3, 14, 0, 0, Math.PI*2); ctx.stroke();
+  ctx.fillStyle = '#d9c49d';
+  ctx.beginPath(); ctx.ellipse(0, 0, R*0.58, 8.5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.beginPath(); ctx.ellipse(-R*0.35, -6, R*0.24, 3.5, -0.3, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+function draw(){
+  var ox = 0, oy = 0;
+  if (shake > 0){
+    ox = (Math.random()*2 - 1)*shake*26;
+    oy = (Math.random()*2 - 1)*shake*16;
+  }
+  ctx.save();
+  ctx.translate(ox, oy);
+  drawWood();
+  drawPlate();
+
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  for (var i = 0; i < items.length; i++) {
+  for (var i = 0; i < items.length; i++){
     var it = items[i];
-    ctx.font = "44px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-    ctx.fillText(it.emoji, it.x, it.y);
+    ctx.save();
+    ctx.translate(it.x, it.y);
+    ctx.rotate(it.rot*0.4);
+    ctx.font = (it.r*2) + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText(it.kind, 0, 0);
+    ctx.restore();
   }
-  ctx.font = "56px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-  ctx.fillText('🍽️', plate.x, H - 80);
+
+  for (var j = 0; j < particles.length; j++){
+    var p = particles[j];
+    ctx.globalAlpha = Math.max(0, p.life / p.max);
+    ctx.fillStyle = p.col;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  if (flash > 0){
+    ctx.fillStyle = 'rgba(220,50,60,' + (flash*0.26) + ')';
+    ctx.fillRect(0, 0, W, H);
+  }
 }
-function onDown(x, y) {
-  plate.x = Math.max(plate.w/2, Math.min(W - plate.w/2, x));
-}
-function onMove(x, y) {
-  plate.x = Math.max(plate.w/2, Math.min(W - plate.w/2, x));
-}
+
+function onDown(x, y){ if (plate) targetX = clampX(x); }
+function onMove(x, y){ if (plate) targetX = clampX(x); }
+function onUp(x, y){ if (plate) targetX = clampX(x); }
+function onResize(){}
+
 /*__VAPPA_JS_END__*/
 </script>
 </body></html>

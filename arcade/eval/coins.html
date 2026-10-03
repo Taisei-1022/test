@@ -2,7 +2,7 @@
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
 <title>コインあつめ</title>
-<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%82%B3%E3%82%A4%E3%83%B3%E3%81%82%E3%81%A4%E3%82%81%22%2C%22h%22%3A%22%E7%94%BB%E9%9D%A2%E3%81%AE%E3%82%B3%E3%82%A4%E3%83%B3%F0%9F%AA%99%E3%82%84%E8%99%B9%E3%82%B3%E3%82%A4%E3%83%B3%F0%9F%8C%88%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%E3%81%97%E3%81%A6%E9%9B%86%E3%82%81%E3%82%88%E3%81%86%EF%BC%8130%E7%A7%92%E9%96%93%E3%81%A7%E9%AB%98%E5%BE%97%E7%82%B9%E3%82%92%E7%8B%99%E3%81%88%EF%BC%81%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%82%B3%E3%82%A4%E3%83%B3%E3%81%82%E3%81%A4%E3%82%81%22%2C%22h%22%3A%22%E3%81%B5%E3%82%8F%E3%81%B5%E3%82%8F%E6%B3%B3%E3%81%90%E3%82%B3%E3%82%A4%E3%83%B3%F0%9F%AA%99%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%E3%81%97%E3%81%A6%E9%9B%86%E3%82%81%E3%82%88%E3%81%86%EF%BC%81%E8%99%B9%E3%82%B3%E3%82%A4%E3%83%B3%F0%9F%8C%88%E3%81%AF%2B5%E7%82%B9%E3%80%8230%E7%A7%92%E3%81%A7%E3%83%8F%E3%82%A4%E3%82%B9%E3%82%B3%E3%82%A2%E3%82%92%E7%9B%AE%E6%8C%87%E3%81%9B%EF%BC%81%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
@@ -37,7 +37,7 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
   <div class="vp-toast" id="vptoast"></div>
   <div class="vp-ov" id="vpov">
     <h1>コインあつめ</h1>
-    <p>画面のコイン🪙や虹コイン🌈をタップして集めよう！30秒間で高得点を狙え！</p>
+    <p>ふわふわ泳ぐコイン🪙をタップして集めよう！虹コイン🌈は+5点。30秒でハイスコアを目指せ！</p>
     <button class="vp-btn" id="vpstart">スタート</button>
   </div>
 </div>
@@ -204,109 +204,308 @@ window.__vpTap=function(){
 <script id="vpgame">
 /*__VAPPA_JS__*/
 var TUNE = {
-  coinSpeed: { v: 80, label: '基本速度', min: 30, max: 150, step: 10 },
-  rainbowChance: { v: 0.1, label: '虹コイン確率', min: 0, max: 0.3, step: 0.02 },
-  speedUpFactor: { v: 2.0, label: '終盤加速倍率', min: 1.5, max: 3.0, step: 0.5 },
-  targetCount: { v: 4, label: '同時出現数', min: 3, max: 5, step: 1 }
+  gameTime:    { v: 30,   label: '制限時間(秒)',       min: 15, max: 60,  step: 5 },
+  coinSpeed:   { v: 85,   label: 'コインの速さ',       min: 20, max: 220, step: 5 },
+  rushMul:     { v: 1.9,  label: 'ラストスパート倍率', min: 1,  max: 4,   step: 0.1 },
+  rushTime:    { v: 10,   label: '加速開始(残り秒)',   min: 3,  max: 20,  step: 1 },
+  coinsMin:    { v: 3,    label: 'コインの最小数',     min: 2,  max: 8,   step: 1 },
+  coinsMax:    { v: 5,    label: 'コインの最大数',     min: 3,  max: 12,  step: 1 },
+  rainbowRate: { v: 0.18, label: '虹コインの割合',     min: 0,  max: 0.6, step: 0.02 },
+  coinSize:    { v: 40,   label: 'コインの大きさ',     min: 24, max: 64,  step: 2 }
 };
-var coins, effects, bigText, score, timeLeft, isFast;
+
+var FT = 72, FB = 694, FL = 16, FR = 464;
+var coins = [], particles = [], rings = [], popups = [], clouds = [];
+var lastTap = { x: -999, y: -999 };
+var score = 0, timeLeft = 30, running = false, shake = 0, t = 0, lastSec = -1, rushed = false, bgGrad = null;
+
+function ease(v){
+  if (v > 1) v = 1;
+  if (v < 0) v = 0;
+  return 1 - Math.pow(1 - v, 3);
+}
+
 function init(){
-  score = 0; timeLeft = 30; isFast = false;
-  coins = []; effects = []; bigText = null;
-  for (var i=0; i<TUNE.targetCount.v; i++) spawnCoin(true);
+  coins = []; particles = []; rings = []; popups = []; clouds = [];
+  score = 0;
+  timeLeft = TUNE.gameTime.v;
+  running = true;
+  shake = 0;
+  t = 0;
+  lastSec = -1;
+  rushed = false;
+  lastTap.x = -999;
+  lastTap.y = -999;
+  bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+  bgGrad.addColorStop(0, '#3fb8f5');
+  bgGrad.addColorStop(0.5, '#9ad9f7');
+  bgGrad.addColorStop(1, '#dcf3ff');
+  var i;
+  for (i = 0; i < 7; i++){
+    clouds.push({
+      x: Math.random()*W,
+      y: 70 + Math.random()*(H - 160),
+      s: 0.5 + Math.random()*0.9,
+      v: 8 + Math.random()*18,
+      a: 0.40 + Math.random()*0.35
+    });
+  }
+  var lo = Math.min(TUNE.coinsMin.v, TUNE.coinsMax.v);
+  var hi = Math.max(TUNE.coinsMin.v, TUNE.coinsMax.v);
+  var n = lo + Math.round(Math.random()*(hi - lo));
+  for (i = 0; i < n; i++) spawnCoin(true);
   Game.score(0);
+  updateHud();
 }
+
+function updateHud(){
+  var s = Math.ceil(timeLeft);
+  if (s < 0) s = 0;
+  Game.hud('⏱ ' + s + 's' + (rushed ? ' 🔥' : ''));
+}
+
 function spawnCoin(initial){
-  var r = 20;
-  var isRainbow = Math.random() < TUNE.rainbowChance.v;
-  if (isRainbow) r = 14;
-  var x = r + Math.random() * (W - 2*r);
-  var y = 56 + r + Math.random() * (H - 56 - 2*r);
-  var speed = TUNE.coinSpeed.v;
-  if (isRainbow) speed *= 1.5;
-  var angle = Math.random() * 2 * Math.PI;
-  var vx = Math.cos(angle) * speed;
-  var vy = Math.sin(angle) * speed;
-  coins.push({ x: x, y: y, vx: vx, vy: vy, r: r, isRainbow: isRainbow });
-}
-function update(dt){
-  timeLeft -= dt;
-  if (timeLeft <= 0){ Game.over(score); return; }
-  var factor = (timeLeft <= 10) ? TUNE.speedUpFactor.v : 1.0;
-  for (var i=0; i<coins.length; i++){
-    var c = coins[i];
-    c.vx += (Math.random()-0.5)*60*dt;
-    c.vy += (Math.random()-0.5)*60*dt;
-    var maxSpeed = TUNE.coinSpeed.v * 1.5 * factor;
-    if (c.isRainbow) maxSpeed *= 1.5;
-    var spd = Math.sqrt(c.vx*c.vx + c.vy*c.vy);
-    if (spd > maxSpeed){ c.vx = (c.vx/spd)*maxSpeed; c.vy = (c.vy/spd)*maxSpeed; }
-    c.x += c.vx * dt * factor;
-    c.y += c.vy * dt * factor;
-    if (c.x < c.r) { c.x = c.r; c.vx = -c.vx; }
-    if (c.x > W - c.r) { c.x = W - c.r; c.vx = -c.vx; }
-    if (c.y < 56 + c.r) { c.y = 56 + c.r; c.vy = -c.vy; }
-    if (c.y > H - c.r) { c.y = H - c.r; c.vy = -c.vy; }
+  var rainbow = false;
+  if (!initial && Math.random() < TUNE.rainbowRate.v){
+    var has = false;
+    for (var k = 0; k < coins.length; k++){ if (coins[k].rainbow) has = true; }
+    if (!has) rainbow = true;
   }
-  for (var i=effects.length-1; i>=0; i--){
-    var e = effects[i];
-    e.x += e.vx * dt; e.y += e.vy * dt; e.life -= dt;
-    e.vy += 100 * dt;
-    if (e.life <= 0 || e.y > H) effects.splice(i,1);
-  }
-  if (bigText){
-    bigText.life -= dt;
-    if (bigText.life <= 0) bigText = null;
-  }
-}
-function draw(){
-  ctx.fillStyle = '#87CEEB'; ctx.fillRect(0,0,W,H);
-  ctx.font = "40px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  var cloudPositions = [{x:80,y:100},{x:250,y:60},{x:400,y:120}];
-  for (var i=0; i<cloudPositions.length; i++) ctx.fillText('\u2601\ufe0f', cloudPositions[i].x, cloudPositions[i].y);
-  ctx.font = "28px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-  for (var i=0; i<coins.length; i++){
-    var c = coins[i];
-    if (c.isRainbow) { ctx.font = "20px 'Apple Color Emoji','Noto Color Emoji',sans-serif"; ctx.fillText('\ud83c\udf08', c.x, c.y); ctx.font = "28px 'Apple Color Emoji','Noto Color Emoji',sans-serif"; }
-    else ctx.fillText('\ud83e\ude99', c.x, c.y);
-  }
-  for (var i=0; i<effects.length; i++){
-    var e = effects[i];
-    ctx.globalAlpha = Math.max(0, e.life / 0.4);
-    ctx.fillStyle = e.color;
-    ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI*2); ctx.fill();
-    ctx.globalAlpha = 1;
-  }
-  if (bigText){
-    ctx.font = "40px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = 'yellow'; ctx.strokeStyle = 'black'; ctx.lineWidth = 3;
-    ctx.globalAlpha = Math.max(0, bigText.life / 1.0);
-    ctx.strokeText(bigText.text, W/2, 80);
-    ctx.fillText(bigText.text, W/2, 80);
-    ctx.globalAlpha = 1;
-  }
-}
-function onDown(x,y){
-  for (var i=0; i<coins.length; i++){
-    var c = coins[i];
-    var dx = x - c.x, dy = y - c.y;
-    if (Math.sqrt(dx*dx + dy*dy) < c.r + 10){
-      if (c.isRainbow){ score += 5; bigText = { text: '+5!', life: 1.0 }; Game.float(c.x, c.y, '+5', '#ffd700'); }
-      else { score += 1; Game.float(c.x, c.y, '+1', '#ffffff'); }
-      Game.score(score);
-      for (var j=0; j<8; j++){
-        var angle = Math.random() * 2 * Math.PI;
-        var speed = 50 + Math.random() * 100;
-        effects.push({ x: c.x, y: c.y, vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed, r: 2+Math.random()*4, life: 0.3+Math.random()*0.2, color: c.isRainbow ? 'hsl(300,100%,70%)' : 'hsl(40,100%,70%)' });
-      }
-      coins.splice(i,1);
-      spawnCoin(false);
-      return;
+  var r = TUNE.coinSize.v * (rainbow ? 0.32 : 0.5);
+  var x = FL + r, y = FT + r, ok = false, tries = 0;
+  while (tries < 40 && !ok){
+    tries++;
+    x = FL + r + Math.random()*(FR - FL - r*2);
+    y = FT + r + Math.random()*(FB - FT - r*2);
+    ok = true;
+    for (var j = 0; j < coins.length; j++){
+      var o = coins[j];
+      var dx = o.x - x, dy = o.y - y;
+      if (Math.sqrt(dx*dx + dy*dy) < o.r + r + 34){ ok = false; break; }
+    }
+    if (ok){
+      var tx = x - lastTap.x, ty = y - lastTap.y;
+      if (Math.sqrt(tx*tx + ty*ty) < 86) ok = false;
     }
   }
+  var a = Math.random()*6.2832;
+  var sp = TUNE.coinSpeed.v * (rainbow ? 1.6 : 1) * (0.8 + Math.random()*0.4);
+  coins.push({
+    x: x, y: y, r: r, ang: a, spd: sp,
+    rainbow: rainbow, pop: 0, wob: Math.random()*6.2832
+  });
 }
+
+function burst(x, y, rainbow){
+  var cols = rainbow
+    ? ['#f87171', '#fbbf24', '#34d399', '#60a5fa', '#c084fc', '#ffffff']
+    : ['#fde68a', '#fbbf24', '#f59e0b', '#ffffff'];
+  for (var i = 0; i < 16; i++){
+    var a = Math.random()*6.2832;
+    var sp = 60 + Math.random()*220;
+    particles.push({
+      x: x, y: y,
+      vx: Math.cos(a)*sp,
+      vy: Math.sin(a)*sp - 40,
+      life: 0.5 + Math.random()*0.35,
+      max: 0.85,
+      c: cols[(Math.random()*cols.length) | 0],
+      s: 2 + Math.random()*3.5
+    });
+  }
+  rings.push({ x: x, y: y, r: 6, life: 0.32, max: 0.32, c: rainbow ? '#f472b6' : '#fbbf24' });
+}
+
+function onDown(x, y){
+  lastTap.x = x;
+  lastTap.y = y;
+  if (!running) return;
+  var best = -1, bd = 1e9;
+  for (var i = 0; i < coins.length; i++){
+    var c = coins[i];
+    var dx = c.x - x, dy = c.y - y;
+    var d = Math.sqrt(dx*dx + dy*dy);
+    var hit = Math.max(c.r*1.5, 30);
+    if (d < hit && d < bd){ bd = d; best = i; }
+  }
+  if (best < 0) return;
+  var co = coins[best];
+  coins.splice(best, 1);
+  var gain = co.rainbow ? 5 : 1;
+  score += gain;
+  Game.score(score);
+  burst(co.x, co.y, co.rainbow);
+  if (co.rainbow){
+    popups.push({ x: W/2, y: 130, life: 1.1 });
+    Game.float(W/2, 168, '🌈 +5', '#f472b6');
+    shake = 0.22;
+  } else {
+    Game.float(co.x, co.y - 16, '+1', '#f59e0b');
+  }
+  spawnCoin(false);
+}
+
+function update(dt){
+  t += dt;
+  var i;
+  for (i = 0; i < clouds.length; i++){
+    var cl = clouds[i];
+    cl.x += cl.v*dt;
+    if (cl.x > W + 140){
+      cl.x = -140;
+      cl.y = 70 + Math.random()*(H - 160);
+    }
+  }
+  for (i = particles.length - 1; i >= 0; i--){
+    var p = particles[i];
+    p.vy += 320*dt;
+    p.x += p.vx*dt;
+    p.y += p.vy*dt;
+    p.life -= dt;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+  for (i = rings.length - 1; i >= 0; i--){
+    var rg = rings[i];
+    rg.r += 320*dt;
+    rg.life -= dt;
+    if (rg.life <= 0) rings.splice(i, 1);
+  }
+  for (i = popups.length - 1; i >= 0; i--){
+    popups[i].life -= dt;
+    if (popups[i].life <= 0) popups.splice(i, 1);
+  }
+  if (shake > 0) shake = Math.max(0, shake - dt*1.4);
+  if (!running) return;
+
+  timeLeft -= dt;
+  if (timeLeft <= 0){
+    timeLeft = 0;
+    running = false;
+    updateHud();
+    Game.over(score);
+    return;
+  }
+  var sec = Math.ceil(timeLeft);
+  if (sec !== lastSec){ lastSec = sec; updateHud(); }
+  if (!rushed && timeLeft <= TUNE.rushTime.v){
+    rushed = true;
+    shake = 0.32;
+    updateHud();
+    Game.toast('ラストスパート！🔥');
+  }
+  var mult = rushed ? TUNE.rushMul.v : 1;
+  for (i = 0; i < coins.length; i++){
+    var c = coins[i];
+    c.pop = Math.min(1, c.pop + dt*4.5);
+    c.ang += Math.sin(t*1.6 + c.wob)*1.1*dt;
+    var sp = c.spd*mult;
+    c.x += Math.cos(c.ang)*sp*dt;
+    c.y += Math.sin(c.ang)*sp*dt;
+    if (c.x < FL + c.r){ c.x = FL + c.r; c.ang = Math.PI - c.ang; }
+    if (c.x > FR - c.r){ c.x = FR - c.r; c.ang = Math.PI - c.ang; }
+    if (c.y < FT + c.r){ c.y = FT + c.r; c.ang = -c.ang; }
+    if (c.y > FB - c.r){ c.y = FB - c.r; c.ang = -c.ang; }
+  }
+}
+
+function drawCloud(x, y, s, a){
+  ctx.globalAlpha = a;
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(x, y, 26*s, 0, 6.2832);
+  ctx.arc(x + 30*s, y + 6*s, 20*s, 0, 6.2832);
+  ctx.arc(x - 30*s, y + 8*s, 17*s, 0, 6.2832);
+  ctx.arc(x + 6*s, y - 15*s, 19*s, 0, 6.2832);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+function draw(){
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = bgGrad ? bgGrad : '#9ad9f7';
+  ctx.fillRect(0, 0, W, H);
+
+  var ox = shake > 0 ? (Math.random() - 0.5)*13 : 0;
+  var oy = shake > 0 ? (Math.random() - 0.5)*13 : 0;
+  ctx.save();
+  ctx.translate(ox, oy);
+  var i;
+
+  for (i = 0; i < clouds.length; i++){
+    var cl = clouds[i];
+    drawCloud(cl.x, cl.y, cl.s, cl.a);
+  }
+
+  for (i = 0; i < rings.length; i++){
+    var rg = rings[i];
+    ctx.globalAlpha = Math.max(0, rg.life / rg.max)*0.85;
+    ctx.strokeStyle = rg.c;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(rg.x, rg.y, rg.r, 0, 6.2832);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (i = 0; i < coins.length; i++){
+    var c = coins[i];
+    var bob = Math.sin(t*3 + c.wob)*3;
+    var sc = 0.35 + 0.65*ease(c.pop);
+    if (c.rainbow){
+      ctx.globalAlpha = 0.35 + 0.2*Math.sin(t*8);
+      ctx.fillStyle = '#f0abfc';
+      ctx.beginPath();
+      ctx.arc(c.x, c.y + bob, c.r*2.0, 0, 6.2832);
+      ctx.fill();
+    } else {
+      ctx.globalAlpha = 0.30;
+      ctx.fillStyle = '#fffbe6';
+      ctx.beginPath();
+      ctx.arc(c.x, c.y + bob, c.r*1.4, 0, 6.2832);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.font = (c.r*2*sc) + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText(c.rainbow ? '🌈' : '🪙', c.x, c.y + bob);
+  }
+
+  for (i = 0; i < particles.length; i++){
+    var p = particles[i];
+    ctx.globalAlpha = Math.max(0, p.life / p.max);
+    ctx.fillStyle = p.c;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.s, 0, 6.2832);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  for (i = 0; i < popups.length; i++){
+    var pu = popups[i];
+    var k = 1 - pu.life / 1.1;
+    var sc2 = 0.5 + 1.1*Math.min(1, k*4);
+    ctx.save();
+    ctx.globalAlpha = pu.life > 0.35 ? 1 : Math.max(0, pu.life / 0.35);
+    ctx.translate(pu.x, pu.y);
+    ctx.scale(sc2, sc2);
+    ctx.font = 'bold 56px sans-serif';
+    ctx.lineWidth = 9;
+    ctx.strokeStyle = '#ffffff';
+    ctx.strokeText('+5!', 0, 0);
+    ctx.fillStyle = '#f43f5e';
+    ctx.fillText('+5!', 0, 0);
+    ctx.restore();
+  }
+
+  ctx.restore();
+
+  if (rushed && running){
+    ctx.fillStyle = 'rgba(255,90,60,' + (0.05 + 0.035*Math.sin(t*9)) + ')';
+    ctx.fillRect(0, 0, W, H);
+  }
+}
+
 /*__VAPPA_JS_END__*/
 </script>
 </body></html>

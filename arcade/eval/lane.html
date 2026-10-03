@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="ja"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
-<title>3レーンカーレース</title>
-<!--VAPPA_TPL1 %7B%22t%22%3A%223%E3%83%AC%E3%83%BC%E3%83%B3%E3%82%AB%E3%83%BC%E3%83%AC%E3%83%BC%E3%82%B9%22%2C%22h%22%3A%22%E5%B7%A6%E5%8F%B3%E3%82%BF%E3%83%83%E3%83%97%E3%81%A7%E8%BB%8A%E7%B7%9A%E5%A4%89%E6%9B%B4%EF%BC%81%E9%9A%9C%E5%AE%B3%E7%89%A9%E3%82%92%E3%82%88%E3%81%91%E3%81%A6%E9%80%B2%E3%82%81%EF%BC%81%22%2C%22u%22%3A%22m%22%7D-->
+<title>3レーン カーレース</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%223%E3%83%AC%E3%83%BC%E3%83%B3%20%E3%82%AB%E3%83%BC%E3%83%AC%E3%83%BC%E3%82%B9%22%2C%22h%22%3A%22%E7%94%BB%E9%9D%A2%E3%81%AE%E5%B7%A6%E5%8D%8A%E5%88%86%E3%82%BF%E3%83%83%E3%83%97%E3%81%A7%E5%B7%A6%E3%81%AE%E8%BB%8A%E7%B7%9A%E3%80%81%E5%8F%B3%E5%8D%8A%E5%88%86%E3%82%BF%E3%83%83%E3%83%97%E3%81%A7%E5%8F%B3%E3%81%AE%E8%BB%8A%E7%B7%9A%E3%81%B8%E3%82%B9%E3%83%83%E3%81%A8%E7%A7%BB%E5%8B%95%E3%80%82%E5%89%8D%E3%81%8B%E3%82%89%E6%9D%A5%E3%82%8B%E8%BB%8A%E3%82%84%E3%83%90%E3%83%AA%E3%82%B1%E3%83%BC%E3%83%89%E3%82%92%E3%82%88%E3%81%91%E3%81%A6%E8%B5%B0%E8%A1%8C%E8%B7%9D%E9%9B%A2%E3%82%92%E4%BC%B8%E3%81%B0%E3%81%9D%E3%81%86%EF%BC%81%22%2C%22u%22%3A%22m%22%7D-->
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
 html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
@@ -36,8 +36,8 @@ html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino M
   <div class="vp-hud" id="vphud" hidden><span id="vphl">0m</span><span id="vphr"></span></div>
   <div class="vp-toast" id="vptoast"></div>
   <div class="vp-ov" id="vpov">
-    <h1>3レーンカーレース</h1>
-    <p>左右タップで車線変更！障害物をよけて進め！</p>
+    <h1>3レーン カーレース</h1>
+    <p>画面の左半分タップで左の車線、右半分タップで右の車線へスッと移動。前から来る車やバリケードをよけて走行距離を伸ばそう！</p>
     <button class="vp-btn" id="vpstart">スタート</button>
   </div>
 </div>
@@ -204,100 +204,239 @@ window.__vpTap=function(){
 <script id="vpgame">
 /*__VAPPA_JS__*/
 var TUNE = {
-  initSpeed: { v: 200, label: '初期スピード', min: 100, max: 400, step: 10 },
-  speedRamp: { v: 5, label: 'スピード増加率', min: 1, max: 20, step: 1 },
-  spawnInterval: { v: 1.2, label: '障害物出現間隔', min: 0.5, max: 2.5, step: 0.1 },
-  spawnMin: { v: 0.4, label: '最小間隔', min: 0.2, max: 1.0, step: 0.05 },
-  carSmooth: { v: 8, label: '車線変更の速さ', min: 4, max: 16, step: 1 }
+  startSpeed:  { v: 260,  label: '開始スピード',     min: 120, max: 500,  step: 20 },
+  maxSpeed:    { v: 720,  label: '最高スピード',     min: 300, max: 1200, step: 20 },
+  accel:       { v: 10,   label: '加速ペース',       min: 0,   max: 40,   step: 1 },
+  spawnInt:    { v: 1.0,  label: '出現間隔(秒)',     min: 0.5, max: 1.8,  step: 0.05 },
+  spawnIntMin: { v: 0.55, label: '最短出現間隔(秒)', min: 0.3, max: 1.2,  step: 0.05 },
+  twoRate:     { v: 0.4,  label: '2台同時の割合',    min: 0,   max: 0.9,  step: 0.05 },
+  slide:       { v: 16,   label: '車線変更の速さ',   min: 6,   max: 30,   step: 1 }
 };
-var laneWidth, roadLeft, car, obstacles, score, speed, spawnTimer, offset, gameOver;
+
+var roadX, roadW, laneW, lanes, player, obstacles, particles;
+var speed, meters, scrollY, spawnT, shake, dead, deathT, finalScore, reported, lastKmh;
+
 function init(){
-  laneWidth = 120;
-  roadLeft = (480 - 3 * laneWidth) / 2;
-  car = { lane: 1, x: roadLeft + 1.5 * laneWidth, y: 650, targetX: roadLeft + 1.5 * laneWidth };
+  roadX = 48;
+  roadW = 384;
+  laneW = roadW / 3;
+  lanes = [ roadX + laneW * 0.5, roadX + laneW * 1.5, roadX + laneW * 2.5 ];
+  player = { lane: 1, x: lanes[1], y: 606, tilt: 0 };
   obstacles = [];
-  score = 0;
-  speed = TUNE.initSpeed.v;
-  spawnTimer = TUNE.spawnInterval.v;
-  offset = 0;
-  gameOver = false;
+  particles = [];
+  speed = TUNE.startSpeed.v;
+  meters = 0;
+  scrollY = 0;
+  spawnT = 0.9;
+  shake = 0;
+  dead = false;
+  deathT = 0;
+  finalScore = 0;
+  reported = false;
+  lastKmh = -1;
   Game.score(0);
-  Game.hud('');
+  Game.hud('0km/h');
 }
+
+function spawnWave(){
+  var idx = [0, 1, 2];
+  for (var i = 2; i > 0; i--){
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = idx[i]; idx[i] = idx[j]; idx[j] = t;
+  }
+  var p2 = TUNE.twoRate.v * Math.min(1, 0.35 + meters / 900);
+  var n = (Math.random() < p2) ? 2 : 1;
+  for (var k = 0; k < n; k++){
+    var ln = idx[k];
+    var r = Math.random();
+    var emo = r < 0.45 ? '🚙' : (r < 0.75 ? '🚚' : '🚧');
+    obstacles.push({ x: lanes[ln], lane: ln, y: 18, emoji: emo });
+  }
+}
+
+function updateParticles(dt){
+  for (var i = particles.length - 1; i >= 0; i--){
+    var p = particles[i];
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vy += 420 * dt;
+    p.life -= dt;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function crash(o){
+  dead = true;
+  deathT = 0.45;
+  shake = 0.45;
+  finalScore = Math.floor(meters);
+  Game.score(finalScore);
+  var cx = (player.x + o.x) * 0.5;
+  var cy = (player.y + o.y) * 0.5;
+  for (var i = 0; i < 18; i++){
+    particles.push({
+      x: cx, y: cy,
+      vx: (Math.random() * 2 - 1) * 280,
+      vy: (Math.random() * 2 - 1) * 280 - 90,
+      life: 0.45 + Math.random() * 0.4,
+      col: Math.random() < 0.55 ? '#ffd166' : '#ff6b6b'
+    });
+  }
+}
+
 function update(dt){
-  if (gameOver) return;
-  score += 10 * dt;
-  Game.score(Math.floor(score));
-  speed += TUNE.speedRamp.v * dt;
-  offset += speed * dt;
-  if (offset > laneWidth) offset -= laneWidth;
-  spawnTimer -= dt;
-  if (spawnTimer <= 0){
-    var lane = Math.floor(Math.random() * 3);
-    var type = Math.random() < 0.3 ? 'barrier' : 'car';
-    var x = roadLeft + lane * laneWidth + laneWidth / 2;
-    obstacles.push({ x: x, y: -30, lane: lane, type: type });
-    spawnTimer = Math.max(TUNE.spawnMin.v, TUNE.spawnInterval.v - score * 0.0005);
-  }
-  for (var i = obstacles.length - 1; i >= 0; i--){
-    var obs = obstacles[i];
-    obs.y += speed * dt;
-    if (obs.y > 720 + 30){
-      obstacles.splice(i, 1);
-      continue;
-    }
-    if (obs.y > car.y - 25 && obs.y < car.y + 25 && obs.lane === car.lane){
-      gameOver = true;
-      Game.over(Math.floor(score));
-      return;
-    }
-  }
-  var dx = car.targetX - car.x;
-  if (Math.abs(dx) > 1){
-    car.x += dx * TUNE.carSmooth.v * dt;
-  } else {
-    car.x = car.targetX;
-  }
-}
-function draw(){
-  ctx.fillStyle = '#3a5a40';
-  ctx.fillRect(0, 56, 480, 664);
-  ctx.fillStyle = '#555';
-  ctx.fillRect(roadLeft, 56, 360, 664);
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth = 4;
-  for (var i = 0; i < 3; i++){
-    var x = roadLeft + i * laneWidth;
-    if (i > 0){
-      for (var y = 56 - offset % (laneWidth * 2); y < 720; y += laneWidth * 2){
-        ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.lineTo(x, y + laneWidth * 0.6);
-        ctx.stroke();
+  if (shake > 0) shake -= dt;
+  updateParticles(dt);
+
+  if (dead){
+    if (!reported){
+      deathT -= dt;
+      if (deathT <= 0){
+        reported = true;
+        Game.over(finalScore);
       }
     }
+    return;
   }
-  ctx.font = "40px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+
+  speed = Math.min(TUNE.maxSpeed.v, speed + TUNE.accel.v * dt);
+  scrollY += speed * dt;
+  meters += 10 * dt * (speed / TUNE.startSpeed.v);
+
+  var sc = Math.floor(meters);
+  Game.score(sc);
+
+  var kmh = Math.round(speed * 0.22);
+  if (kmh !== lastKmh){ lastKmh = kmh; Game.hud(kmh + 'km/h'); }
+
+  var tx = lanes[player.lane];
+  var d = tx - player.x;
+  player.x += d * Math.min(1, dt * TUNE.slide.v);
+  if (Math.abs(tx - player.x) < 0.6) player.x = tx;
+  player.tilt = Math.max(-0.3, Math.min(0.3, (tx - player.x) / laneW * 0.55));
+
+  spawnT -= dt;
+  if (spawnT <= 0){
+    spawnWave();
+    spawnT = Math.max(TUNE.spawnIntMin.v, TUNE.spawnInt.v - meters * 0.0006);
+  }
+
+  var rel = speed * 0.85;
+  for (var i = obstacles.length - 1; i >= 0; i--){
+    var o = obstacles[i];
+    o.y += rel * dt;
+    if (Math.abs(o.x - player.x) < 30 && Math.abs(o.y - player.y) < 46){
+      crash(o);
+      return;
+    }
+    if (o.y > 800) obstacles.splice(i, 1);
+  }
+}
+
+function draw(){
+  ctx.fillStyle = '#0d1420';
+  ctx.fillRect(0, 0, W, H);
+
+  var sh = shake > 0 ? 6 : 0;
+  var ox = sh ? (Math.random() * sh * 2 - sh) : 0;
+  var oy = sh ? (Math.random() * sh * 2 - sh) : 0;
+
+  ctx.save();
+  ctx.translate(ox, oy);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 56, W, 656);
+  ctx.clip();
+
+  // 路肩（緑）
+  ctx.fillStyle = '#2c6b36';
+  ctx.fillRect(0, 56, W, 656);
+  var gOff = scrollY % 160;
+  ctx.fillStyle = '#358041';
+  for (var gy = 56 - 160 + gOff; gy < 720; gy += 160){
+    ctx.fillRect(0, gy, roadX, 70);
+    ctx.fillRect(roadX + roadW, gy, W - roadX - roadW, 70);
+  }
+
+  // 道路
+  ctx.fillStyle = '#4d545e';
+  ctx.fillRect(roadX, 56, roadW, 656);
+  var aOff = scrollY % 240;
+  ctx.fillStyle = 'rgba(0,0,0,0.07)';
+  for (var ay = 56 - 240 + aOff; ay < 720; ay += 240){
+    ctx.fillRect(roadX, ay, roadW, 120);
+  }
+
+  // 路肩の白線
+  ctx.fillStyle = '#eef3f8';
+  ctx.fillRect(roadX + 2, 56, 5, 656);
+  ctx.fillRect(roadX + roadW - 7, 56, 5, 656);
+
+  // 車線の破線
+  var dOff = scrollY % 90;
+  ctx.fillStyle = '#f5f9ff';
+  for (var li = 0; li < 2; li++){
+    var lx = roadX + laneW * (li + 1);
+    for (var dy = 56 - 90 + dOff; dy < 720; dy += 90){
+      ctx.fillRect(lx - 4, dy, 8, 48);
+    }
+  }
+
+  // 路肩の木
+  ctx.font = "30px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  for (var j = 0; j < obstacles.length; j++){
-    var obs = obstacles[j];
-    ctx.fillText(obs.type === 'car' ? '\uD83D\uDE99' : '\uD83D\uDEA7', obs.x, obs.y);
+  var tOff = scrollY % 190;
+  for (var t = 0; t < 5; t++){
+    var ty = 56 - 190 + tOff + t * 190;
+    if (ty > 20 && ty < 740){
+      ctx.fillText('🌲', 26, ty);
+      ctx.fillText('🌲', 454, ty + 95);
+    }
   }
-  ctx.fillText('\uD83D\uDE97', car.x, car.y);
+
+  // 障害物
+  ctx.font = "50px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  for (var oi = 0; oi < obstacles.length; oi++){
+    var ob = obstacles[oi];
+    if (ob.y > 8) ctx.fillText(ob.emoji, ob.x, ob.y);
+  }
+
+  // 自車
+  ctx.save();
+  ctx.translate(player.x, player.y);
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.beginPath();
+  ctx.ellipse(0, 26, 22, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.rotate(player.tilt);
+  ctx.font = "52px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  ctx.fillText('🚗', 0, 0);
+  ctx.restore();
+
+  ctx.restore(); // clip
+
+  // パーティクル
+  for (var qi = 0; qi < particles.length; qi++){
+    var pt = particles[qi];
+    ctx.globalAlpha = Math.max(0, Math.min(1, pt.life * 2.5));
+    ctx.fillStyle = pt.col;
+    ctx.fillRect(pt.x - 3, pt.y - 3, 6, 6);
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.restore(); // shake
 }
+
 function onDown(x, y){
-  if (gameOver) return;
-  if (x < 240 && car.lane > 0){
-    car.lane--;
-    car.targetX = roadLeft + car.lane * laneWidth + laneWidth / 2;
-  } else if (x > 240 && car.lane < 2){
-    car.lane++;
-    car.targetX = roadLeft + car.lane * laneWidth + laneWidth / 2;
+  if (dead) return;
+  if (x < W / 2){
+    if (player.lane > 0) player.lane--;
+  } else {
+    if (player.lane < 2) player.lane++;
   }
 }
-function onMove(x, y){}
-function onUp(x, y){}
+
 /*__VAPPA_JS_END__*/
 </script>
 </body></html>
