@@ -7,6 +7,14 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <link rel="stylesheet" href="css/app.css?v=40" />
 <title>プレイ</title>
+<style>
+  .menupop{position:fixed;right:12px;top:calc(env(safe-area-inset-top) + 54px);z-index:9980;min-width:210px;background:#1d1a2e;border:1px solid #3a3460;border-radius:14px;padding:6px;box-shadow:0 12px 32px rgba(0,0,0,.5)}
+  .menupop .mi{display:flex;align-items:center;gap:10px;width:100%;padding:12px 12px;border:0;background:none;color:#f1eefb;font:inherit;font-size:14px;font-weight:800;text-align:left;text-decoration:none;border-radius:10px;cursor:pointer}
+  .menupop .mi:active,.menupop .mi:hover{background:#2a2545}
+  .menupop .mi svg{width:18px;height:18px;flex:none;opacity:.85}
+  .menupop #reportBtn{color:#f3a3a3}
+  .menupop .mi[hidden]{display:none}
+</style>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6804943232069371" crossorigin="anonymous"></script>
 <meta property="og:type" content="website" />
 <meta property="og:title" content="Vappa" />
@@ -21,10 +29,14 @@
   <div class="bar">
     <a class="back" href="index.html" aria-label="戻る">‹</a>
     <div class="t" id="title">…</div>
-    <button class="rankbtn shareic2" id="shareBtn" aria-label="共有"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button>
-    <button class="rankbtn shareic2" id="reportBtn" aria-label="この作品を通報" title="通報" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg></button>
-    <a class="rankbtn" id="rankBtn">ランキング</a>
+    <button class="rankbtn shareic2" id="menuBtn" aria-label="メニュー" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
     <div class="best"><span>自己ベスト</span><b id="best">—</b></div>
+  </div>
+  <!-- ハンバーガーメニュー：ランキング／共有／通報 -->
+  <div id="menuPop" class="menupop" role="menu" hidden>
+    <a class="mi" id="rankBtn" role="menuitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4"/></svg>ランキング</a>
+    <button class="mi" id="shareBtn" type="button" role="menuitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>共有・挑戦状を送る</button>
+    <button class="mi" id="reportBtn" type="button" role="menuitem" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>この作品を通報</button>
   </div>
   <div class="frameWrap"><iframe id="frame" allow="autoplay; fullscreen" title="game"></iframe></div>
 </div>
@@ -233,6 +245,16 @@
     ov.addEventListener("click", function (e) { if (e.target === ov) ov.remove(); });
     document.body.appendChild(ov);
   }
+
+  // ---- メニュー（ランキング／共有／通報）。開いている間はゲームを一時停止 ----
+  var menuBtn = document.getElementById("menuBtn"), menuPop = document.getElementById("menuPop");
+  function setMenu(open) {
+    menuPop.hidden = !open; menuBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    ctl(open ? "pause" : "resume");
+  }
+  menuBtn.addEventListener("click", function (e) { e.stopPropagation(); setMenu(menuPop.hidden); });
+  document.addEventListener("click", function (e) { if (!menuPop.hidden && !menuPop.contains(e.target)) setMenu(false); });
+  menuPop.addEventListener("click", function (e) { if (e.target.closest(".mi")) setMenu(false); });
 
   Catalog.resolve(id).then(function (game) {
     if (!game) { location.replace("index.html"); return; }
