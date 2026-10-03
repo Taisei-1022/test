@@ -27,7 +27,7 @@
 <script src="js/games.js?v=10"></script>
 <script src="js/config.js?v=7"></script>
 <script src="js/netstate.js?v=1"></script>
-<script src="js/store.js?v=10"></script>
+<script src="js/store.js?v=11"></script>
 <script src="js/catalog.js?v=14"></script>
 <script src="js/auth.js?v=4"></script>
 <script src="js/share.js?v=6"></script>
@@ -63,11 +63,13 @@
           : '<li class="empty">まだ記録がありません。最初の1位になろう。</li>';
         return;
       }
+      var meU = (window.Auth && Auth.user) ? Auth.user() : null;
+      function isMe(row) { return meU ? (row.user_id === meU.id || (!row.user_id && row.player === player)) : row.player === player; }
       list.innerHTML = rows.map(function (row, i) {
-        if (row.player === player && myRank === null) myRank = i + 1;
-        var meCls = row.player === player ? " me" : "";
+        if (isMe(row) && myRank === null) myRank = i + 1;
+        var meCls = isMe(row) ? " me" : "";
         return '<li class="'+meCls+'"><span class="rk">'+(i+1)+'</span>'+
-          '<span class="pl">'+esc(row.player)+(row.user_id?'<a class="lbh" data-uid="'+esc(row.user_id)+'"></a>':'')+'</span>'+
+          '<span class="pl"><span class="nm">'+esc(row.player)+'</span>'+(row.user_id?'<a class="lbh" data-uid="'+esc(row.user_id)+'"></a>':'')+'</span>'+
           '<span class="sc">'+row.score+unit+'</span></li>';
       }).join("");
       document.getElementById("myrank").textContent = myRank ? (myRank + "位") : "—";
@@ -76,6 +78,7 @@
         list.querySelectorAll("a.lbh").forEach(function (a) {
           var p = m[a.getAttribute("data-uid")]; if (!p) { a.remove(); return; }
           a.textContent = "@" + p.handle; a.href = "creator.html?u=" + encodeURIComponent(p.handle);
+          var nm = a.parentNode.querySelector(".nm"); if (nm) nm.textContent = p.display_name;   // 今の表示名にそろえる
         });
       });
       document.getElementById("sub").textContent = "全 " + rows.length + " 人";

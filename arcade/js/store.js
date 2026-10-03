@@ -46,8 +46,9 @@ window.Store = (function () {
   function sorter(type) { return function (a, b) { return type === "low" ? a.score - b.score : b.score - a.score; }; }
   function isBetter(type, a, b) { return type === "low" ? a < b : a > b; }
   function dedupBest(rows) { // すでにソート済み前提：プレイヤーごとに最初(=最良)を残す
+    // アカウントに結びついた記録は「人」単位（名前を変えていても同じ人は1行）。それ以外は名前単位。
     var seen = {}, out = [];
-    for (var i = 0; i < rows.length; i++) { var p = rows[i].player; if (!seen[p]) { seen[p] = 1; out.push(rows[i]); } }
+    for (var i = 0; i < rows.length; i++) { var p = rows[i].user_id ? "u:" + rows[i].user_id : "n:" + rows[i].player; if (!seen[p]) { seen[p] = 1; out.push(rows[i]); } }
     return out;
   }
 
@@ -127,7 +128,10 @@ window.Store = (function () {
       myBest: async function (gameId, type, player) {
         try {
           var order = type === "low" ? "score.asc" : "score.desc";
-          var res = await rq("scores?game_id=eq." + enc(gameId) + "&player=eq." + enc(player) + "&select=score&order=" + order + "&limit=1");
+          // ログイン中は、名前が変わっていても自分のアカウントの記録を含める
+          var u = (window.Auth && Auth.user) ? Auth.user() : null;
+          var who = u ? "&or=(user_id.eq." + u.id + ",player.eq." + enc(player) + ")" : "&player=eq." + enc(player);
+          var res = await rq("scores?game_id=eq." + enc(gameId) + who + "&select=score&order=" + order + "&limit=1");
           var rows = await res.json();
           return rows.length ? rows[0].score : null;
         } catch (e) { console.warn("myBest failed", e); return null; }
