@@ -149,6 +149,7 @@
   function swayOmega(){var n=rings.length;return Math.min(3.7,2.05+n*0.02);}
   function sy(hw){return baseY0-hw+cam;}           // ワールド高さ→スクリーンY
   function sx(xw){return W/2+xw;}
+  function nextY(){return sy(rings.length*SP);}   // 次の段の底（スクリーンY）
 
   /* ===================== 演出ヘルパー ===================== */
   function pop(t,x,y,col,big,dur){pops.push({t:t,x:x,y:y,col:col||"#fff",big:!!big,age:0,dur:dur||1.0});}
@@ -206,7 +207,7 @@
     }
     rings.push(r);
     idle=0;meltT=0;firstTap=true;
-    var bx=sx(x),by=layY-h*0.5;
+    var bx=sx(x),by=sy(n*SP)-h*0.5;
     stabInfo=stability(rings);
     if(stabInfo.max>1){startTopple(stabInfo);return;}
 
@@ -343,11 +344,11 @@
     if(state==="play"&&n>=4){
       if(!item){nextItemT-=dt;if(nextItemT<=0){
         var fromL=Math.random()<0.5,t=TOPS[Math.floor(Math.random()*TOPS.length)];
-        item={t:t,x:fromL?-30:W+30,vx:(fromL?1:-1)*rnd(70,100)*S,y:layY-34*S,ph:Math.random()*6,got:false,ga:0};
+        item={t:t,x:fromL?-30:W+30,vx:(fromL?1:-1)*rnd(70,100)*S,y:nextY()-34*S,ph:Math.random()*6,got:false,ga:0};
       }}
       else{
         if(item.got){item.ga+=dt;if(item.ga>0.25){item=null;nextItemT=rnd(7,12);}}
-        else{item.x+=item.vx*dt;item.ph+=dt*4;if(item.x<-50||item.x>W+50){item=null;nextItemT=rnd(5,10);}}
+        else{item.x+=item.vx*dt;item.ph+=dt*4;item.y=lerp(item.y,nextY()-34*S,Math.min(1,dt*6));if(item.x<-50||item.x>W+50){item=null;nextItemT=rnd(5,10);}}
       }
     }
     // 職人モードのきらきら
@@ -568,7 +569,7 @@
     var nx=nozzleX,n=rings.length,fl=flvIdx(n),c=colsOf({fl:fl,hue:(n*28)%360});
     var nw=ringW(n);
     // クリームの流れ
-    var sw=9*S,y1=tipY,y2=layY-RH*0.55;
+    var sw=9*S,y1=tipY,ny=nextY(),y2=ny-RH*0.55;
     var pusu=mood&&mood.k==="pusu"&&state==="play";
     if(state==="play"){
       ctx.save();
@@ -577,7 +578,7 @@
       if(pusu){for(var yy=y1;yy<y2;yy+=14*S){var ph=(yy+time*160)%28;if(ph<16){rr(nx-sw/2,yy,sw,10*S,sw/2);ctx.fill();}}}
       else{var wig=Math.sin(time*9)*1.2;rr(nx-sw/2+wig,y1,sw,y2-y1+4,sw/2);ctx.fill();}
       // できかけのリング（ゴースト）
-      ctx.globalAlpha=0.32;var gw=nw,gx=nx-gw/2,gy=layY-RH;
+      ctx.globalAlpha=0.32;var gw=nw,gx=nx-gw/2,gy=ny-RH;
       ctx.fillStyle=c.base;rr(gx,gy,gw,RH,RH/2);ctx.fill();ctx.globalAlpha=0.7;
       ctx.setLineDash([5*S,5*S]);ctx.strokeStyle="rgba(120,60,90,.55)";ctx.lineWidth=1.6;rr(gx,gy,gw,RH,RH/2);ctx.stroke();ctx.setLineDash([]);
       ctx.globalAlpha=1;
@@ -637,12 +638,10 @@
       ctx.fillStyle="#7a2a52";ctx.textAlign="left";ctx.fillText(say.t,bx+11*S,by+bh/2+1);ctx.globalAlpha=1;
     }
   }
-  function drawHUD(){
-    var top=railY+22*S;
-    // オーダーカード
+  function drawOrder(){
     if(order){
       var o=order,ap=easeBack(Math.min(1,o.age/0.35)),al=(o.done||o.fail)?clamp((1.6-o.age)/0.4,0,1):1;
-      var cw=Math.min(146*S,W*0.37),ch=66*S,cx=10,cy=top;
+      var cw=Math.min(146*S,W*0.37),ch=66*S,cx=10,cy=tipY+6*S;
       ctx.save();ctx.globalAlpha=al;ctx.translate(cx+cw/2,cy+ch/2);ctx.rotate(-0.04);ctx.scale(o.done||o.fail?1:ap,o.done||o.fail?1:ap);
       ctx.fillStyle="rgba(80,30,60,.18)";rr(-cw/2+2,-ch/2+3,cw,ch,10);ctx.fill();
       ctx.fillStyle="#fffdf6";rr(-cw/2,-ch/2,cw,ch,10);ctx.fill();
@@ -658,6 +657,9 @@
         var stt=o.done?"達成！":"ざんねん";var sw2=ctx.measureText(stt).width+16;rr(-sw2/2+10*S,-14*S,sw2,28*S,6);ctx.stroke();ctx.fillStyle=o.done?"#e23b6b":"#8b8b9a";ctx.fillText(stt,10*S,1);ctx.restore();}
       ctx.restore();
     }
+  }
+  function drawHUD(){
+    var top=railY+22*S;
     // グラグラ計
     var gx=W-22*S,gh=130*S,gy=top+4,st=state==="play"?stabInfo.max:1,v=clamp(st,0,1);
     ctx.fillStyle="rgba(80,30,60,.16)";rr(gx-8*S,gy,16*S,gh,8*S);ctx.fill();
@@ -676,7 +678,7 @@
     // とける警告
     if(meltWarn>0&&state==="play"){
       ctx.globalAlpha=meltWarn*(0.6+0.4*Math.sin(time*10));ctx.font="800 "+Math.round(14*S)+"px "+FONT;ctx.textAlign="center";
-      var t3="💧 とけてきた！はやく巻いて！",w3=ctx.measureText(t3).width+24*S,y3=layY+RH+26*S;
+      var t3="💧 とけてきた！はやく巻いて！",w3=ctx.measureText(t3).width+24*S,y3=layY+150*S;
       ctx.fillStyle="rgba(60,120,200,.85)";rr(W/2-w3/2,y3-14*S,w3,28*S,14*S);ctx.fill();ctx.fillStyle="#fff";ctx.fillText(t3,W/2,y3+1);ctx.globalAlpha=1;
     }
     // はじめの案内
@@ -712,7 +714,7 @@
   function draw(){
     ctx.clearRect(0,0,W,H);
     drawBG();drawRuler();drawCounter();drawCone();drawTower();drawParts();drawSplats();
-    drawMachine();drawNozzle();drawItem();drawHUD();drawCustomer();drawFX();
+    drawMachine();drawOrder();drawNozzle();drawItem();drawHUD();drawCustomer();drawFX();
   }
 
   /* ===================== ループ・開始・終了 ===================== */
