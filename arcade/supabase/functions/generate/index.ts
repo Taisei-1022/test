@@ -25,7 +25,13 @@ Rules:
 - On the user's FIRST message you MUST ask exactly one clarifying question (action="ask") and propose about 3 concrete options. Never build on the first turn.
 - Keep the conversation going one question at a time — core mechanic, goal, controls, theme, or difficulty — each with up to ~4 short tappable options when useful.
 - REQUIRED: before building, you MUST clarify the RANKING SCORE — i.e., exactly what number goes on the leaderboard (例：点数 / 何秒生き残るか / 何個集めるか / 連続成功(コンボ) / 何段積めるか など). Ask this explicitly with concrete options, and make sure the score is something where HIGHER = BETTER (if the natural metric is "速さ/タイム", convert it so higher is better, e.g. スコア化). Do not switch to build until the ranking score is decided.
-- Switch to action="build" only when the design AND the ranking score are clear, OR the user says things like 「これで」「作って」「おまかせ」「いいね」, OR after about 2–3 exchanges.
+- REQUIRED: before building, you MUST also ask about the game's EXTRA ELEMENTS (盛り要素) — what keeps it fun beyond the core loop. Ask at least once, with options tailored to THIS game drawn from these four kinds:
+  ① 敵・障害物の種類（例：速いやつ、硬いやつ、ジグザグに動くやつ）
+  ② アイテム・パワーアップ（例：回復、無敵、3方向ショット、スロー）
+  ③ 展開（例：ボス戦、フィーバータイム、ラッシュ、時間帯や景色の変化）
+  ④ コンボ・演出（例：連続でボーナス倍率、ピンチ演出）
+  Each option is sent with ONE tap (no multi-select), so make options COMBINATIONS specific to this game (例：「硬い敵＋ボス戦」「回復アイテム＋コンボ」「全部盛り」), and always include 「おまかせで盛って」 as one option. Mention the user can also type their own ideas. If the user's idea already lists such elements, confirm them and ask whether to add one more kind.
+- Switch to action="build" only when the design, the ranking score AND the extra elements are clear, OR the user says things like 「これで」「作って」「おまかせ」「いいね」, OR after about 3–4 exchanges.
 - Encourage variety; do not push everyone toward the same kind of game.
 - Prefer a focused, clearly playable design, but it's fine to attempt more ambitious games when the user wants them — don't force over-simplification. (Just keep the result a single self-contained HTML that runs on a phone.)
 
@@ -55,6 +61,7 @@ Include these sections:
 - スコア定義（ランキングに載る数値。高いほど良い形で明確に）
 - 終了条件
 - 見た目・テーマ（色、雰囲気、絵文字などの素材案）
+- 盛り要素（敵・障害物の種類／アイテム／展開（ボス・フィーバー等）／コンボ・演出。ユーザーが選んだものは全部、それぞれ見た目・効果・出る頻度まで具体的に。「おまかせ」と言われたら、このゲームに合うものを3〜4個選んで具体化する）
 - 特殊ルール・こだわり（ユーザーが明示した要望は一言一句漏らさない）
 
 Rules: resolve ambiguities with sensible, fun choices yourself instead of leaving them open. Do NOT invent requirements that contradict the log. Do NOT write any code. Keep it concise but complete (aim ~300-600 Japanese characters per section max).`;
@@ -1236,7 +1243,7 @@ async function startFlow(key: string, messages: Msg[], prevHtml: string, token: 
     const rg = await gate("u:req:" + token + ":" + d, "i:req:" + ip + ":" + d, "g:req:" + d, LIMITS.reqUser, LIMITS.reqIp, LIMITS.reqGlobal, LIMITS.cooldownSec);
     if (rg && rg.allowed === false) return { immediate: { error: "rate_limited", reason: limitReason("req", rg), retry_sec: rg.retry_sec } };
   }
-  // 新規も編集も、まずプランナー(Haiku)で相談。準備OKでも自動ではビルドしない。
+  // 新規も編集も、まずプランナー（DeepSeek Flash）で相談。準備OKでも自動ではビルドしない。
   // 編集時は現在のゲームのコードをシステムプロンプト側に添付（cache_controlの後ろ側に
   // 乗るので、同じゲームについての2ターン目以降はキャッシュ読みでほぼタダになる）。
   const planSystem = prevHtml
