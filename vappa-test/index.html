@@ -64,7 +64,7 @@ var GAMES = [
   { id:"fukuwarai", title:"福笑い", emoji:"👺", blurb:"流れてくる目・鼻・口をタップで落とす。どんな顔になる？", unit:"点" },
   { id:"bowling", title:"へんてこボウリング", emoji:"🎳", blurb:"坂・氷・曲がり道・動く床。毎フレームでレーンが変わる。", unit:"点" }
 ];
-var READY = ["beer","steak","hata","lturn","yuka","darts","kazuate","softcream","shinkei"]; // 遊べる状態のゲームID
+var READY = ["beer","steak","hata","lturn","yuka","darts","kazuate","softcream","shinkei","tsunagi"]; // 遊べる状態のゲームID
 function best(id){ try{ return localStorage.getItem("best_"+id); }catch(e){ return null; } }
 function setBest(id,v,low){ try{ var b=best(id); if(b===null||(low?+v<+b:+v>+b)) localStorage.setItem("best_"+id,v); }catch(e){} }
 var list=document.getElementById("list"), stage=document.getElementById("stage"), frame=document.getElementById("frame"), cur=null;
