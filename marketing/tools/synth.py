@@ -32,8 +32,12 @@ hz = lambda m: 440 * 2 ** ((m - 69) / 12)
 # 曲：140BPM、C - Am - F - G のくり返し
 beat = 60 / 140
 prog = [(48, [60, 64, 67]), (45, [57, 60, 64]), (41, [57, 60, 65]), (43, [59, 62, 67])]
+def playing(t):  # 曲を流す時間帯（bgmResume があれば、崩れた後に再開）
+    return t < ev["bgmStop"] - 0.01 or (ev.get("bgmResume") is not None and ev["bgmResume"] <= t < ev["end"] - 0.05)
 t, k = 0.0, 0
-while t < ev["bgmStop"] - 0.01:
+while t < ev["total"]:
+    if not playing(t):
+        t += beat / 2; k += 1; continue
     root, ch = prog[(k // 8) % 4]
     eighth = beat / 2
     note(hz(root - 12 + (12 if k % 2 else 0)), t, eighth * 0.9, 0.10, "sq")
@@ -44,6 +48,9 @@ while t < ev["bgmStop"] - 0.01:
 # 具材が乗るたびに「ぽん」（だんだん高く）
 for i, lt in enumerate(ev["lands"]):
     note(hz(72 + i * 2), lt, 0.12, 0.22, "sin", slide=0.25)
+# 画面をタップした音・メッセージが届いた音
+for tt in ev.get("taps", []): noise(tt, 0.03, 0.25, 12); note(1800, tt, 0.03, 0.08, "sin")
+for tm in ev.get("msgs", []): note(hz(88), tm, 0.07, 0.10, "sin"); note(hz(93), tm + 0.07, 0.10, 0.10, "sin")
 # 崩れる音
 c = ev["crash"]
 note(70, c, 0.5, 0.5, "sin", slide=-0.5); noise(c, 0.9, 0.55, 4)
