@@ -61,7 +61,7 @@ var GAMES = [
   { id:"kazuate", title:"数字当て", emoji:"🔐", blurb:"かくれた数字を、ヒントだけで当てる金庫破り。", unit:"点" },
   { id:"shinkei", title:"神経衰弱タイムアタック", emoji:"🃏", blurb:"3面連続の神経衰弱。いたずら札がカードをまぜる。", unit:"秒", low:true }
 ];
-var READY = ["beer","steak","hata","lturn","yuka","darts"]; // 遊べる状態のゲームID
+var READY = ["beer","steak","hata","lturn","yuka","darts","kazuate"]; // 遊べる状態のゲームID
 function best(id){ try{ return localStorage.getItem("best_"+id); }catch(e){ return null; } }
 function setBest(id,v,low){ try{ var b=best(id); if(b===null||(low?+v<+b:+v>+b)) localStorage.setItem("best_"+id,v); }catch(e){} }
 var list=document.getElementById("list"), stage=document.getElementById("stage"), frame=document.getElementById("frame"), cur=null;
