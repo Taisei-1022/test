@@ -42,5 +42,5 @@ jobs:
               "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query" \
               -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" -d "$body")
             echo "HTTP $code"; cat out.json; echo
-            [ "$code" -ge 300 ] && exit 1
+            if [ "$code" -ge 300 ]; then exit 1; fi
           done
