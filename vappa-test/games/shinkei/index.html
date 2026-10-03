@@ -66,6 +66,7 @@
   /* ---------- 演出 ---------- */
   #banner{position:fixed;left:0;right:0;top:44%;transform:translateY(-50%);text-align:center;z-index:6;pointer-events:none;font-weight:900;}
   #banner .t{display:inline-block;font-size:40px;color:#fff;-webkit-text-stroke:0;text-shadow:0 0 0 #000,3px 3px 0 #2a1450,-3px 3px 0 #2a1450,3px -3px 0 #2a1450,-3px -3px 0 #2a1450,0 6px 16px rgba(0,0,0,.5);animation:bn .9s forwards;}
+  #banner.low .t{font-size:34px;}
   #banner .t small{display:block;font-size:17px;margin-top:4px;color:#ffe9a8;}
   @keyframes bn{0%{transform:scale(.3);opacity:0;}18%{transform:scale(1.15);opacity:1;}30%{transform:scale(1);}80%{opacity:1;}100%{transform:translateY(-16px);opacity:0;}}
   #banner .t.stay{animation:bnS .3s forwards;}
@@ -200,11 +201,11 @@
     cw=Math.min(cw,ch/1.28,112); ch=cw*1.28;
     L.cw=cw;L.ch=ch;L.gap=gap;
     L.ox=(W-(cw*B.cols+gap*(B.cols-1)))/2;
-    L.oy=top+Math.max(0,(availH-(ch*B.rows+gap*(B.rows-1)))*0.45);
+    L.oy=top+Math.max(0,(availH-(ch*B.rows+gap*(B.rows-1)))*0.3);
     boardEl.style.setProperty("--e",Math.round(cw*0.54)+"px");
     boardEl.style.setProperty("--q",Math.round(cw*0.34)+"px");
     $("peekbar").style.top=(L.oy-16)+"px";$("peeklbl").style.top=(L.oy-50)+"px";
-    var bb=L.oy+ch*B.rows+gap*(B.rows-1);L.lowY=bb+(H-bb-34)/2;
+    var bb=L.oy+ch*B.rows+gap*(B.rows-1);L.lowY=bb+Math.max(44,(H-bb-30)/2);
     if(S.cards)for(var i=0;i<S.cards.length;i++)place(S.cards[i]);
   }
   function place(c){var B=BOARDS[S.board],col=c.slot%B.cols,row=(c.slot/B.cols)|0;
@@ -214,7 +215,7 @@
 
   /* ===================== 演出ヘルパ ===================== */
   function emo(t){return String(t).replace(/(\p{Extended_Pictographic}\uFE0F?)/gu,'<span class="emj">$1</span>');}
-  function banner(txt,sub,stay,low){bannerEl.style.top=low&&L.lowY?L.lowY+"px":"44%";bannerEl.innerHTML='<span class="t'+(stay?' stay':'')+'">'+emo(txt)+(sub?'<small>'+emo(sub)+'</small>':'')+'</span>';}
+  function banner(txt,sub,stay,low){bannerEl.style.top=low&&L.lowY?L.lowY+"px":"44%";bannerEl.className=low?"low":"";bannerEl.innerHTML='<span class="t'+(stay?' stay':'')+'">'+emo(txt)+(sub?'<small>'+emo(sub)+'</small>':'')+'</span>';}
   function clearBanner(){bannerEl.innerHTML="";}
   function center(el){var r=el.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};}
   function floatText(txt,x,y,cls){var d=document.createElement("div");d.className="fl "+cls;d.innerHTML=emo(txt);d.style.left=Math.max(64,Math.min(window.innerWidth-64,x))+"px";d.style.top=y+"px";document.body.appendChild(d);setTimeout(function(){d.remove();},1050);}
