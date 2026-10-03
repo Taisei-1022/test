@@ -36,7 +36,7 @@
 <script src="js/catalog.js?v=11"></script>
 <script src="js/share.js?v=6"></script>
 <script src="js/sw-reg.js?v=2"></script>
-<script src="js/arcade-embed.js?v=3"></script>
+<script src="js/arcade-embed.js?v=4"></script>
 <script>
 (function () {
   "use strict";
@@ -192,7 +192,7 @@
     });
 
     if (game.source === "seed") frame.src = game.path;        // シード：ファイルを読み込む
-    else frame.srcdoc = buildSrcdoc(game.html);               // 生成：HTMLを直接サンドボックス再生
+    else loadGameFrame(frame, game.html);                      // 生成・持ち込み：隔離（sandbox+CSP）して再生
 
     refreshBest(game.id).then(showChallengeBanner);
 

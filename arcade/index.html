@@ -276,14 +276,14 @@
 <script src="js/ai.js?v=19"></script>
 <script src="js/catalog.js?v=11"></script>
 <script src="js/share.js?v=6"></script>
-<script src="js/arcade-embed.js?v=3"></script>
+<script src="js/arcade-embed.js?v=4"></script>
 <script src="js/pwa.js?v=1"></script>
 <script src="js/sw-reg.js?v=2"></script>
 <script>
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.84";
+  var APP_VERSION = "0.9.85";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -727,7 +727,7 @@
     document.getElementById("pvTitle").textContent="「"+lastGen.title+"」のプレビュー（公開設定でタイトル・説明・サムネを決められます）";
     // 毎回読み込み直す（非表示中にiframe中身が破棄されても黒のままにならないように）。
     // 戻る時の黒い中間は pushScreen の重複排除で解消済みなので、ここは確実さ優先。
-    document.getElementById("pvFrame").srcdoc = buildSrcdoc(lastGen.html);
+    loadGameFrame(document.getElementById("pvFrame"), lastGen.html);
     // 難易度調整（管理者＋TUNE入りゲームのみ）。画面に入り直すたびにパネルと基準値はリセット
     var canTune = !!(window.Ai&&Ai.getAdmin&&Ai.getAdmin()) && !!parseTune(lastGen.html);
     document.getElementById("pvTune").hidden = !canTune;
@@ -777,7 +777,7 @@
   function fmtTuneVal(v,step){ return step<1 ? (Math.round(v*100)/100).toString() : String(Math.round(v)); }
   function applyTune(key,val){
     lastGen.html=patchTune(lastGen.html,key,val); dirty=true;
-    document.getElementById("pvFrame").srcdoc = buildSrcdoc(lastGen.html);   // 反映＝最初から
+    loadGameFrame(document.getElementById("pvFrame"), lastGen.html);   // 反映＝最初から
   }
   function renderTunePanel(){
     var entries=parseTune(lastGen.html); if(!entries) return;
@@ -873,7 +873,7 @@
   document.getElementById("tuneReset").addEventListener("click", function(){
     if(!tuneInit) return;
     Object.keys(tuneInit).forEach(function(k){ lastGen.html=patchTune(lastGen.html,k,tuneInit[k]); });
-    dirty=true; document.getElementById("pvFrame").srcdoc = buildSrcdoc(lastGen.html);
+    dirty=true; loadGameFrame(document.getElementById("pvFrame"), lastGen.html);
     renderTunePanel(); showToast("開いた時の値に戻したよ");
   });
 
@@ -1476,6 +1476,9 @@
   // ---- 自動テストプレイ（スモークテスト）----
   // 生成直後、非表示のiframeでゲームを約3秒実走させて実行時エラーを検出する。
   // 検出したら実際のエラーメッセージ付きで1回だけ自動修理ビルドに回す（A案）。
+  // ゲームは隔離（sandbox）して動かすので、親から中に直接手を入れられない。
+  // 開始ボタン押下・タップ・エラー回収はゲーム側のシム（arcade-embed.js の smoke）が行い、
+  // 結果だけ postMessage で返してもらう。
   function smokeTest(html){
     return new Promise(function(resolve){
       var f=document.createElement("iframe");
@@ -1483,21 +1486,18 @@
       f.setAttribute("aria-hidden","true");
       document.body.appendChild(f);
       var err=null, done=false;
-      function finish(){ if(done)return; done=true; try{f.remove();}catch(e){} resolve(err); }
+      function onMsg(e){
+        if(e.source!==f.contentWindow) return;
+        var d=e.data; if(!d||!d.__arcade||d.call!=="smoke") return;
+        err=(d.payload&&d.payload.err)||null; finish();
+      }
+      function finish(){ if(done)return; done=true; window.removeEventListener("message", onMsg); try{f.remove();}catch(e){} resolve(err); }
+      window.addEventListener("message", onMsg);
       f.addEventListener("load", function(){
-        try{
-          var w=f.contentWindow;
-          w.addEventListener("error", function(ev){ if(!err) err=String(ev&&ev.message||"error"); });
-          setTimeout(function(){ try{
-            var btn=w.document.getElementById("vpstart");
-            if(btn) btn.click(); else finish();       // 旧形式（自動開始ボタン不明）は起動確認のみ
-          }catch(e){} },400);
-          setTimeout(function(){ try{ if(w.__vpTap) w.__vpTap(); }catch(e){} },1200);
-          setTimeout(function(){ try{ if(!err) err=w.__VP_ERR||null; }catch(e){} finish(); },3000);
-        }catch(e){ finish(); }
+        try{ f.contentWindow.postMessage({__arcadeCtl:true, call:"smoke"}, "*"); }catch(e){ finish(); }
       });
-      setTimeout(finish, 6000);   // 保険（loadが来ない等）
-      try{ f.srcdoc = (window.buildSrcdoc? buildSrcdoc(html) : html); }catch(e){ finish(); }
+      setTimeout(finish, 6000);   // 保険（loadが来ない・応答が無い等）
+      try{ loadGameFrame(f, html); }catch(e){ finish(); }
     });
   }
   // ビルド結果の受け入れ：素材画像を注入→テストプレイ→NGなら自動修理（1回だけ）→反映
