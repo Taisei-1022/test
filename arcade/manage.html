@@ -117,8 +117,8 @@
 </div>
 <div class="toast" id="toast"></div>
 <script src="js/config.js?v=7"></script>
-<script src="js/catalog.js?v=12"></script>
-<script src="js/auth.js?v=2"></script>
+<script src="js/catalog.js?v=13"></script>
+<script src="js/auth.js?v=3"></script>
 <script>
 (function () {
   "use strict";
@@ -200,12 +200,12 @@
   }
   function renderUsers() {
     var q = $("uq").value.trim().toLowerCase(), sort = $("us").value;
-    var list = USERS.filter(function (u) { return !q || (u.email + " " + u.name + " " + u.author).toLowerCase().indexOf(q) >= 0; });
+    var list = USERS.filter(function (u) { return !q || (u.email + " " + u.name + " " + u.author + " " + u.handle + " " + u.display_name).toLowerCase().indexOf(q) >= 0; });
     var key = { risk: function (u) { return (u.status === "banned" ? 1e6 : 0) + (u.status === "warned" ? 1e5 : 0) + u.reports * 1000 + u.hidden * 100; },
       recent: function (u) { return Date.parse(u.last_sign_in_at || 0); }, games: function (u) { return u.games; }, new: function (u) { return Date.parse(u.created_at || 0); } }[sort];
     list.sort(function (a, b) { return key(b) - key(a); });
     $("users").innerHTML = list.length ? list.map(function (u) {
-      return '<div class="row click" data-user="' + esc(u.id) + '"><div class="nm"><b>' + statusPill(u.status) + esc(u.author || u.name || "noname") + "</b><small>" + esc(u.email) + (u.name ? "（" + esc(u.name) + "）" : "") + " ・ 最終ログイン " + when(u.last_sign_in_at) + "</small></div>" +
+      return '<div class="row click" data-user="' + esc(u.id) + '"><div class="nm"><b>' + statusPill(u.status) + esc(u.display_name || u.author || "noname") + (u.handle ? ' <small style="color:var(--dim);font-weight:400">@' + esc(u.handle) + '</small>' : "") + "</b><small>" + esc(u.email) + (u.name ? "（" + esc(u.name) + "）" : "") + " ・ 最終ログイン " + when(u.last_sign_in_at) + "</small></div>" +
         '<div class="nums"><span>作品 <b>' + u.games + "</b></span><span>公開 <b>" + u.published + '</b></span><span class="' + (u.hidden ? "hot" : "") + '">非表示 <b>' + u.hidden + '</b></span><span class="' + (u.reports ? "hot" : "") + '">通報 <b>' + u.reports + "</b></span></div></div>" +
         (openUser === u.id ? '<div class="detail" id="ud">読み込み中…</div>' : "");
     }).join("") : '<div class="empty">該当するユーザーはいません。</div>';
@@ -224,7 +224,7 @@
       var f = d.flag || {};
       var st = f.status || "ok";
       box.innerHTML =
-        '<h3>' + statusPill(st) + esc(u.author || u.name || "noname") + '</h3>' +
+        '<h3>' + statusPill(st) + esc(u.display_name || u.author || "noname") + (u.handle ? ' <small style="color:var(--dim);font-weight:400">@' + esc(u.handle) + '</small>' : "") + '</h3>' +
         '<div class="help">' + esc(u.email) + "<br>登録 " + when(u.created_at) + " ・ 最終ログイン " + when(u.last_sign_in_at) + " ・ 今日の生成 " + d.buildsToday + "本" + "</div>" +
         (f.warning ? '<div class="help">最後の警告（' + when(f.warned_at) + "・" + (f.acked ? "本人は確認済み" : "まだ読まれていない") + "）：" + esc(f.warning) + "</div>" : "") +
         '<div class="sec2"><b>この人の作品への通報（' + d.reports.length + "）</b>" + (d.reports.length ? '<div class="rep" style="border:0;margin:0;padding:0">' + d.reports.map(function (r) { return "<div>・" + esc(r.reason) + (r.detail ? "：" + esc(r.detail) : "") + " <small>" + when(r.created_at) + (r.status === "done" ? "・対応済み" : "") + "</small></div>"; }).join("") + "</div>" : '<div class="empty">ありません。</div>') + "</div>" +

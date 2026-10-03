@@ -432,3 +432,17 @@ textarea.field{resize:vertical;line-height:1.5;}
 #specta{flex:1;background:#0f0d18;color:#e7e3f5;border:0;padding:14px 14px calc(env(safe-area-inset-bottom) + 14px);
   font:13px/1.75 ui-monospace,Menlo,Consolas,monospace;resize:none;outline:none;-webkit-user-select:text;user-select:text;}
 #loginGateGo[hidden],#loginGateErr[hidden],#acctIn[hidden],#gisMyErr[hidden]{display:none !important;}   /* ログインの予備ボタン・エラー表示 */
+/* プロフィール入力（@ID・表示名） */
+.pfl{display:block;text-align:left;font-size:13px;font-weight:800;margin-top:12px}
+.pfl small{display:block;font-weight:400;font-size:11px;opacity:.7;margin:2px 0 6px}
+.pfl input,.pfl textarea{width:100%;box-sizing:border-box;background:var(--bg,#141221);border:1px solid #3a3460;color:#fff;border-radius:10px;padding:.6rem .7rem;font:inherit;font-weight:400}
+.pfid{display:flex;align-items:center;gap:4px}.pfid span{font-size:16px;opacity:.8}
+.pfmsg{font-size:12px;min-height:16px;margin:4px 0 0;text-align:left;color:#f87171}.pfmsg.good{color:#34d399}
+#profileGate [hidden]{display:none!important}
+.pfh{font-size:12px;opacity:.7}.pfbio{font-size:12.5px;opacity:.85;margin-top:4px;white-space:pre-wrap}
+#nameSec[hidden],#nameRow[hidden]{display:none!important}
+a.ghostbtn{text-decoration:none;display:inline-block}
+/* 遊ぶ：検索ボタン・作者リンク */
+.searchbtn{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:12px;border:1px solid var(--rule);color:var(--ink)}
+.searchbtn svg{width:19px;height:19px}
+a.authlink{color:inherit;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px}

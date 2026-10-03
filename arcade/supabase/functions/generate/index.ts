@@ -727,6 +727,55 @@ async function setFlag(id: string, patch: Record<string, unknown>) {
   });
 }
 
+// ===== プロフィール（@ID・表示名）=====
+// ルール：@ID は英小文字・数字・_ の3〜15文字（先頭は英字）、予約IDと「vappa」を含むものは不可、変更は30日に1回。
+// 表示名は1〜20文字。どちらも簡単な禁止語チェックをする（完全ではない。最後は通報と運営の確認で対応）。
+const HANDLE_RE = /^[a-z][a-z0-9_]{2,14}$/;
+const NG_WORDS = ["fuck", "shit", "porn", "sex", "nazi", "hitler", "rape", "nigger", "faggot", "kichigai", "gaiji",
+  "死ね", "しね", "殺す", "ころす", "ちんこ", "まんこ", "セックス", "キチガイ", "きちがい", "ガイジ", "がいじ", "レイプ", "ナチス", "ヒトラー"];
+const hasNg = (t: string) => { const l = t.toLowerCase(); return NG_WORDS.some((w) => l.includes(w)); };
+type Profile = { user_id: string; handle: string; display_name: string; bio: string; handle_changed_at?: string };
+async function getProfile(id: string): Promise<Profile | null> {
+  try {
+    const r = await fetch(SRV_BASE + "/rest/v1/profiles?user_id=eq." + id + "&limit=1", { headers: srvHeaders });
+    const a = r.ok ? await r.json() : [];
+    return Array.isArray(a) && a[0] ? a[0] : null;
+  } catch { return null; }
+}
+async function handleProfileSet(pr: { handle?: string; display_name?: string; bio?: string }, user: { id: string } | null) {
+  if (!user) return { error: "login_required" };
+  const handle = String(pr.handle || "").trim().toLowerCase().replace(/^@/, "");
+  const name = String(pr.display_name || "").trim().replace(/\s+/g, " ");
+  const bio = String(pr.bio || "").trim().slice(0, 160);
+  if (!HANDLE_RE.test(handle)) return { error: "bad_handle", detail: "英小文字・数字・_ の3〜15文字で、最初は英字にしてください" };
+  if (handle.includes("vappa")) return { error: "bad_handle", detail: "「vappa」を含むIDは使えません" };
+  if (hasNg(handle)) return { error: "bad_handle", detail: "このIDは使えません" };
+  if (!name || name.length > 20) return { error: "bad_name", detail: "表示名は1〜20文字にしてください" };
+  if (hasNg(name) || hasNg(bio)) return { error: "bad_name", detail: "使えない言葉が含まれています" };
+  const rr = await fetch(SRV_BASE + "/rest/v1/reserved_handles?handle=eq." + handle + "&select=handle", { headers: srvHeaders });
+  if (rr.ok && (await rr.json()).length) return { error: "bad_handle", detail: "このIDは予約されていて使えません" };
+  const cur = await getProfile(user.id);
+  const changing = cur && cur.handle !== handle;
+  if (changing && cur.handle_changed_at && Date.now() - Date.parse(cur.handle_changed_at) < 30 * 864e5) {
+    const days = Math.ceil((Date.parse(cur.handle_changed_at) + 30 * 864e5 - Date.now()) / 864e5);
+    return { error: "handle_cooldown", detail: "IDの変更は30日に1回までです（あと" + days + "日）" };
+  }
+  if (!cur || changing) {
+    const tr = await fetch(SRV_BASE + "/rest/v1/profiles?handle=eq." + handle + "&select=user_id", { headers: srvHeaders });
+    const ta = tr.ok ? await tr.json() : [];
+    if (ta.length && ta[0].user_id !== user.id) return { error: "handle_taken", detail: "このIDはもう使われています" };
+  }
+  const now = new Date().toISOString();
+  const row = { user_id: user.id, handle, display_name: name, bio, updated_at: now, ...((!cur || changing) ? { handle_changed_at: now } : {}) };
+  const w = await fetch(SRV_BASE + "/rest/v1/profiles?on_conflict=user_id", {
+    method: "POST", headers: { ...srvHeaders, Prefer: "resolution=merge-duplicates,return=representation" }, body: JSON.stringify(row),
+  });
+  if (!w.ok) { const t = await w.text(); return /duplicate|unique/i.test(t) ? { error: "handle_taken", detail: "このIDはもう使われています" } : { error: "profile_failed", detail: t.slice(0, 120) }; }
+  // 作品の作者名も新しい表示名にそろえる
+  await fetch(SRV_BASE + "/rest/v1/games?user_id=eq." + user.id, { method: "PATCH", headers: { ...srvHeaders, Prefer: "return=minimal" }, body: JSON.stringify({ author: name }) });
+  return { ok: true, profile: (await w.json())[0] };
+}
+
 // ===== 通報 =====
 // 別々の人（端末 or アカウント）から REPORT_HIDE 件届いた作品は、自動で一覧から外す（hidden=true）。
 // 運営は管理画面で確認して、戻す／非表示のままにするを決める。
@@ -776,10 +825,13 @@ async function listUsers() {
   }
   for (const r of reps) { const u = owner[r.game_id]; if (u && agg[u]) agg[u].reports++; }
   const fmap: Record<string, Flag> = {}; for (const f of flags) fmap[f.user_id] = f;
+  const prr = await fetch(SRV_BASE + "/rest/v1/profiles?select=user_id,handle,display_name&limit=5000", { headers: srvHeaders });
+  const pmap: Record<string, Profile> = {}; for (const p of (prr.ok ? await prr.json() : []) as Profile[]) pmap[p.user_id] = p;
   return users.map((u) => ({
     id: u.id, email: u.email || "", name: (u.user_metadata && (u.user_metadata.full_name || u.user_metadata.name)) || "",
     created_at: u.created_at, last_sign_in_at: u.last_sign_in_at,
     ...(agg[u.id] || { games: 0, published: 0, hidden: 0, reports: 0, author: "" }),
+    handle: pmap[u.id]?.handle || "", display_name: pmap[u.id]?.display_name || "",
     status: fmap[u.id]?.status || "ok", warning: fmap[u.id]?.warning || "", acked: fmap[u.id]?.acked ?? true, note: fmap[u.id]?.note || "",
   }));
 }
@@ -1569,13 +1621,15 @@ Deno.serve(async (req) => {
   let irun: IRun | null = null, wantSpec = false, uspec = "";
   let report: Record<string, string> | null = null, panel: Record<string, unknown> | null = null, wantAck = false;
   let scoreReq: { game_id?: string; score?: number; player?: string } | null = null;
+  let profileReq: { handle?: string; display_name?: string; bio?: string } | null = null;
   try {
     const b = await req.json();
     if (b && typeof b.irun === "object" && b.irun) irun = b.irun as IRun;
     if (b && typeof b.report === "object" && b.report) report = b.report;   // 通報
     if (b && typeof b.panel === "object" && b.panel) panel = b.panel;       // 管理画面
     if (b?.ack === true) wantAck = true;
-    if (b && typeof b.score === "object" && b.score) scoreReq = b.score;   // スコア登録                                       // 運営からのお知らせを読んだ
+    if (b && typeof b.score === "object" && b.score) scoreReq = b.score;   // スコア登録
+    if (b && typeof b.profile === "object" && b.profile) profileReq = b.profile;   // プロフィール保存                                       // 運営からのお知らせを読んだ
     if (b?.makeSpec === true) wantSpec = true;               // 設計書だけ作る（生成カウント消費なし）
     if (typeof b?.spec === "string") uspec = b.spec.slice(0, 8000);   // ユーザー確認・編集済みの設計書
     if (typeof b?.job === "string") jobId = b.job;
@@ -1601,6 +1655,7 @@ Deno.serve(async (req) => {
   if (user) token = "uid:" + user.id;
   if (panel) return json(await handlePanel(panel, user));
   if (scoreReq) return json(await handleScore(scoreReq, token, user, ip));
+  if (profileReq) return json(await handleProfileSet(profileReq, user));
   if (report) return json(await handleReport(report, token, ip));
   // 運営からの警告を「読んだ」にする
   if (user && wantAck) {
@@ -1608,6 +1663,7 @@ Deno.serve(async (req) => {
     return json({ ok: true });
   }
   const flag = user && !irun && !jobId ? await userFlag(user.id) : null;
+  const myProfile = user && !irun && !jobId ? await getProfile(user.id) : null;
 
   // ---- 内部ラン：自己呼び出しされたビルド本体（サービスロールキー必須）----
   if (irun) {
@@ -1652,6 +1708,7 @@ Deno.serve(async (req) => {
   const needLogin = (wantUsage || (!jobId && !irun)) ? await loginRequired() : false;
   if (wantUsage) {
     const lr = { login_required: needLogin, logged_in: !!user, banned: flag?.status === "banned",
+      profile: myProfile ? { handle: myProfile.handle, display_name: myProfile.display_name, bio: myProfile.bio } : null,
       notice: flag && flag.warning && flag.acked === false ? { text: flag.warning, at: flag.warned_at } : null };
     // 管理者はテストモデル選択を反映した「実際に使われるモデル」を返す（チャット画面の表記と実生成を一致させる）
     if (isAdmin) return json({ ...lr, enabled: true, admin: true, model: specLabel(specFor(testModel)) });
@@ -1689,6 +1746,8 @@ Deno.serve(async (req) => {
   // 作る（相談・設計書・生成）はログイン必須（管理者コードは例外）
   if (needLogin && !user && !isAdmin) return json({ error: "login_required" });
   if (flag?.status === "banned" && !isAdmin) return json({ error: "banned" });
+  // 作る前に @ID と表示名を決めてもらう（ログインしている人だけ）
+  if (user && !myProfile && !isAdmin) return json({ error: "profile_required" });
 
   // ---- 設計書のみ生成（ビルド前の確認・編集用。生成カウントは消費しない）----
   if (wantSpec) {

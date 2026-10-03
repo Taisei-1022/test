@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-180.png?v=3" />
 <link rel="icon" href="icon-192.png?v=3" />
-<link rel="stylesheet" href="css/app.css?v=41" />
+<link rel="stylesheet" href="css/app.css?v=42" />
 <title>Vappa</title>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6804943232069371" crossorigin="anonymous"></script>
 <meta property="og:type" content="website" />
@@ -28,7 +28,8 @@
   <!-- 遊ぶ -->
   <section id="view-play" class="view active">
     <div class="app">
-      <div class="top"><div class="brand"><img class="logo" src="logo.png?v=1" alt="Vappa" /><small>あそぶ</small></div></div>
+      <div class="top"><div class="brand"><img class="logo" src="logo.png?v=1" alt="Vappa" /><small>あそぶ</small></div>
+        <a class="searchbtn" href="search.html" aria-label="作品・作者をさがす"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></a></div>
       <div class="trending" id="trending" hidden></div>
       <div class="filterbar">
         <div class="catchips" id="catChips"></div>
@@ -153,8 +154,8 @@
         <div class="section">アカウント</div>
         <div class="usagebox" id="acctInfo">—</div>
       </div>
-      <div class="section">なまえ</div>
-      <label class="name"><input id="name" maxlength="16" placeholder="ゲスト" style="width:180px" /></label>
+      <div class="section" id="nameSec">なまえ</div>
+      <label class="name" id="nameRow"><input id="name" maxlength="16" placeholder="ゲスト" style="width:180px" /></label>
       <div class="section">今日のAI作成</div>
       <div id="usage" class="usagebox">—</div>
       <div class="section">作り方</div>
@@ -265,6 +266,22 @@
   </div>
 </div>
 
+<!-- プロフィール（@ID・表示名）。作る人は必須 -->
+<div class="howto" id="profileGate" hidden>
+  <div class="howtobox">
+    <h3 id="pfTitle">プロフィールを決めよう</h3>
+    <p class="lead" id="pfLead">作品やランキングに表示されます。<b>@ID</b>はあなただけのもので、ほかの人と重なりません。</p>
+    <label class="pfl">@ID<small>英小文字・数字・_ の3〜15文字（最初は英字）。変更は30日に1回まで</small>
+      <span class="pfid"><span>@</span><input id="pfHandle" maxlength="15" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="purin" /></span></label>
+    <p class="pfmsg" id="pfHandleMsg"></p>
+    <label class="pfl">表示名<small>1〜20文字。あとからいつでも変えられます</small><input id="pfName" maxlength="20" autocomplete="off" placeholder="ぷりん" /></label>
+    <label class="pfl" id="pfBioRow">ひとこと（任意）<textarea id="pfBio" rows="2" maxlength="160" placeholder="どんなゲームを作っているか、など"></textarea></label>
+    <p class="pfmsg" id="pfErr"></p>
+    <button class="ok" id="pfSave" type="button">保存する</button>
+    <button class="ok" id="pfBack" type="button" style="background:transparent;border:1px solid #3a3460;color:#cdbcff;margin-top:8px">あとで</button>
+  </div>
+</div>
+
 <!-- 運営からのお知らせ（警告）。読んだら閉じる -->
 <div class="howto" id="noticeGate" hidden>
   <div class="howtobox">
@@ -301,9 +318,9 @@
 <script src="js/config.js?v=7"></script>
 <script src="js/netstate.js?v=1"></script>
 <script src="js/store.js?v=9"></script>
-<script src="js/auth.js?v=2"></script>
+<script src="js/auth.js?v=3"></script>
 <script src="js/ai.js?v=21"></script>
-<script src="js/catalog.js?v=12"></script>
+<script src="js/catalog.js?v=13"></script>
 <script src="js/share.js?v=6"></script>
 <script src="js/arcade-embed.js?v=4"></script>
 <script src="js/pwa.js?v=1"></script>
@@ -312,7 +329,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.93";
+  var APP_VERSION = "0.9.94";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -421,7 +438,7 @@
   /* ---------- 遊ぶ：フィード（フィルター・並び替え） ---------- */
   var grid=document.getElementById("grid");
   var catChips=document.getElementById("catChips"), sortSel=document.getElementById("sortSel");
-  var feedRows=[], feedCat="all", feedSort="pop_week";
+  var feedRows=[], feedCat="all", feedSort="pop_week", followSet={};
   var POP_LABEL={pop_today:"今日",pop_week:"週間",pop_year:"年間"};
   var BATCH=8, feedSorted=[], feedShown=0, statsLoaded=false, feedIO=null, sentinel=null;
   function popOf(r){ var s=r.stats||{}; return feedSort==="pop_today"?(s.today||0) : feedSort==="pop_year"?(s.year||0) : (s.week||0); }
@@ -434,7 +451,8 @@
     var present={}; feedRows.forEach(function(r){ present[r.it.category]=true; });
     var cats=(window.ARCADE_CATEGORIES||[]).filter(function(c){ return present[c]; });
     Object.keys(present).forEach(function(c){ if(cats.indexOf(c)<0) cats.push(c); });
-    var html='<button class="catchip'+(feedCat==="all"?" on":"")+'" data-cat="all">すべて</button>';
+    var html='<button class="catchip'+(feedCat==="all"?" on":"")+'" data-cat="all">すべて</button>'+
+      (window.Auth && Auth.user() ? '<button class="catchip'+(feedCat==="__follow"?" on":"")+'" data-cat="__follow">フォロー中</button>' : '');
     html+=cats.map(function(c){
       return '<button class="catchip'+(feedCat===c?" on":"")+'" data-cat="'+esc(c)+'">'+esc(c)+'</button>';
     }).join("");
@@ -449,7 +467,7 @@
       '<span class="cat">'+esc(it.category)+'</span>'+
       '<button class="shareic" data-share="'+it.id+'" data-title="'+esc(it.title)+'" aria-label="共有">'+SHARE_SVG+'</button>'+
       '<div class="ttl">'+esc(it.title)+'</div>'+
-      '<div class="meta">作 '+esc(it.author)+' ・ <span class="m-plays">'+(row.plays||0)+'プレイ</span>'+(it.created?(' ・ 作成日 '+fmtYmd(it.created)):'')+'</div>'+
+      '<div class="meta">作 '+(it.handle?'<a class="authlink" href="creator.html?u='+encodeURIComponent(it.handle)+'">'+esc(it.author)+'</a>':esc(it.author))+' ・ <span class="m-plays">'+(row.plays||0)+'プレイ</span>'+(it.created?(' ・ 作成日 '+fmtYmd(it.created)):'')+'</div>'+
       '<div class="blurb">'+esc(it.blurb)+'</div>'+
       '<div class="meta m-top" style="margin-top:6px;color:var(--gold)">1位 '+esc(topTxt)+'</div>'+
       '<div class="cardbtns">'+
@@ -458,7 +476,7 @@
       '</div></div>';
   }
   function sortFeed(){
-    var rows=feedRows.filter(function(r){ return feedCat==="all" || r.it.category===feedCat; });
+    var rows=feedRows.filter(function(r){ return feedCat==="all" || (feedCat==="__follow" ? !!(r.it.uid && followSet[r.it.uid]) : r.it.category===feedCat); });
     var isPop=/^pop_/.test(feedSort);
     rows.sort(function(a,b){
       if(isPop && statsLoaded) return popOf(b)-popOf(a) || (b.ts-a.ts);
@@ -488,7 +506,7 @@
   function paintFeed(){
     feedSorted=sortFeed(); feedShown=0;
     if(feedIO){ feedIO.disconnect(); feedIO=null; }
-    if(!feedSorted.length){ grid.innerHTML='<div class="emptybox" style="grid-column:1/-1;margin-top:30px">このカテゴリの作品はまだありません。</div>'; return; }
+    if(!feedSorted.length){ grid.innerHTML='<div class="emptybox" style="grid-column:1/-1;margin-top:30px">'+(feedCat==="__follow"?'フォローしている作者の作品はまだありません。<br>作品の「作」の名前から作者のページを開いて、フォローできます。':'このカテゴリの作品はまだありません。')+'</div>'; return; }
     grid.innerHTML="";
     sentinel=document.createElement("div"); sentinel.style.cssText="grid-column:1/-1;height:1px"; grid.appendChild(sentinel);
     // root は実際のスクロール要素（.view = #view-play）。内側の .app はスクロールしないので
@@ -514,7 +532,7 @@
         var upd = g.updated_at || g.created_at;
         return {id:g.id,title:g.title,author:g.author||"ゲスト",category:g.category||"その他",accent:g.accent||"#e6b450",
                 thumb:g.thumb||null,blurb:(g.description||"AIで作られたゲーム"),score:{type:"high",unit:"点"},
-                ts:(upd?new Date(upd).getTime():0),created:(g.created_at||null)};
+                ts:(upd?new Date(upd).getTime():0),created:(g.created_at||null),uid:g.user_id||null};
       }));
       feedRows = items.map(function(it){
         var s = smap && smap[it.id];
@@ -522,8 +540,15 @@
         var top = s ? (it.score.type==="low" ? s.lo : s.hi) : null;
         return {it:it, stats:stats, plays:stats.total, top:top, ts:it.ts};
       });
-      if(feedCat!=="all" && !feedRows.some(function(r){return r.it.category===feedCat;})) feedCat="all";
+      if(feedCat!=="all" && feedCat!=="__follow" && !feedRows.some(function(r){return r.it.category===feedCat;})) feedCat="all";
       renderTrending(); renderCatChips(); paintFeed();
+      // 作者の @ID（作者ページへのリンク用）とフォロー中の作者を、あとから読み込んで反映
+      var uids=feedRows.map(function(r){ return r.it.uid; }).filter(Boolean);
+      Promise.all([Auth.profilesFor(uids), Auth.myFollows()]).then(function(r){
+        var pm=r[0]||{}; followSet={}; (r[1]||[]).forEach(function(x){ followSet[x]=1; });
+        feedRows.forEach(function(row){ var p=row.it.uid&&pm[row.it.uid]; if(p){ row.it.handle=p.handle; row.it.author=p.display_name; } });
+        renderCatChips(); paintFeed();
+      }).catch(function(){});
     });
   }
   // 急上昇（config の ARCADE_TRENDING で指定。小さいカード・ボタンなし・カードを押すとプレイ）
@@ -555,6 +580,7 @@
   function mountGis(el, errEl, fallbackBtn, ret){
     Auth.renderButton(el, function(){
       if(loginGate) loginGate.hidden=true; showToast("ログインしました"); renderAccount();
+      if(needProfile()) openProfile(true);
       try{ renderMypage(); }catch(e){}
     }, function(msg){
       if(errEl){ errEl.textContent=msg; errEl.hidden=false; }
@@ -566,7 +592,7 @@
     loginGate.hidden=false;
     mountGis(document.getElementById("gisGate"), document.getElementById("loginGateErr"), document.getElementById("loginGateGo"));
   }
-  function maybeLoginGate(){ if(loginReq) showLoginGate(); }
+  function maybeLoginGate(){ if(window.Auth && Auth.user()){ if(needProfile()) openProfile(true); return; } if(loginReq) showLoginGate(); }
   if(loginGate){
     document.getElementById("loginGateGo").addEventListener("click", function(){ Auth.login(); });
     document.getElementById("loginGateBack").addEventListener("click", function(){ loginGate.hidden=true; show("play"); });
@@ -577,11 +603,23 @@
     var u=Auth.user();
     if(u){
       box.hidden=false;
-      info.innerHTML='Googleでログイン中<br><b></b><br><button type="button" class="ghostbtn" id="acctOut" style="margin-top:8px">ログアウト</button>';
-      info.querySelector("b").textContent=u.email||u.name||"";
+      var pf=Auth.profile();
+      info.innerHTML=(pf
+        ? '<b class="pfdn"></b> <span class="pfh"></span><div class="pfbio"></div>'
+        : '<b>プロフィールが未設定です</b><br><small style="opacity:.75">作るには @ID と表示名が必要です</small>')+
+        '<div style="font-size:11.5px;opacity:.7;margin-top:6px">Googleでログイン中：<span class="pfmail"></span>（あなたにだけ表示）</div>'+
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">'+
+        '<button type="button" class="ghostbtn" id="acctEdit">'+(pf?'プロフィールを編集':'プロフィールを決める')+'</button>'+
+        (pf?'<a class="ghostbtn" id="acctPage" href="creator.html?u='+encodeURIComponent(pf.handle)+'">自分のページ</a>':'')+
+        '<button type="button" class="ghostbtn" id="acctOut">ログアウト</button></div>';
+      info.querySelector(".pfmail").textContent=u.email||"";
+      if(pf){ info.querySelector(".pfdn").textContent=pf.display_name; info.querySelector(".pfh").textContent="@"+pf.handle; info.querySelector(".pfbio").textContent=pf.bio||""; }
+      document.getElementById("acctEdit").onclick=function(){ openProfile(false); };
       document.getElementById("acctOut").onclick=function(){ Auth.logout().then(function(){ renderAccount(); renderMypage(); showToast("ログアウトしました"); }); };
+      var hasPf=!!pf; ["nameSec","nameRow"].forEach(function(id){ var el=document.getElementById(id); if(el) el.hidden=hasPf; });
       return;
     }
+    ["nameSec","nameRow"].forEach(function(id){ var el=document.getElementById(id); if(el) el.hidden=false; });
     Auth.googleEnabled().then(function(on){
       if(!on){ box.hidden=true; return; }
       box.hidden=false;
@@ -591,6 +629,46 @@
     });
   }
   window.addEventListener("vappa:auth", function(){ renderAccount(); });
+  window.addEventListener("vappa:profile", function(){ renderAccount(); });
+
+  /* ---------- プロフィール（@ID・表示名） ---------- */
+  var pfGate=document.getElementById("profileGate"), pfH=document.getElementById("pfHandle"), pfN=document.getElementById("pfName"),
+      pfB=document.getElementById("pfBio"), pfHMsg=document.getElementById("pfHandleMsg"), pfErr=document.getElementById("pfErr"), pfTimer=null;
+  var HANDLE_RE=/^[a-z][a-z0-9_]{2,14}$/;
+  function openProfile(required){
+    if(!pfH){ setTimeout(function(){ openProfile(required); },0); return; }   // 起動直後（変数の準備前）に呼ばれた時は後回し
+    var pf=Auth.profile();
+    document.getElementById("pfTitle").textContent=pf?"プロフィールを編集":"プロフィールを決めよう";
+    document.getElementById("pfLead").innerHTML=pf?"表示名とひとことはいつでも変えられます。@ID の変更は30日に1回までです。":(required?"作る前に、作品やランキングに表示される <b>@ID</b> と <b>表示名</b> を決めてね。@ID はあなただけのもので、ほかの人と重なりません。":"作品やランキングに表示されます。<b>@ID</b>はあなただけのもので、ほかの人と重なりません。");
+    pfH.value=pf?pf.handle:""; pfN.value=pf?pf.display_name:(Store.name&&Store.name()||""); pfB.value=pf?(pf.bio||""):"";
+    document.getElementById("pfBioRow").hidden=!pf;   // 初回は2項目だけ（ひとことは後から）
+    document.getElementById("pfBack").textContent=required?"遊ぶにもどる":"とじる";
+    document.getElementById("pfBack").onclick=function(){ pfGate.hidden=true; if(required) show("play"); };
+    pfHMsg.textContent=""; pfErr.textContent=""; pfGate.hidden=false;
+    setTimeout(function(){ try{ (pf?pfN:pfH).focus(); }catch(e){} },80);
+  }
+  pfH.addEventListener("input", function(){
+    var v=pfH.value=pfH.value.toLowerCase().replace(/[^a-z0-9_]/g,"");
+    clearTimeout(pfTimer); pfHMsg.className="pfmsg";
+    if(!v){ pfHMsg.textContent=""; return; }
+    if(!HANDLE_RE.test(v)){ pfHMsg.textContent="3〜15文字、最初は英字にしてね"; return; }
+    if(v.indexOf("vappa")>=0){ pfHMsg.textContent="「vappa」を含むIDは使えません"; return; }
+    pfHMsg.textContent="確認中…";
+    pfTimer=setTimeout(function(){ Auth.handleFree(v).then(function(ok){ if(pfH.value!==v) return; pfHMsg.textContent=ok?"@"+v+" は使えます":"@"+v+" はもう使われています"; pfHMsg.className="pfmsg "+(ok?"good":""); }); },350);
+  });
+  document.getElementById("pfSave").addEventListener("click", function(){
+    var h=pfH.value.trim(), n=pfN.value.trim(), btn=this;
+    if(!HANDLE_RE.test(h)){ pfErr.textContent="@ID は英小文字・数字・_ の3〜15文字（最初は英字）にしてね"; return; }
+    if(!n){ pfErr.textContent="表示名を入れてね"; return; }
+    btn.disabled=true; pfErr.textContent="";
+    Auth.saveProfile(h, n, pfB.value).then(function(){
+      pfGate.hidden=true; showToast("プロフィールを保存しました"); renderAccount();
+      try{ renderMypage(); }catch(e){}
+    }).catch(function(e){ pfErr.textContent=String(e&&e.message||e); }).then(function(){ btn.disabled=false; });
+  });
+  // ログイン済みでプロフィール未設定なら、作る画面で必ず聞く
+  function needProfile(){ return !!(window.Auth && Auth.user() && !Auth.profile()); }
+  if(window.Auth && Auth.user()) Auth.loadProfile().then(function(){ renderAccount(); if(needProfile() && navState().tab==="create") openProfile(true); });
   if(window.Ai && Ai.available && Ai.available() && Ai.usage){
     Ai.usage().then(function(u){
       loginReq=!!(u&&u.login_required&&!u.admin); if(loginReq && (navState().tab==="create")) maybeLoginGate();
@@ -1389,6 +1467,7 @@
   // エラーメッセージの組み立て（相談ターン・ビルド両方で共用）
   function chatErrMsg(s){
     if(/banned/.test(s)){ return "このアカウントは、投稿ガイドライン違反のため、ゲームを作る機能の利用を停止しています。\nご不明な点はお問い合わせからご連絡ください。"; }
+    if(/profile_required/.test(s)){ openProfile(true); return "作る前に、@ID と表示名を決めてね。"; }
     if(/login_required/.test(s)){ showLoginGate(); return "作るにはログインが必要です。Googleアカウントでログインしてね。"; }
     if(/rate_limited/.test(s)){
       var reason=s.split(":")[1]||"";

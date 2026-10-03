@@ -78,6 +78,7 @@ window.Auth = (function () {
     var u = await fetchUser(at);
     save({ access_token: at, refresh_token: h.get("refresh_token"), expires_at: Date.now() + (parseInt(h.get("expires_in"), 10) || 3600) * 1000, user: u });
     await claim();
+    await loadProfile();
     var ret = "./#create";
     try { ret = localStorage.getItem(RET) || ret; localStorage.removeItem(RET); } catch (e) {}
     return { ok: true, ret: ret };
@@ -110,6 +111,7 @@ window.Auth = (function () {
     if (!r.ok || !d.access_token) throw new Error(d.error_description || d.msg || d.error || ("login_" + r.status));
     save({ access_token: d.access_token, refresh_token: d.refresh_token, expires_at: Date.now() + (d.expires_in || 3600) * 1000, user: d.user });
     await claim();
+    await loadProfile();
     return user();
   }
   // el に Google のボタンを描く。ログインできたら onDone(user)、失敗したら onErr(message)
@@ -131,9 +133,83 @@ window.Auth = (function () {
     return true;
   }
 
+  // ---- プロフィール（@ID・表示名）とフォロー ----
+  var PKEY = "arcade.profile", prof = null;
+  try { prof = JSON.parse(localStorage.getItem(PKEY)) || null; } catch (e) { prof = null; }
+  function setProf(p) {
+    prof = p || null;
+    try { p ? localStorage.setItem(PKEY, JSON.stringify(p)) : localStorage.removeItem(PKEY); } catch (e) {}
+    // ランキングや作品に出る名前は表示名にそろえる
+    if (p && p.display_name) { try { localStorage.setItem("arcade.name", p.display_name); } catch (e) {} }
+    try { window.dispatchEvent(new CustomEvent("vappa:profile", { detail: { profile: prof } })); } catch (e) {}
+  }
+  function rest(path, opts) {
+    opts = opts || {};
+    var h = hdr(sess && sess.access_token);
+    opts.headers = Object.assign(h, opts.headers || {});
+    return fetch(base + "/rest/v1/" + path, opts);
+  }
+  // 自分のプロフィールを読み直す（無ければ null＝まだ決めていない）
+  async function loadProfile() {
+    var u = user(); if (!u) { setProf(null); return null; }
+    try {
+      var r = await rest("profiles?user_id=eq." + u.id + "&select=handle,display_name,bio&limit=1");
+      var a = await r.json(); setProf(a && a[0] ? a[0] : null);
+    } catch (e) {}
+    return prof;
+  }
+  // 保存はサーバー経由（予約ID・重複・30日ルールを確かめる）
+  async function saveProfile(handle, name, bio) {
+    var t = await token();
+    var r = await fetch(base + "/functions/v1/generate", { method: "POST", headers: hdr(t), body: JSON.stringify({ profile: { handle: handle, display_name: name, bio: bio || "" } }) });
+    var d = await r.json().catch(function () { return {}; });
+    if (!d.ok) throw new Error(d.detail || d.error || "保存できませんでした");
+    setProf({ handle: d.profile.handle, display_name: d.profile.display_name, bio: d.profile.bio });
+    return prof;
+  }
+  // そのIDが空いているか（自分のものなら空き扱い）
+  async function handleFree(h) {
+    var r = await rest("profiles?handle=eq." + encodeURIComponent(h) + "&select=user_id");
+    var a = await r.json().catch(function () { return []; });
+    var u = user();
+    return !a.length || (u && a[0].user_id === u.id);
+  }
+  // user_id → {handle, display_name} の対応（作品カードの作者リンク用）
+  async function profilesFor(ids) {
+    ids = (ids || []).filter(function (x, i, a) { return x && a.indexOf(x) === i; }).slice(0, 300);
+    if (!ids.length) return {};
+    try {
+      var r = await rest("profiles?user_id=in.(" + ids.join(",") + ")&select=user_id,handle,display_name");
+      var a = await r.json(), m = {};
+      (a || []).forEach(function (p) { m[p.user_id] = p; });
+      return m;
+    } catch (e) { return {}; }
+  }
+  async function myFollows() {
+    var u = user(); if (!u) return [];
+    try { var r = await rest("follows?follower=eq." + u.id + "&select=followee"); var a = await r.json(); return (a || []).map(function (x) { return x.followee; }); }
+    catch (e) { return []; }
+  }
+  async function follow(uid, on) {
+    var u = user(); if (!u) throw new Error("login_required");
+    await token();
+    var r = on
+      ? await rest("follows", { method: "POST", headers: { Prefer: "return=minimal,resolution=ignore-duplicates" }, body: JSON.stringify({ follower: u.id, followee: uid }) })
+      : await rest("follows?follower=eq." + u.id + "&followee=eq." + uid, { method: "DELETE" });
+    if (!r.ok && r.status !== 409) throw new Error("follow_failed");
+    return on;
+  }
+
   return {
     available: function () { return !!(base && cfg.supabaseKey); },
     renderButton: renderButton,
+    profile: function () { return prof; },
+    loadProfile: loadProfile,
+    saveProfile: saveProfile,
+    handleFree: handleFree,
+    profilesFor: profilesFor,
+    myFollows: myFollows,
+    follow: follow,
     user: user,
     token: token,
     tokenSync: tokenSync,
@@ -147,6 +223,7 @@ window.Auth = (function () {
     },
     logout: async function () {
       var t = sess && sess.access_token;
+      setProf(null);
       save(null);
       try { if (window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect(); } catch (e) {}
       // 端末トークンはログイン前のものに戻す（ログアウト後に他人の作品を「自分の」と表示しないため）

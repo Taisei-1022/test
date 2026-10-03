@@ -133,7 +133,7 @@ window.Catalog = (function () {
       opts = opts || {};
       if (remote) {
         try {
-          var q = "games?select=id,title,author,accent,description,thumb,owner,created_at,updated_at,category,published&order=created_at.desc&limit=100";
+          var q = "games?select=id,title,author,accent,description,thumb,owner,user_id,created_at,updated_at,category,published&order=created_at.desc&limit=100";
           if (opts.publishedOnly) q += "&published=eq.true&hidden=is.false";   // 通報・運営判断で非表示の作品は一覧に出さない
           if (opts.owner) q += "&owner=eq." + enc(opts.owner);
           var res = await getSel(q);
@@ -152,7 +152,7 @@ window.Catalog = (function () {
     getGenerated: async function (id) {
       if (remote) {
         try {
-          var res = await getSel("games?id=eq." + enc(id) + "&select=id,title,author,html,accent,description,thumb,owner,category,published,chat&limit=1");
+          var res = await getSel("games?id=eq." + enc(id) + "&select=id,title,author,html,accent,description,thumb,owner,user_id,category,published,chat&limit=1");
           return (await res.json())[0] || null;
         } catch (e) { console.warn("getGenerated failed", e); return null; }
       }
@@ -165,7 +165,7 @@ window.Catalog = (function () {
       if (s) return { source: "seed", id: s.id, title: s.title, accent: s.accent, score: s.score, path: s.path, category: s.category };
       var g = await this.getGenerated(id);
       if (!g) return null;
-      return { source: "gen", id: g.id, title: g.title, accent: g.accent, score: { type: "high", unit: "点" }, html: g.html, category: g.category };
+      return { source: "gen", id: g.id, title: g.title, accent: g.accent, score: { type: "high", unit: "点" }, html: g.html, category: g.category, user_id: g.user_id || null, author: g.author || "" };
     }
   };
 })();

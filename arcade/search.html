@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#141221" />
+<link rel="stylesheet" href="css/app.css?v=42" />
+<title>さがす | Vappa</title>
+<style>
+  .pg{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .wrap{max-width:720px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 10px) 16px 40px}
+  .hdr{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .hdr .back{font-size:26px;line-height:1;color:var(--ink);text-decoration:none;padding:4px 10px;border:1px solid var(--rule);border-radius:12px;flex:none}
+  .qbox{flex:1;display:flex;align-items:center;gap:8px;background:var(--plate);border:1px solid var(--rule);border-radius:12px;padding:0 12px}
+  .qbox svg{width:18px;height:18px;color:var(--dim);flex:none}
+  .qbox input{flex:1;min-width:0;background:none;border:0;color:var(--ink);font:inherit;font-size:16px;padding:12px 0;outline:none;-webkit-user-select:text;user-select:text}
+  .tabs{display:flex;gap:6px;margin:4px 0 12px}
+  .tabs button{flex:1;background:transparent;border:1px solid var(--rule);color:var(--dim);border-radius:99px;padding:8px;font:inherit;font-weight:800;font-size:13px}
+  .tabs button.on{background:var(--gold);border-color:var(--gold);color:#fff}
+  .sec{font-size:13px;color:var(--dim);font-weight:800;margin:16px 2px 8px}
+  .urow{display:flex;align-items:center;gap:12px;background:var(--plate);border:1px solid var(--rule);border-radius:14px;padding:10px 12px;margin-bottom:8px;text-decoration:none;color:var(--ink)}
+  .urow .av{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;flex:none}
+  .urow .nm{font-weight:800;overflow-wrap:anywhere} .urow small{display:block;color:var(--dim);font-size:12px}
+  .empty{color:var(--dim);font-size:13px;padding:14px 4px;text-align:center;line-height:1.7}
+  .card{position:relative}
+</style>
+</head>
+<body>
+<div class="pg"><div class="wrap">
+  <div class="hdr"><a class="back" id="back" href="index.html" aria-label="戻る">‹</a>
+    <label class="qbox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input id="q" type="search" enterkeyhint="search" placeholder="ゲームの名前・作者・@ID" autocomplete="off" /></label></div>
+  <div class="tabs" role="tablist"><button data-t="all" class="on" type="button">すべて</button><button data-t="games" type="button">ゲーム</button><button data-t="users" type="button">作者</button></div>
+  <div id="out"><div class="empty">ゲームの名前や作者の名前、@ID で探せます。</div></div>
+</div></div>
+<script src="js/games.js?v=10"></script>
+<script src="js/config.js?v=7"></script>
+<script src="js/sw-reg.js?v=2"></script>
+<script>
+(function () {
+  "use strict";
+  var cfg = window.ARCADE_CONFIG || {}, base = cfg.supabaseUrl.replace(/\/$/, "");
+  var q = document.getElementById("q"), out = document.getElementById("out"), tab = "all", timer = null, seq = 0, last = null;
+  if (history.length > 1) document.getElementById("back").addEventListener("click", function (e) { e.preventDefault(); history.back(); });
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function hue(s) { var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360; return h; }
+  function grad(c) { return "linear-gradient(140deg," + (c || "#8b5cf6") + ",#2a2545)"; }
+  function rest(path) { return fetch(base + "/rest/v1/" + path, { headers: { apikey: cfg.supabaseKey } }).then(function (r) { return r.ok ? r.json() : []; }); }
+  // PostgREST の検索式を壊す記号は取り除く（, ( ) * など）
+  function clean(s) { return s.replace(/[,()*%\\:."']/g, " ").trim().slice(0, 30); }
+
+  function search() {
+    var raw = q.value.trim(), t = clean(raw), my = ++seq;
+    try { history.replaceState(null, "", raw ? "?q=" + encodeURIComponent(raw) : location.pathname); } catch (e) {}
+    if (!t) { out.innerHTML = '<div class="empty">ゲームの名前や作者の名前、@ID で探せます。</div>'; return; }
+    out.innerHTML = '<div class="empty">さがしています…</div>';
+    var h = t.replace(/^@/, "").toLowerCase(), pat = encodeURIComponent("*" + t + "*"), hp = encodeURIComponent("*" + h + "*");
+    Promise.all([
+      rest("profiles?or=(handle.ilike." + hp + ",display_name.ilike." + pat + ")&select=user_id,handle,display_name,bio&limit=20"),
+      rest("games?title=ilike." + pat + "&published=eq.true&hidden=is.false&select=id,title,author,accent,thumb,description,category&order=created_at.desc&limit=40")
+    ]).then(function (r) {
+      if (my !== seq) return;
+      var lt = t.toLowerCase();
+      var seeds = (window.GAMES || []).filter(function (g) { return String(g.title).toLowerCase().indexOf(lt) >= 0; })
+        .map(function (g) { return { id: g.id, title: g.title, author: g.author, accent: g.accent, thumb: g.thumb, description: g.blurb, category: g.category }; });
+      last = { users: r[0] || [], games: seeds.concat(r[1] || []) };
+      paint();
+    });
+  }
+  function paint() {
+    if (!last) return;
+    var U = last.users, G = last.games, html = "";
+    if (tab !== "games") {
+      html += (tab === "all" ? '<div class="sec">作者（' + U.length + '）</div>' : "") + (U.length ? U.map(function (p) {
+        return '<a class="urow" href="creator.html?u=' + encodeURIComponent(p.handle) + '"><span class="av" style="background:hsl(' + hue(p.handle) + ',55%,45%)">' + esc(p.display_name.slice(0, 1)) + '</span><span style="min-width:0"><span class="nm">' + esc(p.display_name) + '</span><small>@' + esc(p.handle) + (p.bio ? "・" + esc(p.bio.slice(0, 40)) : "") + '</small></span></a>';
+      }).join("") : '<div class="empty">見つかりませんでした。</div>');
+    }
+    if (tab !== "users") {
+      html += (tab === "all" ? '<div class="sec">ゲーム（' + G.length + '）</div>' : "") + (G.length ? '<div class="grid">' + G.map(function (g) {
+        var th = g.thumb ? '<div class="thumb" style="background:url(' + g.thumb + ') center/cover"></div>' : '<div class="thumb" style="background:' + grad(g.accent) + '"><b>' + esc(g.title) + '</b></div>';
+        return '<a class="card" href="play.html?game=' + encodeURIComponent(g.id) + '" style="text-decoration:none;color:inherit">' + th + '<span class="cat">' + esc(g.category || "その他") + '</span><div class="ttl">' + esc(g.title) + '</div><div class="meta">作 ' + esc(g.author || "") + '</div><div class="blurb">' + esc(g.description || "") + '</div></a>';
+      }).join("") + '</div>' : '<div class="empty">見つかりませんでした。</div>');
+    }
+    out.innerHTML = html;
+  }
+  q.addEventListener("input", function () { clearTimeout(timer); timer = setTimeout(search, 300); });
+  q.addEventListener("keydown", function (e) { if (e.key === "Enter") { clearTimeout(timer); search(); q.blur(); } });
+  document.querySelector(".tabs").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-t]"); if (!b) return;
+    tab = b.getAttribute("data-t");
+    document.querySelectorAll(".tabs button").forEach(function (x) { x.classList.toggle("on", x === b); });
+    paint();
+  });
+  var init = new URLSearchParams(location.search).get("q");
+  if (init) { q.value = init; search(); } else setTimeout(function () { try { q.focus(); } catch (e) {} }, 100);
+})();
+</script>
+</body>
+</html>

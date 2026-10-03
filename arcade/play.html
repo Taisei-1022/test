@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<link rel="stylesheet" href="css/app.css?v=41" />
+<link rel="stylesheet" href="css/app.css?v=42" />
 <title>プレイ</title>
 <style>
   .menupop{position:fixed;right:12px;top:calc(env(safe-area-inset-top) + 54px);z-index:9980;min-width:210px;background:#1d1a2e;border:1px solid #3a3460;border-radius:14px;padding:6px;box-shadow:0 12px 32px rgba(0,0,0,.5)}
@@ -35,6 +35,7 @@
   <!-- ハンバーガーメニュー：ランキング／共有／通報 -->
   <div id="menuPop" class="menupop" role="menu" hidden>
     <a class="mi" id="rankBtn" role="menuitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4"/></svg>ランキング</a>
+    <a class="mi" id="authorBtn" role="menuitem" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 19c1-3.4 4-5 6.5-5s5.5 1.6 6.5 5"/></svg><span id="authorTxt">作者のページ</span></a>
     <button class="mi" id="shareBtn" type="button" role="menuitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>共有・挑戦状を送る</button>
     <button class="mi" id="reportBtn" type="button" role="menuitem" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>この作品を通報</button>
   </div>
@@ -46,8 +47,8 @@
 <script src="js/config.js?v=7"></script>
 <script src="js/netstate.js?v=1"></script>
 <script src="js/store.js?v=9"></script>
-<script src="js/auth.js?v=2"></script>
-<script src="js/catalog.js?v=12"></script>
+<script src="js/auth.js?v=3"></script>
+<script src="js/catalog.js?v=13"></script>
 <script src="js/ai.js?v=21"></script>
 <script src="js/share.js?v=6"></script>
 <script src="js/sw-reg.js?v=2"></script>
@@ -271,6 +272,13 @@
       Share.open({ gameId: game.id, gameTitle: game.title, unit: unit, score: s, by: player });
     });
 
+    // 作者のページ（@ID がある作者の作品だけ）
+    if (game.user_id && window.Auth && Auth.profilesFor) Auth.profilesFor([game.user_id]).then(function (m) {
+      var pf = m[game.user_id]; if (!pf) return;
+      var ab = document.getElementById("authorBtn");
+      ab.href = "creator.html?u=" + encodeURIComponent(pf.handle); ab.hidden = false;
+      document.getElementById("authorTxt").textContent = "作者：" + pf.display_name + "（@" + pf.handle + "）";
+    });
     var rb = document.getElementById("reportBtn");
     if (rb && game.source !== "seed" && window.Ai) { rb.hidden = false; rb.addEventListener("click", openReport); }
 

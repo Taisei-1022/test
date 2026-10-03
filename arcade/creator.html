@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#141221" />
+<link rel="stylesheet" href="css/app.css?v=42" />
+<title>作者 | Vappa</title>
+<meta property="og:type" content="profile" />
+<meta property="og:title" content="Vappa の作者" />
+<meta property="og:image" content="https://vappa.app/arcade/og.png?v=4" />
+<style>
+  .pg{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .wrap{max-width:720px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 10px) 16px 40px}
+  .hdr{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .hdr .back{font-size:26px;line-height:1;color:var(--ink);text-decoration:none;padding:4px 10px;border:1px solid var(--rule);border-radius:12px}
+  .hdr .sp{flex:1}
+  .prof{background:var(--plate);border:1px solid var(--rule);border-radius:16px;padding:16px}
+  .prof .av{width:56px;height:56px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:#fff;flex:none}
+  .prof .row{display:flex;gap:12px;align-items:center}
+  .prof .nm{font-size:19px;font-weight:800;line-height:1.3;overflow-wrap:anywhere}
+  .prof .hd{font-size:13px;color:var(--dim)}
+  .prof .bio{font-size:13.5px;margin-top:10px;white-space:pre-wrap;line-height:1.6;overflow-wrap:anywhere}
+  .stats{display:flex;gap:18px;margin-top:12px;font-size:12.5px;color:var(--dim)}
+  .stats b{color:var(--ink);font-size:15px;margin-right:3px}
+  .fbtn{margin-top:14px;width:100%;padding:12px;border-radius:12px;border:0;background:var(--gold);color:#fff;font:inherit;font-weight:800;font-size:15px;cursor:pointer}
+  .fbtn.on{background:transparent;border:1px solid #3a3460;color:#cdbcff}
+  .fbtn:disabled{opacity:.6}
+  .sec{font-size:13px;color:var(--dim);font-weight:800;margin:22px 2px 10px;letter-spacing:.04em}
+  .empty{color:var(--dim);font-size:13px;padding:20px 4px;text-align:center}
+  .card{position:relative}
+  .notfound{text-align:center;color:var(--dim);margin-top:60px;line-height:1.8}
+</style>
+</head>
+<body>
+<div class="pg"><div class="wrap">
+  <div class="hdr"><a class="back" id="back" href="index.html" aria-label="戻る">‹</a><span class="sp"></span><a class="searchbtn" href="search.html" aria-label="さがす"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></a></div>
+  <div id="main"><div class="empty">読み込み中…</div></div>
+</div></div>
+<div class="toast" id="toast"></div>
+<script src="js/games.js?v=10"></script>
+<script src="js/config.js?v=7"></script>
+<script src="js/netstate.js?v=1"></script>
+<script src="js/store.js?v=9"></script>
+<script src="js/catalog.js?v=13"></script>
+<script src="js/auth.js?v=3"></script>
+<script src="js/sw-reg.js?v=2"></script>
+<script>
+(function () {
+  "use strict";
+  var cfg = window.ARCADE_CONFIG || {}, base = cfg.supabaseUrl.replace(/\/$/, "");
+  var OFFICIAL = "00000000-0000-0000-0000-00000000a0a0";
+  var handle = (new URLSearchParams(location.search).get("u") || "").toLowerCase().replace(/^@/, "");
+  var main = document.getElementById("main");
+  if (history.length > 1) document.getElementById("back").addEventListener("click", function (e) { e.preventDefault(); history.back(); });
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function toast(m) { var t = document.getElementById("toast"); t.textContent = m; t.classList.add("show"); setTimeout(function () { t.classList.remove("show"); }, 1600); }
+  function rest(path, h) { return fetch(base + "/rest/v1/" + path, { headers: Object.assign({ apikey: cfg.supabaseKey }, h || {}) }); }
+  function count(path) { return rest(path + "&select=follower", { Prefer: "count=exact", Range: "0-0" }).then(function (r) { return parseInt((r.headers.get("content-range") || "/0").split("/")[1], 10) || 0; }); }
+  function hue(s) { var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360; return h; }
+  function grad(c) { return "linear-gradient(140deg," + (c || "#8b5cf6") + ",#2a2545)"; }
+
+  if (!/^[a-z][a-z0-9_]{2,14}$/.test(handle)) { main.innerHTML = '<div class="notfound">作者が見つかりませんでした。</div>'; return; }
+
+  rest("profiles?handle=eq." + handle + "&select=user_id,handle,display_name,bio,created_at&limit=1").then(function (r) { return r.json(); }).then(function (a) {
+    var p = a && a[0];
+    if (!p) { main.innerHTML = '<div class="notfound">@' + esc(handle) + ' という作者は見つかりませんでした。</div>'; return; }
+    document.title = p.display_name + "（@" + p.handle + "）| Vappa";
+    return Promise.all([
+      rest("games?user_id=eq." + p.user_id + "&published=eq.true&hidden=is.false&select=id,title,accent,thumb,description,category,created_at&order=created_at.desc&limit=200").then(function (r) { return r.json(); }),
+      count("follows?followee=eq." + p.user_id), count("follows?follower=eq." + p.user_id),
+      Store.feedStats ? Store.feedStats() : Promise.resolve(null),
+      Auth.myFollows()
+    ]).then(function (res) { render(p, res[0] || [], res[1], res[2], res[3] || {}, res[4] || []); });
+  }).catch(function () { main.innerHTML = '<div class="notfound">読み込めませんでした。通信環境を確かめてね。</div>'; });
+
+  function render(p, games, followers, following, smap, mine) {
+    // 公式アカウントには、運営の公式ゲームも並べる
+    var list = games.map(function (g) { return { id: g.id, title: g.title, accent: g.accent, thumb: g.thumb, blurb: g.description || "AIで作られたゲーム", cat: g.category || "その他" }; });
+    if (p.user_id === OFFICIAL) list = (window.GAMES || []).map(function (g) { return { id: g.id, title: g.title, accent: g.accent, thumb: g.thumb, blurb: g.blurb, cat: g.category }; }).concat(list);
+    var plays = list.reduce(function (n, g) { return n + ((smap[g.id] && smap[g.id].total) || 0); }, 0);
+    var me = Auth.user(), isMe = me && me.id === p.user_id, on = mine.indexOf(p.user_id) >= 0;
+    main.innerHTML =
+      '<div class="prof"><div class="row"><div class="av" style="background:hsl(' + hue(p.handle) + ',55%,45%)">' + esc(p.display_name.slice(0, 1)) + '</div>' +
+      '<div style="min-width:0"><div class="nm">' + esc(p.display_name) + '</div><div class="hd">@' + esc(p.handle) + '</div></div></div>' +
+      (p.bio ? '<div class="bio">' + esc(p.bio) + '</div>' : '') +
+      '<div class="stats"><span><b>' + list.length + '</b>作品</span><span><b>' + plays + '</b>プレイ</span><span><b id="fc">' + followers + '</b>フォロワー</span><span><b>' + following + '</b>フォロー中</span></div>' +
+      (isMe ? '<a class="fbtn on" style="display:block;text-align:center;text-decoration:none" href="index.html#mypage">プロフィールを編集（マイページ）</a>'
+            : '<button class="fbtn' + (on ? " on" : "") + '" id="fb" type="button">' + (on ? "フォロー中" : (me ? "フォローする" : "ログインしてフォロー")) + '</button>') +
+      '</div><div class="sec">作品</div>' +
+      (list.length ? '<div class="grid">' + list.map(function (g) {
+        var th = g.thumb ? '<div class="thumb" style="background:url(' + g.thumb + ') center/cover"></div>' : '<div class="thumb" style="background:' + grad(g.accent) + '"><b>' + esc(g.title) + '</b></div>';
+        var pl = (smap[g.id] && smap[g.id].total) || 0;
+        return '<a class="card" href="play.html?game=' + encodeURIComponent(g.id) + '" style="text-decoration:none;color:inherit">' + th + '<span class="cat">' + esc(g.cat) + '</span><div class="ttl">' + esc(g.title) + '</div><div class="meta">' + pl + 'プレイ</div><div class="blurb">' + esc(g.blurb) + '</div></a>';
+      }).join("") + '</div>' : '<div class="empty">公開している作品はまだありません。</div>');
+    var fb = document.getElementById("fb");
+    if (fb) fb.addEventListener("click", function () {
+      if (!Auth.user()) { location.href = "index.html#mypage"; return; }
+      fb.disabled = true;
+      Auth.follow(p.user_id, !on).then(function () {
+        on = !on; fb.classList.toggle("on", on); fb.textContent = on ? "フォロー中" : "フォローする";
+        var fc = document.getElementById("fc"); fc.textContent = (+fc.textContent || 0) + (on ? 1 : -1);
+        toast(on ? "フォローしました" : "フォローを外しました");
+      }).catch(function () { toast("できませんでした。もう一度試してね"); }).then(function () { fb.disabled = false; });
+    });
+  }
+})();
+</script>
+</body>
+</html>
