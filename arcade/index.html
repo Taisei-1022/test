@@ -76,7 +76,7 @@
       <div class="assetshade" id="assetShade" hidden></div>
       <div class="assetpanel" id="assetPanel" hidden></div>
       <div class="composer">
-        <button id="assetBtn" type="button" aria-label="素材（画像・絵文字）を追加">📷</button>
+        <button id="assetBtn" type="button" aria-label="絵文字の素材を追加">😊</button>
         <textarea id="chatInput" placeholder="作りたいゲーム / 直したい所を書く…" rows="1" autocomplete="off"></textarea>
         <button id="chatSend">送信</button>
       </div>
@@ -312,7 +312,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.91";
+  var APP_VERSION = "0.9.92";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -1165,15 +1165,15 @@
     var head='<div class="assethead"><span>🎨 素材</span>'+
       '<button type="button" class="assetclose" aria-label="閉じる">✕</button></div>';
     // 画像アップロード（自分の画像をスプライトとして使える）
-    var up='<div class="assetsec">📷 画像素材（このゲーム専用）</div>'+
-      '<div class="imgsec"><label class="assetup">＋ 画像を追加（'+userImgs.length+'/'+IMG_MAX+'）'+
-      '<input type="file" id="imgUp" accept="image/*" hidden></label>'+
+    // 画像のアップロードは停止中（いじめ・著作権侵害の温床になりやすいため）。
+    // 以前アップロードされた画像は、そのゲームの編集時にだけ一覧に残す（削除はできる）。
+    var up=!userImgs.length ? '<div class="assetsec">😊 絵文字素材</div>' : '<div class="assetsec">📷 以前の画像素材（新しく追加はできません）</div>'+
+      '<div class="imgsec">'+
       userImgs.map(function(u){
         return '<div class="imgcell"><img src="'+u.d+'" alt="">'+
           '<input class="imglabel" data-n="'+u.n+'" maxlength="20" placeholder="なんの画像？（例：主人公）" value="'+esc(u.label||"")+'">'+
           '<button type="button" class="imgdel" data-n="'+u.n+'" aria-label="削除">✕</button></div>';
       }).join("")+
-      (userImgs.length?'<div class="imghint">説明を書くとAIが上手に使えるよ</div>':'')+
       '</div>'+
       '<div class="assetsec">😊 絵文字素材</div>';
     assetPanel.innerHTML=head+up+(window.ARCADE_EMOJI||[]).map(function(a){
@@ -1189,7 +1189,7 @@
     syncAssetbar();
   }
   function renderAssetTray(){
-    if(!pickedAssets.length && !userImgs.length){ assetTray.innerHTML='<span class="hint">キャラに使う絵文字や画像を選べます（任意）</span>'; syncAssetbar(); return; }
+    if(!pickedAssets.length && !userImgs.length){ assetTray.innerHTML='<span class="hint">キャラに使う絵文字を選べます（任意）</span>'; syncAssetbar(); return; }
     assetTray.innerHTML=
       userImgs.map(function(u){ return '<button type="button" class="traychip imgchip" data-img="'+u.n+'"><img src="'+u.d+'" alt="">'+esc(u.label||u.n)+' ✕</button>'; }).join("")+
       pickedAssets.map(function(e){ return '<button type="button" class="traychip" data-e="'+e+'">'+e+' ✕</button>'; }).join("");
