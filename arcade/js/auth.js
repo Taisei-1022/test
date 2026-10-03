@@ -83,13 +83,63 @@ window.Auth = (function () {
     return { ok: true, ret: ret };
   }
 
+  // ---- Google純正のログインボタン（Google Identity Services）----
+  // ログイン画面に Supabase のアドレスを出さないため、Google のボタンで本人証明（IDトークン）を
+  // 受け取り、それを Supabase に渡してログインする（grant_type=id_token）。
+  // なりすまし防止の nonce：Google には SHA-256 したもの、Supabase には元の値を渡す。
+  var gisLoading = null;
+  function loadGis() {
+    if (window.google && google.accounts && google.accounts.id) return Promise.resolve();
+    if (gisLoading) return gisLoading;
+    gisLoading = new Promise(function (ok, ng) {
+      var sc = document.createElement("script");
+      sc.src = "https://accounts.google.com/gsi/client"; sc.async = true;
+      sc.onload = function () { ok(); }; sc.onerror = function () { gisLoading = null; ng(new Error("gis_load")); };
+      document.head.appendChild(sc);
+    });
+    return gisLoading;
+  }
+  function rnd() { var a = new Uint8Array(24); crypto.getRandomValues(a); return Array.prototype.map.call(a, function (b) { return ("0" + b.toString(16)).slice(-2); }).join(""); }
+  async function sha256hex(t) {
+    var h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t));
+    return Array.prototype.map.call(new Uint8Array(h), function (b) { return ("0" + b.toString(16)).slice(-2); }).join("");
+  }
+  async function signInWithIdToken(idToken, nonce) {
+    var r = await fetch(base + "/auth/v1/token?grant_type=id_token", { method: "POST", headers: hdr(), body: JSON.stringify({ provider: "google", id_token: idToken, nonce: nonce }) });
+    var d = await r.json().catch(function () { return {}; });
+    if (!r.ok || !d.access_token) throw new Error(d.error_description || d.msg || d.error || ("login_" + r.status));
+    save({ access_token: d.access_token, refresh_token: d.refresh_token, expires_at: Date.now() + (d.expires_in || 3600) * 1000, user: d.user });
+    await claim();
+    return user();
+  }
+  // el に Google のボタンを描く。ログインできたら onDone(user)、失敗したら onErr(message)
+  async function renderButton(el, onDone, onErr) {
+    if (!el || !cfg.googleClientId) { if (onErr) onErr("not_configured"); return false; }
+    try { await loadGis(); } catch (e) { if (onErr) onErr("Googleのログイン部品を読み込めませんでした。通信環境を確認してください"); return false; }
+    var raw = rnd(), hashed = await sha256hex(raw);
+    google.accounts.id.initialize({
+      client_id: cfg.googleClientId, nonce: hashed, ux_mode: "popup", auto_select: false,
+      itp_support: true, use_fedcm_for_button: true,
+      callback: function (resp) {
+        if (!resp || !resp.credential) { if (onErr) onErr("ログインできませんでした"); return; }
+        signInWithIdToken(resp.credential, raw).then(function (u) { if (onDone) onDone(u); })
+          .catch(function (e) { if (onErr) onErr("ログインできませんでした（" + (e && e.message || e) + "）"); });
+      }
+    });
+    el.innerHTML = "";
+    google.accounts.id.renderButton(el, { type: "standard", theme: "filled_black", size: "large", shape: "pill", text: "signin_with", locale: "ja", width: Math.min(300, el.clientWidth || 300) });
+    return true;
+  }
+
   return {
     available: function () { return !!(base && cfg.supabaseKey); },
+    renderButton: renderButton,
     user: user,
     token: token,
     tokenSync: tokenSync,
     handleCallback: handleCallback,
-    // Google でログイン（ret: ログイン後に戻る場所。既定は「作る」タブ）
+    // （予備）Google でログイン：Supabase 経由の画面遷移。Google のボタンが読み込めない時だけ使う
+    // ret: ログイン後に戻る場所。既定は「作る」タブ
     login: function (ret) {
       try { localStorage.setItem(RET, ret || (location.pathname.replace(/[^/]*$/, "") + "#create")); } catch (e) {}
       var back = location.origin + location.pathname.replace(/[^/]*$/, "") + "auth.html";
@@ -98,6 +148,7 @@ window.Auth = (function () {
     logout: async function () {
       var t = sess && sess.access_token;
       save(null);
+      try { if (window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect(); } catch (e) {}
       // 端末トークンはログイン前のものに戻す（ログアウト後に他人の作品を「自分の」と表示しないため）
       try { var b = localStorage.getItem("arcade.owner.before"); b ? localStorage.setItem("arcade.owner", b) : localStorage.removeItem("arcade.owner"); } catch (e) {}
       if (t) { try { await fetch(base + "/auth/v1/logout", { method: "POST", headers: hdr(t) }); } catch (e) {} }

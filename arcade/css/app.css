@@ -431,3 +431,4 @@ textarea.field{resize:vertical;line-height:1.5;}
   padding:.5rem 1rem;font:inherit;font-weight:800;font-size:13px;cursor:pointer;}
 #specta{flex:1;background:#0f0d18;color:#e7e3f5;border:0;padding:14px 14px calc(env(safe-area-inset-bottom) + 14px);
   font:13px/1.75 ui-monospace,Menlo,Consolas,monospace;resize:none;outline:none;-webkit-user-select:text;user-select:text;}
+#loginGateGo[hidden],#loginGateErr[hidden],#acctIn[hidden],#gisMyErr[hidden]{display:none !important;}   /* ログインの予備ボタン・エラー表示 */

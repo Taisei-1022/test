@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-180.png?v=3" />
 <link rel="icon" href="icon-192.png?v=3" />
-<link rel="stylesheet" href="css/app.css?v=40" />
+<link rel="stylesheet" href="css/app.css?v=41" />
 <title>Vappa</title>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6804943232069371" crossorigin="anonymous"></script>
 <meta property="og:type" content="website" />
@@ -257,8 +257,10 @@
   <div class="howtobox">
     <h3>作るにはログインしてね</h3>
     <p class="lead">ゲームを作るには、Googleアカウントでのログインが必要です。<br>パスワードを新しく作る必要はありません。<br><small style="opacity:.75">遊ぶだけならログインは要りません。ログイン前にこの端末で作ったゲームは、そのままあなたのアカウントに引き継がれます。</small></p>
-    <p class="lead" style="font-size:12px;margin:10px 0 0"><a href="terms.html" target="_blank" rel="noopener">利用規約</a>と<a href="privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a>（作る時のチャット内容を外部のAIサービスに送ることを含みます）をお読みください。</p>
-    <button class="ok" id="loginGateGo" type="button">同意してGoogleでログイン</button>
+    <p class="lead" style="font-size:12px;margin:10px 0 0">ログインすると、<a href="terms.html" target="_blank" rel="noopener">利用規約</a>と<a href="privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a>（作る時のチャット内容を外部のAIサービスに送ることを含みます）に同意したことになります。</p>
+    <div id="gisGate" style="display:flex;justify-content:center;min-height:44px;margin:12px 0 4px"></div>
+    <p class="lead" id="loginGateErr" style="font-size:12px;color:#f87171;margin:4px 0 0" hidden></p>
+    <button class="ok" id="loginGateGo" type="button" hidden>Googleでログイン（予備）</button>
     <button class="ok" id="loginGateBack" type="button" style="background:transparent;border:1px solid #3a3460;color:#cdbcff;margin-top:8px">遊ぶにもどる</button>
   </div>
 </div>
@@ -296,10 +298,10 @@
 
 <script src="js/games.js?v=10"></script>
 <script src="js/assets.js?v=1"></script>
-<script src="js/config.js?v=6"></script>
+<script src="js/config.js?v=7"></script>
 <script src="js/netstate.js?v=1"></script>
 <script src="js/store.js?v=8"></script>
-<script src="js/auth.js?v=1"></script>
+<script src="js/auth.js?v=2"></script>
 <script src="js/ai.js?v=21"></script>
 <script src="js/catalog.js?v=12"></script>
 <script src="js/share.js?v=6"></script>
@@ -310,7 +312,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.90";
+  var APP_VERSION = "0.9.91";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -549,7 +551,21 @@
   // 必須かどうかはサーバーが決める（Ai.usage の login_required）。Googleログインを
   // Supabase で有効にした時点で自動的に必須になる。それまでは何も出さない。
   var loginReq=false, loginGate=document.getElementById("loginGate");
-  function showLoginGate(){ if(loginGate && !(window.Auth&&Auth.user())) loginGate.hidden=false; }
+  // Google純正ボタンを描く。部品が読み込めない時だけ、予備（画面遷移の方式）のボタンを出す
+  function mountGis(el, errEl, fallbackBtn, ret){
+    Auth.renderButton(el, function(){
+      if(loginGate) loginGate.hidden=true; showToast("ログインしました"); renderAccount();
+      try{ renderMypage(); }catch(e){}
+    }, function(msg){
+      if(errEl){ errEl.textContent=msg; errEl.hidden=false; }
+      if(fallbackBtn && /読み込めません/.test(msg)) fallbackBtn.hidden=false;
+    });
+  }
+  function showLoginGate(){
+    if(!loginGate || (window.Auth&&Auth.user())) return;
+    loginGate.hidden=false;
+    mountGis(document.getElementById("gisGate"), document.getElementById("loginGateErr"), document.getElementById("loginGateGo"));
+  }
   function maybeLoginGate(){ if(loginReq) showLoginGate(); }
   if(loginGate){
     document.getElementById("loginGateGo").addEventListener("click", function(){ Auth.login(); });
@@ -569,8 +585,9 @@
     Auth.googleEnabled().then(function(on){
       if(!on){ box.hidden=true; return; }
       box.hidden=false;
-      info.innerHTML='ログインしていません<br><small style="opacity:.75">作るにはログインが必要です</small><br><small style="opacity:.75;display:block;margin-top:6px"><a href="terms.html" target="_blank" rel="noopener">利用規約</a>と<a href="privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a>に同意のうえログインしてください</small><button type="button" class="ghostbtn" id="acctIn" style="margin-top:8px">同意してGoogleでログイン</button>';
+      info.innerHTML='ログインしていません<br><small style="opacity:.75">作るにはログインが必要です</small><br><small style="opacity:.75;display:block;margin-top:6px">ログインすると、<a href="terms.html" target="_blank" rel="noopener">利用規約</a>と<a href="privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a>に同意したことになります</small><div id="gisMy" style="margin-top:10px;min-height:44px"></div><small id="gisMyErr" style="color:#f87171" hidden></small><button type="button" class="ghostbtn" id="acctIn" style="margin-top:8px" hidden>Googleでログイン（予備）</button>';
       document.getElementById("acctIn").onclick=function(){ Auth.login(location.pathname.replace(/[^/]*$/,"")+"#mypage"); };
+      mountGis(document.getElementById("gisMy"), document.getElementById("gisMyErr"), document.getElementById("acctIn"));
     });
   }
   window.addEventListener("vappa:auth", function(){ renderAccount(); });

@@ -4,7 +4,9 @@
    - ⚠️ service_role / secret キーは絶対に入れない（公開鍵のみ）。 */
 window.ARCADE_CONFIG = {
   supabaseUrl: "https://httrzepweyxzbkosdoau.supabase.co",
-  supabaseKey: "sb_publishable_rieAIjPwD1_O2H4w40I6MQ_kWw1puOC"
+  supabaseKey: "sb_publishable_rieAIjPwD1_O2H4w40I6MQ_kWw1puOC",
+  // Googleログイン（Google純正ボタン）のクライアントID。公開して問題ない値（シークレットではない）
+  googleClientId: "808111857927-h4t9rfvtnn9p4mp489npj7er8voch67m.apps.googleusercontent.com"
 };
 
 /* 急上昇（遊ぶ画面の上部に常設）に出すゲームID。ここを編集すれば差し替えられる。
