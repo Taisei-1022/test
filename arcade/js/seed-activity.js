@@ -35,6 +35,17 @@ window.SeedActivity = (function () {
     opts.headers = Object.assign(h, opts.headers || {});
     return fetch(cfg.supabaseUrl.replace(/\/$/, "") + "/rest/v1/" + path, opts);
   }
+  // 書き込みは運営API（generate 関数の panel）経由。Googleでログインした運営アカウントのトークンを付ける。
+  async function adminCall(body) {
+    var ut = (window.Auth && Auth.token) ? await Auth.token() : "";
+    var r = await fetch(cfg.supabaseUrl.replace(/\/$/, "") + "/functions/v1/generate", {
+      method: "POST",
+      headers: { apikey: cfg.supabaseKey, Authorization: "Bearer " + (ut || cfg.supabaseKey), "Content-Type": "application/json" },
+      body: JSON.stringify({ panel: body })
+    });
+    var d = await r.json().catch(function () { return {}; });
+    return { ok: !!d.ok, status: d.error || r.status };
+  }
   var SAKURA = {}; PLAYERS.forEach(function (p) { SAKURA[p] = 1; });
   // そのゲームの「人間の最高記録」を返す（サクラ=PLAYERS は除外）。無ければ null。
   async function fetchScores(gameId) {
@@ -59,7 +70,7 @@ window.SeedActivity = (function () {
       var nv;
       if (type === "low") { nv = ht + 1 + Math.floor(Math.random() * Math.max(1, Math.round(ht * 0.3))); }
       else { nv = Math.max(1, Math.round(ht * (0.6 + Math.random() * 0.34))); if (nv >= ht) nv = ht - 1; }
-      await rq("scores?id=eq." + encodeURIComponent(overs[i].id), { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ score: nv }) });
+      await adminCall({ op: "patch_score", id: String(overs[i].id), score: nv });
     }
     return { gameId: gameId, human: ht, capped: overs.length };
   }
@@ -104,12 +115,7 @@ window.SeedActivity = (function () {
         created_at: new Date(Date.now() - Math.random() * days * 864e5).toISOString()
       });
     }
-    // まず created_at つきで挿入。列が受け付けない等で失敗したら created_at 抜きで再試行。
-    var res = await rq("scores", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify(rows) });
-    if (!res.ok) {
-      var rows2 = rows.map(function (x) { return { game_id: x.game_id, player: x.player, score: x.score }; });
-      res = await rq("scores", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify(rows2) });
-    }
+    var res = await adminCall({ op: "seed_scores", rows: rows });
     return { gameId: gameId, ok: res.ok, status: res.status, count: count };
   }
 

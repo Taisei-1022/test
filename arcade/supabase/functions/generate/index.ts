@@ -784,17 +784,45 @@ async function listUsers() {
   }));
 }
 
-// ===== 管理画面（arcade/manage.html）=====
-// パスワードは Secret ADMIN_PANEL_PASS（未設定の間は暫定で "password"）。
-// Supabase → Edge Functions → Secrets で ADMIN_PANEL_PASS を設定すれば、コードを変えずに変更できる。
-const PANEL_PASS = Deno.env.get("ADMIN_PANEL_PASS") || "password";
-async function handlePanel(p: { pass?: string; op?: string; id?: string; msg?: string; filter?: string; hideAll?: boolean }, ip: string) {
-  if (String(p.pass || "") !== PANEL_PASS) {
-    // 総当たり対策：失敗は回線ごとに1日30回まで
-    const g = await gate("u:pan:" + ip + ":" + today(), "i:pan:" + ip + ":" + today(), "g:pan:" + today(), 30, 30, 1000, 2);
-    if (g && g.allowed === false) return { error: "rate_limited" };
-    return { error: "bad_password" };
-  }
+// ===== スコア登録（ブラウザからの直接登録は DB で禁止。ここで確かめてから登録する）=====
+// 公式ゲームの ID（arcade/js/games.js と同じ）。生成ゲームは games テーブルにある公開作品だけ受け付ける。
+const SEED_IDS = new Set(["matsushima", "city", "train", "railway", "reflex", "dodge", "royale", "burger", "pingpong"]);
+const SCORE_MAX = 100000000;
+async function gameExists(gid: string): Promise<boolean> {
+  if (SEED_IDS.has(gid)) return true;
+  if (!/^[0-9a-f-]{36}$/.test(gid)) return false;
+  const r = await fetch(SRV_BASE + "/rest/v1/games?id=eq." + gid + "&hidden=is.false&select=id&limit=1", { headers: srvHeaders });
+  const a = r.ok ? await r.json() : [];
+  return Array.isArray(a) && a.length > 0;
+}
+async function handleScore(sc: { game_id?: string; score?: number; player?: string }, token: string, user: { id: string } | null, ip: string) {
+  const gid = String(sc.game_id || "").slice(0, 80);
+  const score = Number(sc.score);
+  const player = String(sc.player || "ゲスト").trim().slice(0, 16) || "ゲスト";
+  if (!Number.isFinite(score) || score !== Math.round(score) || score < 0 || score >= SCORE_MAX) return { error: "bad_score" };
+  // 連打・大量登録の防止：同じ人は2秒に1回・1日600回まで、同じ回線は1日3000回まで
+  const d = today();
+  const g = await gate("u:scr:" + token + ":" + d, "i:scr:" + ip + ":" + d, "g:scr:" + d, 600, 3000, 200000, 2);
+  if (g && g.allowed === false) return { error: "rate_limited", reason: g.reason };
+  if (!(await gameExists(gid))) return { error: "unknown_game" };
+  const r = await fetch(SRV_BASE + "/rest/v1/scores", {
+    method: "POST", headers: { ...srvHeaders, Prefer: "return=minimal" },
+    body: JSON.stringify({ game_id: gid, player, score, ...(user ? { user_id: user.id } : {}) }),
+  });
+  return r.ok ? { ok: true } : { error: "score_failed", detail: String(r.status) };
+}
+
+// ===== 管理画面（arcade/manage.html・admin.html）=====
+// Googleでログインし、admins テーブルに登録された運営アカウントだけが使える（パスワード方式は廃止）。
+async function isPanelAdmin(user: { id: string } | null): Promise<boolean> {
+  if (!user) return false;
+  const r = await fetch(SRV_BASE + "/rest/v1/admins?user_id=eq." + user.id + "&select=user_id", { headers: srvHeaders });
+  const a = r.ok ? await r.json() : [];
+  return Array.isArray(a) && a.length > 0;
+}
+async function handlePanel(p: { op?: string; id?: string; msg?: string; filter?: string; hideAll?: boolean; rows?: unknown[]; score?: number }, user: { id: string } | null) {
+  if (!user) return { error: "login_required" };
+  if (!(await isPanelAdmin(user))) return { error: "not_admin" };
   const q = (path: string, init: RequestInit = {}) => fetch(SRV_BASE + "/rest/v1/" + path, { ...init, headers: { ...srvHeaders, ...(init.headers || {}) } });
   const cnt = async (path: string) => {
     const r = await q(path + (path.includes("?") ? "&" : "?") + "select=id", { headers: { Prefer: "count=exact", Range: "0-0" } });
@@ -864,6 +892,22 @@ async function handlePanel(p: { pass?: string; op?: string; id?: string; msg?: s
     if (f === "draft") path += "&published=eq.false";
     const r = await q(path);
     return { ok: true, games: r.ok ? await r.json() : [] };
+  }
+
+  if (p.op === "seed_scores") {   // 賑わい演出：サクラのスコアをまとめて登録
+    const rows = (Array.isArray(p.rows) ? p.rows : []).slice(0, 200).map((x) => {
+      const o = x as { game_id?: string; player?: string; score?: number; created_at?: string };
+      return { game_id: String(o.game_id || "").slice(0, 80), player: String(o.player || "").slice(0, 16), score: Math.round(Number(o.score) || 0),
+        ...(o.created_at ? { created_at: String(o.created_at) } : {}) };
+    }).filter((o) => o.game_id && o.player && o.score >= 0 && o.score < SCORE_MAX);
+    if (!rows.length) return { error: "empty" };
+    const r = await q("scores", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify(rows) });
+    return r.ok ? { ok: true, count: rows.length } : { error: "seed_failed", detail: String(r.status) };
+  }
+  if (p.op === "patch_score") {   // 賑わい演出：サクラのスコアを人間の記録より下げる
+    if (!/^[0-9]+$/.test(id) && !/^[0-9a-f-]{36}$/.test(id)) return { error: "bad_id" };
+    const r = await q("scores?id=eq." + id, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ score: Math.round(Number(p.score) || 0) }) });
+    return r.ok ? { ok: true } : { error: "patch_failed" };
   }
 
   // 既定：ダッシュボード
@@ -1521,13 +1565,15 @@ Deno.serve(async (req) => {
 
   let messages: Msg[] = [], prevHtml = "", token = "?", jobId = "", wantUsage = false, isAdmin = false, forceBuild = false, testModel = "";
   let irun: IRun | null = null, wantSpec = false, uspec = "";
-  let report: Record<string, string> | null = null, panel: Record<string, string> | null = null, wantAck = false;
+  let report: Record<string, string> | null = null, panel: Record<string, unknown> | null = null, wantAck = false;
+  let scoreReq: { game_id?: string; score?: number; player?: string } | null = null;
   try {
     const b = await req.json();
     if (b && typeof b.irun === "object" && b.irun) irun = b.irun as IRun;
     if (b && typeof b.report === "object" && b.report) report = b.report;   // 通報
     if (b && typeof b.panel === "object" && b.panel) panel = b.panel;       // 管理画面
-    if (b?.ack === true) wantAck = true;                                       // 運営からのお知らせを読んだ
+    if (b?.ack === true) wantAck = true;
+    if (b && typeof b.score === "object" && b.score) scoreReq = b.score;   // スコア登録                                       // 運営からのお知らせを読んだ
     if (b?.makeSpec === true) wantSpec = true;               // 設計書だけ作る（生成カウント消費なし）
     if (typeof b?.spec === "string") uspec = b.spec.slice(0, 8000);   // ユーザー確認・編集済みの設計書
     if (typeof b?.job === "string") jobId = b.job;
@@ -1548,11 +1594,11 @@ Deno.serve(async (req) => {
 
   const ip = (req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "?").split(",")[0].trim() || "?";
 
-  if (panel) return json(await handlePanel(panel, ip));
-
   // ログイン中ならユーザーIDを、レート制限・通報の「誰か」に使う（端末をまたいでも同じ人）
   const user = irun ? null : await authUser(req);
   if (user) token = "uid:" + user.id;
+  if (panel) return json(await handlePanel(panel, user));
+  if (scoreReq) return json(await handleScore(scoreReq, token, user, ip));
   if (report) return json(await handleReport(report, token, ip));
   // 運営からの警告を「読んだ」にする
   if (user && wantAck) {

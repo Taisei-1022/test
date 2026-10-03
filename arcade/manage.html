@@ -56,10 +56,10 @@
   <header><h1>Vappa 運営管理</h1><span id="hdrInfo" style="font-size:12px;color:var(--dim)"></span></header>
 
   <div id="loginView" class="login">
-    <b>パスワード</b>
-    <input id="pw" type="password" autocomplete="current-password" placeholder="パスワード" style="margin-top:8px" />
+    <b>運営アカウントでログイン</b>
+    <p class="help">運営として登録したGoogleアカウントでだけ開けます。</p>
+    <div id="gisAdmin" style="min-height:44px;margin:8px 0"></div>
     <div id="err"></div>
-    <button id="pwGo" type="button">開く</button>
   </div>
 
   <div id="mainView" hidden>
@@ -110,20 +110,20 @@
         <a class="btn sec" href="eval/">生成品質チェック</a>
         <a class="btn sec" href="guidelines.html" target="_blank" rel="noopener">投稿ガイドライン</a>
       </div>
-      <p class="help">パスワードの変更：Supabase → Edge Functions → Secrets に <b>ADMIN_PANEL_PASS</b> を設定し、Claude に反映を頼んでください。</p>
-      <div class="bar"><button class="sec" id="logout" type="button">閉じる（パスワードを忘れる）</button></div>
+      <p class="help">運営アカウントの追加・削除は、データベースの admins に登録します（Claude に頼んでください）。</p>
+      <div class="bar"><button class="sec" id="logout" type="button">ログアウト</button></div>
     </section>
   </div>
 </div>
 <div class="toast" id="toast"></div>
 <script src="js/config.js?v=7"></script>
+<script src="js/catalog.js?v=12"></script>
+<script src="js/auth.js?v=2"></script>
 <script>
 (function () {
   "use strict";
   var cfg = window.ARCADE_CONFIG || {};
   var url = cfg.supabaseUrl.replace(/\/$/, "") + "/functions/v1/generate";
-  var KEY = "vappa.manage.pw", pass = "";
-  try { pass = sessionStorage.getItem(KEY) || ""; } catch (e) {}
   var $ = function (id) { return document.getElementById(id); };
   var DASH = null, USERS = null, GAMES = null, openUser = "";
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
@@ -134,14 +134,20 @@
   function gamePills(g) { return (g.hidden ? '<span class="pill p-hidden">非表示</span>' : "") + (g.published === false ? '<span class="pill p-draft">下書き</span>' : ""); }
 
   function call(body) {
-    body = Object.assign({ pass: pass }, body);
-    return fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", apikey: cfg.supabaseKey, Authorization: "Bearer " + cfg.supabaseKey },
-      body: JSON.stringify({ panel: body })
+    return Auth.token().then(function (ut) {
+      return fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: cfg.supabaseKey, Authorization: "Bearer " + (ut || cfg.supabaseKey) },
+        body: JSON.stringify({ panel: body })
+      });
     }).then(function (r) { return r.json(); });
   }
-  function showLogin(msg) { $("mainView").hidden = true; $("loginView").hidden = false; $("err").textContent = msg || ""; }
+  function showLogin(msg) {
+    $("mainView").hidden = true; $("loginView").hidden = false; $("err").textContent = msg || "";
+    if (!Auth.user()) Auth.renderButton($("gisAdmin"), function () { loadDash(); }, function (m) { $("err").textContent = m; });
+    else $("gisAdmin").innerHTML = '<button class="sec" type="button" id="swAcct">別のアカウントでログインし直す</button>';
+    var sw = $("swAcct"); if (sw) sw.onclick = function () { Auth.logout().then(function () { showLogin(); }); };
+  }
 
   // ---- タブ ----
   var cur = "home";
@@ -158,10 +164,9 @@
   // ---- 概要・通報 ----
   function loadDash() {
     return call({ op: "summary" }).then(function (d) {
-      if (d.error === "bad_password") { try { sessionStorage.removeItem(KEY); } catch (e) {} showLogin(pass ? "パスワードが違います" : ""); return; }
-      if (d.error === "rate_limited") { showLogin("失敗が多すぎます。明日もう一度試してください"); return; }
+      if (d.error === "login_required") { showLogin(""); return; }
+      if (d.error === "not_admin") { showLogin("このアカウント（" + ((Auth.user() || {}).email || "") + "）は運営として登録されていません。"); return; }
       if (!d.ok) { showLogin("読み込めませんでした（" + esc(d.error || "") + "）"); return; }
-      try { sessionStorage.setItem(KEY, pass); } catch (e) {}
       $("loginView").hidden = true; $("mainView").hidden = false;
       DASH = d; renderDash(); setTab(cur);
     }).catch(function () { showLogin("通信できませんでした"); });
@@ -200,7 +205,7 @@
       recent: function (u) { return Date.parse(u.last_sign_in_at || 0); }, games: function (u) { return u.games; }, new: function (u) { return Date.parse(u.created_at || 0); } }[sort];
     list.sort(function (a, b) { return key(b) - key(a); });
     $("users").innerHTML = list.length ? list.map(function (u) {
-      return '<div class="row click" data-user="' + esc(u.id) + '"><div class="nm"><b>' + statusPill(u.status) + esc(u.author || "（作品なし）") + "</b><small>" + esc(u.email) + (u.name ? "（" + esc(u.name) + "）" : "") + " ・ 最終ログイン " + when(u.last_sign_in_at) + "</small></div>" +
+      return '<div class="row click" data-user="' + esc(u.id) + '"><div class="nm"><b>' + statusPill(u.status) + esc(u.author || u.name || "noname") + "</b><small>" + esc(u.email) + (u.name ? "（" + esc(u.name) + "）" : "") + " ・ 最終ログイン " + when(u.last_sign_in_at) + "</small></div>" +
         '<div class="nums"><span>作品 <b>' + u.games + "</b></span><span>公開 <b>" + u.published + '</b></span><span class="' + (u.hidden ? "hot" : "") + '">非表示 <b>' + u.hidden + '</b></span><span class="' + (u.reports ? "hot" : "") + '">通報 <b>' + u.reports + "</b></span></div></div>" +
         (openUser === u.id ? '<div class="detail" id="ud">読み込み中…</div>' : "");
     }).join("") : '<div class="empty">該当するユーザーはいません。</div>';
@@ -219,7 +224,7 @@
       var f = d.flag || {};
       var st = f.status || "ok";
       box.innerHTML =
-        '<h3>' + statusPill(st) + esc(u.author || "（作品なし）") + '</h3>' +
+        '<h3>' + statusPill(st) + esc(u.author || u.name || "noname") + '</h3>' +
         '<div class="help">' + esc(u.email) + "<br>登録 " + when(u.created_at) + " ・ 最終ログイン " + when(u.last_sign_in_at) + " ・ 今日の生成 " + d.buildsToday + "本" + "</div>" +
         (f.warning ? '<div class="help">最後の警告（' + when(f.warned_at) + "・" + (f.acked ? "本人は確認済み" : "まだ読まれていない") + "）：" + esc(f.warning) + "</div>" : "") +
         '<div class="sec2"><b>この人の作品への通報（' + d.reports.length + "）</b>" + (d.reports.length ? '<div class="rep" style="border:0;margin:0;padding:0">' + d.reports.map(function (r) { return "<div>・" + esc(r.reason) + (r.detail ? "：" + esc(r.detail) : "") + " <small>" + when(r.created_at) + (r.status === "done" ? "・対応済み" : "") + "</small></div>"; }).join("") + "</div>" : '<div class="empty">ありません。</div>') + "</div>" +
@@ -279,10 +284,8 @@
     });
   }, true);
 
-  $("pwGo").addEventListener("click", function () { pass = $("pw").value; loadDash(); });
-  $("pw").addEventListener("keydown", function (e) { if (e.key === "Enter") { pass = $("pw").value; loadDash(); } });
-  $("logout").addEventListener("click", function () { pass = ""; try { sessionStorage.removeItem(KEY); } catch (e) {} $("pw").value = ""; showLogin(); });
-  if (pass) loadDash(); else showLogin();
+  $("logout").addEventListener("click", function () { Auth.logout().then(function () { showLogin(); }); });
+  if (Auth.user()) loadDash(); else showLogin();
 })();
 </script>
 </body>

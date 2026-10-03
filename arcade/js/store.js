@@ -102,11 +102,18 @@ window.Store = (function () {
     }
     var enc = encodeURIComponent;
     return Object.assign({}, nameApi, {
+      // スコアはサーバー（generate 関数）経由で登録する。DB への直接登録はチート対策で禁止している。
       submit: async function (gameId, type, player, score) {
         try {
-          await rq("scores", { method: "POST", headers: { Prefer: "return=minimal" },
-            body: JSON.stringify({ game_id: gameId, player: player || "ゲスト", score: score }) });
-        } catch (e) { console.warn("submit failed", e); }
+          var ut = (window.Auth && Auth.token) ? await Auth.token() : "";
+          var tok = ""; try { tok = (window.Catalog && Catalog.owner) ? Catalog.owner() : ""; } catch (e) {}
+          var r = await fetch(cfg.supabaseUrl.replace(/\/$/, "") + "/functions/v1/generate", {
+            method: "POST",
+            headers: { apikey: cfg.supabaseKey, Authorization: "Bearer " + (ut || cfg.supabaseKey), "Content-Type": "application/json" },
+            body: JSON.stringify({ score: { game_id: gameId, player: player || "ゲスト", score: score }, token: tok })
+          });
+          if (window.Net) { r.ok ? Net.ok() : Net.fail(r.status); }
+        } catch (e) { if (window.Net) Net.fail(0); console.warn("submit failed", e); }
         return this.top(gameId, type, 100);
       },
       top: async function (gameId, type, n) {
@@ -174,14 +181,8 @@ window.Store = (function () {
     var oldP = nameApi.player();
     nameApi.setName(newName);
     var newP = nameApi.player();
-    if (remote && oldP && newP && oldP !== newP) {
-      try {
-        var h = { apikey: cfg.supabaseKey, "Content-Type": "application/json", Prefer: "return=minimal" };
-        if (/^eyJ/.test(cfg.supabaseKey)) h.Authorization = "Bearer " + cfg.supabaseKey;
-        await fetch(cfg.supabaseUrl.replace(/\/$/, "") + "/rest/v1/scores?player=eq." + encodeURIComponent(oldP),
-          { method: "PATCH", headers: h, body: JSON.stringify({ player: newP }) });
-      } catch (e) { console.warn("rename sync failed", e); }
-    }
+    // 以前はここで過去のスコアの名前も付け替えていたが、DB の権限で実際には弾かれていた
+    // （＝誰でも他人の記録を書き換えられないのが正しい）。ログインユーザーは user_id で紐づく。
     return newP;
   };
   return impl;
