@@ -59,7 +59,7 @@ var GAMES = [
   { id:"softcream", title:"ソフトクリーム職人", emoji:"🍦", blurb:"タップでうず巻きを重ねる。どこまで高く巻ける？", unit:"cm" },
   { id:"yuka", title:"落ちる床", emoji:"🟥", blurb:"言われた色の床へ逃げろ。ほかの床は落ちる。", unit:"回" }
 ];
-var READY = ["beer","steak","hata","lturn"]; // 遊べる状態のゲームID
+var READY = ["beer","steak","hata","lturn","yuka"]; // 遊べる状態のゲームID
 function best(id){ try{ return localStorage.getItem("best_"+id); }catch(e){ return null; } }
 function setBest(id,v,low){ try{ var b=best(id); if(b===null||(low?+v<+b:+v>+b)) localStorage.setItem("best_"+id,v); }catch(e){} }
 var list=document.getElementById("list"), stage=document.getElementById("stage"), frame=document.getElementById("frame"), cur=null;
