@@ -321,7 +321,7 @@
 <script src="js/store.js?v=12"></script>
 <script src="js/auth.js?v=4"></script>
 <script src="js/ai.js?v=21"></script>
-<script src="js/catalog.js?v=14"></script>
+<script src="js/catalog.js?v=15"></script>
 <script src="js/share.js?v=6"></script>
 <script src="js/arcade-embed.js?v=4"></script>
 <script src="js/pwa.js?v=1"></script>
@@ -330,7 +330,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.98";
+  var APP_VERSION = "0.9.99";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -534,7 +534,7 @@
       }).concat(gen.filter(function(g){ return g.published!==false; }).map(function(g){
         var upd = g.updated_at || g.created_at;
         return {id:g.id,title:g.title,author:g.author||"ゲスト",category:g.category||"その他",accent:g.accent||"#e6b450",
-                thumb:g.thumb||null,blurb:(g.description||"AIで作られたゲーム"),score:{type:"high",unit:"点"},
+                thumb:g.thumb||null,blurb:(g.description||"AIで作られたゲーム"),score:{type:(g.score_type==="low"?"low":"high"),unit:(g.score_unit||"点")},
                 ts:(upd?new Date(upd).getTime():0),created:(g.created_at||null),uid:g.user_id||null};
       }));
       feedRows = items.map(function(it){

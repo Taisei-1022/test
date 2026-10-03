@@ -36,7 +36,7 @@ window.Catalog = (function () {
   function loadLS() { try { return JSON.parse(localStorage.getItem(LS)) || []; } catch (e) { return []; } }
   function saveLS(a) { localStorage.setItem(LS, JSON.stringify(a)); }
   // 任意列（まだSupabaseに無いかもしれない列）。列不明エラー時はこれらを外して再試行する。
-  var OPTIONAL = ["category", "published", "chat", "updated_at"];
+  var OPTIONAL = ["category", "published", "chat", "updated_at", "score_type", "score_unit"];
   // 作者名：指定が無ければ、設定した名前（無ければ端末ごとのゲストID）を使う。
   function defaultAuthor() { try { return (window.Store && Store.player) ? Store.player() : "ゲスト"; } catch (e) { return "ゲスト"; } }
   function fields(g) {
@@ -52,7 +52,7 @@ window.Catalog = (function () {
     return f;
   }
   function schemaErr(status, text) {
-    return status === 400 && /category|published|chat|updated_at|hidden|column|schema cache|PGRST204/i.test(text || "");
+    return status === 400 && /category|published|chat|updated_at|hidden|score_type|score_unit|column|schema cache|PGRST204/i.test(text || "");
   }
   async function writeRow(path, method, row) {
     var res = await rq(path, { method: method, headers: { Prefer: "return=representation" }, body: JSON.stringify(row) });
@@ -160,7 +160,7 @@ window.Catalog = (function () {
       opts = opts || {};
       if (remote) {
         try {
-          var q = "games?select=id,title,author,accent,description,thumb,owner,user_id,created_at,updated_at,category,published&order=created_at.desc&limit=100";
+          var q = "games?select=id,title,author,accent,description,thumb,owner,user_id,created_at,updated_at,category,published,score_type,score_unit&order=created_at.desc&limit=100";
           if (opts.publishedOnly) q += "&published=eq.true&hidden=is.false";   // 通報・運営判断で非表示の作品は一覧に出さない
           if (opts.owner) q += "&owner=eq." + enc(opts.owner);
           var res = await getSel(q);
@@ -179,7 +179,7 @@ window.Catalog = (function () {
     getGenerated: async function (id) {
       if (remote) {
         try {
-          var res = await getSel("games?id=eq." + enc(id) + "&select=id,title,author,html,accent,description,thumb,owner,user_id,category,published,chat&limit=1");
+          var res = await getSel("games?id=eq." + enc(id) + "&select=id,title,author,html,accent,description,thumb,owner,user_id,category,published,chat,score_type,score_unit&limit=1");
           return (await res.json())[0] || null;
         } catch (e) { console.warn("getGenerated failed", e); return null; }
       }
@@ -192,7 +192,7 @@ window.Catalog = (function () {
       if (s) return { source: "seed", id: s.id, title: s.title, accent: s.accent, score: s.score, path: s.path, category: s.category };
       var g = await this.getGenerated(id);
       if (!g) return null;
-      return { source: "gen", id: g.id, title: g.title, accent: g.accent, score: { type: "high", unit: "点" }, html: g.html, category: g.category, user_id: g.user_id || null, author: g.author || "" };
+      return { source: "gen", id: g.id, title: g.title, accent: g.accent, score: { type: g.score_type === "low" ? "low" : "high", unit: g.score_unit || "点" }, html: g.html, category: g.category, user_id: g.user_id || null, author: g.author || "" };
     }
   };
 })();
