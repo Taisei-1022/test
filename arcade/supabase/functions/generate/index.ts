@@ -1037,7 +1037,31 @@ function parseJsonLoose(text: string) {
     if (inStr && ch === "\t") { out += "\\t"; continue; }
     out += ch;
   }
-  return JSON.parse(out);
+  try { return JSON.parse(out); } catch (eLast) {
+    // 修復4: JSON が複数のオブジェクトに分かれて返ってきた場合（本番の評価で確認：
+    //   「JSONの後に余計な文字」で生成失敗＝課金されたのに何も届かない）。
+    //   文字列の中の { } は無視して最上位の {...} を全部取り出し、読めたものを順に合成する
+    //   （項目が2つに分割されていても、同じものが2回出ていても、後ろに説明文が付いていても復元できる）。
+    for (const src of [body, out]) {
+      const parts = topLevelObjects(src).map((p) => { try { return JSON.parse(p); } catch { return null; } })
+        .filter((p) => p && typeof p === "object" && !Array.isArray(p));
+      if (parts.length) return Object.assign({}, ...parts);
+    }
+    throw eLast;
+  }
+}
+// 文字列（"..."）の中の括弧を無視して、最上位の {...} を順に取り出す
+function topLevelObjects(s: string): string[] {
+  const res: string[] = [];
+  let depth = 0, start = -1, inStr = false, esc = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) { if (esc) esc = false; else if (ch === "\\") esc = true; else if (ch === '"') inStr = false; continue; }
+    if (ch === '"') { inStr = true; continue; }
+    if (ch === "{") { if (depth === 0) start = i; depth++; }
+    else if (ch === "}" && depth > 0) { depth--; if (depth === 0 && start >= 0) { res.push(s.slice(start, i + 1)); start = -1; } }
+  }
+  return res;
 }
 // スキーマ遵守の指示（他社はAnthropicの json_schema 相当が無い/形式が違うのでプロンプトで指定）
 function schemaNote(schema: unknown) {
@@ -1110,7 +1134,13 @@ async function callOpenAICompat(spec: ModelSpec, system: string, messages: Msg[]
   // 再試行しても同じ結果になり時間だけ失う（本番で 76秒×2 を確認）ので再試行しない。
   if (!r.content.trim() && r.finish !== "length") r = await call();
   if (!r.content.trim()) throw new Error(r.finish === "length" ? "token_budget_exhausted" : "empty_json_output");
-  return parseJsonLoose(r.content);
+  try { return parseJsonLoose(r.content); }
+  catch (e) {
+    // 読めなかった返答の先頭と末尾を記録（次に起きた時に形を見て直せるように。秘密情報は含まれない）
+    diag(tag + " json_parse_fail: " + String((e as Error)?.message || e).slice(0, 90) +
+      " | head=" + JSON.stringify(r.content.slice(0, 110)) + " | tail=" + JSON.stringify(r.content.slice(-90)));
+    throw e;
+  }
 }
 
 // Google Gemini（generateContent）

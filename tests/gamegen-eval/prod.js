@@ -3,7 +3,8 @@
    使い方:
      node tests/gamegen-eval/prod.js --tag=prod_free [--cases=mole,jump] [--conc=10]
      DEEPSEEK_API_KEY=unused node tests/gamegen-eval/run.js --tag=prod_free --score-only
-   各ケースの設計書(spec)をそのまま渡すので、AIが設計書を作る段は飛ばして本体の生成だけを比べる。 */
+   各ケースの設計書(spec)をそのまま渡すので、AIが設計書を作る段は飛ばして本体の生成だけを比べる。
+   --flow を付けると設計書を渡さず、相談の会話として送る＝本番どおりAIが設計書から作る（時間も本番どおり）。 */
 const fs = require("fs"), path = require("path");
 const CASES = require("./cases.js");
 const args = {};
@@ -17,6 +18,7 @@ const cfgSrc = fs.readFileSync(path.join(__dirname, "../../arcade/js/config.js")
 const URL_ = /supabaseUrl:\s*"([^"]+)"/.exec(cfgSrc)[1].replace(/\/$/, "") + "/functions/v1/generate";
 const KEY = /supabaseKey:\s*"([^"]+)"/.exec(cfgSrc)[1];
 
+let LIMIT_SEEN = 0;
 async function post(body) {
   const r = await fetch(URL_, { method: "POST", headers: { apikey: KEY, "content-type": "application/json" }, body: JSON.stringify(body) });
   return r.json();
@@ -38,12 +40,16 @@ async function one(c) {
   const t0 = Date.now();
   const mf = path.join(OUT, c.id + ".meta.json"), hf = path.join(OUT, c.id + ".html");
   try {
-    const start = await post({ messages: [{ role: "user", content: c.title + "を作って" }], build: true, spec: c.spec, token: "eval-" + TAG + "-" + c.id });
+    const body = args.flow
+      ? { messages: [{ role: "user", content: c.title + "を作りたい" }, { role: "assistant", content: "どんな内容にする？" }, { role: "user", content: c.spec + "\nこれで作って" }], build: true, token: "eval-" + TAG + "-" + c.id }
+      : { messages: [{ role: "user", content: c.title + "を作って" }], build: true, spec: c.spec, token: "eval-" + TAG + "-" + c.id };
+    const start = await post(body);
     if (!start.job_id) throw new Error("start: " + JSON.stringify(start).slice(0, 160));
     let d = null;
     while (Date.now() - t0 < 900000) {
       await new Promise(r => setTimeout(r, 6000));
       try { d = await post({ job: start.job_id }); } catch (e) { continue; }
+      if (d.limit && !LIMIT_SEEN) { LIMIT_SEEN = d.limit; console.log("[server] ジョブ全体の上限 =", d.limit + "秒", d.limit >= 800 ? "（400秒プラン設定が有効）" : "（150秒プランの値）"); }
       if (d.status !== "pending") break;
     }
     const sec = Math.round((Date.now() - t0) / 1000);
