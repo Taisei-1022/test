@@ -710,6 +710,23 @@ async function authUser(req: Request): Promise<{ id: string; email?: string } | 
   } catch { return null; }
 }
 
+// 運営による警告・利用停止（user_flags）。無ければ null（＝問題なし）
+type Flag = { user_id: string; status: string; warning?: string | null; warned_at?: string | null; acked?: boolean; note?: string | null };
+async function userFlag(id: string): Promise<Flag | null> {
+  try {
+    const r = await fetch(SRV_BASE + "/rest/v1/user_flags?user_id=eq." + id + "&limit=1", { headers: srvHeaders });
+    if (!r.ok) return null;
+    const a = await r.json();
+    return Array.isArray(a) && a[0] ? a[0] : null;
+  } catch { return null; }
+}
+async function setFlag(id: string, patch: Record<string, unknown>) {
+  await fetch(SRV_BASE + "/rest/v1/user_flags?on_conflict=user_id", {
+    method: "POST", headers: { ...srvHeaders, Prefer: "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify({ user_id: id, ...patch, updated_at: new Date().toISOString() }),
+  });
+}
+
 // ===== 通報 =====
 // 別々の人（端末 or アカウント）から REPORT_HIDE 件届いた作品は、自動で一覧から外す（hidden=true）。
 // 運営は管理画面で確認して、戻す／非表示のままにするを決める。
@@ -737,11 +754,41 @@ async function handleReport(rep: { game_id?: string; reason?: string; detail?: s
   return { ok: true };
 }
 
+// ログインユーザーの一覧（運営用）。作品数・届いた未対応の通報・警告/BANの状態をまとめる。
+async function listUsers() {
+  const ur = await fetch(SRV_BASE + "/auth/v1/admin/users?page=1&per_page=1000", { headers: srvHeaders });
+  const ud = ur.ok ? await ur.json() : { users: [] };
+  const users = (ud.users || []) as { id: string; email?: string; created_at?: string; last_sign_in_at?: string; user_metadata?: Record<string, string> }[];
+  const [gr, rr, fr] = await Promise.all([
+    fetch(SRV_BASE + "/rest/v1/games?select=id,user_id,author,published,hidden&user_id=not.is.null&limit=5000", { headers: srvHeaders }),
+    fetch(SRV_BASE + "/rest/v1/reports?select=game_id&status=eq.open&limit=5000", { headers: srvHeaders }),
+    fetch(SRV_BASE + "/rest/v1/user_flags?select=*&limit=5000", { headers: srvHeaders }),
+  ]);
+  const games = gr.ok ? await gr.json() as { id: string; user_id: string; author: string; published: boolean; hidden: boolean }[] : [];
+  const reps = rr.ok ? await rr.json() as { game_id: string }[] : [];
+  const flags = fr.ok ? await fr.json() as Flag[] : [];
+  const owner: Record<string, string> = {};
+  const agg: Record<string, { games: number; published: number; hidden: number; reports: number; author: string }> = {};
+  for (const g of games) {
+    owner[g.id] = g.user_id;
+    const a = agg[g.user_id] ||= { games: 0, published: 0, hidden: 0, reports: 0, author: "" };
+    a.games++; if (g.published && !g.hidden) a.published++; if (g.hidden) a.hidden++; if (g.author) a.author = g.author;
+  }
+  for (const r of reps) { const u = owner[r.game_id]; if (u && agg[u]) agg[u].reports++; }
+  const fmap: Record<string, Flag> = {}; for (const f of flags) fmap[f.user_id] = f;
+  return users.map((u) => ({
+    id: u.id, email: u.email || "", name: (u.user_metadata && (u.user_metadata.full_name || u.user_metadata.name)) || "",
+    created_at: u.created_at, last_sign_in_at: u.last_sign_in_at,
+    ...(agg[u.id] || { games: 0, published: 0, hidden: 0, reports: 0, author: "" }),
+    status: fmap[u.id]?.status || "ok", warning: fmap[u.id]?.warning || "", acked: fmap[u.id]?.acked ?? true, note: fmap[u.id]?.note || "",
+  }));
+}
+
 // ===== 管理画面（arcade/manage.html）=====
 // パスワードは Secret ADMIN_PANEL_PASS（未設定の間は暫定で "password"）。
 // Supabase → Edge Functions → Secrets で ADMIN_PANEL_PASS を設定すれば、コードを変えずに変更できる。
 const PANEL_PASS = Deno.env.get("ADMIN_PANEL_PASS") || "password";
-async function handlePanel(p: { pass?: string; op?: string; id?: string }, ip: string) {
+async function handlePanel(p: { pass?: string; op?: string; id?: string; msg?: string; filter?: string; hideAll?: boolean }, ip: string) {
   if (String(p.pass || "") !== PANEL_PASS) {
     // 総当たり対策：失敗は回線ごとに1日30回まで
     const g = await gate("u:pan:" + ip + ":" + today(), "i:pan:" + ip + ":" + today(), "g:pan:" + today(), 30, 30, 1000, 2);
@@ -764,6 +811,61 @@ async function handlePanel(p: { pass?: string; op?: string; id?: string }, ip: s
     await q("reports?game_id=eq." + encodeURIComponent(id) + "&status=eq.open", { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ status: "done" }) });
     return { ok: true };
   }
+  const uid = /^[0-9a-f-]{36}$/.test(id) ? id : "";
+  if (p.op === "users") return { ok: true, users: await listUsers() };
+  if (p.op === "user") {   // 1人分の詳細：作品・届いた通報・今日の作成数
+    if (!uid) return { error: "bad_id" };
+    const [gr, fl] = await Promise.all([
+      q("games?select=id,title,published,hidden,created_at&user_id=eq." + uid + "&order=created_at.desc&limit=200"),
+      userFlag(uid),
+    ]);
+    const games = gr.ok ? await gr.json() : [];
+    const gids = (games as { id: string }[]).map((g) => g.id);
+    let reports: unknown[] = [];
+    if (gids.length) {
+      const rr = await q("reports?select=game_id,reason,detail,status,created_at&game_id=in.(" + gids.join(",") + ")&order=created_at.desc&limit=200");
+      if (rr.ok) reports = await rr.json();
+    }
+    return { ok: true, games, reports, flag: fl, buildsToday: (await readUsage("u:bld:uid:" + uid + ":" + today())) || 0 };
+  }
+  if (p.op === "warn") {   // 本人のアプリに「運営からのお知らせ」として表示される
+    if (!uid) return { error: "bad_id" };
+    const msg = String((p as { msg?: string }).msg || "").slice(0, 500);
+    if (!msg) return { error: "empty_message" };
+    await setFlag(uid, { status: "warned", warning: msg, warned_at: new Date().toISOString(), acked: false });
+    return { ok: true };
+  }
+  if (p.op === "ban" || p.op === "unban") {
+    if (!uid) return { error: "bad_id" };
+    const ban = p.op === "ban";
+    await setFlag(uid, { status: ban ? "banned" : "ok" });
+    // ログイン自体もできなくする（解除時は戻す）
+    await fetch(SRV_BASE + "/auth/v1/admin/users/" + uid, { method: "PUT", headers: srvHeaders, body: JSON.stringify({ ban_duration: ban ? "876000h" : "none" }) });
+    if (ban && (p as { hideAll?: boolean }).hideAll) {
+      await q("games?user_id=eq." + uid, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ hidden: true }) });
+    }
+    return { ok: true };
+  }
+  if (p.op === "clear") {   // 警告を取り消して通常に戻す
+    if (!uid) return { error: "bad_id" };
+    await setFlag(uid, { status: "ok", warning: null, acked: true });
+    return { ok: true };
+  }
+  if (p.op === "note") {
+    if (!uid) return { error: "bad_id" };
+    await setFlag(uid, { note: String((p as { msg?: string }).msg || "").slice(0, 1000) });
+    return { ok: true };
+  }
+  if (p.op === "games") {   // 作品一覧（検索・絞り込み）
+    const f = String((p as { filter?: string }).filter || "all");
+    let path = "games?select=id,title,author,published,hidden,user_id,created_at&order=created_at.desc&limit=200";
+    if (f === "published") path += "&published=eq.true&hidden=is.false";
+    if (f === "hidden") path += "&hidden=is.true";
+    if (f === "draft") path += "&published=eq.false";
+    const r = await q(path);
+    return { ok: true, games: r.ok ? await r.json() : [] };
+  }
+
   // 既定：ダッシュボード
   const d = today();
   const [total, published, hidden, withUser, openReports, recentR, repR, bld, req] = await Promise.all([
@@ -784,7 +886,9 @@ async function handlePanel(p: { pass?: string; op?: string; id?: string }, ip: s
   }
   return {
     ok: true, today: d, login_required: await loginRequired(),
-    stats: { total, published, hidden, withUser, openReports, buildsToday: bld || 0, requestsToday: req || 0, buildLimit: LIMITS.bldGlobal },
+    stats: { total, published, hidden, withUser, openReports, buildsToday: bld || 0, requestsToday: req || 0, buildLimit: LIMITS.bldGlobal,
+      users: await (async () => { const r = await fetch(SRV_BASE + "/auth/v1/admin/users?page=1&per_page=1000", { headers: srvHeaders }); return r.ok ? ((await r.json()).users || []).length : 0; })(),
+      flagged: await (async () => { const r = await q("user_flags?select=user_id&status=neq.ok", { headers: { Prefer: "count=exact", Range: "0-0" } }); return parseInt((r.headers.get("content-range") || "/0").split("/")[1], 10) || 0; })() },
     recent, reports, titles, reasons: REPORT_REASONS, hideAt: REPORT_HIDE,
   };
 }
@@ -1417,12 +1521,13 @@ Deno.serve(async (req) => {
 
   let messages: Msg[] = [], prevHtml = "", token = "?", jobId = "", wantUsage = false, isAdmin = false, forceBuild = false, testModel = "";
   let irun: IRun | null = null, wantSpec = false, uspec = "";
-  let report: Record<string, string> | null = null, panel: Record<string, string> | null = null;
+  let report: Record<string, string> | null = null, panel: Record<string, string> | null = null, wantAck = false;
   try {
     const b = await req.json();
     if (b && typeof b.irun === "object" && b.irun) irun = b.irun as IRun;
     if (b && typeof b.report === "object" && b.report) report = b.report;   // 通報
     if (b && typeof b.panel === "object" && b.panel) panel = b.panel;       // 管理画面
+    if (b?.ack === true) wantAck = true;                                       // 運営からのお知らせを読んだ
     if (b?.makeSpec === true) wantSpec = true;               // 設計書だけ作る（生成カウント消費なし）
     if (typeof b?.spec === "string") uspec = b.spec.slice(0, 8000);   // ユーザー確認・編集済みの設計書
     if (typeof b?.job === "string") jobId = b.job;
@@ -1449,6 +1554,12 @@ Deno.serve(async (req) => {
   const user = irun ? null : await authUser(req);
   if (user) token = "uid:" + user.id;
   if (report) return json(await handleReport(report, token, ip));
+  // 運営からの警告を「読んだ」にする
+  if (user && wantAck) {
+    await setFlag(user.id, { acked: true });
+    return json({ ok: true });
+  }
+  const flag = user && !irun && !jobId ? await userFlag(user.id) : null;
 
   // ---- 内部ラン：自己呼び出しされたビルド本体（サービスロールキー必須）----
   if (irun) {
@@ -1492,7 +1603,8 @@ Deno.serve(async (req) => {
   // ---- 使用量の確認（加算しない・上限チェックもしない）----
   const needLogin = (wantUsage || (!jobId && !irun)) ? await loginRequired() : false;
   if (wantUsage) {
-    const lr = { login_required: needLogin, logged_in: !!user };
+    const lr = { login_required: needLogin, logged_in: !!user, banned: flag?.status === "banned",
+      notice: flag && flag.warning && flag.acked === false ? { text: flag.warning, at: flag.warned_at } : null };
     // 管理者はテストモデル選択を反映した「実際に使われるモデル」を返す（チャット画面の表記と実生成を一致させる）
     if (isAdmin) return json({ ...lr, enabled: true, admin: true, model: specLabel(specFor(testModel)) });
     const d = today();
@@ -1528,6 +1640,7 @@ Deno.serve(async (req) => {
 
   // 作る（相談・設計書・生成）はログイン必須（管理者コードは例外）
   if (needLogin && !user && !isAdmin) return json({ error: "login_required" });
+  if (flag?.status === "banned" && !isAdmin) return json({ error: "banned" });
 
   // ---- 設計書のみ生成（ビルド前の確認・編集用。生成カウントは消費しない）----
   if (wantSpec) {

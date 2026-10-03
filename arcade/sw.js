@@ -4,7 +4,7 @@
    - 新バージョンはユーザーが「更新」を押すまで待機（勝手にリロードしない） */
 // CACHE 名はアプリのバージョンに紐づける（＝毎デプロイで sw.js が変わり、更新が必ず検知される）。
 // APP_VERSION を上げるたびにここも上げること。
-var CACHE = "vappa-0.9.88";
+var CACHE = "vappa-0.9.89";
 var CORE = [
   "./", "./index.html", "./play.html", "./leaderboard.html",
   "./privacy.html", "./terms.html", "./about.html", "./contact.html",
@@ -12,7 +12,7 @@ var CORE = [
   "./manifest.webmanifest", "./logo.png?v=1",
   "./css/app.css?v=40",
   "./js/games.js?v=10", "./js/assets.js?v=1", "./js/config.js?v=6", "./js/netstate.js?v=1", "./js/store.js?v=8",
-  "./js/auth.js?v=1", "./js/ai.js?v=20", "./js/catalog.js?v=12", "./js/share.js?v=6", "./js/arcade-embed.js?v=4", "./js/pwa.js?v=1"
+  "./js/auth.js?v=1", "./js/ai.js?v=21", "./js/catalog.js?v=12", "./js/share.js?v=6", "./js/arcade-embed.js?v=4", "./js/pwa.js?v=1"
 ];
 
 self.addEventListener("install", function (e) {

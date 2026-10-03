@@ -35,6 +35,7 @@ window.Ai = (function () {
     if (!res.ok) { throw new Error("ai_failed:" + res.status + ":" + String(raw || "").slice(0, 160)); }
     if (!data) throw new Error("bad_response");
     if (data.error === "login_required") { try { window.dispatchEvent(new CustomEvent("vappa:needlogin")); } catch (e) {} throw new Error("login_required"); }
+    if (data.error === "banned") throw new Error("banned");
     if (data.error === "rate_limited") throw new Error("rate_limited:" + (data.reason || "") + (data.retry_sec ? (":" + data.retry_sec) : ""));
     if (data.error) throw new Error("ai_failed:" + data.error + (data.detail ? (":" + data.detail) : ""));
     return data;
@@ -117,6 +118,8 @@ window.Ai = (function () {
     resumeJob: function (jobId) { return pollJob(jobId); },
     // 設計書だけ作る（ビルド前の確認・編集用。生成カウントは消費しない）
     makeSpec: function (messages) { return post({ makeSpec: true, messages: messages, token: token(), admin: adminCode() }); },
+    // 運営からのお知らせ（警告）を読んだ
+    ack: function () { return post({ ack: true, token: token() }); },
     // 通報（作品ID・理由・詳細）。同じ人の2回目は数えない。
     report: function (gameId, reason, detail) { return post({ report: { game_id: gameId, reason: reason, detail: detail || "" }, token: token() }); },
     // 今日の作成上限の使用状況を取得（加算しない）。model を同送すると管理者は実効モデル名が返る
