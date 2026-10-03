@@ -119,7 +119,7 @@ window.Store = (function () {
       top: async function (gameId, type, n) {
         try {
           var order = type === "low" ? "score.asc" : "score.desc";
-          var res = await rq("scores?game_id=eq." + enc(gameId) + "&select=player,score&order=" + order + "&limit=300");
+          var res = await rq("scores?game_id=eq." + enc(gameId) + "&select=player,score,user_id&order=" + order + "&limit=300");
           var rows = await res.json();
           return dedupBest(rows).slice(0, n || 10);
         } catch (e) { console.warn("top failed", e); return []; }

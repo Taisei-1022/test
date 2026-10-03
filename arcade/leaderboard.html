@@ -7,6 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <link rel="stylesheet" href="css/app.css?v=42" />
 <title>ランキング</title>
+<style>.lb li .pl .lbh{display:block;font-size:10.5px;color:var(--dim);text-decoration:none;font-weight:400;margin-top:1px}</style>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6804943232069371" crossorigin="anonymous"></script>
 </head>
 <body>
@@ -26,8 +27,9 @@
 <script src="js/games.js?v=10"></script>
 <script src="js/config.js?v=7"></script>
 <script src="js/netstate.js?v=1"></script>
-<script src="js/store.js?v=9"></script>
-<script src="js/catalog.js?v=13"></script>
+<script src="js/store.js?v=10"></script>
+<script src="js/catalog.js?v=14"></script>
+<script src="js/auth.js?v=4"></script>
 <script src="js/share.js?v=6"></script>
 <script src="js/sw-reg.js?v=2"></script>
 <script>
@@ -65,10 +67,17 @@
         if (row.player === player && myRank === null) myRank = i + 1;
         var meCls = row.player === player ? " me" : "";
         return '<li class="'+meCls+'"><span class="rk">'+(i+1)+'</span>'+
-          '<span class="pl">'+esc(row.player)+'</span>'+
+          '<span class="pl">'+esc(row.player)+(row.user_id?'<a class="lbh" data-uid="'+esc(row.user_id)+'"></a>':'')+'</span>'+
           '<span class="sc">'+row.score+unit+'</span></li>';
       }).join("");
       document.getElementById("myrank").textContent = myRank ? (myRank + "位") : "—";
+      // ログインしている人には @ID を添える（押すとその人のページへ）
+      Auth.profilesFor(rows.map(function (r) { return r.user_id; })).then(function (m) {
+        list.querySelectorAll("a.lbh").forEach(function (a) {
+          var p = m[a.getAttribute("data-uid")]; if (!p) { a.remove(); return; }
+          a.textContent = "@" + p.handle; a.href = "creator.html?u=" + encodeURIComponent(p.handle);
+        });
+      });
       document.getElementById("sub").textContent = "全 " + rows.length + " 人";
     });
   });

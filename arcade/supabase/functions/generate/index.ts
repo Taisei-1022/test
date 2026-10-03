@@ -866,6 +866,29 @@ async function handleScore(sc: { game_id?: string; score?: number; player?: stri
   return r.ok ? { ok: true } : { error: "score_failed", detail: String(r.status) };
 }
 
+// 作品データの中に文字データとして埋め込まれたサムネ（data:image/...）を、画像置き場（Storage の thumbs）へ移して URL に置き換える。
+// 一覧の読み込みが重くなっていた主因。何度呼んでも、残っている分だけ処理する。
+async function migrateThumbs() {
+  const r = await fetch(SRV_BASE + "/rest/v1/games?thumb=like.data:*&select=id,thumb&limit=50", { headers: srvHeaders });
+  const rows = r.ok ? await r.json() as { id: string; thumb: string }[] : [];
+  let moved = 0;
+  for (const g of rows) {
+    const m = /^data:(image\/(?:jpeg|png|webp));base64,(.+)$/.exec(g.thumb || "");
+    if (!m) continue;
+    const bin = Uint8Array.from(atob(m[2]), (c) => c.charCodeAt(0));
+    const ext = m[1] === "image/png" ? "png" : m[1] === "image/webp" ? "webp" : "jpg";
+    const path = "legacy/" + g.id + "." + ext;
+    const up = await fetch(SRV_BASE + "/storage/v1/object/thumbs/" + path, {
+      method: "POST", headers: { apikey: SUPA_SRV, Authorization: "Bearer " + SUPA_SRV, "content-type": m[1], "x-upsert": "true", "cache-control": "max-age=31536000" }, body: bin,
+    });
+    if (!up.ok) continue;
+    const url = SRV_BASE + "/storage/v1/object/public/thumbs/" + path;
+    const w = await fetch(SRV_BASE + "/rest/v1/games?id=eq." + g.id, { method: "PATCH", headers: { ...srvHeaders, Prefer: "return=minimal" }, body: JSON.stringify({ thumb: url }) });
+    if (w.ok) moved++;
+  }
+  return { ok: true, moved, left: Math.max(0, rows.length - moved) };
+}
+
 // ===== 管理画面（arcade/manage.html・admin.html）=====
 // Googleでログインし、admins テーブルに登録された運営アカウントだけが使える（パスワード方式は廃止）。
 async function isPanelAdmin(user: { id: string } | null): Promise<boolean> {
@@ -955,6 +978,10 @@ async function handlePanel(p: { op?: string; id?: string; msg?: string; filter?:
         ...(o.created_at ? { created_at: String(o.created_at) } : {}) };
     }).filter((o) => o.game_id && o.player && o.score >= 0 && o.score < SCORE_MAX);
     if (!rows.length) return { error: "empty" };
+    // さくらの名前なら、そのアカウント（bots）に紐づける＝ランキングに @ID が出る
+    const br = await q("bots?select=user_id,name");
+    const bmap: Record<string, string> = {}; for (const b of (br.ok ? await br.json() : []) as { user_id: string; name: string }[]) bmap[b.name] = b.user_id;
+    for (const o of rows as Record<string, unknown>[]) if (bmap[o.player as string]) o.user_id = bmap[o.player as string];
     const r = await q("scores", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify(rows) });
     return r.ok ? { ok: true, count: rows.length } : { error: "seed_failed", detail: String(r.status) };
   }
@@ -964,7 +991,9 @@ async function handlePanel(p: { op?: string; id?: string; msg?: string; filter?:
     return r.ok ? { ok: true } : { error: "patch_failed" };
   }
 
-  // 既定：ダッシュボード
+  if (p.op === "migrate_thumbs") return await migrateThumbs();
+  // 既定：ダッシュボード（開いたついでに、古い形式のサムネが残っていれば裏で画像置き場へ移す）
+  try { const ER = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime; if (ER && ER.waitUntil) ER.waitUntil(migrateThumbs()); } catch { /* ignore */ }
   const d = today();
   const [total, published, hidden, withUser, openReports, recentR, repR, bld, req] = await Promise.all([
     cnt("games"), cnt("games?published=eq.true&hidden=is.false"), cnt("games?hidden=is.true"), cnt("games?user_id=not.is.null"),
@@ -1669,8 +1698,8 @@ Deno.serve(async (req) => {
     await setFlag(user.id, { acked: true });
     return json({ ok: true });
   }
-  const flag = user && !irun && !jobId ? await userFlag(user.id) : null;
-  const myProfile = user && !irun && !jobId ? await getProfile(user.id) : null;
+  // 警告・プロフィールは同時に読む（順番に読むと、その分だけ待たされる）
+  const [flag, myProfile] = user && !irun && !jobId ? await Promise.all([userFlag(user.id), getProfile(user.id)]) : [null, null];
 
   // ---- 内部ラン：自己呼び出しされたビルド本体（サービスロールキー必須）----
   if (irun) {

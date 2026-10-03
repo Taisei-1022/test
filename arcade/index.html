@@ -317,10 +317,10 @@
 <script src="js/assets.js?v=1"></script>
 <script src="js/config.js?v=7"></script>
 <script src="js/netstate.js?v=1"></script>
-<script src="js/store.js?v=9"></script>
-<script src="js/auth.js?v=3"></script>
+<script src="js/store.js?v=10"></script>
+<script src="js/auth.js?v=4"></script>
 <script src="js/ai.js?v=21"></script>
-<script src="js/catalog.js?v=13"></script>
+<script src="js/catalog.js?v=14"></script>
 <script src="js/share.js?v=6"></script>
 <script src="js/arcade-embed.js?v=4"></script>
 <script src="js/pwa.js?v=1"></script>
@@ -329,7 +329,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "0.9.95";
+  var APP_VERSION = "0.9.96";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -547,7 +547,13 @@
       Promise.all([Auth.profilesFor(uids), Auth.myFollows()]).then(function(r){
         var pm=r[0]||{}; followSet={}; (r[1]||[]).forEach(function(x){ followSet[x]=1; });
         feedRows.forEach(function(row){ var p=row.it.uid&&pm[row.it.uid]; if(p){ row.it.handle=p.handle; row.it.author=p.display_name; } });
-        renderCatChips(); paintFeed();
+        renderCatChips();
+        // 一覧を描き直さず、表示中のカードの作者名だけ差し替える（画像の再読み込みを避ける）
+        if(feedCat==="__follow") paintFeed();
+        else feedRows.forEach(function(row){ if(!row.it.handle) return;
+          var card=grid.querySelector('.card[data-gid="'+row.it.id+'"] .meta'); if(!card) return;
+          var a=card.querySelector("a.authlink"); if(a) return;
+          card.innerHTML=card.innerHTML.replace(/^作 [^・]*/, '作 <a class="authlink" href="creator.html?u='+encodeURIComponent(row.it.handle)+'">'+esc(row.it.author)+'</a> '); });
       }).catch(function(){});
     });
   }
@@ -1076,7 +1082,7 @@
   (function(){ var ps=document.getElementById("pubShare"); if(ps) ps.addEventListener("click", function(){
     if(lastGen && lastGen.editingId && window.Share) Share.open({gameId:lastGen.editingId, gameTitle:lastGen.title||""}); }); })();
   /* サムネ切り抜き（固定 4:3、ドラッグ移動＋ズーム） */
-  var OUT_W=600, OUT_H=450, CROP_ZMAX=6;
+  var OUT_W=480, OUT_H=360, CROP_ZMAX=6;   // サムネはカードに出る大きさで十分（大きいと一覧が重くなる）
   var cropModal=document.getElementById("cropModal"), cropView=document.getElementById("cropView"),
       cropImg=document.getElementById("cropImg");
   var cZoom=1, cTx=0, cTy=0, cBase=1, cNatW=0, cNatH=0;
@@ -1158,7 +1164,7 @@
     var sx=(0-cTx)/s, sy=(0-cTy)/s, sw=Vw/s, sh=Vh/s;
     var cv=document.createElement("canvas"); cv.width=OUT_W; cv.height=OUT_H;
     cv.getContext("2d").drawImage(cropImg, sx, sy, sw, sh, 0, 0, OUT_W, OUT_H);
-    try{ lastGen.thumb=cv.toDataURL("image/jpeg",0.85); dirty=true; updateThumbPrev(); }
+    try{ lastGen.thumb=cv.toDataURL("image/jpeg",0.78); dirty=true; updateThumbPrev(); }
     catch(e){ showToast("切り抜きに失敗しました"); }
     closeCrop();
   });

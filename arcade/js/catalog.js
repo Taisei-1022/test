@@ -79,6 +79,31 @@ window.Catalog = (function () {
     throw new Error("read_failed:" + res.status);
   }
 
+  // サムネが画像データ（data:image/…）なら、画像置き場（Storage の thumbs/<ユーザーID>/）へ上げて URL に置き換える。
+  // 作品データに画像を埋め込むと、一覧を開くたびに全部の画像を読み込んで重くなるため。
+  var upCache = {};   // 同じ画像を保存のたびに上げ直さない
+  async function uploadThumb(row) {
+    var t = row.thumb;
+    if (!remote || !t || !/^data:image\//.test(t)) return row;
+    var ck = t.length + ":" + t.slice(-48);
+    if (upCache[ck]) { row.thumb = upCache[ck]; return row; }
+    var u = (window.Auth && Auth.user) ? Auth.user() : null, tok = (window.Auth && Auth.token) ? await Auth.token() : "";
+    if (!u || !tok) return row;
+    try {
+      var m = /^data:(image\/[a-z]+);base64,(.+)$/.exec(t); if (!m) return row;
+      var bin = atob(m[2]), arr = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      var ext = m[1] === "image/png" ? "png" : m[1] === "image/webp" ? "webp" : "jpg";
+      var path = u.id + "/" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7) + "." + ext;
+      var base = cfg.supabaseUrl.replace(/\/$/, "");
+      var r = await fetch(base + "/storage/v1/object/thumbs/" + path, {
+        method: "POST", headers: { apikey: cfg.supabaseKey, Authorization: "Bearer " + tok, "Content-Type": m[1], "cache-control": "max-age=31536000" }, body: arr
+      });
+      if (r.ok) row.thumb = upCache[ck] = base + "/storage/v1/object/public/thumbs/" + path;
+    } catch (e) { console.warn("thumb upload failed", e); }
+    return row;
+  }
+
   return {
     isRemote: remote,
     owner: owner,
@@ -90,6 +115,7 @@ window.Catalog = (function () {
       var u = (window.Auth && Auth.user) ? Auth.user() : null;
       if (u && remote) row.user_id = u.id;   // ログイン中の作品＝本人だけが編集できる
       if (remote) {
+        await uploadThumb(row);
         var res = await writeRow("games", "POST", row);
         return (await res.json())[0];
       }
@@ -103,6 +129,7 @@ window.Catalog = (function () {
     update: async function (id, g) {
       var patch = fields(g);
       if (remote) {
+        await uploadThumb(patch);
         var res = await writeRow("games?id=eq." + enc(id), "PATCH", patch);
         return (await res.json())[0];
       }
