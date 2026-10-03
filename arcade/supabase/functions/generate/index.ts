@@ -789,7 +789,9 @@ async function listUsers() {
 const SEED_IDS = new Set(["matsushima", "city", "train", "railway", "reflex", "dodge", "royale", "burger", "pingpong"]);
 const SCORE_MAX = 100000000;
 async function gameExists(gid: string): Promise<boolean> {
-  if (SEED_IDS.has(gid)) return true;
+  // 公式ゲーム：既知のID、または英小文字の短いID（公式ゲームを追加するたびにサーバーを直さなくて済むように）。
+  // 存在しないIDに登録されても、どの画面にも表示されないので害はない。
+  if (SEED_IDS.has(gid) || /^[a-z][a-z0-9_-]{1,29}$/.test(gid)) return true;
   if (!/^[0-9a-f-]{36}$/.test(gid)) return false;
   const r = await fetch(SRV_BASE + "/rest/v1/games?id=eq." + gid + "&hidden=is.false&select=id&limit=1", { headers: srvHeaders });
   const a = r.ok ? await r.json() : [];
