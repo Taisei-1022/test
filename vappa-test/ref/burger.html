@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1" />
+<title>バーガータワー</title>
+<style>
+  *{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;}
+  html,body{height:100%;background:#1a1326;overflow:hidden;font-family:"Hiragino Maru Gothic ProN","Hiragino Sans",system-ui,sans-serif;color:#fff;touch-action:none;}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block;}
+  #hud{position:fixed;top:calc(env(safe-area-inset-top) + 10px);left:0;right:0;text-align:center;font-weight:800;font-size:20px;z-index:2;text-shadow:0 2px 6px rgba(0,0,0,.5);pointer-events:none;}
+  #ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+     background:rgba(12,8,20,.82);text-align:center;padding:24px;z-index:5;}
+  #ov h1{font-size:26px;font-weight:800;} #ov p{color:#d8c9b6;font-size:14px;line-height:1.7;}
+  #ov .big{font-size:42px;font-weight:800;color:#ffcf5c;}
+  #ov button{background:#ffb02e;color:#3a2400;border:0;border-radius:14px;padding:.85rem 1.7rem;font:inherit;font-weight:800;font-size:16px;cursor:pointer;}
+  #ov[hidden]{display:none;}
+  #rotBtn{position:fixed;right:18px;bottom:calc(env(safe-area-inset-bottom) + 24px);z-index:4;
+    width:66px;height:66px;border-radius:50%;border:0;background:rgba(255,176,46,.94);color:#3a2400;
+    font-size:30px;font-weight:800;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;
+    box-shadow:0 4px 14px rgba(0,0,0,.45);cursor:pointer;touch-action:manipulation;}
+  #rotBtn small{font-size:10px;font-weight:800;letter-spacing:.04em;margin-top:2px;}
+  #rotBtn:active{transform:scale(.92);}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"></div>
+<button id="rotBtn" type="button" aria-label="回転">⟳<small>30°</small></button>
+<div id="ov">
+  <h1>🍔 バーガータワー</h1>
+  <p>いろんな商品を高く積み上げろ！<br>🍔🍟🥤🍗🥫…まれに🥧も。<br>スワイプで位置決め、<b>⟳で15°回転</b>、<b>指を離すと落下</b>。崩れたら終わり。</p>
+  <button id="startBtn">はじめる</button>
+</div>
+<script src="../../js/arcade-sdk.js?v=2"></script>
+<script>
+(function(){
+  "use strict";
+  /* ===================== 小さな2D剛体物理（箱・回転あり / box2d-lite方式） ===================== */
+  function dot(a,b){return a.x*b.x+a.y*b.y;} function crs(a,b){return a.x*b.y-a.y*b.x;}
+  function mAng(r){var c=Math.cos(r),s=Math.sin(r);return{c1:{x:c,y:s},c2:{x:-s,y:c}};}
+  function mMulV(m,v){return{x:m.c1.x*v.x+m.c2.x*v.y,y:m.c1.y*v.x+m.c2.y*v.y};}
+  function mT(m){return{c1:{x:m.c1.x,y:m.c2.x},c2:{x:m.c1.y,y:m.c2.y}};}
+  function mMul(a,b){return{c1:mMulV(a,b.c1),c2:mMulV(a,b.c2)};}
+  function mAbs(m){return{c1:{x:Math.abs(m.c1.x),y:Math.abs(m.c1.y)},c2:{x:Math.abs(m.c2.x),y:Math.abs(m.c2.y)}};}
+  function neg(v){return{x:-v.x,y:-v.y};}
+
+  function Body(verts,density,fric){
+    this.verts=verts;                  // ローカル凸多角形（中心が原点）
+    this.px=0;this.py=0;this.angle=0;this.vx=0;this.vy=0;this.av=0;
+    this.friction=fric==null?0.5:fric;
+    var minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9,i;
+    for(i=0;i<verts.length;i++){var v=verts[i];if(v.x<minx)minx=v.x;if(v.x>maxx)maxx=v.x;if(v.y<miny)miny=v.y;if(v.y>maxy)maxy=v.y;}
+    this.w=maxx-minx; this.h=maxy-miny;          // 描画・カメラ用のバウンディング
+    if(density===Infinity){this.invMass=0;this.invI=0;}
+    else{
+      var area=0,I=0;
+      for(i=0;i<verts.length;i++){
+        var p0=verts[i],p1=verts[(i+1)%verts.length];
+        var cr=p0.x*p1.y-p1.x*p0.y; area+=cr;
+        I+=cr*((p0.x*p0.x+p0.x*p1.x+p1.x*p1.x)+(p0.y*p0.y+p0.y*p1.y+p1.y*p1.y));
+      }
+      var mass=density*Math.abs(area)/2;
+      this.invMass=1/mass; this.invI=1/(density*Math.abs(I)/12);
+    }
+  }
+
+  function add(a,b){return{x:a.x+b.x,y:a.y+b.y};} function sub(a,b){return{x:a.x-b.x,y:a.y-b.y};} function scl(v,s){return{x:v.x*s,y:v.y*s};}
+  function nrm(v){var L=Math.hypot(v.x,v.y)||1;return{x:v.x/L,y:v.y/L};}
+
+  /* ===== 凸多角形どうしの衝突（SAT＋クリッピング。長方形も4角形として扱う） ===== */
+  function worldPoly(b){
+    var R=mAng(b.angle),V=[],N=[],vs=b.verts,i;
+    for(i=0;i<vs.length;i++)V.push(add({x:b.px,y:b.py},mMulV(R,vs[i])));
+    for(i=0;i<V.length;i++){
+      var a=V[i],c=V[(i+1)%V.length],n=nrm({x:c.y-a.y,y:-(c.x-a.x)});
+      var mid=scl(add(a,c),0.5);
+      if(dot(n,sub(mid,{x:b.px,y:b.py}))<0)n=neg(n);   // 必ず外向きに
+      N.push(n);
+    }
+    return {V:V,N:N};
+  }
+  function maxSep(P,Q){
+    var best=-1e9,bi=0;
+    for(var i=0;i<P.N.length;i++){
+      var n=P.N[i],v=P.V[i],mn=1e9;
+      for(var j=0;j<Q.V.length;j++){var d=dot(n,sub(Q.V[j],v));if(d<mn)mn=d;}
+      if(mn>best){best=mn;bi=i;}
+    }
+    return {sep:best,idx:bi};
+  }
+  function clipSeg(seg,n,off){   // dot(n,x)<=off の側を残す
+    var out=[],d0=dot(n,seg[0])-off,d1=dot(n,seg[1])-off;
+    if(d0<=0)out.push(seg[0]); if(d1<=0)out.push(seg[1]);
+    if(d0*d1<0)out.push(add(seg[0],scl(sub(seg[1],seg[0]),d0/(d0-d1))));
+    return out;
+  }
+  function collide(A,B){
+    var pa=worldPoly(A),pb=worldPoly(B);
+    var sa=maxSep(pa,pb); if(sa.sep>0)return[];
+    var sb=maxSep(pb,pa); if(sb.sep>0)return[];
+    var refA=sa.sep>=sb.sep-0.4;              // 参照面を持つ方（A優先のヒステリシスで面の取り合いを防ぐ）
+    var ref=refA?pa:pb, inc=refA?pb:pa, ri=refA?sa.idx:sb.idx;
+    var refN=ref.N[ri], rv1=ref.V[ri], rv2=ref.V[(ri+1)%ref.V.length];
+    var ii=0,md=1e9;                          // 入射面：参照法線に最も逆向きの面
+    for(var k=0;k<inc.N.length;k++){var d=dot(inc.N[k],refN);if(d<md){md=d;ii=k;}}
+    var seg=[inc.V[ii],inc.V[(ii+1)%inc.V.length]];
+    var t=nrm(sub(rv2,rv1));
+    seg=clipSeg(seg,neg(t),-dot(t,rv1)); if(seg.length<2)return[];
+    seg=clipSeg(seg,t,dot(t,rv2)); if(seg.length<2)return[];
+    var front=dot(refN,rv1), normal=refA?refN:neg(refN), out=[];
+    for(var m=0;m<seg.length;m++){
+      var s=dot(refN,seg[m])-front;
+      if(s<=0)out.push({position:seg[m],normal:{x:normal.x,y:normal.y},separation:s,feature:(refA?'A':'B')+ri+'_'+m,Pn:0,Pt:0});
+    }
+    return out;
+  }
+
+  /* 形ごとの凸ハル（中心原点・SCで拡縮）。見た目に合わせた当たり判定に使う。 */
+  var DENS=1/900;
+  function rectVerts(w,h){var x=w/2,y=h/2;return [{x:-x,y:-y},{x:x,y:-y},{x:x,y:y},{x:-x,y:y}];}
+  function hullFor(t,sc){
+    var x=t.w*sc/2, y=t.h*sc/2, k=t.k;
+    if(k==="drink"||k==="fries")              // 台形（上が少し広い・底は広めで安定）
+      return [{x:-x,y:-y},{x:x,y:-y},{x:x*0.9,y:y},{x:-x*0.9,y:y}];
+    if(k==="ketchup")                          // ボトル（上が細い）
+      return [{x:-x,y:y},{x:x,y:y},{x:x,y:-y*0.3},{x:x*0.42,y:-y},{x:-x*0.42,y:-y},{x:-x,y:-y*0.3}];
+    if(k==="nugget"){                          // 丸い八角形
+      var cx=x*0.42,cy=y*0.42;
+      return [{x:-x+cx,y:-y},{x:x-cx,y:-y},{x:x,y:-y+cy},{x:x,y:y-cy},{x:x-cx,y:y},{x:-x+cx,y:y},{x:-x,y:y-cy},{x:-x,y:-y+cy}];
+    }
+    var ax=x*0.18,ay=y*0.30;                   // burger / applepie：角丸長方形（八角形・底は広め）
+    return [{x:-x+ax,y:-y},{x:x-ax,y:-y},{x:x,y:-y+ay},{x:x,y:y-ay},{x:x-ax,y:y},{x:-x+ax,y:y},{x:-x,y:y-ay},{x:-x,y:-y+ay}];
+  }
+
+  function Arbiter(b1,b2){this.b1=b1;this.b2=b2;this.fric=Math.sqrt(b1.friction*b2.friction);this.contacts=[];}
+  Arbiter.prototype.update=function(nc){
+    var merged=[];
+    for(var i=0;i<nc.length;i++){var c=nc[i];
+      for(var j=0;j<this.contacts.length;j++){if(this.contacts[j].feature===c.feature){c.Pn=this.contacts[j].Pn;c.Pt=this.contacts[j].Pt;break;}}
+      merged.push(c);
+    }
+    this.contacts=merged;
+  };
+  Arbiter.prototype.preStep=function(invDt){
+    var b1=this.b1,b2=this.b2,SLOP=0.5,BIAS=0.1;   // 反発(跳ね)を抑えるため位置補正係数を低めに
+    for(var i=0;i<this.contacts.length;i++){var c=this.contacts[i],n=c.normal;
+      var r1=sub(c.position,{x:b1.px,y:b1.py}),r2=sub(c.position,{x:b2.px,y:b2.py});
+      var rn1=dot(r1,n),rn2=dot(r2,n);
+      var kn=b1.invMass+b2.invMass+b1.invI*(dot(r1,r1)-rn1*rn1)+b2.invI*(dot(r2,r2)-rn2*rn2);
+      c.mN=1/kn;
+      var t={x:n.y,y:-n.x},rt1=dot(r1,t),rt2=dot(r2,t);
+      var kt=b1.invMass+b2.invMass+b1.invI*(dot(r1,r1)-rt1*rt1)+b2.invI*(dot(r2,r2)-rt2*rt2);
+      c.mT=1/kt; c.t=t; c.r1=r1; c.r2=r2;
+      c.bias=-BIAS*invDt*Math.min(0,c.separation+SLOP);
+      var P={x:c.Pn*n.x+c.Pt*t.x,y:c.Pn*n.y+c.Pt*t.y};
+      b1.vx-=b1.invMass*P.x;b1.vy-=b1.invMass*P.y;b1.av-=b1.invI*crs(r1,P);
+      b2.vx+=b2.invMass*P.x;b2.vy+=b2.invMass*P.y;b2.av+=b2.invI*crs(r2,P);
+    }
+  };
+  Arbiter.prototype.applyImpulse=function(){
+    var b1=this.b1,b2=this.b2;
+    for(var i=0;i<this.contacts.length;i++){var c=this.contacts[i],n=c.normal,r1=c.r1,r2=c.r2,t=c.t;
+      var dvx=b2.vx-b2.av*r2.y-b1.vx+b1.av*r1.y, dvy=b2.vy+b2.av*r2.x-b1.vy-b1.av*r1.x;
+      var vn=dvx*n.x+dvy*n.y; var dPn=c.mN*(-vn+c.bias);
+      var p0=c.Pn; c.Pn=Math.max(p0+dPn,0); dPn=c.Pn-p0;
+      var Px=dPn*n.x,Py=dPn*n.y;
+      b1.vx-=b1.invMass*Px;b1.vy-=b1.invMass*Py;b1.av-=b1.invI*crs(r1,{x:Px,y:Py});
+      b2.vx+=b2.invMass*Px;b2.vy+=b2.invMass*Py;b2.av+=b2.invI*crs(r2,{x:Px,y:Py});
+      dvx=b2.vx-b2.av*r2.y-b1.vx+b1.av*r1.y; dvy=b2.vy+b2.av*r2.x-b1.vy-b1.av*r1.x;
+      var vt=dvx*t.x+dvy*t.y; var dPt=c.mT*(-vt); var max=this.fric*c.Pn;
+      var t0=c.Pt; c.Pt=Math.max(-max,Math.min(max,t0+dPt)); dPt=c.Pt-t0;
+      var Tx=dPt*t.x,Ty=dPt*t.y;
+      b1.vx-=b1.invMass*Tx;b1.vy-=b1.invMass*Ty;b1.av-=b1.invI*crs(r1,{x:Tx,y:Ty});
+      b2.vx+=b2.invMass*Tx;b2.vy+=b2.invMass*Ty;b2.av+=b2.invI*crs(r2,{x:Tx,y:Ty});
+    }
+  };
+
+  var GRAV=1250, ITER=14;
+  function World(){this.bodies=[];this.arb={};}
+  World.prototype.add=function(b){this.bodies.push(b);return b;};
+  World.prototype.step=function(dt){
+    var bs=this.bodies,invDt=dt>0?1/dt:0;
+    for(var i=0;i<bs.length;i++)for(var j=i+1;j<bs.length;j++){
+      var a=bs[i],b=bs[j]; if(a.invMass===0&&b.invMass===0)continue;
+      var cs=collide(a,b),key=i+","+j;
+      if(cs.length){ var ar=this.arb[key]; if(!ar){ar=new Arbiter(a,b);this.arb[key]=ar;} ar.update(cs); }
+      else delete this.arb[key];
+    }
+    for(i=0;i<bs.length;i++){var b=bs[i];if(b.invMass>0){b.vy+=dt*GRAV;}}
+    for(var k in this.arb)this.arb[k].preStep(invDt);
+    for(var it=0;it<ITER;it++)for(k in this.arb)this.arb[k].applyImpulse();
+    for(i=0;i<bs.length;i++){var b=bs[i];if(b.invMass>0){b.px+=dt*b.vx;b.py+=dt*b.vy;b.angle+=dt*b.av;b.vx*=0.999;b.vy*=0.999;b.av*=0.995;}}
+  };
+
+  /* ===================== ゲーム ===================== */
+  var cv=document.getElementById("c"),ctx=cv.getContext("2d"),hud=document.getElementById("hud"),ov=document.getElementById("ov");
+  var W=0,H=0,DPR=Math.min(2,window.devicePixelRatio||1),SC=1;
+  function resize(){W=window.innerWidth;H=window.innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);SC=Math.max(0.8,Math.min(1.3,W/390));}
+  window.addEventListener("resize",resize);
+
+  var TYPES=[
+    {k:"burger", em:"🍔",w:96,h:50,col2:"#d9952b", wgt:20},
+    {k:"fries",  em:"🍟",w:58,h:84,col2:"#e5484d", wgt:18},
+    {k:"drink",  em:"🥤",w:50,h:96,col2:"#4ea8de", wgt:16},
+    {k:"nugget", em:"🍗",w:72,h:48,col2:"#dca23a", wgt:16},
+    {k:"ketchup",em:"🥫",w:46,h:80,col2:"#e23b3b", wgt:12},
+    {k:"applepie",em:"🥧",w:92,h:44,col2:"#e9b75a", wgt:2}  // めっちゃレア
+  ];
+  function pickType(){
+    var tot=0,i; for(i=0;i<TYPES.length;i++)tot+=TYPES[i].wgt;
+    var r=Math.random()*tot;
+    for(i=0;i<TYPES.length;i++){ r-=TYPES[i].wgt; if(r<0)return TYPES[i]; }
+    return TYPES[0];
+  }
+  var world,plate,score,running=false,paused=false,last=0,acc=0;
+  var held,fingerX,active,settleT,state; // state: aim | fall
+  var TOPY=110; // 落下開始のスクリーンY
+  var camY=0;
+
+  function reset(){
+    world=new World();
+    var pw=Math.min(W*0.5,210), pt=H-130;
+    plate=new Body(rectVerts(pw,22),Infinity,0.8); plate.px=W/2; plate.py=pt; world.add(plate);
+    score=0; camY=0; state="aim"; settleT=0; active=null; fingerX=W/2;
+    nextHeld();
+  }
+  function nextHeld(){ var t=pickType(); held={t:t,w:t.w*SC,h:t.h*SC,angle:0}; state="aim"; }
+  function worldToScreenY(wy){return wy+camY;}
+  function screenToWorldY(sy){return sy-camY;}
+
+  function drop(){
+    if(state!=="aim"||!held||!running||paused)return;
+    var b=new Body(hullFor(held.t,SC),DENS,0.7);
+    b.px=Math.max(held.w/2,Math.min(W-held.w/2,fingerX));
+    b.py=screenToWorldY(TOPY);
+    b.angle=held.angle||0;
+    b.t=held.t;
+    world.add(b); active=b; state="fall"; settleT=0; held=null;
+  }
+
+  function update(dt){
+    // physics substeps
+    acc+=dt; var hstep=1/120, n=0;
+    while(acc>=hstep&&n<5){ world.step(hstep); acc-=hstep; n++; }
+    // camera：積み上がった箱（落下中の箱は除外）で計算。台が上下に動いて見えるのを防ぐ。
+    var topW=plate.py-plate.h/2;
+    for(var i=1;i<world.bodies.length;i++){ var b=world.bodies[i]; if(b===active) continue; topW=Math.min(topW,b.py-b.h/2); }
+    var targetCam=Math.max(0, H*0.30 - topW);
+    camY+=(targetCam-camY)*Math.min(1,dt*5);
+    // 落下中の箱の判定
+    if(state==="fall"&&active){
+      var spd=Math.abs(active.vx)+Math.abs(active.vy)+Math.abs(active.av)*40;
+      if(spd<14){ settleT+=dt; if(settleT>0.35){ score++; active=null; nextHeld(); } }
+      else settleT=0;
+    }
+    // 崩壊判定：箱が台より下（ワールド座標）まで落ちたら終了。
+    // ※カメラのパンで画面外に出ても、台に乗っている箱では誤判定しないようワールド座標で見る。
+    for(i=1;i<world.bodies.length;i++){ var bb=world.bodies[i]; if(bb.py>plate.py+160){ gameOver(); return; } }
+  }
+
+  function drawBody(b,ghost){
+    var sy=worldToScreenY(b.py);
+    ctx.save(); ctx.translate(b.px,sy); ctx.rotate(b.angle);
+    ctx.globalAlpha=ghost?0.6:1;
+    if(b===plate||!b.t){ drawPlate(b.w,b.h); }
+    else { drawShape(b.t.k,b.w,b.h); }
+    ctx.restore(); ctx.globalAlpha=1;
+  }
+
+  /* ===== リアルなベクター描画（中心原点・w×h内に収める） ===== */
+  function drawShape(k,w,h){
+    if(k==="burger") drawBurger(w,h);
+    else if(k==="fries") drawFries(w,h);
+    else if(k==="drink") drawDrink(w,h);
+    else if(k==="nugget") drawNugget(w,h);
+    else if(k==="ketchup") drawKetchup(w,h);
+    else if(k==="applepie") drawApplepie(w,h);
+  }
+  function drawPlate(w,h){
+    var hw=w/2,hh=h/2;
+    ctx.fillStyle="#2a263f"; rr(-w*0.13,0,w*0.26,hh*1.6,3); ctx.fill();      // 脚
+    ctx.fillStyle="#3a3357"; rr(-hw,-hh,w,h,hh); ctx.fill();                  // トレイ
+    ctx.fillStyle="rgba(255,255,255,.12)"; rr(-hw,-hh,w,h*0.45,hh*0.45); ctx.fill();
+  }
+  function drawBurger(w,h){
+    var hw=w/2,hh=h/2;
+    // 下バンズ
+    ctx.fillStyle="#e8ad5c"; rr(-hw,hh-h*0.26,w,h*0.26,h*0.13); ctx.fill();
+    ctx.fillStyle="rgba(0,0,0,.10)"; rr(-hw,hh-h*0.10,w,h*0.10,h*0.05); ctx.fill();
+    // パティ
+    ctx.fillStyle="#6e3b1c"; rr(-hw*0.99,hh-h*0.50,w*0.99,h*0.22,5); ctx.fill();
+    // チーズ（たれ）
+    ctx.fillStyle="#f6bd18";
+    var cy=hh-h*0.50;
+    ctx.beginPath(); ctx.moveTo(-hw,cy); ctx.lineTo(hw,cy);
+    ctx.lineTo(hw*0.62,cy+h*0.15); ctx.lineTo(hw*0.28,cy+h*0.02);
+    ctx.lineTo(-hw*0.08,cy+h*0.14); ctx.lineTo(-hw*0.48,cy+h*0.03);
+    ctx.lineTo(-hw*0.78,cy+h*0.13); ctx.closePath(); ctx.fill();
+    // レタス（波）
+    ctx.fillStyle="#86c440";
+    var ly=hh-h*0.55, waves=5;
+    ctx.beginPath(); ctx.moveTo(-hw,ly-h*0.05);
+    for(var i=0;i<=waves;i++){ var x=-hw+(w*i/waves); ctx.lineTo(x, ly+((i%2===0)?h*0.06:-h*0.01)); }
+    ctx.lineTo(hw,ly-h*0.05); ctx.closePath(); ctx.fill();
+    // 上バンズ（ドーム）
+    ctx.fillStyle="#ef9f43";
+    var baseY=hh-h*0.57;
+    ctx.beginPath(); ctx.moveTo(-hw,baseY);
+    ctx.quadraticCurveTo(-hw,-hh,0,-hh); ctx.quadraticCurveTo(hw,-hh,hw,baseY);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle="rgba(255,255,255,.18)";
+    ctx.beginPath(); ctx.ellipse(-hw*0.28,baseY-h*0.24,hw*0.34,h*0.09,-0.4,0,Math.PI*2); ctx.fill();
+    // ごま
+    ctx.fillStyle="#fff7e6";
+    function seed(sx,sy,rot){ ctx.save(); ctx.translate(sx,sy); ctx.rotate(rot); ctx.beginPath(); ctx.ellipse(0,0,w*0.035,h*0.028,0,0,Math.PI*2); ctx.fill(); ctx.restore(); }
+    seed(-hw*0.35,-hh+h*0.20,0.5); seed(0,-hh+h*0.13,-0.3); seed(hw*0.34,-hh+h*0.21,0.4);
+    seed(-hw*0.14,-hh+h*0.33,-0.5); seed(hw*0.16,-hh+h*0.33,0.3);
+  }
+  function drawFries(w,h){
+    var hw=w/2,hh=h/2;
+    // ポテト（箱の上から飛び出す）
+    var fryW=w*0.17, xs=[-hw*0.55,-hw*0.18,hw*0.2,hw*0.55], off=[h*0.02,-h*0.05,h*0.05,-h*0.01];
+    for(var i=0;i<xs.length;i++){
+      ctx.save(); ctx.translate(xs[i],0); ctx.rotate((i-1.5)*0.07);
+      ctx.fillStyle=(i%2)?"#f0b429":"#f9cf5b";
+      rr(-fryW/2,-hh+off[i],fryW,h*0.58,fryW*0.35); ctx.fill();
+      ctx.fillStyle="rgba(255,255,255,.18)"; rr(-fryW/2,-hh+off[i],fryW*0.4,h*0.5,fryW*0.2); ctx.fill();
+      ctx.restore();
+    }
+    // 赤い箱（台形）
+    var ct=hh-h*0.62;
+    ctx.fillStyle="#e02424";
+    ctx.beginPath(); ctx.moveTo(-hw,ct); ctx.lineTo(hw,ct); ctx.lineTo(hw*0.78,hh); ctx.lineTo(-hw*0.78,hh); ctx.closePath(); ctx.fill();
+    ctx.fillStyle="#c81e1e"; rr(-hw,ct,w,h*0.07,2); ctx.fill();
+    // 白ストライプ
+    ctx.fillStyle="rgba(255,255,255,.92)";
+    rr(-hw*0.34,ct+h*0.10,w*0.13,h*0.46,2); ctx.fill();
+    rr(hw*0.12,ct+h*0.10,w*0.13,h*0.46,2); ctx.fill();
+  }
+  function drawDrink(w,h){
+    var hw=w/2,hh=h/2;
+    var cupTop=-hh+h*0.18;
+    // カップ本体（やや先細り）
+    ctx.fillStyle="#f3f4f6";
+    ctx.beginPath(); ctx.moveTo(-hw,cupTop); ctx.lineTo(hw,cupTop); ctx.lineTo(hw*0.8,hh); ctx.lineTo(-hw*0.8,hh); ctx.closePath(); ctx.fill();
+    // ブランド帯
+    ctx.fillStyle="#e02424";
+    ctx.beginPath(); ctx.moveTo(-hw*0.97,cupTop+h*0.16); ctx.lineTo(hw*0.97,cupTop+h*0.16); ctx.lineTo(hw*0.9,cupTop+h*0.30); ctx.lineTo(-hw*0.9,cupTop+h*0.30); ctx.closePath(); ctx.fill();
+    ctx.fillStyle="rgba(255,255,255,.5)"; rr(-hw*0.7,cupTop+h*0.34,w*0.16,h*0.4,3); ctx.fill();
+    // フタ
+    ctx.fillStyle="#cfd6dd"; rr(-hw*1.03,cupTop-h*0.05,w*1.06,h*0.09,3); ctx.fill();
+    ctx.fillStyle="#dfe4ea";
+    ctx.beginPath(); ctx.moveTo(-hw*0.92,cupTop-h*0.04); ctx.quadraticCurveTo(0,cupTop-h*0.17,hw*0.92,cupTop-h*0.04); ctx.closePath(); ctx.fill();
+    // ストロー（最前面）
+    ctx.strokeStyle="#ff5d8f"; ctx.lineWidth=Math.max(3,w*0.11); ctx.lineCap="round";
+    ctx.beginPath(); ctx.moveTo(hw*0.18,cupTop-h*0.02); ctx.lineTo(hw*0.5,-hh); ctx.stroke();
+  }
+  function drawNugget(w,h){
+    var hw=w/2,hh=h/2;
+    // ゴツゴツした塊
+    ctx.fillStyle="#dca23a";
+    ctx.beginPath();
+    ctx.moveTo(-hw*0.6,-hh*0.2);
+    ctx.quadraticCurveTo(-hw,-hh*1.0, -hw*0.1,-hh*0.8);
+    ctx.quadraticCurveTo(hw*0.45,-hh*1.0, hw*0.92,-hh*0.15);
+    ctx.quadraticCurveTo(hw*1.0, hh*0.6, hw*0.25,hh*0.85);
+    ctx.quadraticCurveTo(-hw*0.55,hh*1.0, -hw*0.82,hh*0.2);
+    ctx.quadraticCurveTo(-hw*1.0,-hh*0.1, -hw*0.6,-hh*0.2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.lineJoin="round"; ctx.strokeStyle="#b9842a"; ctx.lineWidth=Math.max(2,w*0.04); ctx.stroke();
+    // 衣のハイライト
+    ctx.fillStyle="rgba(255,236,180,.35)";
+    ctx.beginPath(); ctx.ellipse(-hw*0.2,-hh*0.25,hw*0.4,hh*0.32,-0.3,0,Math.PI*2); ctx.fill();
+    // 衣のつぶつぶ
+    ctx.fillStyle="rgba(120,78,20,.4)";
+    var dots=[[-0.3,0.2],[0.15,-0.1],[0.4,0.35],[-0.05,0.45],[0.55,-0.2]];
+    for(var i=0;i<dots.length;i++){ ctx.beginPath(); ctx.arc(dots[i][0]*hw,dots[i][1]*hh,Math.max(1.2,w*0.018),0,Math.PI*2); ctx.fill(); }
+  }
+  function drawKetchup(w,h){
+    var hw=w/2,hh=h/2;
+    // 本体
+    ctx.fillStyle="#e23b3b"; rr(-hw,-hh+h*0.22,w,h*0.78,w*0.34); ctx.fill();
+    ctx.fillStyle="rgba(255,255,255,.14)"; rr(-hw+w*0.12,-hh+h*0.26,w*0.22,h*0.6,w*0.1); ctx.fill();
+    // 肩
+    ctx.fillStyle="#e23b3b";
+    ctx.beginPath(); ctx.moveTo(-hw*0.55,-hh+h*0.24); ctx.lineTo(hw*0.55,-hh+h*0.24);
+    ctx.lineTo(hw*0.3,-hh+h*0.10); ctx.lineTo(-hw*0.3,-hh+h*0.10); ctx.closePath(); ctx.fill();
+    // フタ
+    ctx.fillStyle="#fff"; rr(-hw*0.32,-hh,hw*0.64,h*0.12,2); ctx.fill();
+    // ラベル
+    ctx.fillStyle="#fff"; rr(-hw*0.78,-hh*0.08,w*0.78,h*0.34,4); ctx.fill();
+    // トマトマーク
+    ctx.fillStyle="#e23b3b"; ctx.beginPath(); ctx.arc(0,-hh*0.08+h*0.17,w*0.13,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle="#3fae5a"; ctx.beginPath(); ctx.ellipse(0,-hh*0.08+h*0.09,w*0.08,h*0.022,0,0,Math.PI*2); ctx.fill();
+  }
+  function drawApplepie(w,h){
+    var hw=w/2,hh=h/2;
+    // 生地
+    ctx.fillStyle="#e9b75a"; rr(-hw,-hh,w,h,h*0.24); ctx.fill();
+    // 焼き色（下側）
+    ctx.fillStyle="#d59b3e"; rr(-hw,hh-h*0.32,w,h*0.32,h*0.2); ctx.fill();
+    // 上面のツヤ
+    ctx.fillStyle="rgba(255,255,255,.22)"; rr(-hw,-hh,w,h*0.34,h*0.2); ctx.fill();
+    // 端のクリンプ（ギザギザ）
+    ctx.strokeStyle="#c98f37"; ctx.lineWidth=Math.max(2,w*0.022);
+    var n=7; for(var i=0;i<=n;i++){ var x=-hw+w*i/n; ctx.beginPath(); ctx.moveTo(x,-hh+h*0.06); ctx.lineTo(x,-hh+h*0.16); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x,hh-h*0.06); ctx.lineTo(x,hh-h*0.16); ctx.stroke(); }
+    // 通気スリット
+    ctx.strokeStyle="#9c6b2e"; ctx.lineWidth=Math.max(2,w*0.03); ctx.lineCap="round";
+    for(var s=-1;s<=1;s++){ ctx.beginPath(); ctx.moveTo(s*w*0.18-w*0.05,-h*0.10); ctx.lineTo(s*w*0.18+w*0.05,h*0.10); ctx.stroke(); }
+    // 砂糖
+    ctx.fillStyle="rgba(255,255,255,.55)";
+    var sg=[[-0.3,-0.2],[0.1,0.15],[0.35,-0.05],[-0.1,0.3]];
+    for(var j=0;j<sg.length;j++){ ctx.beginPath(); ctx.arc(sg[j][0]*hw,sg[j][1]*hh,Math.max(1,w*0.012),0,Math.PI*2); ctx.fill(); }
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    var g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,"#241a36");g.addColorStop(1,"#15101f");ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+    drawBody(plate,false);
+    for(var i=1;i<world.bodies.length;i++)drawBody(world.bodies[i],false);
+    // ホールド中プレビュー
+    if(state==="aim"&&held){
+      var x=Math.max(held.w/2,Math.min(W-held.w/2,fingerX));
+      ctx.save();ctx.translate(x,TOPY);ctx.rotate(held.angle||0);
+      ctx.globalAlpha=0.92;drawShape(held.t.k,held.w,held.h);ctx.globalAlpha=1;
+      ctx.restore();
+      ctx.strokeStyle="rgba(255,255,255,.2)";ctx.setLineDash([5,7]);ctx.beginPath();ctx.moveTo(x,TOPY+held.h/2);ctx.lineTo(x,H);ctx.stroke();ctx.setLineDash([]);
+    }
+    hud.textContent=score+" 段";
+  }
+  function rr(x,y,w,h,r){r=Math.min(r,h/2,w/2);ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+
+  function loop(t){if(!running)return;var dt=Math.min(0.04,(t-last)/1000)||0;last=t;if(!paused){update(dt);draw();}requestAnimationFrame(loop);}
+  function start(){resize();reset();ov.hidden=true;running=true;paused=false;last=performance.now();acc=0;if(window.Arcade)Arcade.ready();requestAnimationFrame(loop);}
+  function gameOver(){running=false;ov.innerHTML='<h1>くずれた…</h1><div class="big">'+score+' 段</div><p>もっと高く積める？</p><button id="rb">リトライ</button>';ov.hidden=false;document.getElementById("rb").addEventListener("click",start);if(window.Arcade)Arcade.gameOver(score);}
+
+  // 操作：スワイプで位置決め、指を離すと落下
+  function pdown(e){ if(state==="aim"){ fingerX=(e.touches?e.touches[0].clientX:e.clientX); } }
+  function pmove(e){ if(state==="aim"){ fingerX=(e.touches?e.touches[0].clientX:e.clientX); e.preventDefault&&e.preventDefault(); } }
+  function pup(e){ drop(); }
+  cv.addEventListener("pointerdown",pdown); cv.addEventListener("pointermove",pmove); cv.addEventListener("pointerup",pup); cv.addEventListener("pointercancel",pup);
+  // 回転ボタン：1タップで15度
+  var rotBtn=document.getElementById("rotBtn");
+  function doRot(e){ if(e){e.stopPropagation();e.preventDefault&&e.preventDefault();} if(running&&!paused&&state==="aim"&&held){ held.angle=(held.angle||0)+Math.PI/6; } }
+  rotBtn.addEventListener("click",doRot);
+  document.getElementById("startBtn").addEventListener("click",function(e){e.stopPropagation();start();});
+  if(window.Arcade){Arcade.onPause(function(){paused=true;});Arcade.onResume(function(){paused=false;last=performance.now();});Arcade.onRestart(start);}
+  resize();reset();draw();
+})();
+</script>
+<script>
+/* iOSダブルタップズーム対策：touch-action:noneでは止まらない端末があるため、
+   ボタン類以外のtouchendをpreventDefault（ボタンはclick合成を守るため触らない） */
+document.addEventListener("touchend",function(e){
+  var t=e.target;
+  if(e.cancelable && !(t&&t.closest&&t.closest("button,a,input,select,label"))) e.preventDefault();
+},{passive:false});
+</script>
+</body>
+</html>
