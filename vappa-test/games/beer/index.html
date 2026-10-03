@@ -166,8 +166,8 @@
     else if(c.tap==="sputter"){
       c.sputT-=dt;
       if(c.sputT<=0){var rn=Math.random();
-        if(rn<0.36){c.presT=1.7;c.fj=0.08;c.sputT=0.2+Math.random()*0.2;}
-        else if(rn<0.68){c.presT=0.15;c.fj=-0.04;c.sputT=0.18+Math.random()*0.2;}
+        if(rn<0.36){c.presT=1.7;c.fj=(Math.random()-0.5)*0.06;c.sputT=0.2+Math.random()*0.2;}
+        else if(rn<0.68){c.presT=0.15;c.fj=(Math.random()-0.5)*0.06;c.sputT=0.18+Math.random()*0.2;}
         else{c.presT=1;c.fj=0;c.sputT=0.25+Math.random()*0.35;}
       }
     } else {c.presT=1;c.fj=0;}
@@ -247,7 +247,7 @@
       pourStep(c,dt);
     } else if(c.state==="pour"){
       pourStep(c,dt);
-      if((c.L+c.F)/c.sh.cap>1.07){c.over=true;judge(true);}
+      if((c.L+c.F)/c.sh.cap>1.08){c.over=true;judge(true);}
       else if(c.poured&&c.idle>1.3)judge(false);
     } else if(c.state==="result"){
       pourStep(c,dt);
@@ -437,7 +437,9 @@
     // 目標ライン
     if(isCur&&(c.state==="pour"||c.state==="enter")){
       var lyT=base-c.lineT*Hm,lw=sh.hw(c.lineT)*S;
-      ctx.strokeStyle="rgba(255,255,255,.7)";ctx.setLineDash([5,5]);ctx.lineWidth=1.5;
+      ctx.strokeStyle="rgba(60,25,0,.85)";ctx.lineWidth=4;
+      ctx.beginPath();ctx.moveTo(x-lw-10,lyT);ctx.lineTo(x+lw+10,lyT);ctx.stroke();
+      ctx.strokeStyle="#ffffff";ctx.setLineDash([7,5]);ctx.lineWidth=2;
       ctx.beginPath();ctx.moveTo(x-lw-10,lyT);ctx.lineTo(x+lw+10,lyT);ctx.stroke();ctx.setLineDash([]);
       var lbl="ビールはここまで";
       ctx.font="800 11px "+FONT;ctx.textBaseline="middle";
@@ -475,7 +477,7 @@
   function drawHUD(){
     var top=10;
     // スコア
-    ctx.fillStyle="rgba(20,10,4,.55)";rr(W/2-62,top-2,124,62,18);ctx.fill();
+    ctx.fillStyle="rgba(24,14,8,.94)";rr(W/2-62,top-2,124,62,18);ctx.fill();ctx.strokeStyle="rgba(255,210,140,.25)";ctx.lineWidth=1.5;ctx.stroke();
     var sc=1+scorePop*0.25;
     ctx.save();ctx.translate(W/2,top+26);ctx.scale(sc,sc);
     ctx.font="800 34px "+FONT;ctx.textAlign="center";ctx.textBaseline="middle";
