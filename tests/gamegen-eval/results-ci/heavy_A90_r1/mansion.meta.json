@@ -1,1 +1,1 @@
-{"ok":false,"err":"start: {\"error\":\"login_required\"}"}
+{"ok":true,"validateErr":null,"tune":7,"sec":193,"title":"マンション建設パズル","model":"deepseek-flash（思考: high）","yen":4.83,"diag":["0s instance att=1 hop=0 model=deepseek-flash","189s deepseek-flash/high 189s finish=stop out=49343 think=38499 body=24953ch"]}

@@ -1,1 +1,1 @@
-{"ok":false,"err":"start: {\"error\":\"login_required\"}"}
+{"ok":true,"validateErr":null,"tune":8,"sec":161,"title":"ネオンリズムタップ 4レーン","model":"deepseek-flash（思考: high）","yen":4.01,"diag":["189s instance att=1 hop=0 model=deepseek-flash","0s instance att=1 hop=1 model=deepseek-flash","157s deepseek-flash/high 157s finish=stop out=40843 think=31695 body=21005ch"]}

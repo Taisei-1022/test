@@ -1,1 +1,1 @@
-{"ok":false,"err":"start: {\"error\":\"login_required\"}"}
+{"ok":true,"validateErr":null,"tune":7,"sec":167,"title":"おにぎり具あわせパズル","model":"deepseek-flash（思考: high）","yen":4.02,"diag":["0s instance att=1 hop=0 model=deepseek-flash","126s deepseek-flash/high 126s finish=stop out=35453 think=25346 body=23004ch","164s deepseek-flash/high 163s finish=stop out=40992 think=32989 body=19073ch"]}

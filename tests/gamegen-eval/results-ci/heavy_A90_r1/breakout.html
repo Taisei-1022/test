@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
+<title>ブロック崩しDX</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%83%96%E3%83%AD%E3%83%83%E3%82%AF%E5%B4%A9%E3%81%97DX%22%2C%22h%22%3A%22%E7%94%BB%E9%9D%A2%E4%B8%8B%E3%82%92%E3%83%89%E3%83%A9%E3%83%83%E3%82%B0%E3%81%97%E3%81%A6%E3%83%91%E3%83%89%E3%83%AB%E3%82%92%E5%8B%95%E3%81%8B%E3%81%9D%E3%81%86%E3%80%82%E3%82%BF%E3%83%83%E3%83%97%E3%81%A7%E3%83%9C%E3%83%BC%E3%83%AB%E7%99%BA%E5%B0%84%EF%BC%81%E3%83%96%E3%83%AD%E3%83%83%E3%82%AF%E3%82%92%E5%85%A8%E9%83%A8%E5%A3%8A%E3%81%97%E3%81%A65%E3%82%B9%E3%83%86%E3%83%BC%E3%82%B8%E5%88%B6%E8%A6%87%E3%81%9B%E3%82%88%E3%80%82%E3%82%A2%E3%82%A4%E3%83%86%E3%83%A0%E3%81%A7%E3%83%91%E3%83%AF%E3%83%BC%E3%82%A2%E3%83%83%E3%83%97%E3%80%81%E7%88%86%E5%BC%BE%E3%81%A8%E7%A1%AC%E3%81%84%E3%83%96%E3%83%AD%E3%83%83%E3%82%AF%E3%81%AB%E6%B3%A8%E6%84%8F%E3%80%82%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
+html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
+#vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+/* vpstage＝論理480x720（2:3）の箱。HUD・オーバーレイ・ゲームDOMを全部この中に入れ、
+   箱ごと実画面へ拡縮する（座標系はゲーム内で常に1つ） */
+#vpstage{position:fixed;left:0;top:0;width:480px;height:720px;transform-origin:0 0;z-index:1;overflow:hidden}
+#vpdom{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
+#vpdom *{pointer-events:auto}
+.vp-hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
+.vp-hud span:empty{display:none}
+.vp-ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
+.vp-ov h1{font-size:28px}
+.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:340px;white-space:pre-line}
+.vp-ov .vp-big{font-size:44px;font-weight:900;color:#ffd166}
+.vp-btn{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:17px;box-shadow:0 5px 0 rgba(0,0,0,.25);touch-action:manipulation}
+.vp-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.vp-toast{position:absolute;top:52px;left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+[hidden]{display:none!important}
+</style>
+<style id="vpcss">
+/*__VAPPA_CSS__*/
+
+/*__VAPPA_CSS_END__*/
+</style>
+</head><body>
+<canvas id="vpc"></canvas>
+<div id="vpstage">
+  <div id="vpdom"></div>
+  <div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
+  <div class="vp-toast" id="vptoast"></div>
+  <div class="vp-ov" id="vpov">
+    <h1>ブロック崩しDX</h1>
+    <p>画面下をドラッグしてパドルを動かそう。タップでボール発射！ブロックを全部壊して5ステージ制覇せよ。アイテムでパワーアップ、爆弾と硬いブロックに注意。</p>
+    <button class="vp-btn" id="vpstart">スタート</button>
+  </div>
+</div>
+<script id="vpimgs">
+/* ユーザー素材画像 {名前:dataURL}。中身はビルド後にアプリが注入（AIには名前だけ渡る） */
+window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
+</script>
+<script>
+window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
+var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
+// iOS Safari は fillStyle がグラデーション/パターンのオブジェクトのままだと
+// カラー絵文字を fillText できない（何も描かれない）。生成コードは
+// 「背景をグラデで塗る→そのまま絵文字を描く」形を高頻度で書くため、
+// 絵文字を含む fillText の間だけ fillStyle を単色に退避して確実に描く。
+(function(){
+  var _ft=ctx.fillText;
+  function hasEmo(s){
+    for(var i=0;i<s.length;i++){
+      var c=s.charCodeAt(i);
+      if((c>=0x2100&&c<=0x2BFF)||(c>=0xD800&&c<=0xDFFF)||c===0xFE0F)return true;
+    }
+    return false;
+  }
+  ctx.fillText=function(t,x,y,mw){
+    var s=String(t);
+    if(typeof this.fillStyle!=="string"&&hasEmo(s)){
+      var f=this.fillStyle;this.fillStyle="#000";
+      try{mw===undefined?_ft.call(this,s,x,y):_ft.call(this,s,x,y,mw);}
+      finally{this.fillStyle=f;}
+    }else{
+      mw===undefined?_ft.call(this,s,x,y):_ft.call(this,s,x,y,mw);
+    }
+  };
+})();
+// 論理画面は 480x720（2:3）固定。全端末でこのサイズとして描き、ランタイムが
+// vpstage（HUD・オーバーレイ・ゲームDOMを含む箱）ごと実画面へ拡縮する。
+// ゲームコードは端末差を一切考えなくてよい（入力座標も論理系で届く）。
+var W=480,H=720;
+var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
+(function(){
+"use strict";
+var DPR=Math.min(2,window.devicePixelRatio||1);
+function rs(){
+  var vw=window.innerWidth,vh=window.innerHeight;
+  __SC=Math.min(vw/W,vh/H);
+  __OX=(vw-W*__SC)/2;__OY=(vh-H*__SC)/2;
+  cv.width=vw*DPR;cv.height=vh*DPR;
+  ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
+  ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
+  var st=document.getElementById("vpstage");
+  if(st){st.style.transform="scale("+__SC+")";st.style.left=__OX+"px";st.style.top=__OY+"px";}
+  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
+}
+window.addEventListener("resize",rs);rs();
+// 実画面座標→論理座標（タッチ入力用）
+function toLX(x){return (x-__OX)/__SC;}
+function toLY(y){return (y-__OY)/__SC;}
+var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="点";
+// ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
+var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
+var hud=document.getElementById("vphud"),hl=document.getElementById("vphl"),hr=document.getElementById("vphr");
+var ov=document.getElementById("vpov"),toastEl=document.getElementById("vptoast"),tt=null,last=performance.now();
+window.Game={
+  img:function(n){return IMGS[n]||null;},
+  score:function(n){hl.textContent=(n|0)+unit;},
+  hud:function(t){hr.textContent=t==null?"":String(t);},
+  float:function(x,y,t,c){floats.push({x:x,y:y,t:String(t),c:c||"#fff",age:0});},
+  toast:function(t){toastEl.textContent=t;toastEl.style.opacity=1;clearTimeout(tt);tt=setTimeout(function(){toastEl.style.opacity=0;},2000);},
+  over:function(s){
+    if(!playing||ended)return;ended=true;playing=false;s=Math.max(0,Math.floor(Number(s)||0));
+    ov.innerHTML='<h1>おわり！</h1><div class="vp-big">'+s+'<small style="font-size:20px">'+unit+'</small></div><button class="vp-btn" id="vpagain">もういちど</button>';
+    ov.hidden=false;
+    document.getElementById("vpagain").addEventListener("click",start);
+    try{window.Arcade.gameOver(s);}catch(e){}
+  }
+};
+function crash(e){
+  if(crashed)return;crashed=true;playing=false;
+  try{window.__VP_ERR=String(e&&(e.stack||e.message)||e).slice(0,600);}catch(x){}
+  ov.innerHTML='<h1>😢 エラーが発生</h1><p>ゲームにエラーが起きました。<br>作成チャットで「エラーを直して」と伝えると修理できるよ。</p><button class="vp-btn" id="vpagain">もういちど</button>';
+  ov.hidden=false;
+  document.getElementById("vpagain").addEventListener("click",start);
+}
+function start(){
+  floats=[];ended=false;crashed=false;
+  try{window.init();}catch(e){crash(e);return;}
+  window.Game.score(0);ov.hidden=true;hud.hidden=false;playing=true;last=performance.now();
+}
+document.getElementById("vpstart").addEventListener("click",start);
+function fire(fn,x,y,id){
+  if(!playing||paused)return;
+  if(typeof window[fn]==="function"){try{window[fn](x,y,id);}catch(err){crash(err);}}
+}
+// pointer と touch を両対応（iOSのiframe内などpointerが飛ばない環境へのフォールバック）。
+// pointerが一度でも来たらtouchは無視して二重発火を防ぐ。
+var seenPointer=false;
+window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",toLX(e.clientX),toLY(e.clientY),e.pointerId);fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointermove",function(e){fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointerup",function(e){fire("onUp",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+// タッチの扱い（iOS対策の要点）：
+//  - touchstart は preventDefault しない
+//  - touchmove は非passiveで preventDefault → パン/スクロール横取りはこれで止まる
+//  - touchend はボタン類「以外」でだけ preventDefault → iOSのダブルタップズーム
+//    （touch-action:noneでは止まらない端末がある）を殺しつつ、ボタンの click 合成は守る
+//  - preventDefault すると iOS は click を合成しない → 生成コードが div/span で
+//    自作ボタンを作った場合に全操作不能になる。そこで「タップ」（移動が小さく
+//    短いタッチ）に限り、こちらで click を合成して補う。本物の button 等は
+//    preventDefault しない＝ネイティブ click が来るので合成しない（二重防止）
+//  - pointerイベントが来る環境では発火だけ二重防止（seenPointer）
+function tfire(fn,e){
+  if(seenPointer)return;
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,toLX(t.clientX),toLY(t.clientY),t.identifier);
+    if(fn==="onDown")fire("onMove",toLX(t.clientX),toLY(t.clientY),t.identifier);}
+}
+function uiTouch(e){var t=e.target;return !!(t&&t.closest&&t.closest("button,a,input,select,label"));}
+var tstart={};
+window.addEventListener("touchstart",function(e){
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];tstart[t.identifier]={x:t.clientX,y:t.clientY,at:Date.now()};}
+  tfire("onDown",e);
+},{passive:true});
+window.addEventListener("touchmove",function(e){if(e.cancelable)e.preventDefault();tfire("onMove",e);},{passive:false});
+window.addEventListener("touchend",function(e){
+  var prevented=false;
+  if(e.cancelable&&!uiTouch(e)){e.preventDefault();prevented=true;}
+  if(prevented){
+    for(var i=0;i<e.changedTouches.length;i++){
+      var t=e.changedTouches[i],s=tstart[t.identifier];
+      if(s&&Math.abs(t.clientX-s.x)<14&&Math.abs(t.clientY-s.y)<14&&Date.now()-s.at<1500){
+        var el=document.elementFromPoint(t.clientX,t.clientY)||e.target;
+        if(el){try{el.dispatchEvent(new MouseEvent("click",{bubbles:true,cancelable:true,view:window,clientX:t.clientX,clientY:t.clientY}));}catch(err){}}
+      }
+    }
+  }
+  for(var j=0;j<e.changedTouches.length;j++)delete tstart[e.changedTouches[j].identifier];
+  tfire("onUp",e);
+},{passive:false});
+document.addEventListener("gesturestart",function(e){e.preventDefault();});
+window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",toLX(e.clientX),toLY(e.clientY),0);});
+window.Arcade.onPause(function(){paused=true;});
+window.Arcade.onResume(function(){paused=false;last=performance.now();});
+window.Arcade.onRestart(start);
+document.addEventListener("visibilitychange",function(){if(document.hidden){paused=true;}else{paused=false;last=performance.now();}});
+function loop(now){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(now-last)/1000);last=now;
+  if(crashed)return;
+  if(playing&&!paused){try{window.update(dt);}catch(e){crash(e);return;}}
+  if(playing||ended){try{window.draw();}catch(e){crash(e);return;}}
+  for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.age+=dt;
+    if(f.age>1){floats.splice(i,1);continue;}
+    ctx.save();ctx.globalAlpha=Math.max(0,1-f.age);ctx.font="bold 16px sans-serif";ctx.textAlign="center";
+    ctx.fillStyle=f.c;ctx.fillText(f.t,f.x,f.y-f.age*30);ctx.restore();}
+}
+requestAnimationFrame(loop);
+window.Arcade.ready();
+// 自動テストプレイ用フック：親(アプリ)がスモークテストで入力を一発流すのに使う
+window.__vpTap=function(){
+  fire("onDown",W/2,H/2,1);fire("onMove",W/2+40,H/2,1);fire("onUp",W/2+40,H/2,1);
+};
+})();
+</script>
+<script id="vpgame">
+/*__VAPPA_JS__*/
+var TUNE = {
+  ballSpeed: { v: 250, label: 'ボール初速', min: 150, max: 420, step: 10 },
+  speedUp:   { v: 20,  label: 'ステージ毎の加速', min: 0, max: 60, step: 2 },
+  paddleW:   { v: 96,  label: 'パドル幅', min: 60, max: 150, step: 4 },
+  lives:     { v: 3,   label: 'ライフ数', min: 1, max: 9, step: 1 },
+  itemRate:  { v: 0.22, label: 'アイテム出現率', min: 0, max: 0.6, step: 0.02 },
+  comboTime: { v: 1.6, label: 'コンボ継続(秒)', min: 0.5, max: 4, step: 0.1 },
+  bossHp:    { v: 28,  label: 'ボスHP', min: 10, max: 60, step: 2 }
+};
+
+var FIELD = { left: 8, right: 472, top: 58, bottom: 716 };
+var GRID = { x: 20, y: 132, cw: 44, ch: 30, bw: 42, bh: 27, cols: 10 };
+
+var ITEM_EMOJI = { multi: '🔮', extend: '📏', laser: '🔫', pierce: '🔥', slow: '🐢', life: '❤️', shrink: '🔻', fast: '⚡' };
+var ITEM_NAME  = { multi: 'マルチボール', extend: 'パドル拡大', laser: 'レーザー砲', pierce: '貫通ボール', slow: 'スローボール', life: '1UP', shrink: 'パドル縮小', fast: 'ボール加速' };
+
+var LAYOUTS = [
+  [
+    'nnnnnnnnnn',
+    '.hhinnihh.',
+    'b..nnnn..b'
+  ],
+  [
+    '....nn....',
+    '...hhhh...',
+    '..nnnnnn..',
+    '.nnnnnnnn.',
+    'nnnnnnnnnn'
+  ],
+  [
+    '.nnn..nnn.',
+    'nnnnnnnnnn',
+    '.hhhhhhhh.',
+    '..bbnnbb..',
+    '...hhhh...',
+    '....ii....'
+  ],
+  [
+    'hnnnnnnnnh',
+    'n.ssssss.n',
+    'n.hhhhhh.n',
+    'nnnnnnnnnn'
+  ],
+  [
+    '..nnnnnn..',
+    '..hnnnnh..'
+  ]
+];
+
+var paddle, balls, blocks, items, lasers, particles, boss;
+var lives, score, stage, combo, comboT;
+var laserT, laserCd, pierceT, slowT, fastT, wideT, shrinkT;
+var shake, state, clearT, dragId, timeAll;
+
+function init(){
+  paddle = { x: W/2, w: TUNE.paddleW.v, h: 14, y: 660 };
+  balls = []; blocks = []; items = []; lasers = []; particles = []; boss = null;
+  lives = TUNE.lives.v;
+  score = 0;
+  stage = 1;
+  combo = 0; comboT = 0;
+  laserT = 0; laserCd = 0; pierceT = 0; slowT = 0; fastT = 0; wideT = 0; shrinkT = 0;
+  shake = 0; state = 'play'; clearT = 0; dragId = -1; timeAll = 0;
+  loadStage(1);
+  resetBall();
+  Game.score(0);
+  updateHud();
+}
+
+function updateHud(){
+  var s;
+  if (lives <= 5) s = '❤️'.repeat(Math.max(0, lives));
+  else s = '❤️×' + lives;
+  s += ' ST' + stage;
+  Game.hud(s);
+}
+
+function loadStage(n){
+  blocks = []; items = []; lasers = []; boss = null;
+  var lay = LAYOUTS[n-1];
+  for (var r = 0; r < lay.length; r++){
+    var row = lay[r];
+    for (var c = 0; c < GRID.cols; c++){
+      var ch = row.charAt(c);
+      if (ch === '.') continue;
+      blocks.push(makeBlock(c, r, ch));
+    }
+  }
+  if (n === 5){
+    boss = { x: 170, y: 320, w: 140, h: 48, vx: 90, vy: 26, hp: TUNE.bossHp.v, max: TUNE.bossHp.v, flash: 0, cd: 0 };
+  }
+}
+
+function makeBlock(c, r, ch){
+  var b = {
+    x: GRID.x + c*GRID.cw + 1,
+    y: GRID.y + r*GRID.ch + 1,
+    w: GRID.bw, h: GRID.bh,
+    type: ch, hp: 1, maxHp: 1, cd: 0, flash: 0, dead: false,
+    col: '#4fc3f7', dark: '#1565c0'
+  };
+  var hues = [200, 270, 320, 25, 155, 45];
+  var hue = hues[r % 6];
+  if (ch === 'n'){ b.hp = 1; b.col = 'hsl(' + hue + ',88%,62%)'; b.dark = 'hsl(' + hue + ',80%,28%)'; }
+  else if (ch === 'h'){ b.hp = 2; b.col = '#ffb74d'; b.dark = '#c04a00'; }
+  else if (ch === 'H'){ b.hp = 3; b.col = '#ba68c8'; b.dark = '#5e1a8a'; }
+  else if (ch === 's'){ b.hp = Infinity; b.col = '#9aa7bd'; b.dark = '#3f4a5e'; }
+  else if (ch === 'b'){ b.hp = 1; b.col = '#ff7043'; b.dark = '#8c2000'; }
+  else if (ch === 'i'){ b.hp = 1; b.col = '#ffd54f'; b.dark = '#b06a00'; }
+  b.maxHp = b.hp;
+  return b;
+}
+
+function resetBall(){
+  balls = [];
+  balls.push({ x: paddle.x, y: paddle.y - 16, vx: 0, vy: -1, r: 7, stuck: true, off: 0 });
+  combo = 0; comboT = 0;
+  laserT = 0; pierceT = 0; slowT = 0; fastT = 0; wideT = 0; shrinkT = 0;
+  lasers = [];
+}
+
+function baseSpeed(){ return TUNE.ballSpeed.v + (stage - 1) * TUNE.speedUp.v; }
+function speedMul(){
+  var m = 1;
+  if (slowT > 0) m *= 0.62;
+  if (fastT > 0) m *= 1.42;
+  return m;
+}
+
+function movePaddle(x){
+  var hw = paddle.w / 2;
+  if (x < FIELD.left + hw) x = FIELD.left + hw;
+  if (x > FIELD.right - hw) x = FIELD.right - hw;
+  paddle.x = x;
+}
+
+function clampPaddle(){
+  var hw = paddle.w / 2;
+  if (paddle.x < FIELD.left + hw) paddle.x = FIELD.left + hw;
+  if (paddle.x > FIELD.right - hw) paddle.x = FIELD.right - hw;
+}
+
+function launch(){
+  for (var i = 0; i < balls.length; i++){
+    var b = balls[i];
+    if (b.stuck){
+      b.stuck = false;
+      var ang = Math.random() * 0.6 - 0.3;
+      b.vx = Math.sin(ang);
+      b.vy = -Math.cos(ang);
+    }
+  }
+}
+
+function onDown(x, y, id){
+  if (state !== 'play') return;
+  if (dragId === -1 && y > 380){ dragId = id; movePaddle(x); }
+  launch();
+}
+function onMove(x, y, id){ if (id === dragId) movePaddle(x); }
+function onUp(x, y, id){ if (id === dragId) dragId = -1; }
+
+function breakableLeft(){
+  var n = 0;
+  for (var i = 0; i < blocks.length; i++){
+    if (!blocks[i].dead && blocks[i].type !== 's') n++;
+  }
+  return n;
+}
+
+function update(dt){
+  timeAll += dt;
+  updateParticles(dt);
+  if (shake > 0) shake -= dt;
+
+  if (state === 'over') return;
+
+  if (state === 'clear'){
+    clearT -= dt;
+    if (clearT <= 0){
+      if (stage >= 5){ state = 'over'; Game.over(score); return; }
+      stage++;
+      loadStage(stage);
+      resetBall();
+      state = 'play';
+      updateHud();
+      Game.toast('STAGE ' + stage + ' スタート！');
+    }
+    return;
+  }
+
+  var i, j;
+
+  if (comboT > 0){ comboT -= dt; if (comboT <= 0) combo = 0; }
+  if (laserT > 0) laserT -= dt;
+  if (pierceT > 0) pierceT -= dt;
+  if (slowT > 0) slowT -= dt;
+  if (fastT > 0) fastT -= dt;
+  if (wideT > 0) wideT -= dt;
+  if (shrinkT > 0) shrinkT -= dt;
+
+  var tw = TUNE.paddleW.v;
+  if (wideT > 0) tw *= 1.45;
+  if (shrinkT > 0) tw *= 0.62;
+  paddle.w += (tw - paddle.w) * Math.min(1, dt * 8);
+  clampPaddle();
+
+  for (i = blocks.length - 1; i >= 0; i--){
+    var bk = blocks[i];
+    if (bk.dead){ blocks.splice(i, 1); continue; }
+    if (bk.cd > 0) bk.cd -= dt;
+    if (bk.flash > 0) bk.flash -= dt;
+  }
+
+  for (i = items.length - 1; i >= 0; i--){
+    var it = items[i];
+    it.y += it.vy * dt;
+    it.t += dt;
+    if (it.y > paddle.y - 14 && it.y < paddle.y + 22 && Math.abs(it.x - paddle.x) < paddle.w/2 + 14){
+      applyItem(it.kind);
+      Game.float(it.x, it.y, ITEM_NAME[it.kind], it.bad ? '#ff8080' : '#7dffa0');
+      items.splice(i, 1);
+      continue;
+    }
+    if (it.y > H + 30) items.splice(i, 1);
+  }
+
+  laserCd -= dt;
+  if (laserT > 0 && laserCd <= 0){
+    laserCd = 0.38;
+    lasers.push({ x: paddle.x - paddle.w * 0.36, y: paddle.y - 8 });
+    lasers.push({ x: paddle.x + paddle.w * 0.36, y: paddle.y - 8 });
+  }
+  for (i = lasers.length - 1; i >= 0; i--){
+    var L = lasers[i];
+    L.y -= 720 * dt;
+    if (L.y < FIELD.top){ lasers.splice(i, 1); continue; }
+    var hit = false;
+    for (j = 0; j < blocks.length; j++){
+      var bb = blocks[j];
+      if (bb.dead) continue;
+      if (L.x > bb.x && L.x < bb.x + bb.w && L.y > bb.y && L.y < bb.y + bb.h){
+        if (bb.type === 's'){ burst(L.x, L.y, '#cfe4ff', 3); }
+        else damageBlock(bb, 1);
+        hit = true; break;
+      }
+    }
+    if (!hit && boss && boss.hp > 0 && L.x > boss.x && L.x < boss.x + boss.w && L.y > boss.y && L.y < boss.y + boss.h){
+      damageBoss(1); hit = true;
+    }
+    if (hit) lasers.splice(i, 1);
+  }
+
+  if (boss && boss.hp > 0){
+    var bsp = 1 + (1 - boss.hp / boss.max) * 1.5;
+    boss.x += boss.vx * bsp * dt;
+    boss.y += boss.vy * bsp * dt;
+    if (boss.x < FIELD.left + 8){ boss.x = FIELD.left + 8; boss.vx = Math.abs(boss.vx); }
+    if (boss.x + boss.w > FIELD.right - 8){ boss.x = FIELD.right - 8 - boss.w; boss.vx = -Math.abs(boss.vx); }
+    if (boss.y < 250){ boss.y = 250; boss.vy = Math.abs(boss.vy); }
+    if (boss.y + boss.h > 402){ boss.y = 402 - boss.h; boss.vy = -Math.abs(boss.vy); }
+    if (boss.cd > 0) boss.cd -= dt;
+    if (boss.flash > 0) boss.flash -= dt;
+  }
+
+  var target = baseSpeed() * speedMul();
+  for (i = balls.length - 1; i >= 0; i--){
+    var ball = balls[i];
+    if (ball.stuck){
+      ball.x = paddle.x + ball.off;
+      ball.y = paddle.y - 15;
+      continue;
+    }
+    var m = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+    if (m > 0.001){ ball.vx = ball.vx / m * target; ball.vy = ball.vy / m * target; }
+    else { ball.vx = 0; ball.vy = -target; }
+
+    var steps = Math.ceil(target * dt / 5);
+    if (steps < 1) steps = 1;
+    if (steps > 26) steps = 26;
+    var sdt = dt / steps;
+    var dead = false;
+    for (var s = 0; s < steps; s++){
+      ball.x += ball.vx * sdt;
+      ball.y += ball.vy * sdt;
+      if (ball.x - ball.r < FIELD.left){ ball.x = FIELD.left + ball.r; ball.vx = Math.abs(ball.vx); }
+      if (ball.x + ball.r > FIELD.right){ ball.x = FIELD.right - ball.r; ball.vx = -Math.abs(ball.vx); }
+      if (ball.y - ball.r < FIELD.top){ ball.y = FIELD.top + ball.r; ball.vy = Math.abs(ball.vy); }
+      if (ball.y - ball.r > FIELD.bottom){ dead = true; break; }
+      collidePaddle(ball);
+      collideBlockList(ball);
+      if (boss && boss.hp > 0) collideBoss(ball);
+    }
+    if (dead) balls.splice(i, 1);
+  }
+
+  if (balls.length === 0 && state === 'play'){
+    lives--;
+    updateHud();
+    shake = 0.5;
+    if (lives <= 0){ state = 'over'; Game.over(score); return; }
+    Game.toast('ミス！ 残りライフ ' + lives);
+    resetBall();
+  }
+
+  if (state === 'play'){
+    var cleared = (breakableLeft() === 0) && (!boss || boss.hp <= 0);
+    if (cleared){
+      var bonus = 500 * stage;
+      score += bonus;
+      Game.score(score);
+      Game.float(W/2, 330, 'STAGE CLEAR +' + bonus, '#ffd166');
+      Game.toast('ステージクリア！ +' + bonus);
+      shake = 0.35;
+      for (var k = 0; k < 24; k++){
+        burst(FIELD.left + Math.random() * (FIELD.right - FIELD.left), 120 + Math.random() * 260, '#ffe082', 3);
+      }
+      state = 'clear';
+      clearT = 1.7;
+    }
+  }
+}
+
+function collidePaddle(ball){
+  if (ball.vy <= 0) return;
+  var px = paddle.x - paddle.w / 2;
+  var py = paddle.y;
+  if (ball.y + ball.r < py || ball.y - ball.r > py + paddle.h) return;
+  if (ball.x + ball.r < px || ball.x - ball.r > px + paddle.w) return;
+  var rel = (ball.x - paddle.x) / (paddle.w / 2);
+  if (rel < -1) rel = -1;
+  if (rel > 1) rel = 1;
+  var ang = rel * 1.05;
+  var sp = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+  if (sp < 1) sp = baseSpeed();
+  ball.vx = Math.sin(ang) * sp;
+  ball.vy = -Math.cos(ang) * sp;
+  ball.y = py - ball.r - 0.5;
+  combo = 0; comboT = 0;
+  burst(ball.x, py, '#7fd8ff', 3);
+}
+
+function collideBlockList(ball){
+  for (var i = 0; i < blocks.length; i++){
+    var b = blocks[i];
+    if (b.dead) continue;
+    if (ball.x + ball.r < b.x || ball.x - ball.r > b.x + b.w) continue;
+    if (ball.y + ball.r < b.y || ball.y - ball.r > b.y + b.h) continue;
+    hitBlock(b, ball);
+  }
+}
+
+function hitBlock(b, ball){
+  var pierce = (pierceT > 0) && (b.type !== 's');
+  if (!pierce){
+    var ox = Math.min(ball.x + ball.r - b.x, b.x + b.w - (ball.x - ball.r));
+    var oy = Math.min(ball.y + ball.r - b.y, b.y + b.h - (ball.y - ball.r));
+    if (ox < oy){
+      ball.vx = -ball.vx;
+      ball.x += (ball.x < b.x + b.w / 2) ? -ox : ox;
+    } else {
+      ball.vy = -ball.vy;
+      ball.y += (ball.y < b.y + b.h / 2) ? -oy : oy;
+    }
+    var sp = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+    if (sp > 1 && Math.abs(ball.vy) < sp * 0.22){
+      ball.vy = (ball.vy < 0 ? -1 : 1) * sp * 0.22;
+      var nx = Math.sqrt(Math.max(0.0001, sp * sp - ball.vy * ball.vy));
+      ball.vx = (ball.vx < 0 ? -1 : 1) * nx;
+    }
+  }
+  if (b.type === 's'){
+    burst(ball.x, ball.y, '#cfe4ff', 4);
+    return;
+  }
+  if (b.cd > 0) return;
+  b.cd = 0.08;
+  damageBlock(b, 1);
+}
+
+function collideBoss(ball){
+  var b = boss;
+  if (ball.x + ball.r < b.x || ball.x - ball.r > b.x + b.w) return;
+  if (ball.y + ball.r < b.y || ball.y - ball.r > b.y + b.h) return;
+  var ox = Math.min(ball.x + ball.r - b.x, b.x + b.w - (ball.x - ball.r));
+  var oy = Math.min(ball.y + ball.r - b.y, b.y + b.h - (ball.y - ball.r));
+  if (ox < oy){
+    ball.vx = -ball.vx;
+    ball.x += (ball.x < b.x + b.w / 2) ? -ox : ox;
+  } else {
+    ball.vy = -ball.vy;
+    ball.y += (ball.y < b.y + b.h / 2) ? -oy : oy;
+  }
+  if (b.cd > 0) return;
+  b.cd = 0.12;
+  damageBoss(1);
+}
+
+function damageBoss(d){
+  if (!boss || boss.hp <= 0) return;
+  boss.hp -= d;
+  boss.flash = 0.12;
+  score += 5;
+  Game.score(score);
+  burst(boss.x + Math.random() * boss.w, boss.y + Math.random() * boss.h, '#ff7043', 5);
+  if (boss.hp <= 0){
+    boss.hp = 0;
+    shake = 0.65;
+    for (var k = 0; k < 6; k++){
+      burst(boss.x + boss.w * (k + 0.5) / 6, boss.y + boss.h / 2, '#ffd166', 12);
+    }
+    Game.float(boss.x + boss.w / 2, boss.y, 'BOSS DOWN!', '#ffd166');
+  }
+}
+
+function damageBlock(b, dmg){
+  if (b.dead || b.type === 's') return;
+  b.hp -= dmg;
+  b.flash = 0.12;
+  if (b.hp <= 0) destroyBlock(b);
+}
+
+function destroyBlock(b){
+  if (b.dead) return;
+  b.dead = true;
+  combo++;
+  comboT = TUNE.comboTime.v;
+  var base = 10;
+  if (b.type === 'h') base = 25;
+  else if (b.type === 'H') base = 40;
+  else if (b.type === 'b') base = 20;
+  else if (b.type === 'i') base = 15;
+  var mult = 1 + Math.min(combo - 1, 15) * 0.2;
+  var pts = Math.round(base * mult);
+  score += pts;
+  Game.score(score);
+  if (combo > 1) Game.float(b.x + b.w / 2, b.y, '+' + pts + ' x' + combo, '#ffe082');
+  else Game.float(b.x + b.w / 2, b.y, '+' + pts, '#ffe082');
+  burst(b.x + b.w / 2, b.y + b.h / 2, b.col, 9);
+  shake = Math.min(0.28, shake + 0.05);
+
+  if (b.type === 'b'){
+    explodeBlock(b);
+  } else if (b.type === 'i'){
+    dropItem(b.x + b.w / 2, b.y + b.h / 2, true);
+  } else {
+    dropItem(b.x + b.w / 2, b.y + b.h / 2, false);
+  }
+}
+
+function explodeBlock(b){
+  var cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+  burst(cx, cy, '#ffab40', 18);
+  shake = 0.38;
+  var R = 84;
+  for (var i = 0; i < blocks.length; i++){
+    var o = blocks[i];
+    if (o === b || o.dead || o.type === 's') continue;
+    var dx = (o.x + o.w / 2) - cx;
+    var dy = (o.y + o.h / 2) - cy;
+    if (dx * dx + dy * dy < R * R) damageBlock(o, 99);
+  }
+}
+
+function dropItem(x, y, force){
+  if (!force && Math.random() > TUNE.itemRate.v) return;
+  var r = Math.random();
+  var kind, bad = false;
+  if (r < 0.30) kind = 'multi';
+  else if (r < 0.52) kind = 'extend';
+  else if (r < 0.70) kind = 'laser';
+  else if (r < 0.82) kind = 'pierce';
+  else if (r < 0.90) kind = 'slow';
+  else if (r < 0.95) kind = 'life';
+  else if (r < 0.975){ kind = 'shrink'; bad = true; }
+  else { kind = 'fast'; bad = true; }
+  items.push({ x: x, y: y, vy: 145, t: 0, kind: kind, bad: bad });
+}
+
+function applyItem(kind){
+  var i, b;
+  if (kind === 'multi'){
+    var n = balls.length;
+    for (i = 0; i < n; i++){
+      b = balls[i];
+      if (b.stuck){ b.stuck = false; b.vx = 0.35; b.vy = -1; }
+    }
+    var add = [];
+    for (i = 0; i < balls.length && (balls.length + add.length) < 9; i++){
+      b = balls[i];
+      var ang = Math.atan2(b.vy, b.vx);
+      add.push({ x: b.x, y: b.y, vx: Math.cos(ang + 0.5), vy: Math.sin(ang + 0.5), r: 7, stuck: false });
+      if (balls.length + add.length < 9){
+        add.push({ x: b.x, y: b.y, vx: Math.cos(ang - 0.5), vy: Math.sin(ang - 0.5), r: 7, stuck: false });
+      }
+    }
+    balls = balls.concat(add);
+  }
+  else if (kind === 'extend'){ wideT = 15; shrinkT = 0; }
+  else if (kind === 'shrink'){ shrinkT = 10; wideT = 0; }
+  else if (kind === 'laser'){ laserT = 9; laserCd = 0; }
+  else if (kind === 'pierce'){ pierceT = 8; }
+  else if (kind === 'slow'){ slowT = 8; fastT = 0; }
+  else if (kind === 'fast'){ fastT = 8; slowT = 0; }
+  else if (kind === 'life'){ lives = Math.min(9, lives + 1); updateHud(); }
+}
+
+function burst(x, y, col, n){
+  for (var i = 0; i < n; i++){
+    if (particles.length > 220) return;
+    var a = Math.random() * 6.2832;
+    var sp = 60 + Math.random() * 190;
+    particles.push({
+      x: x, y: y,
+      vx: Math.cos(a) * sp,
+      vy: Math.sin(a) * sp - 50,
+      life: 0.45 + Math.random() * 0.45,
+      col: col,
+      s: 2 + Math.random() * 3.5
+    });
+  }
+}
+
+function updateParticles(dt){
+  for (var i = particles.length - 1; i >= 0; i--){
+    var p = particles[i];
+    p.life -= dt;
+    if (p.life <= 0){ particles.splice(i, 1); continue; }
+    p.vy += 430 * dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vx *= 0.99;
+  }
+}
+
+function rrect(x, y, w, h, r){
+  if (w < 2 * r) r = w / 2;
+  if (h < 2 * r) r = h / 2;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function draw(){
+  ctx.fillStyle = '#070b18';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.strokeStyle = 'rgba(70,120,220,0.10)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (var gx = 0; gx <= W; gx += 48){ ctx.moveTo(gx + 0.5, 0); ctx.lineTo(gx + 0.5, H); }
+  for (var gy = 0; gy <= H; gy += 48){ ctx.moveTo(0, gy + 0.5); ctx.lineTo(W, gy + 0.5); }
+  ctx.stroke();
+
+  var ox = 0, oy = 0;
+  if (shake > 0){
+    ox = (Math.random() * 2 - 1) * shake * 26;
+    oy = (Math.random() * 2 - 1) * shake * 26;
+  }
+  ctx.save();
+  ctx.translate(ox, oy);
+
+  ctx.strokeStyle = 'rgba(90,200,255,0.35)';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(FIELD.left, FIELD.top, FIELD.right - FIELD.left, FIELD.bottom - FIELD.top);
+  ctx.strokeStyle = 'rgba(90,200,255,0.10)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(FIELD.left + 3.5, FIELD.top + 3.5, FIELD.right - FIELD.left - 7, FIELD.bottom - FIELD.top - 7);
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  for (var i = 0; i < blocks.length; i++) drawBlock(blocks[i]);
+
+  if (boss && boss.hp > 0) drawBoss();
+
+  for (i = 0; i < items.length; i++){
+    var it = items[i];
+    var bob = Math.sin(it.t * 8) * 2;
+    ctx.font = "26px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillStyle = it.bad ? 'rgba(255,60,60,0.35)' : 'rgba(120,255,180,0.30)';
+    ctx.beginPath();
+    ctx.arc(it.x, it.y + bob, 17, 0, 6.2832);
+    ctx.fill();
+    ctx.fillText(ITEM_EMOJI[it.kind], it.x, it.y + bob + 1);
+  }
+
+  for (i = 0; i < lasers.length; i++){
+    var L = lasers[i];
+    ctx.fillStyle = 'rgba(120,255,255,0.22)';
+    ctx.fillRect(L.x - 5, L.y - 20, 10, 26);
+    ctx.fillStyle = 'rgba(160,255,255,0.95)';
+    ctx.fillRect(L.x - 1.5, L.y - 16, 3, 18);
+  }
+
+  for (i = 0; i < particles.length; i++){
+    var p = particles[i];
+    ctx.globalAlpha = Math.max(0, Math.min(1, p.life * 2.2));
+    ctx.fillStyle = p.col;
+    ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s);
+  }
+  ctx.globalAlpha = 1;
+
+  drawPaddle();
+
+  for (i = 0; i < balls.length; i++) drawBall(balls[i]);
+
+  var anyStuck = false;
+  for (i = 0; i < balls.length; i++) if (balls[i].stuck) anyStuck = true;
+  if (anyStuck && state === 'play'){
+    ctx.fillStyle = 'rgba(255,255,255,' + (0.45 + Math.sin(timeAll * 5) * 0.25) + ')';
+    ctx.font = "15px sans-serif";
+    ctx.fillText('タップで発射！', W / 2, 618);
+  }
+
+  ctx.restore();
+}
+
+function drawBlock(b){
+  var x = b.x, y = b.y, w = b.w, h = b.h, k;
+  ctx.fillStyle = b.dark;
+  rrect(x, y, w, h, 5);
+  ctx.fill();
+  ctx.fillStyle = (b.flash > 0) ? '#ffffff' : b.col;
+  rrect(x + 2, y + 2, w - 4, h - 4, 4);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.32)';
+  rrect(x + 5, y + 4, w - 10, h * 0.30, 3);
+  ctx.fill();
+
+  if (b.type === 's'){
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    for (k = 1; k < 4; k++) ctx.fillRect(x + 3 + k * 9, y + 3, 3, h - 6);
+  }
+  if ((b.type === 'n' || b.type === 'h' || b.type === 'H') && b.hp < b.maxHp){
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x + w * 0.22, y + 3);
+    ctx.lineTo(x + w * 0.38, y + h - 3);
+    ctx.moveTo(x + w * 0.62, y + 2);
+    ctx.lineTo(x + w * 0.72, y + h - 2);
+    if (b.maxHp - b.hp >= 2){
+      ctx.moveTo(x + w * 0.46, y + 3);
+      ctx.lineTo(x + w * 0.52, y + h * 0.62);
+    }
+    ctx.stroke();
+  }
+  if (b.type === 'b'){
+    ctx.font = "16px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText('💥', x + w / 2, y + h / 2 + 1);
+  }
+  if (b.type === 'i'){
+    ctx.font = "16px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText('🎁', x + w / 2, y + h / 2 + 1);
+  }
+}
+
+function drawBoss(){
+  var b = boss;
+  ctx.fillStyle = 'rgba(255,80,80,0.20)';
+  rrect(b.x - 6, b.y - 6, b.w + 12, b.h + 12, 10);
+  ctx.fill();
+  ctx.fillStyle = '#3b0d1a';
+  rrect(b.x, b.y, b.w, b.h, 8);
+  ctx.fill();
+  ctx.fillStyle = (b.flash > 0) ? '#ffffff' : '#e53935';
+  rrect(b.x + 3, b.y + 3, b.w - 6, b.h - 6, 6);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.28)';
+  rrect(b.x + 9, b.y + 7, b.w - 18, b.h * 0.28, 4);
+  ctx.fill();
+  ctx.font = "30px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  ctx.fillText('👹', b.x + b.w / 2, b.y + b.h / 2 + 2);
+
+  var bw = b.w;
+  var bx = b.x;
+  var by = b.y - 15;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  rrect(bx - 2, by - 2, bw + 4, 14, 7);
+  ctx.fill();
+  var r = b.hp / b.max;
+  if (r < 0) r = 0;
+  ctx.fillStyle = (r > 0.5) ? '#66e36b' : (r > 0.25 ? '#ffd166' : '#ff5252');
+  rrect(bx, by, Math.max(4, bw * r), 10, 5);
+  ctx.fill();
+}
+
+function drawPaddle(){
+  var x = paddle.x - paddle.w / 2;
+  var y = paddle.y;
+  var w = paddle.w;
+  var h = paddle.h;
+  ctx.fillStyle = 'rgba(90,200,255,0.18)';
+  rrect(x - 4, y - 5, w + 8, h + 12, 9);
+  ctx.fill();
+  ctx.fillStyle = '#12314f';
+  rrect(x, y, w, h, 7);
+  ctx.fill();
+  ctx.fillStyle = fastT > 0 ? '#ff8a65' : '#4fc3f7';
+  rrect(x + 2, y + 2, w - 4, h - 5, 5);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  rrect(x + 7, y + 3.5, w - 14, 3, 2);
+  ctx.fill();
+  if (laserT > 0){
+    ctx.fillStyle = '#ff5ec4';
+    ctx.fillRect(x + w * 0.16 - 3, y - 7, 6, 8);
+    ctx.fillRect(x + w * 0.84 - 3, y - 7, 6, 8);
+  }
+}
+
+function drawBall(b){
+  var fast = fastT > 0;
+  var pierce = pierceT > 0;
+  var c = fast ? '255,80,80' : (pierce ? '200,120,255' : '120,220,255');
+  ctx.fillStyle = 'rgba(' + c + ',0.28)';
+  ctx.beginPath();
+  ctx.arc(b.x, b.y, b.r * 2.2, 0, 6.2832);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(' + c + ',0.60)';
+  ctx.beginPath();
+  ctx.arc(b.x, b.y, b.r * 1.4, 0, 6.2832);
+  ctx.fill();
+  ctx.fillStyle = fast ? '#ff5252' : (pierce ? '#e6ccff' : '#ffffff');
+  ctx.beginPath();
+  ctx.arc(b.x, b.y, b.r, 0, 6.2832);
+  ctx.fill();
+}
+/*__VAPPA_JS_END__*/
+</script>
+</body></html>

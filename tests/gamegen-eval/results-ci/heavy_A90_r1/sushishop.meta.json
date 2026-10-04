@@ -1,1 +1,1 @@
-{"ok":false,"err":"start: {\"error\":\"login_required\"}"}
+{"ok":true,"validateErr":null,"tune":8,"sec":193,"title":"回転ずし店長 90秒チャレンジ","model":"deepseek-flash（思考: high）","yen":4.53,"diag":["86s instance att=1 hop=0 model=deepseek-flash","0s instance att=1 hop=1 model=deepseek-flash","186s deepseek-flash/high 186s finish=stop out=46315 think=37988 body=19179ch"]}
