@@ -1,8 +1,32 @@
-{ "runs": [
-  { "set": "heavy", "tag": "heavy_A_r1" },
-  { "set": "heavy", "tag": "heavy_A90_r1", "maxout": "90000" },
-  { "set": "heavy", "tag": "heavy_A_r2" },
-  { "set": "heavy", "tag": "heavy_A90_r2", "maxout": "90000" },
-  { "set": "heavy", "tag": "heavy_A_r3" },
-  { "set": "heavy", "tag": "heavy_A90_r3", "maxout": "90000" }
-] }
+{
+ "runs": [
+  {
+   "set": "heavy",
+   "tag": "heavy_A_r1"
+  },
+  {
+   "set": "heavy",
+   "tag": "heavy_A90_r1",
+   "maxout": "90000"
+  },
+  {
+   "set": "heavy",
+   "tag": "heavy_A_r2"
+  },
+  {
+   "set": "heavy",
+   "tag": "heavy_A90_r2",
+   "maxout": "90000"
+  },
+  {
+   "set": "heavy",
+   "tag": "heavy_A_r3"
+  },
+  {
+   "set": "heavy",
+   "tag": "heavy_A90_r3",
+   "maxout": "90000"
+  }
+ ],
+ "note": "2回目：鍵の確認方法を直して再実行"
+}
