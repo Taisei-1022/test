@@ -1,1 +1,1 @@
-{"ok":false,"err":"start: {\"error\":\"login_required\"}"}
+{"ok":true,"validateErr":null,"tune":8,"sec":175,"title":"回転寿司店長 90秒勝負","model":"deepseek-flash（思考: high）","yen":4.35,"diag":["0s instance att=1 hop=0 model=deepseek-flash","172s deepseek-flash/high 172s finish=stop out=44394 think=35633 body=19463ch"]}

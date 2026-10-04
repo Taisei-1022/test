@@ -1,1 +1,1 @@
-{"ok":false,"err":"start: {\"error\":\"login_required\"}"}
+{"ok":true,"validateErr":null,"tune":8,"sec":162,"title":"みんなのマンション建設","model":"deepseek-flash（思考: high）","yen":4.28,"diag":["0s instance att=1 hop=0 model=deepseek-flash","157s deepseek-flash/high 157s finish=stop out=43616 think=33001 body=24540ch"]}
