@@ -27,6 +27,11 @@
   #ov button{background:#ffb02e;color:#3a2400;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:18px;cursor:pointer;box-shadow:0 5px 0 rgba(0,0,0,.25);}
   #ov button:active{transform:translateY(2px);box-shadow:0 3px 0 rgba(0,0,0,.25);}
   #ov[hidden]{display:none;}
+  #pad{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 12px);display:grid;grid-template-columns:repeat(3,min(108px,29vw));grid-template-rows:66px 66px;
+     grid-template-areas:". u ." "l d r";gap:8px;justify-content:center;z-index:4;touch-action:none;}
+  .pb{border:2px solid rgba(255,255,255,.24);border-radius:18px;background:linear-gradient(#3b2f63,#2a2148);color:#ffe9b0;font:inherit;font-size:28px;font-weight:900;
+     box-shadow:0 5px 0 rgba(0,0,0,.4);touch-action:none;cursor:pointer;transition:transform .05s;}
+  .pb.on{transform:translateY(3px);background:linear-gradient(#ffcf5c,#ffb02e);color:#3a2400;box-shadow:0 2px 0 rgba(0,0,0,.4);}
   .c0{color:#ff6b78;font-weight:900;} .c1{color:#5aa2ff;font-weight:900;} .c2{color:#ffd23a;font-weight:900;} .c3{color:#4fd884;font-weight:900;}
 </style>
 </head>
@@ -37,11 +42,17 @@
   <div id="hearts"><span>❤️</span><span>❤️</span><span>❤️</span></div>
   <div class="pill">⭐ <b id="sc">0</b> 点</div>
 </div>
+<div id="pad">
+  <button class="pb" data-d="0" style="grid-area:u" aria-label="うえ">▲</button>
+  <button class="pb" data-d="2" style="grid-area:l" aria-label="ひだり">◀</button>
+  <button class="pb" data-d="1" style="grid-area:d" aria-label="した">▼</button>
+  <button class="pb" data-d="3" style="grid-area:r" aria-label="みぎ">▶</button>
+</div>
 <div id="ov">
   <div class="emo">🐤🟥🟦</div>
   <h1>落ちる床</h1>
-  <p>看板の<b>色の床</b>へ急げ！<br>行きたい床を<b>タップ</b>すると、ぴょんぴょん移動。<br>時間切れで<b>ほかの床はぜんぶ落下</b>するよ。</p>
-  <p class="warn">⚠️ ひっかけに注意！<br>「<span class="c1">あか</span>」→ 文字の色はウソ。<b>ことば</b>が正解<br>「🍌のいろ」→ <span class="c2">きいろ</span>の床へ<br>「あか<b>いがい</b>」→ 赤じゃなければOK<br>ヒビ床・チカチカ床・ネコ・ボールにも注意！</p>
+  <p>看板の<b>色の床</b>へ急げ！<br>下の<b>▲▼◀▶ボタン</b>で<b>1マスずつ</b>ぴょんっと移動。<br>時間切れで<b>ほかの床はぜんぶ落下</b>するよ。</p>
+  <p class="warn">⚠️ ひっかけに注意！<br>「<span class="c1">あか</span>」→ 文字の色はウソ。<b>ことば</b>が正解<br>「🍌のいろ」→ <span class="c2">きいろ</span>の床へ<br>「あか<b>いがい</b>」→ 赤じゃなければOK<br>ヒビ床は通れない・チカチカ床は色が変わる<br>ネコは通せんぼ、ボールははじき飛ばすよ！</p>
   <p>❤️3つ。⭐をとると🎈で1回セーフ！<br>5ラウンドごとに<b>ボーナスラウンド</b>🪙</p>
   <button id="startBtn">はじめる</button>
 </div>
@@ -53,7 +64,7 @@
   var cv=$("c"),ctx=cv.getContext("2d"),ov=$("ov");
   var FONT='"Hiragino Maru Gothic ProN","Hiragino Sans",system-ui,sans-serif';
   var EFONT='"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
-  var W=0,H=0,DPR=1;
+  var W=0,H=0,DPR=1,PADTOP=0;
   var SX=0,SY=0,SW=0,SH=0,BY=0,GX=0,GY=0,GS=0,TS=0,GAP=0,DEP=0,HINTY=0;
 
   /* ===================== 色・お題 ===================== */
@@ -64,7 +75,6 @@
     {name:"みどり",fill:"#38c872",hi:"#80e3a6",side:"#1f8a4a",ink:"#1fb35c"}
   ];
   var FRUIT=[["🍎","🍓","🍒"],["🐳","💧","🐬"],["🍌","🍋","🌻"],["🥦","🍀","🥒"]];
-  var SPEED=4.6; // タイル/秒
 
   /* ===================== サウンド（WebAudio合成） ===================== */
   var AC=null;
@@ -90,6 +100,7 @@
     safe:function(){tone(660,0,0.1,"triangle",0.13);tone(880,0,0.1,"triangle",0.13,0.09);tone(1320,0,0.18,"triangle",0.13,0.18);},
     coin:function(){tone(1320,0,0.06,"square",0.06);tone(1760,0,0.12,"square",0.06,0.06);},
     star:function(){for(var i=0;i<5;i++)tone(880+i*220,0,0.09,"triangle",0.09,i*0.05);},
+    bonk:function(){tone(180,120,0.08,"square",0.06);},
     bump:function(){tone(300,140,0.15,"square",0.1);tone(820,560,0.14,"triangle",0.09,0.05);},
     pop:function(){noise(0.12,0.25,2500);},
     crack:function(){noise(0.25,0.35,1800);},
@@ -106,27 +117,43 @@
 
   function reset(){
     G={n:4,tiles:newTiles(4),round:0,score:0,lives:3,phase:"rise",pt:0,instr:null,timeMax:4,timeLeft:4,lastSec:99,
-      p:{x:1.5,y:1.5,tx:1.5,ty:1.5,moving:false,face:1,hop:0,fall:false,fallT:0,drop:0,bump:null,float:false,land:0,mood:"norm"},
+      p:{gx:1,gy:2,x:1,y:2,mv:null,bump:null,queued:null,face:1,fall:false,fallT:0,drop:0,float:false,land:0,bonk:null,mood:"norm"},
       balloon:false,star:-1,coins:[],hz:null,swaps:[],pops:[],parts:[],shake:0,sign:"ready",signT:0,result:"",bonus:false,firstRise:true,goT:0};
-    G.p.x=G.p.tx=1;G.p.y=G.p.ty=2;
     for(var i=0;i<G.tiles.length;i++){G.tiles[i].st="gone";}
   }
 
   /* ===================== ラウンド生成 ===================== */
+  var DIRS=[[0,-1],[0,1],[-1,0],[1,0]]; // 上 下 左 右
+  var HOP=0.12;      // 1マスのジャンプ時間（秒）
   function ri(n){return Math.floor(Math.random()*n);}
   function pick(a){return a[ri(a.length)];}
   function idx(x,y){return y*G.n+x;}
   function tileAt(px,py){var x=Math.round(px),y=Math.round(py);if(x<0||y<0||x>=G.n||y>=G.n)return -1;return idx(x,y);}
   function isSafe(c){var I=G.instr;return I.type==="not"?c!==I.c:c===I.c;}
+  // ヒビ床を壁として、スタートから各マスまでの歩数（届かない＝-1）
+  function bfs(x0,y0,blocked){
+    var n=G.n,d=[],i;for(i=0;i<n*n;i++)d.push(-1);
+    var s=idx(x0,y0),q=[s];d[s]=0;
+    while(q.length){var c=q.shift(),cx=c%n,cy=c/n|0;
+      for(var k=0;k<4;k++){var nx=cx+DIRS[k][0],ny=cy+DIRS[k][1];if(nx<0||ny<0||nx>=n||ny>=n)continue;
+        var j=idx(nx,ny);if(d[j]>=0||blocked[j])continue;d[j]=d[c]+1;q.push(j);}}
+    return d;
+  }
+  // 難易度：1マスあたりの秒数・読む時間・セーフ床までの最短歩数
+  function diffFor(r){
+    if(r<=3)return{step:0.6,read:1.4,minD:2,maxD:3,k:3};
+    return{step:Math.max(0.32,0.46-(r-4)*0.018),read:Math.max(0.5,0.9-(r-4)*0.04),
+      minD:r<=9?3:r<=13?4:5,maxD:r<=6?4:r<=9?5:r<=13?6:7,k:r<=6?3:r<=11?2:r<=15?2:1};
+  }
 
   function genRound(){
-    var r=G.round,n=r<=4?4:r<=9?5:6,i;
-    var reColor=[];
+    var r=G.round,n=r<=4?4:r<=9?5:6,i,p=G.p;
     if(n!==G.n){
-      var on=G.n;G.p.x=G.p.tx=Math.round(G.p.x*(n-1)/(on-1));G.p.y=G.p.ty=Math.round(G.p.y*(n-1)/(on-1));
+      var on=G.n;p.gx=Math.round(p.gx*(n-1)/(on-1));p.gy=Math.round(p.gy*(n-1)/(on-1));p.x=p.gx;p.y=p.gy;
       G.n=n;G.tiles=newTiles(n);for(i=0;i<G.tiles.length;i++)G.tiles[i].st="gone";
     }
     var bonus=r%5===0; G.bonus=bonus;
+    var me=idx(p.gx,p.gy),DF=diffFor(r);
     // お題
     var c=ri(4),type="plain",rr=Math.random();
     if(!bonus){
@@ -136,70 +163,90 @@
     }
     var ink=c; if(type==="word"){ink=(c+1+ri(3))%4;}
     G.instr={type:type,c:c,ink:ink,emoji:pick(FRUIT[c])};
-    // 時間・枚数
-    G.timeMax=Math.max(2.3,5.2-(r-1)*0.17)+(bonus?1.2:0)+(type==="not"?0.3:0);
-    var k=Math.round(n*n/4-r*0.4); k=Math.max(r>=15?1:2,k); if(bonus)k=Math.round(n*n*0.4);
-    if(type==="not")k=Math.max(2,k);
-    var minD=Math.min(n-1.2,1+r*0.16), maxD=SPEED*G.timeMax*0.62;
-    var me=tileAt(G.p.x,G.p.y), bestCols=null,bestScore=-1e9;
-    for(var at=0;at<60;at++){
-      var cols=[],safeIdx=[],cand=[];
-      for(i=0;i<n*n;i++)if(i!==me)cand.push(i);
-      for(i=0;i<k&&cand.length;i++){var j=ri(cand.length);safeIdx.push(cand[j]);cand.splice(j,1);}
-      for(i=0;i<n*n;i++){
-        var sf=safeIdx.indexOf(i)>=0;
-        if(type==="not") cols.push(sf?(c+1+ri(3))%4:c);
-        else cols.push(sf?c:(c+1+ri(3))%4);
-      }
-      // 最寄りのセーフ床までの距離（ヒビ床は除く）
-      var nd=1e9;for(i=0;i<safeIdx.length;i++){var s=safeIdx[i];if(G.tiles[s].crack)continue;var d=Math.hypot(s%n-G.p.x,(s/n|0)-G.p.y);if(d<nd)nd=d;}
-      var sc=(nd>maxD?-100-nd:0)+(nd>=minD?10:nd-minD)+Math.random()*0.5; if(nd>=1e8)sc=-1e6;
-      if(sc>bestScore){bestScore=sc;bestCols=cols;}
-      if(nd>=minD&&nd<=maxD&&at>8)break;
+    // ヒビ床（通れない壁）：前ラウンドで立っていた床＋ラウンドが進むと追加
+    var cr=[];for(i=0;i<n*n;i++)cr.push(G.tiles[i].st==="up"&&G.tiles[i].crack);
+    if(!bonus&&r>=6){
+      var want=r>=14?3:r>=9?2:1,tries=0;
+      while(want>0&&tries++<40){var j=ri(n*n);if(j===me||cr[j])continue;cr[j]=true;
+        var dd=bfs(p.gx,p.gy,cr),cnt=0;for(i=0;i<n*n;i++)if(dd[i]>0)cnt++;
+        if(cnt<n*n*0.55){cr[j]=false;continue;}want--;}
     }
-    for(i=0;i<n*n;i++){var t=G.tiles[i];
-      if(t.st==="up"){t.flip=0;t.nc=bestCols[i];t.del=Math.random()*0.2;}
-      else{t.st="rise";t.c=bestCols[i];t.t=-(Math.hypot(i%n-(n-1)/2,(i/n|0)-(n-1)/2)*0.09+Math.random()*0.06);t.fy=0;t.vy=0;t.rot=0;t.crack=false;}
+    var dist=bfs(p.gx,p.gy,cr),maxDist=0;for(i=0;i<n*n;i++)if(dist[i]>maxDist)maxDist=dist[i];
+    // セーフ床の配置：最寄りのセーフ床がちょうど Dt 歩になるように
+    var Dt=Math.min(maxDist,DF.minD+ri(DF.maxD-DF.minD+1)),safe=[],cols=[];
+    if(bonus){
+      var cand=[];for(i=0;i<n*n;i++)if(i!==me)cand.push(i);
+      var kb=Math.round(n*n*0.4);while(safe.length<kb&&cand.length)safe.push(cand.splice(ri(cand.length),1)[0]);
+    }else{
+      var at=[],far=[];for(i=0;i<n*n;i++){if(i===me||cr[i])continue;if(dist[i]===Dt)at.push(i);else if(dist[i]>Dt||dist[i]<0)far.push(i);}
+      safe.push(pick(at));
+      var k=DF.k+(type==="not"?1:0);while(safe.length<k&&far.length)safe.push(far.splice(ri(far.length),1)[0]);
     }
-    // コイン（ボーナス）
-    G.coins=[];
-    if(bonus)for(i=0;i<n*n;i++)if(isSafe(bestCols[i]))G.coins.push({i:i,got:false,ph:Math.random()*6});
-    // ⭐
-    G.star=-1; G.starGot=false;
-    if(!bonus&&r>=2&&Math.random()<0.3){var opts=[];for(i=0;i<n*n;i++)if(i!==me&&!G.tiles[i].crack)opts.push(i);G.star=pick(opts);}
+    for(i=0;i<n*n;i++){
+      var sf=safe.indexOf(i)>=0;
+      if(type==="not") cols.push(sf?(c+1+ri(3))%4:c);
+      else cols.push(sf?c:(c+1+ri(3))%4);
+    }
     // 色変わり（チカチカ）
     G.swaps=[];
     if(!bonus&&r>=8&&Math.random()<0.45){
       var nsw=r>=12?2:1,safeL=[],unsL=[];
-      for(i=0;i<n*n;i++){if(i===me||G.tiles[i].crack)continue;(isSafe(bestCols[i])?safeL:unsL).push(i);}
+      // 安全化するのは遠い床だけ（近道にしない）。危険化は最寄りのセーフ床をねらうことも
+      for(i=0;i<n*n;i++){if(i===me||cr[i])continue;if(isSafe(cols[i]))safeL.push(i);else if(dist[i]>=Dt||dist[i]<0)unsL.push(i);}
       for(var q=0;q<nsw;q++){
-        var toUnsafe=(q===0?Math.random()<0.55:!G.swaps[0].toUnsafe)&&safeL.length>=2;
-        if(toUnsafe){var si=safeL.splice(ri(safeL.length),1)[0];var nc;do{nc=ri(4);}while(isSafe(nc));G.swaps.push({i:si,to:nc,toUnsafe:true});}
+        var toUnsafe=(!G.swaps.length?Math.random()<0.55:!G.swaps[0].toUnsafe)&&safeL.length>=2;
+        if(toUnsafe){var si=safeL.splice(Math.random()<0.5&&safeL.indexOf(safe[0])>=0?safeL.indexOf(safe[0]):ri(safeL.length),1)[0];var nc;do{nc=ri(4);}while(isSafe(nc));G.swaps.push({i:si,to:nc,toUnsafe:true});}
         else if(unsL.length){var ui=unsL.splice(ri(unsL.length),1)[0];var nc2;do{nc2=ri(4);}while(!isSafe(nc2));G.swaps.push({i:ui,to:nc2,toUnsafe:false});}
       }
     }
-    // ネコ・ボール
+    // 最終的なセーフ床までの最短歩数（BFS）→ 必ず届くか確認
+    function nearest(){var fc=cols.slice();for(var s=0;s<G.swaps.length;s++)fc[G.swaps[s].i]=G.swaps[s].to;
+      var b=1e9;for(var t=0;t<n*n;t++)if(t!==me&&!cr[t]&&dist[t]>0&&isSafe(fc[t])&&dist[t]<b)b=dist[t];return b;}
+    var D=nearest();
+    if(D>=1e9){G.swaps=[];D=nearest();}
+    if(D>=1e9){ // 念のため：ヒビを消して必ず解けるようにする
+      for(i=0;i<n*n;i++)if(i!==me)cr[i]=false;dist=bfs(p.gx,p.gy,cr);D=nearest();
+      if(D>=1e9){var nb=me===0?1:me-1;cols[nb]=type==="not"?(c+1)%4:c;D=nearest();}
+    }
+    // 制限時間 = 読む時間 + 歩数 × 1マスの秒数（+ ひっかけ・おじゃまの分）
     G.hz=null;
     if(!bonus&&r>=7&&Math.random()<0.55){
-      if(Math.random()<0.5)G.hz={k:"cat",row:1+ri(n-2),dir:Math.random()<0.5?1:-1,x:0,t:0,on:false,done:false,bumped:false};
+      if(Math.random()<0.5)G.hz={k:"cat",row:ri(n),dir:Math.random()<0.5?1:-1,x:0,t:0,on:false,done:false,bumped:false};
       else G.hz={k:"ball",row:0,dir:Math.random()<0.5?1:-1,x:0,t:0,on:false,warn:false,done:false,bumped:false,rot:0};
     }
+    var extra=(type==="word"?0.25:type==="not"?0.2:type==="fruit"?0.15:0)+(G.hz?0.3:0)+(G.swaps.length?0.3:0);
+    G.timeMax=bonus?5.5:DF.read+D*DF.step+extra;
+    G.timeMax=Math.max(G.timeMax,0.6+D*0.25+extra); // 4タップ/秒なら必ず間に合う
+    G.optD=D;
+    for(i=0;i<n*n;i++){var t=G.tiles[i];
+      if(t.st==="up"){t.flip=0;t.nc=cols[i];t.del=Math.random()*0.2;t.crack=cr[i];}
+      else{t.st="rise";t.c=cols[i];t.t=-(Math.hypot(i%n-(n-1)/2,(i/n|0)-(n-1)/2)*0.09+Math.random()*0.06);t.fy=0;t.vy=0;t.rot=0;t.crack=cr[i];}
+    }
+    // コイン（ボーナス）
+    G.coins=[];
+    if(bonus)for(i=0;i<n*n;i++)if(isSafe(cols[i])&&!cr[i])G.coins.push({i:i,got:false,ph:Math.random()*6});
+    // ⭐
+    G.star=-1; G.starGot=false;
+    if(!bonus&&r>=2&&Math.random()<0.3){var opts=[];for(i=0;i<n*n;i++)if(dist[i]>0&&!cr[i])opts.push(i);if(opts.length)G.star=pick(opts);}
   }
   
   /* ===================== 進行 ===================== */
   function setPhase(p){G.phase=p;G.pt=0;}
   function startRound(){
     G.round++; $("rd").textContent=G.round;
+    var p=G.p;
+    if(p.fall||G.firstRise){ // 上から落ちてくる（まんなかに復活）
+      p.fall=false;p.fallT=0;p.drop=1;p.mv=null;p.bump=null;p.mood="norm";
+      var n0=G.round<=4?4:G.round<=9?5:6,c0=Math.round((n0-1)/2);
+      if(n0!==G.n){G.n=n0;G.tiles=newTiles(n0);for(var i=0;i<G.tiles.length;i++)G.tiles[i].st="gone";}
+      p.gx=p.gy=c0;p.x=p.y=c0;
+    }
+    p.queued=null;
+    G.firstRise=false;
     genRound(); setPhase("rise"); SFX.rise();
     pushPop(G.bonus?"ボーナスラウンド！":"ラウンド "+G.round,W/2,GY+GS/2,G.bonus?"#ffd23a":"#fff",G.bonus?34:42,1.25,G.bonus?"🪙コインを集めよう！":"");
     if(G.bonus)burst(W/2,GY+GS/2,["#ff4f5e","#3f8cff","#ffd23a","#38c872","#fff"],40,260,"c");
     G.sign="ready";G.signT=0;
-    var p=G.p;
-    if(p.fall||G.firstRise){ // 上から落ちてくる
-      p.fall=false;p.fallT=0;p.drop=1;p.moving=false;p.mood="norm";
-      var n=G.n,cx=Math.round((n-1)/2),cy=Math.round((n-1)/2);p.x=p.tx=cx;p.y=p.ty=cy;
-    }
-    G.firstRise=false;
   }
 
   function pushPop(t,x,y,col,size,life,sub){G.pops.push({t:t,x:x,y:y,col:col,size:size||28,life:life||1,age:0,sub:sub||""});}
@@ -222,13 +269,9 @@
     // プレイヤー
     if(p.drop>0){p.drop=Math.max(0,p.drop-dt*2.4);if(p.drop===0){p.land=0.25;burst(sx(p.x),sy(p.y)+TS*0.2,"#d9cfe8",8,90);SFX.hop();}}
     if(p.land>0)p.land=Math.max(0,p.land-dt);
-    if(p.bump){p.bump.t+=dt/0.28;var b=p.bump,k=Math.min(1,b.t);p.x=b.fx+(b.tx-b.fx)*k;p.y=b.fy+(b.ty-b.fy)*k;if(b.t>=1){p.bump=null;p.tx=p.x;p.ty=p.y;if(p.queued&&G.phase==="count"){goTo(p.queued.x,p.queued.y);}p.queued=null;}}
-    else if(p.moving&&!p.fall){
-      var dx=p.tx-p.x,dy=p.ty-p.y,d=Math.hypot(dx,dy),st=SPEED*dt;
-      if(d<=st){p.x=p.tx;p.y=p.ty;p.moving=false;p.land=0.15;}
-      else{p.x+=dx/d*st;p.y+=dy/d*st;}
-      p.hop+=dt*SPEED*Math.PI/1.0;
-    }
+    if(p.bonk){p.bonk.t+=dt;if(p.bonk.t>0.16)p.bonk=null;}
+    if(p.bump){p.bump.t+=dt/0.26;var b=p.bump,k=Math.min(1,b.t);p.x=b.fx+(b.tx-b.fx)*k;p.y=b.fy+(b.ty-b.fy)*k;if(b.t>=1){p.bump=null;p.x=p.gx;p.y=p.gy;p.land=0.15;flushQueue();}}
+    else if(p.mv){p.mv.t+=dt/HOP;var m=p.mv,km=Math.min(1,m.t);p.x=m.fx+(m.tx-m.fx)*km;p.y=m.fy+(m.ty-m.fy)*km;if(m.t>=1){p.mv=null;p.x=p.gx;p.y=p.gy;p.land=0.12;flushQueue();}}
     if(p.fall){p.fallT+=dt;}
     // アイテム取得
     if(!p.fall&&p.drop===0&&(G.phase==="rise"||G.phase==="show"||G.phase==="count")){
@@ -269,8 +312,8 @@
   function tipsForRound(){
     var y=HINTY;
     if(G.swaps.length&&!hint.swap){hint.swap=true;pushPop("チカチカ床は色が変わる！",W/2,y,"#ffe3a3",20,2.2);}
-    else if(G.hz&&G.hz.k==="cat"&&!hint.cat){hint.cat=true;pushPop("🐈 ネコに押されるよ！",W/2,y,"#ffe3a3",20,2);}
-    else if(G.hz&&G.hz.k==="ball"&&!hint.ball){hint.ball=true;pushPop("⚽ ボールに注意！",W/2,y,"#ffe3a3",20,2);}
+    else if(G.hz&&G.hz.k==="cat"&&!hint.cat){hint.cat=true;pushPop("🐈 ネコは通せんぼ＆おしだし！",W/2,y,"#ffe3a3",20,2);}
+    else if(G.hz&&G.hz.k==="ball"&&!hint.ball){hint.ball=true;pushPop("⚽ ボールに当たるとはじかれる！",W/2,y,"#ffe3a3",20,2);}
   }
 
   function updHazard(dt){
@@ -278,36 +321,37 @@
     h.t+=dt;
     if(h.k==="cat"){
       if(!h.on&&h.t>0.25){h.on=true;h.x=h.dir>0?-1.2:n-1+1.2;}
-      if(h.on){h.x+=h.dir*1.55*dt;if((h.dir>0&&h.x>n+0.5)||(h.dir<0&&h.x<-1.5))h.done=true;}
+      if(h.on){h.x+=h.dir*1.7*dt;if((h.dir>0&&h.x>n+0.5)||(h.dir<0&&h.x<-1.5))h.done=true;}
     }else{
-      if(!h.warn&&h.t>0.35){h.warn=true;h.wt=0;h.row=Math.max(0,Math.min(n-1,Math.round(p.y)));}
+      if(!h.warn&&h.t>0.35){h.warn=true;h.wt=0;h.row=p.gy;}
       if(h.warn&&!h.on){h.wt+=dt;if(h.wt>0.85){h.on=true;h.x=h.dir>0?-1:n;}}
       if(h.on){h.x+=h.dir*6.2*dt;h.rot+=h.dir*dt*14;if((h.dir>0&&h.x>n+0.8)||(h.dir<0&&h.x<-1.8))h.done=true;}
     }
-    if(h.on&&!h.bumped&&!p.fall&&p.drop===0&&!p.bump&&Math.abs(p.y-h.row)<0.55&&Math.abs(p.x-h.x)<0.55){
+    if(h.on&&!h.bumped&&!p.fall&&p.drop===0&&!p.bump&&p.gy===h.row&&Math.abs(p.gx-h.x)<0.5){
       h.bumped=true;
-      var cx=Math.round(p.x),cy=Math.round(p.y),ty,tx=cx;
-      if(h.k==="cat"){tx=cx+h.dir;ty=cy;if(tx<0||tx>=n){tx=cx;ty=cy+(cy>0?-1:1);}}
-      else{var up=Math.random()<0.5?-1:1;ty=cy+up;if(ty<0||ty>=n)ty=cy-up;}
-      p.moving=false;p.bump={fx:p.x,fy:p.y,tx:tx,ty:ty,t:0};
-      SFX.bump();G.shake=Math.max(G.shake,0.35);
-      pushPop(h.k==="cat"?"ニャッ！":"ドン！",sx(p.x),sy(p.y)-TS*0.6,"#fff",26,0.8);
+      // ボール→転がる向きに1マス、ネコ→上下に1マス押し出す（ヒビ床・場外には押さない）
+      var up=Math.random()<0.5?-1:1,opts=h.k==="ball"?[[h.dir,0],[0,up],[0,-up]]:[[0,up],[0,-up],[h.dir,0]],dest=null;
+      for(var o=0;o<opts.length&&!dest;o++){var tx=p.gx+opts[o][0],ty=p.gy+opts[o][1];if(walkable(tx,ty,true))dest=[tx,ty];}
+      if(dest){
+        if(p.mv){p.mv=null;p.x=p.gx;p.y=p.gy;}
+        p.bump={fx:p.x,fy:p.y,tx:dest[0],ty:dest[1],t:0};p.gx=dest[0];p.gy=dest[1];
+        SFX.bump();G.shake=Math.max(G.shake,0.35);
+        pushPop(h.k==="cat"?"ニャッ！":"ドン！",sx(p.x),sy(p.y)-TS*0.6,"#fff",26,0.8);
+      }
     }
   }
 
   function doDrop(){
     setPhase("drop");G.fellDone=false;G.resDone=false;
     var p=G.p,i;
-    if(p.moving){p.moving=false;}
-    if(p.bump){p.x=p.bump.tx;p.y=p.bump.ty;p.bump=null;}p.queued=null;
-    p.x=Math.round(p.x);p.y=Math.round(p.y);p.tx=p.x;p.ty=p.y;
+    p.mv=null;p.bump=null;p.queued=null;p.x=p.gx;p.y=p.gy;
     for(i=0;i<G.swaps.length;i++){var s=G.swaps[i];G.tiles[s.i].c=s.to;}
     G.swaps=[];
     G.myTile=tileAt(p.x,p.y);
     var myT=G.tiles[G.myTile];
     G.crumble=!!(myT&&myT.crack&&isSafe(myT.c));
     for(i=0;i<G.tiles.length;i++){var t=G.tiles[i];if(t.st!=="up"&&t.st!=="rise")continue;
-      if(!isSafe(t.c)||(i===G.myTile&&G.crumble)){t.st="shake";t.t=0;}}
+      if(!isSafe(t.c)||t.crack){t.st="shake";t.t=0;}} // ヒビ床はかならず崩れる
     SFX.rumble();G.shake=0.4;
     pushPop("ストップ！",W/2,GY+GS/2,"#ffd166",50,0.7);
     if(G.hz)G.hz.done=true;
@@ -340,29 +384,50 @@
       // ヒビ：一度乗って生き残った床は次に割れる
       var t=G.tiles[G.myTile];
       if(G.round>=5&&t&&!t.crack&&!G.bonus){t.crack=true;SFX.crack();
-        if(!hint.crack){hint.crack=true;pushPop("床にヒビが…！",W/2,HINTY-10,"#ffe3a3",20,2,"次ここに乗ると割れるよ");}}
+        if(!hint.crack){hint.crack=true;pushPop("床にヒビが…！",W/2,HINTY-10,"#ffe3a3",20,2.2,"ヒビ床は通れない＆次で崩れる！");}}
     }
     setTimeout(function(){if(G.p)G.p.mood="norm";},900);
   }
 
   /* ===================== 入力 ===================== */
-  function onDown(e){
-    if(!running||paused)return;
-    audio();
-    var x=e.clientX,y=e.clientY,p=G.p;
-    if(!(G.phase==="rise"||G.phase==="show"||G.phase==="count"))return;
-    if(p.fall||p.drop>0)return;
-    var col=Math.floor((x-GX)/TS),row=Math.floor((y-GY)/TS);
-    if(col<0||row<0||col>=G.n||row>=G.n)return;
-    if(p.bump){p.queued={x:col,y:row};return;}
-    goTo(col,row);
-    G.tapFx={x:sx(col),y:sy(row),t:0};
+  function walkable(x,y,ignoreCat){
+    var n=G.n;if(x<0||y<0||x>=n||y>=n)return false;
+    var t=G.tiles[idx(x,y)];if(t.st==="gone"||t.st==="fall"||t.st==="shake"||t.crack)return false;
+    var h=G.hz;if(!ignoreCat&&h&&h.k==="cat"&&h.on&&!h.done&&h.row===y&&Math.round(h.x)===x)return false;
+    return true;
   }
-  function goTo(col,row){
-    var p=G.p;p.tx=col;p.ty=row;
-    if(Math.abs(p.tx-p.x)>0.01||Math.abs(p.ty-p.y)>0.01){p.moving=true;if(Math.abs(p.tx-p.x)>0.05)p.face=p.tx>p.x?1:-1;SFX.hop();}
+  function canAct(){var p=G.p;return running&&!paused&&(G.phase==="rise"||G.phase==="show"||G.phase==="count")&&!p.fall&&p.drop===0;}
+  function press(d){
+    if(!canAct())return;
+    var p=G.p;
+    if(p.mv||p.bump){p.queued=d;return;} // 1回分だけ先行入力
+    step(d);
   }
-  cv.addEventListener("pointerdown",function(e){e.preventDefault();onDown(e);});
+  function flushQueue(){var p=G.p,q=p.queued;p.queued=null;if(q!==null&&q!==undefined&&canAct())step(q);}
+  function step(d){
+    var p=G.p,dx=DIRS[d][0],dy=DIRS[d][1],nx=p.gx+dx,ny=p.gy+dy;
+    if(dx)p.face=dx;
+    if(!walkable(nx,ny)){
+      p.bonk={dx:dx,dy:dy,t:0};SFX.bonk();
+      var n=G.n;if(nx>=0&&ny>=0&&nx<n&&ny<n){var t=G.tiles[idx(nx,ny)],h=G.hz;
+        var why=t.crack?"ヒビで通れない！":(h&&h.k==="cat"&&Math.round(h.x)===nx&&h.row===ny)?"ネコが通せんぼ！":"";
+        if(why&&!(G.lastWhy&&T-G.lastWhy<0.8)){G.lastWhy=T;pushPop(why,sx(nx),sy(ny)-TS*0.5,"#ffe3a3",18,0.8);}}
+      return;
+    }
+    p.mv={fx:p.gx,fy:p.gy,tx:nx,ty:ny,t:0};p.gx=nx;p.gy=ny;SFX.hop();
+  }
+  var pads=document.querySelectorAll(".pb");
+  for(var pi=0;pi<pads.length;pi++)(function(b){
+    b.addEventListener("pointerdown",function(e){e.preventDefault();audio();b.classList.add("on");setTimeout(function(){b.classList.remove("on");},110);press(+b.getAttribute("data-d"));});
+    b.addEventListener("contextmenu",function(e){e.preventDefault();});
+  })(pads[pi]);
+  var KEYS={ArrowUp:0,KeyW:0,ArrowDown:1,KeyS:1,ArrowLeft:2,KeyA:2,ArrowRight:3,KeyD:3};
+  window.addEventListener("keydown",function(e){
+    if(!(e.code in KEYS))return;e.preventDefault();if(e.repeat)return;audio();
+    var d=KEYS[e.code];pads.forEach(function(b){if(+b.getAttribute("data-d")===d){b.classList.add("on");setTimeout(function(){b.classList.remove("on");},110);}});
+    press(d);
+  });
+  cv.addEventListener("pointerdown",function(e){e.preventDefault();audio();});
 
   /* ===================== 描画 ===================== */
   function rr(x,y,w,h,r){r=Math.max(0,Math.min(r,h/2,w/2));ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
@@ -398,7 +463,7 @@
     if(t.flip>=0){var f=t.flip-t.del;if(f>0&&f<0.3){sy2=Math.abs(Math.cos(f/0.3*Math.PI));sy2=Math.max(0.08,sy2);}}
     // チカチカ（色が変わる予告）
     var blink=false,sw=null;
-    if(G.phase==="count"&&G.timeLeft<1.5){for(var q=0;q<G.swaps.length;q++)if(G.swaps[q].i===i){sw=G.swaps[q];}}
+    if(G.phase==="count"&&G.timeLeft<G.timeMax*0.7){for(var q=0;q<G.swaps.length;q++)if(G.swaps[q].i===i){sw=G.swaps[q];}}
     if(sw){blink=Math.floor(T*9)%2===0;if(blink)col=COLS[sw.to];}
     ctx.save();
     ctx.globalAlpha=Math.max(0,al);
@@ -507,7 +572,8 @@
 
   function playerScreen(){
     var p=G.p,x=sx(p.x),y=sy(p.y),s=TS*0.3,rot=0,sc=1,al=1;
-    if(p.moving)y-=Math.abs(Math.sin(p.hop))*TS*0.22;
+    if(p.mv){y-=Math.sin(Math.min(1,p.mv.t)*Math.PI)*TS*0.24;}
+    if(p.bonk){var bk=Math.sin(p.bonk.t/0.16*Math.PI)*TS*0.1;x+=p.bonk.dx*bk;y+=p.bonk.dy*bk;}
     if(p.bump){var k=p.bump.t;y-=Math.sin(Math.min(1,k)*Math.PI)*TS*0.3;rot=Math.sin(k*Math.PI)*0.6;}
     if(p.drop>0){y-=p.drop*p.drop*H*0.6;}
     if(p.float){y-=TS*0.25+Math.sin(T*3)*TS*0.06;}
@@ -596,11 +662,6 @@
       else{circ(p.x,p.y,p.r);ctx.fill();}}
     ctx.globalAlpha=1;
   }
-  function drawTapFx(){
-    var f=G.tapFx;if(!f)return;f.t+=1/60;if(f.t>0.4){G.tapFx=null;return;}
-    ctx.strokeStyle="rgba(255,255,255,"+(1-f.t/0.4)+")";ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(f.x,f.y,TS*(0.2+f.t),TS*(0.12+f.t*0.6),0,0,Math.PI*2);ctx.stroke();
-  }
-
   function draw(){
     ctx.setTransform(DPR,0,0,DPR,0,0);
     var shx=0,shy=0;if(G.shake>0){shx=(Math.random()-.5)*14*G.shake;shy=(Math.random()-.5)*14*G.shake;}
@@ -610,14 +671,14 @@
     for(i=0;i<G.tiles.length;i++)drawTile(i,0);
     drawPlayer(0);
     for(i=0;i<G.tiles.length;i++)drawTile(i,1);
-    drawItems();drawHazard();drawTapFx();drawPlayer(1);
+    drawItems();drawHazard();drawPlayer(1);
     ctx.restore();
     drawSign();drawParts();drawScream();drawPops();
     // 緊迫感（赤いふち）
     if(G.phase==="count"&&G.timeLeft<1.5){var a=(1.5-G.timeLeft)/1.5*(0.25+0.15*Math.sin(T*20));
       var vg=ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*0.35,W/2,H/2,Math.max(W,H)*0.7);vg.addColorStop(0,"rgba(255,0,40,0)");vg.addColorStop(1,"rgba(255,0,40,"+a+")");ctx.fillStyle=vg;ctx.fillRect(0,0,W,H);}
     // ヒント
-    if(running&&G.round<=2&&(G.phase==="count"||G.phase==="show")){ctx.fillStyle="rgba(255,255,255,.7)";ctx.font="800 14px "+FONT;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("👆 行きたい床をタップ！",W/2,HINTY);}
+    if(running&&G.round<=2&&(G.phase==="count"||G.phase==="show")){ctx.fillStyle="rgba(255,255,255,.7)";ctx.font="800 14px "+FONT;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("👇 ボタンで1マスずつ移動！",W/2,HINTY);}
   }
 
   function updHud(){
@@ -628,15 +689,16 @@
   /* ===================== ループ・開始・終了 ===================== */
   function layout(){
     var top=48;
-    SH=Math.max(96,Math.min(140,H*0.16));SY=top+10;SX=84;SW=W-SX-16;
+    SH=Math.max(80,Math.min(118,H*0.13));SY=top+10;SX=84;SW=W-SX-16;
     BY=SY+SH+14;
-    var ft=BY+30,fb=H-44;HINTY=H-24;
-    var avail=fb-ft;GS=Math.min(W-24,avail,560);GX=(W-GS)/2;GY=ft+Math.max(0,(avail-GS)*0.4);HINTY=Math.min(H-24,GY+GS+(H-GY-GS)/2);
+    var ft=BY+30,fb=PADTOP-30;
+    var avail=fb-ft;GS=Math.max(120,Math.min(W-24,avail,560));GX=(W-GS)/2;GY=ft+Math.max(0,(avail-GS)*0.35);HINTY=(GY+GS+PADTOP)/2+4;
     TS=GS/G.n;GAP=TS*0.08;DEP=TS*0.13;
   }
   function resize(){
     W=window.innerWidth;H=window.innerHeight;DPR=Math.min(2,window.devicePixelRatio||1);
     cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);
+    var pr=$("pad").getBoundingClientRect();PADTOP=pr.height>0?pr.top:H-170;
     layout();
   }
   window.addEventListener("resize",resize);
