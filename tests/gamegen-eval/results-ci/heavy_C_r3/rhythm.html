@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
+<title>ネオンリズムタップ</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%83%8D%E3%82%AA%E3%83%B3%E3%83%AA%E3%82%BA%E3%83%A0%E3%82%BF%E3%83%83%E3%83%97%22%2C%22h%22%3A%224%E3%83%AC%E3%83%BC%E3%83%B3%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%E3%81%97%E3%81%A6%E3%83%8E%E3%83%BC%E3%83%84%E3%82%92%E5%8F%96%E3%82%8D%E3%81%86%EF%BC%81%E9%95%B7%E6%8A%BC%E3%81%97%E3%83%8E%E3%83%BC%E3%83%84%E3%81%AF%E6%8A%BC%E3%81%97%E7%B6%9A%E3%81%91%E3%81%A6%E7%82%B9%E3%82%92%E7%A8%BC%E3%81%8E%E3%80%81%E9%87%91%E3%83%8E%E3%83%BC%E3%83%84%E3%81%AF%E9%AB%98%E5%BE%97%E7%82%B9%E3%80%82PERFECT%E3%81%A7%E3%83%95%E3%82%A3%E3%83%BC%E3%83%90%E3%83%BC%E3%82%B2%E3%83%BC%E3%82%B8%E3%81%8C%E6%BA%80%E3%82%BF%E3%83%B3%E2%86%9210%E7%A7%92%E9%96%93%E3%82%B9%E3%82%B3%E3%82%A22%E5%80%8D%E3%80%82MISS%E3%81%A7%E3%83%A9%E3%82%A4%E3%83%95%E3%82%B2%E3%83%BC%E3%82%B8%E3%81%8C%E6%B8%9B%E3%82%8A0%E3%81%A7%E7%B5%82%E4%BA%86%E3%80%81%E6%9C%80%E5%BE%8C%E3%81%AB%E5%88%A4%E5%AE%9A%E5%86%85%E8%A8%B3%E3%81%A8%E3%83%A9%E3%83%B3%E3%82%AF%E7%99%BA%E8%A1%A8%EF%BC%81%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
+html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
+#vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+/* vpstage＝論理480x720（2:3）の箱。HUD・オーバーレイ・ゲームDOMを全部この中に入れ、
+   箱ごと実画面へ拡縮する（座標系はゲーム内で常に1つ） */
+#vpstage{position:fixed;left:0;top:0;width:480px;height:720px;transform-origin:0 0;z-index:1;overflow:hidden}
+#vpdom{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
+#vpdom *{pointer-events:auto}
+.vp-hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
+.vp-hud span:empty{display:none}
+.vp-ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
+.vp-ov h1{font-size:28px}
+.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:340px;white-space:pre-line}
+.vp-ov .vp-big{font-size:44px;font-weight:900;color:#ffd166}
+.vp-btn{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:17px;box-shadow:0 5px 0 rgba(0,0,0,.25);touch-action:manipulation}
+.vp-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.vp-toast{position:absolute;top:52px;left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+[hidden]{display:none!important}
+</style>
+<style id="vpcss">
+/*__VAPPA_CSS__*/
+
+/*__VAPPA_CSS_END__*/
+</style>
+</head><body>
+<canvas id="vpc"></canvas>
+<div id="vpstage">
+  <div id="vpdom"></div>
+  <div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
+  <div class="vp-toast" id="vptoast"></div>
+  <div class="vp-ov" id="vpov">
+    <h1>ネオンリズムタップ</h1>
+    <p>4レーンをタップしてノーツを取ろう！長押しノーツは押し続けて点を稼ぎ、金ノーツは高得点。PERFECTでフィーバーゲージが満タン→10秒間スコア2倍。MISSでライフゲージが減り0で終了、最後に判定内訳とランク発表！</p>
+    <button class="vp-btn" id="vpstart">スタート</button>
+  </div>
+</div>
+<script id="vpimgs">
+/* ユーザー素材画像 {名前:dataURL}。中身はビルド後にアプリが注入（AIには名前だけ渡る） */
+window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
+</script>
+<script>
+window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
+var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
+// iOS Safari は fillStyle がグラデーション/パターンのオブジェクトのままだと
+// カラー絵文字を fillText できない（何も描かれない）。生成コードは
+// 「背景をグラデで塗る→そのまま絵文字を描く」形を高頻度で書くため、
+// 絵文字を含む fillText の間だけ fillStyle を単色に退避して確実に描く。
+(function(){
+  var _ft=ctx.fillText;
+  function hasEmo(s){
+    for(var i=0;i<s.length;i++){
+      var c=s.charCodeAt(i);
+      if((c>=0x2100&&c<=0x2BFF)||(c>=0xD800&&c<=0xDFFF)||c===0xFE0F)return true;
+    }
+    return false;
+  }
+  ctx.fillText=function(t,x,y,mw){
+    var s=String(t);
+    if(typeof this.fillStyle!=="string"&&hasEmo(s)){
+      var f=this.fillStyle;this.fillStyle="#000";
+      try{mw===undefined?_ft.call(this,s,x,y):_ft.call(this,s,x,y,mw);}
+      finally{this.fillStyle=f;}
+    }else{
+      mw===undefined?_ft.call(this,s,x,y):_ft.call(this,s,x,y,mw);
+    }
+  };
+})();
+// 論理画面は 480x720（2:3）固定。全端末でこのサイズとして描き、ランタイムが
+// vpstage（HUD・オーバーレイ・ゲームDOMを含む箱）ごと実画面へ拡縮する。
+// ゲームコードは端末差を一切考えなくてよい（入力座標も論理系で届く）。
+var W=480,H=720;
+var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
+(function(){
+"use strict";
+var DPR=Math.min(2,window.devicePixelRatio||1);
+function rs(){
+  var vw=window.innerWidth,vh=window.innerHeight;
+  __SC=Math.min(vw/W,vh/H);
+  __OX=(vw-W*__SC)/2;__OY=(vh-H*__SC)/2;
+  cv.width=vw*DPR;cv.height=vh*DPR;
+  ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
+  ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
+  var st=document.getElementById("vpstage");
+  if(st){st.style.transform="scale("+__SC+")";st.style.left=__OX+"px";st.style.top=__OY+"px";}
+  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
+}
+window.addEventListener("resize",rs);rs();
+// 実画面座標→論理座標（タッチ入力用）
+function toLX(x){return (x-__OX)/__SC;}
+function toLY(y){return (y-__OY)/__SC;}
+var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="点";
+// ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
+var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
+var hud=document.getElementById("vphud"),hl=document.getElementById("vphl"),hr=document.getElementById("vphr");
+var ov=document.getElementById("vpov"),toastEl=document.getElementById("vptoast"),tt=null,last=performance.now();
+window.Game={
+  img:function(n){return IMGS[n]||null;},
+  score:function(n){hl.textContent=(n|0)+unit;},
+  hud:function(t){hr.textContent=t==null?"":String(t);},
+  float:function(x,y,t,c){floats.push({x:x,y:y,t:String(t),c:c||"#fff",age:0});},
+  toast:function(t){toastEl.textContent=t;toastEl.style.opacity=1;clearTimeout(tt);tt=setTimeout(function(){toastEl.style.opacity=0;},2000);},
+  over:function(s){
+    if(!playing||ended)return;ended=true;playing=false;s=Math.max(0,Math.floor(Number(s)||0));
+    ov.innerHTML='<h1>おわり！</h1><div class="vp-big">'+s+'<small style="font-size:20px">'+unit+'</small></div><button class="vp-btn" id="vpagain">もういちど</button>';
+    ov.hidden=false;
+    document.getElementById("vpagain").addEventListener("click",start);
+    try{window.Arcade.gameOver(s);}catch(e){}
+  }
+};
+function crash(e){
+  if(crashed)return;crashed=true;playing=false;
+  try{window.__VP_ERR=String(e&&(e.stack||e.message)||e).slice(0,600);}catch(x){}
+  ov.innerHTML='<h1>😢 エラーが発生</h1><p>ゲームにエラーが起きました。<br>作成チャットで「エラーを直して」と伝えると修理できるよ。</p><button class="vp-btn" id="vpagain">もういちど</button>';
+  ov.hidden=false;
+  document.getElementById("vpagain").addEventListener("click",start);
+}
+function start(){
+  floats=[];ended=false;crashed=false;
+  try{window.init();}catch(e){crash(e);return;}
+  window.Game.score(0);ov.hidden=true;hud.hidden=false;playing=true;last=performance.now();
+}
+document.getElementById("vpstart").addEventListener("click",start);
+function fire(fn,x,y,id){
+  if(!playing||paused)return;
+  if(typeof window[fn]==="function"){try{window[fn](x,y,id);}catch(err){crash(err);}}
+}
+// pointer と touch を両対応（iOSのiframe内などpointerが飛ばない環境へのフォールバック）。
+// pointerが一度でも来たらtouchは無視して二重発火を防ぐ。
+var seenPointer=false;
+window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",toLX(e.clientX),toLY(e.clientY),e.pointerId);fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointermove",function(e){fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointerup",function(e){fire("onUp",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+// タッチの扱い（iOS対策の要点）：
+//  - touchstart は preventDefault しない
+//  - touchmove は非passiveで preventDefault → パン/スクロール横取りはこれで止まる
+//  - touchend はボタン類「以外」でだけ preventDefault → iOSのダブルタップズーム
+//    （touch-action:noneでは止まらない端末がある）を殺しつつ、ボタンの click 合成は守る
+//  - preventDefault すると iOS は click を合成しない → 生成コードが div/span で
+//    自作ボタンを作った場合に全操作不能になる。そこで「タップ」（移動が小さく
+//    短いタッチ）に限り、こちらで click を合成して補う。本物の button 等は
+//    preventDefault しない＝ネイティブ click が来るので合成しない（二重防止）
+//  - pointerイベントが来る環境では発火だけ二重防止（seenPointer）
+function tfire(fn,e){
+  if(seenPointer)return;
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,toLX(t.clientX),toLY(t.clientY),t.identifier);
+    if(fn==="onDown")fire("onMove",toLX(t.clientX),toLY(t.clientY),t.identifier);}
+}
+function uiTouch(e){var t=e.target;return !!(t&&t.closest&&t.closest("button,a,input,select,label"));}
+var tstart={};
+window.addEventListener("touchstart",function(e){
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];tstart[t.identifier]={x:t.clientX,y:t.clientY,at:Date.now()};}
+  tfire("onDown",e);
+},{passive:true});
+window.addEventListener("touchmove",function(e){if(e.cancelable)e.preventDefault();tfire("onMove",e);},{passive:false});
+window.addEventListener("touchend",function(e){
+  var prevented=false;
+  if(e.cancelable&&!uiTouch(e)){e.preventDefault();prevented=true;}
+  if(prevented){
+    for(var i=0;i<e.changedTouches.length;i++){
+      var t=e.changedTouches[i],s=tstart[t.identifier];
+      if(s&&Math.abs(t.clientX-s.x)<14&&Math.abs(t.clientY-s.y)<14&&Date.now()-s.at<1500){
+        var el=document.elementFromPoint(t.clientX,t.clientY)||e.target;
+        if(el){try{el.dispatchEvent(new MouseEvent("click",{bubbles:true,cancelable:true,view:window,clientX:t.clientX,clientY:t.clientY}));}catch(err){}}
+      }
+    }
+  }
+  for(var j=0;j<e.changedTouches.length;j++)delete tstart[e.changedTouches[j].identifier];
+  tfire("onUp",e);
+},{passive:false});
+document.addEventListener("gesturestart",function(e){e.preventDefault();});
+window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",toLX(e.clientX),toLY(e.clientY),0);});
+window.Arcade.onPause(function(){paused=true;});
+window.Arcade.onResume(function(){paused=false;last=performance.now();});
+window.Arcade.onRestart(start);
+document.addEventListener("visibilitychange",function(){if(document.hidden){paused=true;}else{paused=false;last=performance.now();}});
+function loop(now){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(now-last)/1000);last=now;
+  if(crashed)return;
+  if(playing&&!paused){try{window.update(dt);}catch(e){crash(e);return;}}
+  if(playing||ended){try{window.draw();}catch(e){crash(e);return;}}
+  for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.age+=dt;
+    if(f.age>1){floats.splice(i,1);continue;}
+    ctx.save();ctx.globalAlpha=Math.max(0,1-f.age);ctx.font="bold 16px sans-serif";ctx.textAlign="center";
+    ctx.fillStyle=f.c;ctx.fillText(f.t,f.x,f.y-f.age*30);ctx.restore();}
+}
+requestAnimationFrame(loop);
+window.Arcade.ready();
+// 自動テストプレイ用フック：親(アプリ)がスモークテストで入力を一発流すのに使う
+window.__vpTap=function(){
+  fire("onDown",W/2,H/2,1);fire("onMove",W/2+40,H/2,1);fire("onUp",W/2+40,H/2,1);
+};
+})();
+</script>
+<script id="vpgame">
+/*__VAPPA_JS__*/
+var TUNE = {
+  bpm:        { v: 120,  label: 'テンポ(BPM)',   min: 80,   max: 180, step: 5 },
+  songLen:    { v: 45,   label: '曲の長さ(秒)',  min: 20,   max: 90,  step: 5 },
+  fallTime:   { v: 1.4,  label: '落下時間(秒)',  min: 0.7,  max: 2.6, step: 0.1 },
+  density:    { v: 1.0,  label: 'ノーツ密度',    min: 0.4,  max: 1.6, step: 0.05 },
+  holdRate:   { v: 0.14, label: 'ロング率',      min: 0,    max: 0.4, step: 0.02 },
+  doubleRate: { v: 0.2,  label: '同時押し率',    min: 0,    max: 0.5, step: 0.02 },
+  lives:      { v: 5,    label: 'ライフ数',      min: 1,    max: 10,  step: 1 },
+  perfectW:   { v: 0.05, label: 'PERFECT幅(秒)', min: 0.02, max: 0.1, step: 0.005 },
+  goldRate:   { v: 0.08, label: '金ノーツ率',    min: 0,    max: 0.3, step: 0.01 },
+  feverLen:   { v: 10,   label: 'フィーバー秒',  min: 4,    max: 20,  step: 1 }
+};
+
+var LX = 24, LW = 108, LANE_TOP = 84, TOP_Y = 90, JUDGE_Y = 596, PAD_TOP = 604, PAD_B = 704;
+var LANE_COL = [[34,230,255],[255,62,165],[124,255,77],[255,207,61]];
+var LANE_EMO = ['🎵','🎶','🎵','🎶'];
+var PENTA = [0,3,5,7,10];
+var GOLD_COL = [255,206,64];
+var BG_SETS = [
+  ['#070a14','#0e1527','#0a0f1d'],
+  ['#0a0718','#210f38','#0d0822'],
+  ['#04141a','#0a2c33','#061a20'],
+  ['#1a0812','#3a1030','#1c0716'],
+  ['#0b1206','#20300f','#0c1507'],
+  ['#150b04','#331d08','#180c04']
+];
+var FEVER_P = 6.0, FEVER_G = 1.6, FEVER_GOLD = 10.0;
+
+var notes, links, effects, particles;
+var songTime, songLen, score, combo, maxCombo, lives, lifeMax;
+var laneHeld, pointerLane, padFlash, judgeText, finished, speed, shake;
+var stepTimes, schedStep;
+var feverGauge, feverTime, perfectN, greatN, missN;
+var resultT, overSent, stageIdx, stageFlash;
+var actx = null, master = null, noiseBuf = null, audioT0 = null;
+
+function bpmAt(t){
+  return (t >= songLen * 0.5) ? TUNE.bpm.v * 1.25 : TUNE.bpm.v;
+}
+function greatW(){ var w = TUNE.perfectW.v * 2; return w > 0.16 ? 0.16 : w; }
+function comboMult(){ var m = 1 + Math.floor(combo / 10) * 0.1; return m > 4 ? 4 : m; }
+function feverMult(){ return feverTime > 0 ? 2 : 1; }
+function scoreMult(){ return comboMult() * feverMult(); }
+function rgba(c, a){ return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')'; }
+function laneAt(x){
+  var l = Math.floor((x - LX) / LW);
+  if (l < 0) l = 0;
+  if (l > 3) l = 3;
+  return l;
+}
+function rr(x, y, w, h, r){
+  if (w < 0) w = 0;
+  if (h < 0){ y += h; h = -h; }
+  if (w < 2 * r) r = w / 2;
+  if (h < 2 * r) r = h / 2;
+  if (r < 0) r = 0;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/* ---------- audio (WebAudio / no files) ---------- */
+function audioInit(){
+  if (actx) return;
+  try {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    actx = new AC();
+    master = actx.createGain();
+    master.gain.value = 0.42;
+    master.connect(actx.destination);
+    var len = Math.floor(actx.sampleRate * 0.3);
+    noiseBuf = actx.createBuffer(1, len, actx.sampleRate);
+    var d = noiseBuf.getChannelData(0);
+    for (var i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  } catch(e){ actx = null; }
+}
+function audioReady(){ return actx && actx.state === 'running'; }
+function tone(freq, at, dur, type, vol){
+  if (!audioReady()) return;
+  var o = actx.createOscillator(), g = actx.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(freq, at);
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.exponentialRampToValueAtTime(vol, at + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+  o.connect(g); g.connect(master);
+  o.start(at); o.stop(at + dur + 0.05);
+}
+function kick(at){
+  if (!audioReady()) return;
+  var o = actx.createOscillator(), g = actx.createGain();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(150, at);
+  o.frequency.exponentialRampToValueAtTime(45, at + 0.12);
+  g.gain.setValueAtTime(0.45, at);
+  g.gain.exponentialRampToValueAtTime(0.001, at + 0.2);
+  o.connect(g); g.connect(master);
+  o.start(at); o.stop(at + 0.22);
+}
+function noiseHit(at, dur, vol, hp){
+  if (!audioReady() || !noiseBuf) return;
+  var s = actx.createBufferSource();
+  s.buffer = noiseBuf;
+  var f = actx.createBiquadFilter();
+  f.type = 'highpass'; f.frequency.value = hp;
+  var g = actx.createGain();
+  g.gain.setValueAtTime(vol, at);
+  g.gain.exponentialRampToValueAtTime(0.001, at + dur);
+  s.connect(f); f.connect(g); g.connect(master);
+  s.start(at); s.stop(at + dur + 0.03);
+}
+function scheduleBeat(i, at){
+  var bt = at - audioT0;
+  if (bt < 0) return;
+  if (i % 2 === 0){
+    kick(at);
+    var semi = PENTA[(((i / 2) % 5) + 5) % 5];
+    tone(110 * Math.pow(2, semi / 12), at, 0.30, 'triangle', 0.10);
+  } else {
+    noiseHit(at, 0.035, 0.07, 8000);
+  }
+  if (i % 8 === 2 || i % 8 === 6) noiseHit(at, 0.11, 0.17, 1300);
+}
+function scheduleMusic(){
+  if (!audioReady()) return;
+  if (audioT0 === null){
+    audioT0 = actx.currentTime + 0.09 - songTime;
+    schedStep = 0;
+    while (schedStep < stepTimes.length && stepTimes[schedStep] < songTime - 0.05) schedStep++;
+  }
+  var until = songTime + 0.40;
+  var guard = 0;
+  while (schedStep < stepTimes.length && stepTimes[schedStep] < until && guard < 60){
+    var bt = stepTimes[schedStep];
+    if (bt >= -0.05 && bt < songLen - 0.15) scheduleBeat(schedStep, audioT0 + bt);
+    schedStep++;
+    guard++;
+  }
+}
+function sfxHit(res){
+  if (!audioReady()) return;
+  var t = actx.currentTime;
+  if (res === 'PERFECT'){
+    tone(1568, t, 0.10, 'triangle', 0.26);
+    tone(2349, t, 0.06, 'sine', 0.10);
+  } else {
+    tone(1046, t, 0.10, 'triangle', 0.20);
+  }
+}
+function sfxGold(){
+  if (!audioReady()) return;
+  var t = actx.currentTime;
+  tone(1046, t, 0.08, 'square', 0.13);
+  tone(1568, t + 0.05, 0.10, 'square', 0.12);
+  tone(2093, t + 0.10, 0.16, 'triangle', 0.12);
+}
+function sfxMiss(){
+  if (!audioReady()) return;
+  var t = actx.currentTime;
+  var o = actx.createOscillator(), g = actx.createGain();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(220, t);
+  o.frequency.exponentialRampToValueAtTime(70, t + 0.22);
+  g.gain.setValueAtTime(0.20, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+  o.connect(g); g.connect(master);
+  o.start(t); o.stop(t + 0.28);
+}
+function sfxFever(){
+  if (!audioReady()) return;
+  var t = actx.currentTime;
+  tone(523, t, 0.12, 'square', 0.13);
+  tone(784, t + 0.09, 0.12, 'square', 0.13);
+  tone(1046, t + 0.18, 0.18, 'square', 0.13);
+  tone(1568, t + 0.28, 0.26, 'triangle', 0.13);
+}
+
+/* ---------- chart generation (auto rhythm, tempo ramps up in 2nd half) ---------- */
+function buildSong(){
+  stepTimes = [];
+  var t = 0, i = 0;
+  while (t < songLen && i < 3000){
+    stepTimes.push(t);
+    t += (60 / bpmAt(t)) * 0.5;
+    i++;
+  }
+  notes = [];
+  links = [];
+  var startIdx = 12;
+  var endIdx = stepTimes.length - 6;
+  if (endIdx > stepTimes.length) endIdx = stepTimes.length;
+  if (endIdx < startIdx + 4) endIdx = startIdx + 4;
+  var total = endIdx - startIdx;
+  if (total < 3) total = 3;
+  var lastT = [-9,-9,-9,-9];
+  var busy = [-9,-9,-9,-9];
+  for (var s = startIdx; s < endIdx && s < stepTimes.length; s++){
+    var time = stepTimes[s];
+    var prog = (s - startIdx) / total;
+    var onBeat = (s % 2 === 0);
+    var p = TUNE.density.v * (onBeat ? (0.55 + 0.45 * prog) : (0.10 + 0.45 * prog));
+    if (Math.random() > p) continue;
+    var bd = 60 / bpmAt(time);
+    var cnt = 1;
+    if (onBeat && prog > 0.2 && Math.random() < TUNE.doubleRate.v * (0.2 + 0.8 * prog)) cnt = 2;
+    var cand = [];
+    for (var l = 0; l < 4; l++){
+      if (time - lastT[l] < bd * 0.6) continue;
+      if (time < busy[l]) continue;
+      cand.push(l);
+    }
+    if (cand.length === 0) continue;
+    for (var k = cand.length - 1; k > 0; k--){
+      var j = Math.floor(Math.random() * (k + 1));
+      var tmp = cand[k]; cand[k] = cand[j]; cand[j] = tmp;
+    }
+    if (cnt > cand.length) cnt = cand.length;
+    var group = (cnt === 2);
+    for (var q = 0; q < cnt; q++){
+      var lane = cand[q];
+      var isHold = (!group && onBeat && Math.random() < TUNE.holdRate.v);
+      var isGold = (!group && !isHold && Math.random() < TUNE.goldRate.v);
+      var dur = 0;
+      if (isHold){
+        dur = bd * (Math.random() < 0.5 ? 1 : 2);
+        if (time + dur > songLen - bd){ isHold = false; dur = 0; }
+      }
+      notes.push({ lane: lane, time: time, type: isGold ? 'gold' : (isHold ? 'hold' : 'tap'), dur: dur, judged: false, holding: false, holdAcc: 0 });
+      lastT[lane] = time;
+      if (isHold) busy[lane] = time + dur + bd * 0.5;
+    }
+    if (group) links.push({ time: time, a: cand[0], b: cand[1] });
+  }
+  notes.sort(function(a, b){ return a.time - b.time; });
+}
+
+/* ---------- state ---------- */
+function init(){
+  notes = []; links = []; effects = []; particles = [];
+  songTime = 0; score = 0; combo = 0; maxCombo = 0;
+  lives = Math.round(TUNE.lives.v);
+  lifeMax = lives;
+  laneHeld = [0,0,0,0]; pointerLane = {}; padFlash = [0,0,0,0];
+  judgeText = null; finished = false; shake = 0;
+  feverGauge = 0; feverTime = 0;
+  perfectN = 0; greatN = 0; missN = 0;
+  resultT = 0; overSent = false;
+  stageIdx = 0; stageFlash = 0;
+  songLen = TUNE.songLen.v;
+  speed = (JUDGE_Y - TOP_Y) / TUNE.fallTime.v;
+  buildSong();
+  audioInit();
+  audioT0 = null; schedStep = 0;
+  Game.score(0);
+  Game.hud('❤️'.repeat(lives));
+}
+
+function finish(){
+  if (finished) return;
+  finished = true;
+  resultT = 0;
+  overSent = false;
+  Game.score(score);
+}
+
+function addRing(lane, col){
+  effects.push({ lane: lane, col: col, t: 0, life: 0.38 });
+}
+function spawnParticles(lane, n, gold){
+  var cx = LX + LW * lane + LW / 2;
+  for (var i = 0; i < n; i++){
+    particles.push({
+      x: cx + (Math.random() - 0.5) * 44,
+      y: JUDGE_Y + (Math.random() - 0.5) * 16,
+      vx: (Math.random() - 0.5) * 330,
+      vy: -Math.random() * 300 - 60,
+      life: 0.5 + Math.random() * 0.3,
+      col: gold ? GOLD_COL : LANE_COL[lane],
+      rot: Math.random() * 6.28,
+      vr: (Math.random() - 0.5) * 9
+    });
+  }
+  if (particles.length > 90) particles.splice(0, particles.length - 90);
+}
+function drawStar(cx, cy, r, rot, col, alpha){
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = col;
+  ctx.translate(cx, cy);
+  ctx.rotate(rot);
+  ctx.beginPath();
+  for (var i = 0; i < 10; i++){
+    var rad = (i % 2 === 0) ? r : r * 0.44;
+    var a = -Math.PI / 2 + i * Math.PI / 5;
+    var px = Math.cos(a) * rad, py = Math.sin(a) * rad;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function hitLane(lane){
+  if (finished) return;
+  var best = null, bd = 1e9;
+  var gw = greatW();
+  for (var i = 0; i < notes.length; i++){
+    var n = notes[i];
+    if (n.lane !== lane || n.judged) continue;
+    var d = Math.abs(songTime - n.time);
+    if (d <= gw && d < bd){ bd = d; best = n; }
+  }
+  if (!best) return;
+  best.judged = true;
+
+  var isPerfect = (bd <= TUNE.perfectW.v);
+  var res = isPerfect ? 'PERFECT' : 'GREAT';
+  var gold = (best.type === 'gold');
+  var base = gold ? (isPerfect ? 300 : 150) : (isPerfect ? 100 : 50);
+
+  combo++;
+  if (combo > maxCombo) maxCombo = combo;
+  if (isPerfect) perfectN++; else greatN++;
+
+  score += Math.round(base * scoreMult());
+  Game.score(score);
+
+  judgeText = { text: gold ? ('GOLD ' + res) : res,
+                col: gold ? GOLD_COL : (isPerfect ? [130,255,255] : [255,220,90]),
+                t: 0 };
+  addRing(lane, gold ? GOLD_COL : LANE_COL[lane]);
+  spawnParticles(lane, gold ? 16 : (isPerfect ? 10 : 5), gold);
+  padFlash[lane] = 0.35;
+  if (gold){
+    sfxGold();
+    Game.float(LX + LW * lane + LW / 2, JUDGE_Y - 62, '+' + String(Math.round(base * scoreMult())), '#ffd166');
+  } else {
+    sfxHit(res);
+  }
+
+  if (feverTime <= 0){
+    var fgain = isPerfect ? (gold ? FEVER_GOLD : FEVER_P) : FEVER_G;
+    feverGauge += fgain;
+    if (feverGauge >= 100){
+      feverGauge = 100;
+      feverTime = TUNE.feverLen.v;
+      sfxFever();
+      shake = 0.3;
+      Game.toast('🔥 FEVER! スコア2倍');
+    }
+  }
+
+  if (best.type === 'hold'){
+    best.holding = true;
+    best.holdAcc = 0;
+  } else {
+    var idx = notes.indexOf(best);
+    if (idx >= 0) notes.splice(idx, 1);
+  }
+}
+
+function missNote(n){
+  combo = 0;
+  lives--;
+  if (lives < 0) lives = 0;
+  missN++;
+  Game.hud('❤️'.repeat(lives));
+  judgeText = { text: 'MISS', col: [255,90,90], t: 0 };
+  addRing(n.lane, [255,90,90]);
+  shake = 0.22;
+  sfxMiss();
+  if (lives <= 0) finish();
+}
+
+function getRank(){
+  var total = perfectN + greatN + missN;
+  if (total <= 0) return 'C';
+  var acc = (perfectN + greatN * 0.6) / total;
+  if (acc >= 0.90) return 'S';
+  if (acc >= 0.78) return 'A';
+  if (acc >= 0.60) return 'B';
+  return 'C';
+}
+
+function tickEffects(dt){
+  var i;
+  for (i = effects.length - 1; i >= 0; i--){
+    var e = effects[i];
+    e.t += dt;
+    if (e.t >= e.life) effects.splice(i, 1);
+  }
+  for (i = particles.length - 1; i >= 0; i--){
+    var p = particles[i];
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vy += 720 * dt;
+    p.rot += p.vr * dt;
+    p.life -= dt;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+  if (judgeText){ judgeText.t += dt; if (judgeText.t > 0.55) judgeText = null; }
+  if (shake > 0){ shake -= dt; if (shake < 0) shake = 0; }
+  if (stageFlash > 0){ stageFlash -= dt; if (stageFlash < 0) stageFlash = 0; }
+}
+
+function update(dt){
+  if (finished){
+    if (!overSent){
+      resultT += dt;
+      if (resultT > 3.0){ overSent = true; Game.over(score); }
+    }
+    tickEffects(dt);
+    return;
+  }
+
+  songTime += dt;
+  scheduleMusic();
+
+  var i, n;
+
+  if (feverTime > 0){
+    feverTime -= dt;
+    if (feverTime <= 0){ feverTime = 0; feverGauge = 0; }
+  }
+
+  var st = Math.floor(combo / 50);
+  if (st !== stageIdx){ stageIdx = st; stageFlash = 0.55; }
+
+  for (i = 0; i < 4; i++){
+    if (padFlash[i] > 0){ padFlash[i] -= dt * 3; if (padFlash[i] < 0) padFlash[i] = 0; }
+  }
+
+  var gw = greatW();
+  for (i = notes.length - 1; i >= 0; i--){
+    n = notes[i];
+    if (n.judged){
+      if (n.type === 'hold' && n.holding){
+        if (laneHeld[n.lane] <= 0){
+          n.holding = false;
+          combo = 0;
+          judgeText = { text: 'HOLD BREAK', col: [255,130,130], t: 0 };
+          notes.splice(i, 1);
+          continue;
+        }
+        if (songTime >= n.time + n.dur){
+          n.holding = false;
+          addRing(n.lane, LANE_COL[n.lane]);
+          var hb = Math.round(60 * scoreMult());
+          score += hb;
+          Game.score(score);
+          Game.float(LX + LW * n.lane + LW / 2, JUDGE_Y - 70, 'HOLD +' + String(hb), '#a8ffd0');
+          notes.splice(i, 1);
+          continue;
+        }
+        n.holdAcc += dt;
+        var ticked = false;
+        while (n.holdAcc >= 0.1){
+          n.holdAcc -= 0.1;
+          score += Math.round(8 * scoreMult());
+          ticked = true;
+        }
+        if (ticked) Game.score(score);
+        continue;
+      }
+      continue;
+    }
+    if (songTime > n.time + gw){
+      notes.splice(i, 1);
+      missNote(n);
+      if (finished) return;
+    }
+  }
+
+  tickEffects(dt);
+
+  if (songTime >= songLen) finish();
+}
+
+function drawNote(n, y){
+  var x0 = LX + LW * n.lane;
+  var w = LW - 30;
+  var x = x0 + 15;
+
+  if (n.type === 'hold'){
+    var tailY = n.holding ? (JUDGE_Y - (n.time + n.dur - songTime) * speed) : (y - n.dur * speed);
+    var ty = tailY < LANE_TOP + 4 ? LANE_TOP + 4 : tailY;
+    var h = y - ty;
+    if (h > 0){
+      ctx.fillStyle = rgba(LANE_COL[n.lane], 0.30);
+      rr(x + 6, ty, w - 12, h, 8); ctx.fill();
+      ctx.fillStyle = rgba(LANE_COL[n.lane], 0.95);
+      ctx.fillRect(x + w / 2 - 2, ty, 4, h);
+    }
+    if (n.holding && y > JUDGE_Y) y = JUDGE_Y;
+  }
+
+  if (n.type === 'gold'){
+    ctx.fillStyle = 'rgba(255,206,64,0.26)';
+    rr(x - 9, y - 19, w + 18, 38, 19); ctx.fill();
+    var gg = ctx.createLinearGradient(x, y - 13, x, y + 13);
+    gg.addColorStop(0, '#fff8cf');
+    gg.addColorStop(0.5, '#ffd23f');
+    gg.addColorStop(1, '#ef9d00');
+    ctx.fillStyle = gg;
+    rr(x, y - 13, w, 26, 13); ctx.fill();
+    ctx.fillStyle = 'rgba(90,50,0,0.85)';
+    ctx.font = 'bold 17px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('>>', x + w / 2, y + 1);
+  } else {
+    ctx.fillStyle = rgba(LANE_COL[n.lane], 0.20);
+    rr(x - 7, y - 17, w + 14, 34, 17); ctx.fill();
+    ctx.fillStyle = rgba(LANE_COL[n.lane], 1);
+    rr(x, y - 13, w, 26, 13); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    rr(x + 5, y - 5, w - 10, 10, 5); ctx.fill();
+  }
+}
+
+function draw(){
+  var bg = BG_SETS[stageIdx % BG_SETS.length];
+  var g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, bg[0]);
+  g.addColorStop(0.6, bg[1]);
+  g.addColorStop(1, bg[2]);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  if (feverTime > 0){
+    var pulse = 0.09 + 0.05 * Math.sin(songTime * 14);
+    ctx.fillStyle = 'rgba(255,190,60,' + pulse.toFixed(3) + ')';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  var ox = 0, oy = 0;
+  if (shake > 0){ ox = (Math.random() * 2 - 1) * 7; oy = (Math.random() * 2 - 1) * 7; }
+  ctx.save();
+  ctx.translate(ox, oy);
+
+  var i, col, x;
+
+  for (i = 0; i < 4; i++){
+    col = LANE_COL[i];
+    x = LX + i * LW;
+    ctx.fillStyle = rgba(col, laneHeld[i] > 0 ? 0.16 : 0.05);
+    ctx.fillRect(x, LANE_TOP, LW, JUDGE_Y - LANE_TOP);
+    ctx.fillStyle = rgba(col, 0.22);
+    ctx.fillRect(x, LANE_TOP, 2, JUDGE_Y - LANE_TOP);
+  }
+  ctx.fillStyle = rgba(LANE_COL[3], 0.22);
+  ctx.fillRect(LX + 4 * LW - 2, LANE_TOP, 2, JUDGE_Y - LANE_TOP);
+
+  for (i = 0; i < 4; i++){
+    col = LANE_COL[i];
+    x = LX + i * LW;
+    var held = laneHeld[i] > 0;
+    var fl = padFlash[i];
+    ctx.fillStyle = rgba(col, held ? 0.30 : 0.07 + fl * 0.5);
+    rr(x + 6, PAD_TOP, LW - 12, PAD_B - PAD_TOP, 14); ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = rgba(col, held ? 0.95 : 0.38);
+    rr(x + 6, PAD_TOP, LW - 12, PAD_B - PAD_TOP, 14); ctx.stroke();
+    ctx.globalAlpha = held ? 0.82 : 0.35;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = "30px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText(LANE_EMO[i], x + LW / 2, PAD_TOP + (PAD_B - PAD_TOP) / 2);
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.fillStyle = 'rgba(255,255,255,0.10)';
+  ctx.fillRect(LX, JUDGE_Y - 13, 4 * LW, 26);
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  ctx.fillRect(LX, JUDGE_Y - 1.5, 4 * LW, 3);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(LX, LANE_TOP, 4 * LW, JUDGE_Y - LANE_TOP + 20);
+  ctx.clip();
+
+  for (i = 0; i < links.length; i++){
+    var lk = links[i];
+    var dy = lk.time - songTime;
+    if (dy < -0.12 || dy > TUNE.fallTime.v) continue;
+    var ly = JUDGE_Y - dy * speed;
+    if (ly < LANE_TOP) continue;
+    var ax = LX + LW * lk.a + LW / 2;
+    var bx = LX + LW * lk.b + LW / 2;
+    var lg = ctx.createLinearGradient(ax, 0, bx, 0);
+    lg.addColorStop(0, 'rgba(255,255,255,0.05)');
+    lg.addColorStop(0.5, 'rgba(180,245,255,0.65)');
+    lg.addColorStop(1, 'rgba(255,255,255,0.05)');
+    ctx.strokeStyle = lg;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(ax, ly);
+    ctx.lineTo(bx, ly);
+    ctx.stroke();
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillStyle = 'rgba(200,250,255,0.9)';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('同時', (ax + bx) / 2, ly - 12);
+  }
+
+  for (i = 0; i < notes.length; i++){
+    var n = notes[i];
+    var y = JUDGE_Y - (n.time - songTime) * speed;
+    if (n.judged && n.type === 'hold' && n.holding){
+      drawNote(n, JUDGE_Y);
+      continue;
+    }
+    if (y < LANE_TOP - 24) break;
+    if (y > JUDGE_Y + 90) continue;
+    drawNote(n, y);
+  }
+  ctx.restore();
+
+  for (i = 0; i < effects.length; i++){
+    var e = effects[i];
+    var k = e.t / e.life;
+    var cx = LX + LW * e.lane + LW / 2;
+    ctx.strokeStyle = rgba(e.col, (1 - k) * 0.85);
+    ctx.lineWidth = 3 * (1 - k) + 1;
+    ctx.beginPath();
+    ctx.arc(cx, PAD_TOP + (PAD_B - PAD_TOP) / 2, 16 + k * 46, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  for (i = 0; i < particles.length; i++){
+    var p = particles[i];
+    var al = p.life / 0.5;
+    if (al > 1) al = 1;
+    if (al < 0) al = 0;
+    drawStar(p.x, p.y, 8, p.rot, rgba(p.col, 1), al);
+  }
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  if (feverTime > 0){
+    ctx.font = 'bold 24px sans-serif';
+    ctx.fillStyle = 'rgba(255,235,120,' + (0.65 + 0.35 * Math.sin(songTime * 14)).toFixed(3) + ')';
+    ctx.fillText('🔥 FEVER x2', W / 2, 126);
+  }
+
+  if (combo >= 2){
+    var cs = 36 + Math.min(44, combo * 0.35);
+    ctx.font = 'bold ' + Math.round(cs) + 'px sans-serif';
+    ctx.fillStyle = 'rgba(0,0,0,0.30)';
+    ctx.fillText(String(combo), W / 2 + 2, 194);
+    ctx.fillStyle = feverTime > 0 ? 'rgba(255,225,130,0.45)' : 'rgba(255,255,255,0.30)';
+    ctx.fillText(String(combo), W / 2, 192);
+    ctx.font = 'bold 16px sans-serif';
+    ctx.fillStyle = feverTime > 0 ? 'rgba(255,215,90,0.95)' : 'rgba(150,225,255,0.75)';
+    ctx.fillText(String(combo) + ' COMBO  x' + scoreMult().toFixed(1), W / 2, 192 + cs * 0.62);
+  }
+
+  if (judgeText){
+    var jk = judgeText.t / 0.55;
+    ctx.font = 'bold 26px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = rgba(judgeText.col, Math.max(0, 1 - jk));
+    ctx.fillText(judgeText.text, W / 2, JUDGE_Y - 96 - jk * 22);
+  }
+
+  ctx.restore();
+
+  if (stageFlash > 0){
+    ctx.fillStyle = 'rgba(255,255,255,' + (stageFlash * 0.22).toFixed(3) + ')';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  var prog = songTime / songLen;
+  if (prog > 1) prog = 1;
+  if (prog < 0) prog = 0;
+  ctx.fillStyle = 'rgba(255,255,255,0.10)';
+  rr(LX, 57, W - LX * 2, 6, 3); ctx.fill();
+  if (prog > 0.004){
+    var w2 = (W - LX * 2) * prog;
+    var pg = ctx.createLinearGradient(LX, 0, W - LX, 0);
+    pg.addColorStop(0, '#22e6ff');
+    pg.addColorStop(1, '#ff3ea5');
+    ctx.fillStyle = pg;
+    rr(LX, 57, w2 < 6 ? 6 : w2, 6, 3); ctx.fill();
+  }
+
+  var lf = lifeMax > 0 ? lives / lifeMax : 0;
+  ctx.fillStyle = 'rgba(255,255,255,0.10)';
+  rr(LX, 66, W - LX * 2, 7, 3.5); ctx.fill();
+  if (lf > 0.004){
+    var lw = (W - LX * 2) * lf;
+    ctx.fillStyle = lf > 0.5 ? '#4ade80' : (lf > 0.25 ? '#fbbf24' : '#f87171');
+    rr(LX, 66, lw < 5 ? 5 : lw, 7, 3.5); ctx.fill();
+  }
+
+  var fv = feverTime > 0 ? (feverTime / TUNE.feverLen.v) : (feverGauge / 100);
+  ctx.fillStyle = 'rgba(255,255,255,0.10)';
+  rr(LX, 75, W - LX * 2, 7, 3.5); ctx.fill();
+  if (fv > 0.004){
+    var fw = (W - LX * 2) * fv;
+    var fg2 = ctx.createLinearGradient(LX, 0, LX + fw, 0);
+    if (feverTime > 0){ fg2.addColorStop(0, '#fff2a0'); fg2.addColorStop(1, '#ff9d00'); }
+    else { fg2.addColorStop(0, '#7c5cff'); fg2.addColorStop(1, '#ff3ea5'); }
+    ctx.fillStyle = fg2;
+    rr(LX, 75, fw < 5 ? 5 : fw, 7, 3.5); ctx.fill();
+  }
+
+  if (finished){
+    ctx.fillStyle = 'rgba(4,6,14,0.80)';
+    ctx.fillRect(0, 0, W, H);
+    var pw = 380, ph = 380;
+    var px = (W - pw) / 2, py = 150;
+    ctx.fillStyle = 'rgba(18,24,44,0.96)';
+    rr(px, py, pw, ph, 22); ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(120,200,255,0.55)';
+    rr(px, py, pw, ph, 22); ctx.stroke();
+
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#dcecff';
+    ctx.font = 'bold 22px sans-serif';
+    ctx.fillText('RESULT', W / 2, py + 36);
+
+    var rk = getRank();
+    var rcol = rk === 'S' ? '#ffd93b' : (rk === 'A' ? '#7cf37c' : (rk === 'B' ? '#66c8ff' : '#c3ceda'));
+    ctx.font = 'bold 78px sans-serif';
+    ctx.fillStyle = rcol;
+    ctx.fillText(rk, W / 2, py + 108);
+
+    ctx.font = 'bold 16px sans-serif';
+    ctx.fillStyle = '#9fc4e8';
+    ctx.fillText('判定の内訳', W / 2, py + 162);
+
+    ctx.font = 'bold 19px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#7ef0ff';
+    ctx.fillText('PERFECT', px + 62, py + 196);
+    ctx.fillStyle = '#ffe46a';
+    ctx.fillText('GREAT', px + 62, py + 226);
+    ctx.fillStyle = '#ff8a8a';
+    ctx.fillText('MISS', px + 62, py + 256);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(String(perfectN), px + pw - 62, py + 196);
+    ctx.fillText(String(greatN), px + pw - 62, py + 226);
+    ctx.fillText(String(missN), px + pw - 62, py + 256);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#cfe0f5';
+    ctx.font = 'bold 17px sans-serif';
+    ctx.fillText('MAX COMBO  ' + String(maxCombo), W / 2, py + 300);
+    ctx.fillStyle = '#ffd166';
+    ctx.font = 'bold 20px sans-serif';
+    ctx.fillText('SCORE  ' + String(score), W / 2, py + 330);
+
+    ctx.fillStyle = 'rgba(200,220,240,0.75)';
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillText('タップで終了', W / 2, py + 358);
+  }
+}
+
+/* ---------- input ---------- */
+function onDown(x, y, id){
+  if (finished){
+    if (!overSent && resultT > 0.8){ overSent = true; Game.over(score); }
+    return;
+  }
+  if (actx && actx.state === 'suspended' && actx.resume){ try { actx.resume(); } catch(e){} }
+  if (pointerLane[id] !== undefined) return;
+  var lane = laneAt(x);
+  pointerLane[id] = lane;
+  laneHeld[lane]++;
+  padFlash[lane] = 0.35;
+  hitLane(lane);
+}
+function onMove(x, y, id){ }
+function onUp(x, y, id){
+  var lane = pointerLane[id];
+  if (lane === undefined) return;
+  delete pointerLane[id];
+  laneHeld[lane]--;
+  if (laneHeld[lane] < 0) laneHeld[lane] = 0;
+}
+function onResize(){ }
+/*__VAPPA_JS_END__*/
+</script>
+</body></html>
