@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
+<title>忍者パルクール</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E5%BF%8D%E8%80%85%E3%83%91%E3%83%AB%E3%82%AF%E3%83%BC%E3%83%AB%22%2C%22h%22%3A%22%E3%82%BF%E3%83%83%E3%83%97%E3%81%A7%E3%82%B8%E3%83%A3%E3%83%B3%E3%83%97%EF%BC%81%E7%A9%BA%E4%B8%AD%E3%81%A7%E3%82%82%E3%81%86%E4%B8%80%E5%BA%A6%E3%82%BF%E3%83%83%E3%83%97%E3%81%A72%E6%AE%B5%E3%82%B8%E3%83%A3%E3%83%B3%E3%83%97%E3%80%81%E9%95%B7%E6%8A%BC%E3%81%97%E3%81%A7%E6%BB%91%E7%A9%BA%E3%80%82%E5%B1%8B%E6%A0%B9%E3%81%AE%E7%A9%B4%E3%81%AB%E8%90%BD%E3%81%A1%E3%81%9A%E3%81%AB%E8%B7%9D%E9%9B%A2%E3%82%92%E4%BC%B8%E3%81%B0%E3%81%9B%E3%80%82%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
+html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
+#vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+/* vpstage＝論理480x720（2:3）の箱。HUD・オーバーレイ・ゲームDOMを全部この中に入れ、
+   箱ごと実画面へ拡縮する（座標系はゲーム内で常に1つ） */
+#vpstage{position:fixed;left:0;top:0;width:480px;height:720px;transform-origin:0 0;z-index:1;overflow:hidden}
+#vpdom{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
+#vpdom *{pointer-events:auto}
+.vp-hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
+.vp-hud span:empty{display:none}
+.vp-ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
+.vp-ov h1{font-size:28px}
+.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:340px;white-space:pre-line}
+.vp-ov .vp-big{font-size:44px;font-weight:900;color:#ffd166}
+.vp-btn{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:17px;box-shadow:0 5px 0 rgba(0,0,0,.25);touch-action:manipulation}
+.vp-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.vp-toast{position:absolute;top:52px;left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+[hidden]{display:none!important}
+</style>
+<style id="vpcss">
+/*__VAPPA_CSS__*/
+
+/*__VAPPA_CSS_END__*/
+</style>
+</head><body>
+<canvas id="vpc"></canvas>
+<div id="vpstage">
+  <div id="vpdom"></div>
+  <div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
+  <div class="vp-toast" id="vptoast"></div>
+  <div class="vp-ov" id="vpov">
+    <h1>忍者パルクール</h1>
+    <p>タップでジャンプ！空中でもう一度タップで2段ジャンプ、長押しで滑空。屋根の穴に落ちずに距離を伸ばせ。</p>
+    <button class="vp-btn" id="vpstart">スタート</button>
+  </div>
+</div>
+<script id="vpimgs">
+/* ユーザー素材画像 {名前:dataURL}。中身はビルド後にアプリが注入（AIには名前だけ渡る） */
+window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
+</script>
+<script>
+window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
+var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
+// iOS Safari は fillStyle がグラデーション/パターンのオブジェクトのままだと
+// カラー絵文字を fillText できない（何も描かれない）。生成コードは
+// 「背景をグラデで塗る→そのまま絵文字を描く」形を高頻度で書くため、
+// 絵文字を含む fillText の間だけ fillStyle を単色に退避して確実に描く。
+(function(){
+  var _ft=ctx.fillText;
+  function hasEmo(s){
+    for(var i=0;i<s.length;i++){
+      var c=s.charCodeAt(i);
+      if((c>=0x2100&&c<=0x2BFF)||(c>=0xD800&&c<=0xDFFF)||c===0xFE0F)return true;
+    }
+    return false;
+  }
+  ctx.fillText=function(t,x,y,mw){
+    var s=String(t);
+    if(typeof this.fillStyle!=="string"&&hasEmo(s)){
+      var f=this.fillStyle;this.fillStyle="#000";
+      try{mw===undefined?_ft.call(this,s,x,y):_ft.call(this,s,x,y,mw);}
+      finally{this.fillStyle=f;}
+    }else{
+      mw===undefined?_ft.call(this,s,x,y):_ft.call(this,s,x,y,mw);
+    }
+  };
+})();
+// 論理画面は 480x720（2:3）固定。全端末でこのサイズとして描き、ランタイムが
+// vpstage（HUD・オーバーレイ・ゲームDOMを含む箱）ごと実画面へ拡縮する。
+// ゲームコードは端末差を一切考えなくてよい（入力座標も論理系で届く）。
+var W=480,H=720;
+var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
+(function(){
+"use strict";
+var DPR=Math.min(2,window.devicePixelRatio||1);
+function rs(){
+  var vw=window.innerWidth,vh=window.innerHeight;
+  __SC=Math.min(vw/W,vh/H);
+  __OX=(vw-W*__SC)/2;__OY=(vh-H*__SC)/2;
+  cv.width=vw*DPR;cv.height=vh*DPR;
+  ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
+  ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
+  var st=document.getElementById("vpstage");
+  if(st){st.style.transform="scale("+__SC+")";st.style.left=__OX+"px";st.style.top=__OY+"px";}
+  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
+}
+window.addEventListener("resize",rs);rs();
+// 実画面座標→論理座標（タッチ入力用）
+function toLX(x){return (x-__OX)/__SC;}
+function toLY(y){return (y-__OY)/__SC;}
+var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="点";
+// ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
+var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
+var hud=document.getElementById("vphud"),hl=document.getElementById("vphl"),hr=document.getElementById("vphr");
+var ov=document.getElementById("vpov"),toastEl=document.getElementById("vptoast"),tt=null,last=performance.now();
+window.Game={
+  img:function(n){return IMGS[n]||null;},
+  score:function(n){hl.textContent=(n|0)+unit;},
+  hud:function(t){hr.textContent=t==null?"":String(t);},
+  float:function(x,y,t,c){floats.push({x:x,y:y,t:String(t),c:c||"#fff",age:0});},
+  toast:function(t){toastEl.textContent=t;toastEl.style.opacity=1;clearTimeout(tt);tt=setTimeout(function(){toastEl.style.opacity=0;},2000);},
+  over:function(s){
+    if(!playing||ended)return;ended=true;playing=false;s=Math.max(0,Math.floor(Number(s)||0));
+    ov.innerHTML='<h1>おわり！</h1><div class="vp-big">'+s+'<small style="font-size:20px">'+unit+'</small></div><button class="vp-btn" id="vpagain">もういちど</button>';
+    ov.hidden=false;
+    document.getElementById("vpagain").addEventListener("click",start);
+    try{window.Arcade.gameOver(s);}catch(e){}
+  }
+};
+function crash(e){
+  if(crashed)return;crashed=true;playing=false;
+  try{window.__VP_ERR=String(e&&(e.stack||e.message)||e).slice(0,600);}catch(x){}
+  ov.innerHTML='<h1>😢 エラーが発生</h1><p>ゲームにエラーが起きました。<br>作成チャットで「エラーを直して」と伝えると修理できるよ。</p><button class="vp-btn" id="vpagain">もういちど</button>';
+  ov.hidden=false;
+  document.getElementById("vpagain").addEventListener("click",start);
+}
+function start(){
+  floats=[];ended=false;crashed=false;
+  try{window.init();}catch(e){crash(e);return;}
+  window.Game.score(0);ov.hidden=true;hud.hidden=false;playing=true;last=performance.now();
+}
+document.getElementById("vpstart").addEventListener("click",start);
+function fire(fn,x,y,id){
+  if(!playing||paused)return;
+  if(typeof window[fn]==="function"){try{window[fn](x,y,id);}catch(err){crash(err);}}
+}
+// pointer と touch を両対応（iOSのiframe内などpointerが飛ばない環境へのフォールバック）。
+// pointerが一度でも来たらtouchは無視して二重発火を防ぐ。
+var seenPointer=false;
+window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",toLX(e.clientX),toLY(e.clientY),e.pointerId);fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointermove",function(e){fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointerup",function(e){fire("onUp",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+// タッチの扱い（iOS対策の要点）：
+//  - touchstart は preventDefault しない
+//  - touchmove は非passiveで preventDefault → パン/スクロール横取りはこれで止まる
+//  - touchend はボタン類「以外」でだけ preventDefault → iOSのダブルタップズーム
+//    （touch-action:noneでは止まらない端末がある）を殺しつつ、ボタンの click 合成は守る
+//  - preventDefault すると iOS は click を合成しない → 生成コードが div/span で
+//    自作ボタンを作った場合に全操作不能になる。そこで「タップ」（移動が小さく
+//    短いタッチ）に限り、こちらで click を合成して補う。本物の button 等は
+//    preventDefault しない＝ネイティブ click が来るので合成しない（二重防止）
+//  - pointerイベントが来る環境では発火だけ二重防止（seenPointer）
+function tfire(fn,e){
+  if(seenPointer)return;
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,toLX(t.clientX),toLY(t.clientY),t.identifier);
+    if(fn==="onDown")fire("onMove",toLX(t.clientX),toLY(t.clientY),t.identifier);}
+}
+function uiTouch(e){var t=e.target;return !!(t&&t.closest&&t.closest("button,a,input,select,label"));}
+var tstart={};
+window.addEventListener("touchstart",function(e){
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];tstart[t.identifier]={x:t.clientX,y:t.clientY,at:Date.now()};}
+  tfire("onDown",e);
+},{passive:true});
+window.addEventListener("touchmove",function(e){if(e.cancelable)e.preventDefault();tfire("onMove",e);},{passive:false});
+window.addEventListener("touchend",function(e){
+  var prevented=false;
+  if(e.cancelable&&!uiTouch(e)){e.preventDefault();prevented=true;}
+  if(prevented){
+    for(var i=0;i<e.changedTouches.length;i++){
+      var t=e.changedTouches[i],s=tstart[t.identifier];
+      if(s&&Math.abs(t.clientX-s.x)<14&&Math.abs(t.clientY-s.y)<14&&Date.now()-s.at<1500){
+        var el=document.elementFromPoint(t.clientX,t.clientY)||e.target;
+        if(el){try{el.dispatchEvent(new MouseEvent("click",{bubbles:true,cancelable:true,view:window,clientX:t.clientX,clientY:t.clientY}));}catch(err){}}
+      }
+    }
+  }
+  for(var j=0;j<e.changedTouches.length;j++)delete tstart[e.changedTouches[j].identifier];
+  tfire("onUp",e);
+},{passive:false});
+document.addEventListener("gesturestart",function(e){e.preventDefault();});
+window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",toLX(e.clientX),toLY(e.clientY),0);});
+window.Arcade.onPause(function(){paused=true;});
+window.Arcade.onResume(function(){paused=false;last=performance.now();});
+window.Arcade.onRestart(start);
+document.addEventListener("visibilitychange",function(){if(document.hidden){paused=true;}else{paused=false;last=performance.now();}});
+function loop(now){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(now-last)/1000);last=now;
+  if(crashed)return;
+  if(playing&&!paused){try{window.update(dt);}catch(e){crash(e);return;}}
+  if(playing||ended){try{window.draw();}catch(e){crash(e);return;}}
+  for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.age+=dt;
+    if(f.age>1){floats.splice(i,1);continue;}
+    ctx.save();ctx.globalAlpha=Math.max(0,1-f.age);ctx.font="bold 16px sans-serif";ctx.textAlign="center";
+    ctx.fillStyle=f.c;ctx.fillText(f.t,f.x,f.y-f.age*30);ctx.restore();}
+}
+requestAnimationFrame(loop);
+window.Arcade.ready();
+// 自動テストプレイ用フック：親(アプリ)がスモークテストで入力を一発流すのに使う
+window.__vpTap=function(){
+  fire("onDown",W/2,H/2,1);fire("onMove",W/2+40,H/2,1);fire("onUp",W/2+40,H/2,1);
+};
+})();
+</script>
+<script id="vpgame">
+/*__VAPPA_JS__*/
+var TUNE = {
+  speedStart: { v: 240, label: 'スタート速度', min: 140, max: 400, step: 10 },
+  speedGain:  { v: 12,  label: '加速ペース',   min: 0,   max: 30,  step: 1 },
+  jumpPower:  { v: 850, label: 'ジャンプ力',   min: 600, max: 1150, step: 20 },
+  gravity:    { v: 2400,label: '重力',         min: 1400,max: 3600, step: 100 },
+  gapTime:    { v: 0.46,label: '穴の最大幅',   min: 0.22,max: 0.66, step: 0.02 },
+  enemyRate:  { v: 0.55,label: '敵の出現率',   min: 0,   max: 1,   step: 0.05 },
+  itemRate:   { v: 0.70,label: '小判の出現率', min: 0,   max: 1,   step: 0.05 },
+  bossSpan:   { v: 1000,label: 'ボス間隔',     min: 300, max: 2500, step: 100 }
+};
+
+var ROOF_Y = 590, PX_PER_M = 10, NINJA_X = 120, NINJA_H = 46;
+var camX, dist, bonus, combo, comboT, scrollT, kiteT, shake, nightF, bossNext;
+var ninja, platforms, obs, fly, items, parts, boss, kite, lastEdge;
+var alive, holding, over, deathT, spawnT, kiteSpawnT, tt, lastScore, lastHud, pointers;
+
+var SKY = [
+  [[28,26,64],[8,10,26]],
+  [[124,46,96],[14,18,44]],
+  [[214,92,78],[22,30,58]],
+  [[246,164,96],[34,44,74]]
+];
+var SKY_T = [0, 0.42, 0.72, 1];
+
+function hash(n){
+  var s = Math.sin(n * 12.9898) * 43758.5453;
+  return s - Math.floor(s);
+}
+function baseSpeed(){
+  return TUNE.speedStart.v + Math.min(340, dist * TUNE.speedGain.v * 0.01);
+}
+function totalScore(){ return Math.floor(dist) + bonus; }
+
+function init(){
+  camX = 0; dist = 0; bonus = 0; combo = 0; comboT = 0;
+  scrollT = 0; kiteT = 0; shake = 0; nightF = 0;
+  bossNext = TUNE.bossSpan.v;
+  alive = true; holding = false; over = false; deathT = 0; tt = 0;
+  spawnT = 2.2; kiteSpawnT = 14;
+  lastScore = -1; lastHud = ''; pointers = 0;
+  platforms = []; obs = []; fly = []; items = []; parts = [];
+  boss = null; kite = null;
+  platforms.push({ x: -300, w: 1000 });
+  lastEdge = 700;
+  ninja = { y: ROOF_Y, vy: 0, onGround: true, jumps: 0, gliding: false };
+  ensureWorld();
+  Game.score(0); Game.hud('');
+}
+
+function platformAt(wx){
+  for (var i = 0; i < platforms.length; i++){
+    var p = platforms[i];
+    if (wx >= p.x && wx <= p.x + p.w) return p;
+  }
+  return null;
+}
+
+function ensureLanding(wx){
+  for (var i = 0; i < platforms.length; i++){
+    var p = platforms[i];
+    if (p.x <= wx - 20 && p.x + p.w >= wx + 300) return;
+  }
+  platforms.push({ x: wx - 30, w: 400 });
+}
+
+function ensureWorld(){
+  var guard = 0;
+  while (lastEdge < camX + W + 700 && guard++ < 30){
+    var diff = Math.min(1, dist / 900);
+    var sp = baseSpeed();
+    var gmax = 0.30 + (TUNE.gapTime.v - 0.30) * diff;
+    var gt = gmax * (0.62 + 0.38 * Math.random());
+    var gap = Math.max(74, sp * gt);
+    var pw = 440 - 170 * diff + Math.random() * 150;
+    if (pw < 220) pw = 220;
+    var px = lastEdge + gap;
+    var p = { x: px, w: pw };
+    platforms.push(p);
+    lastEdge = px + pw;
+    populate(p, diff);
+  }
+}
+
+function populate(p, diff){
+  if (Math.random() < TUNE.enemyRate.v){
+    var cx = p.x + p.w * (0.55 + Math.random() * 0.28);
+    if (Math.random() < 0.4) obs.push({ type: 'sam', x: cx, y: ROOF_Y - 24, w: 34, h: 48, dead: false, t: 0 });
+    else obs.push({ type: 'brick', x: cx, y: ROOF_Y - 19, w: 36, h: 38, dead: false, t: 0 });
+  }
+  if (Math.random() < TUNE.itemRate.v){
+    var n = 3 + Math.floor(Math.random() * 4);
+    var sx0 = p.x + p.w * (0.08 + Math.random() * 0.16);
+    for (var i = 0; i < n; i++){
+      var tx = sx0 + i * 36;
+      if (tx > p.x + p.w - 18) break;
+      var arc = Math.sin((i + 0.5) / n * Math.PI);
+      items.push({ type: 'coin', x: tx, y: ROOF_Y - 34 - arc * 52, t: Math.random() * 6 });
+    }
+  }
+  if (Math.random() < 0.12 && scrollT <= 0 && dist > 150){
+    items.push({ type: 'scroll', x: p.x + p.w * 0.62, y: ROOF_Y - 54, t: 0 });
+  }
+}
+
+function puff(wx, wy, col, n, spd){
+  for (var i = 0; i < n; i++){
+    var a = Math.random() * 6.283;
+    var s = (0.25 + Math.random()) * spd;
+    var life = 0.35 + Math.random() * 0.4;
+    parts.push({ x: wx, y: wy, vx: Math.cos(a) * s - 30, vy: Math.sin(a) * s - 20, g: 90, r: 4 + Math.random() * 7, life: life, max: life, col: col });
+  }
+  while (parts.length > 220) parts.shift();
+}
+
+function die(){
+  if (!alive) return;
+  alive = false; deathT = 1.1; shake = 0.9;
+  var nx = camX + NINJA_X;
+  puff(nx, ninja.y - 20, 'rgba(255,110,70,0.95)', 16, 230);
+  puff(nx, ninja.y - 20, 'rgba(255,225,160,0.95)', 10, 190);
+}
+
+function revive(){
+  scrollT = 0;
+  var nx = camX + NINJA_X;
+  ensureLanding(nx + 40);
+  ninja.y = ROOF_Y - 170; ninja.vy = 0; ninja.onGround = false; ninja.jumps = 1;
+  var i;
+  for (i = fly.length - 1; i >= 0; i--) fly.splice(i, 1);
+  for (i = obs.length - 1; i >= 0; i--){
+    if (obs[i].x > nx - 120 && obs[i].x < nx + 460) obs.splice(i, 1);
+  }
+  puff(nx, ROOF_Y - 70, 'rgba(190,220,255,0.95)', 20, 210);
+  shake = 0.5;
+  Game.toast('📜 影分身！復活');
+}
+
+function update(dt){
+  tt += dt;
+  if (shake > 0) shake -= dt * 1.6;
+  var i;
+  for (i = parts.length - 1; i >= 0; i--){
+    var q = parts[i];
+    q.x += q.vx * dt; q.y += q.vy * dt; q.vy += q.g * dt; q.life -= dt;
+    if (q.life <= 0) parts.splice(i, 1);
+  }
+  if (!alive){
+    deathT -= dt;
+    if (deathT <= 0 && !over){ over = true; Game.over(totalScore()); }
+    return;
+  }
+
+  var sp = baseSpeed() * (kiteT > 0 ? 2.4 : 1) * (ninja.gliding ? 0.55 : 1);
+  camX += sp * dt;
+  dist = camX / PX_PER_M;
+  ensureWorld();
+  for (i = platforms.length - 1; i >= 0; i--){
+    if (platforms[i].x + platforms[i].w < camX - 320) platforms.splice(i, 1);
+  }
+  var nx = camX + NINJA_X;
+
+  var cyc = Math.floor(dist / 500);
+  var tn = (cyc % 2 === 1) ? 1 : 0;
+  if (nightF < tn) nightF = Math.min(tn, nightF + dt * 0.8);
+  else if (nightF > tn) nightF = Math.max(tn, nightF - dt * 0.8);
+
+  if (comboT > 0){ comboT -= dt; if (comboT <= 0) combo = 0; }
+  if (scrollT > 0) scrollT -= dt;
+
+  /* ---------- ninja ---------- */
+  ninja.gliding = false;
+  if (kiteT > 0){
+    kiteT -= dt;
+    kite.x = nx;
+    kite.baseY = ROOF_Y - 210 + Math.sin(tt * 2.2) * 22;
+    kite.y = kite.baseY;
+    ninja.y = kite.y + 34; ninja.vy = 0; ninja.onGround = false;
+    if (Math.random() < 0.5) puff(nx, ninja.y - 40, 'rgba(255,255,255,0.5)', 1, 40);
+    if (kiteT <= 0){
+      kite = null;
+      ensureLanding(nx + 40);
+      for (i = obs.length - 1; i >= 0; i--){
+        if (obs[i].x > nx - 60 && obs[i].x < nx + 520) obs.splice(i, 1);
+      }
+      ninja.y = ROOF_Y - 200; ninja.vy = 0; ninja.onGround = false; ninja.jumps = 1;
+      Game.toast('着地！');
+    }
+  } else {
+    if (ninja.onGround){
+      if (!platformAt(nx)){ ninja.onGround = false; ninja.vy = 0; ninja.jumps = 1; }
+    }
+    if (!ninja.onGround){
+      ninja.vy += TUNE.gravity.v * dt;
+      if (holding && ninja.vy > 0){
+        if (ninja.vy > 130) ninja.vy = 130;
+        ninja.gliding = true;
+        if (Math.random() < 0.25) puff(nx - 10, ninja.y - 30, 'rgba(200,225,255,0.45)', 1, 30);
+      }
+      var py0 = ninja.y;
+      ninja.y += ninja.vy * dt;
+      if (ninja.vy >= 0 && py0 <= ROOF_Y && ninja.y >= ROOF_Y && platformAt(nx)){
+        ninja.y = ROOF_Y; ninja.vy = 0; ninja.onGround = true; ninja.jumps = 0;
+        puff(nx, ROOF_Y, 'rgba(200,205,225,0.7)', 4, 60);
+      }
+    }
+    if (ninja.y > ROOF_Y + 150){
+      if (scrollT > 0) revive();
+      else { die(); return; }
+    }
+  }
+
+  /* ---------- obstacles ---------- */
+  var nL = nx - 14, nR = nx + 14, nT = ninja.y - NINJA_H, nB = ninja.y;
+  for (i = obs.length - 1; i >= 0; i--){
+    var o = obs[i];
+    if (o.x + 110 < camX){ obs.splice(i, 1); continue; }
+    if (o.dead){ o.t += dt; if (o.t > 0.4) obs.splice(i, 1); continue; }
+    if (kiteT > 0) continue;
+    var oL = o.x - o.w / 2, oR = o.x + o.w / 2, oT = o.y - o.h / 2, oB = o.y + o.h / 2;
+    if (nR > oL && nL < oR && nB > oT && nT < oB){
+      if (o.type === 'sam' && ninja.vy > 0 && (ninja.y - oT) < 24){
+        o.dead = true; o.t = 0;
+        bonus += 20;
+        Game.float(NINJA_X, oT - 40, '+20', '#7dd3fc');
+        ninja.vy = -560; ninja.onGround = false; ninja.jumps = 1;
+        puff(o.x, oT + 22, 'rgba(255,120,120,0.9)', 10, 140);
+        shake = 0.45;
+      } else { die(); return; }
+    }
+  }
+
+  /* ---------- items ---------- */
+  for (i = items.length - 1; i >= 0; i--){
+    var it = items[i];
+    if (it.x < camX - 110){ items.splice(i, 1); continue; }
+    it.t += dt;
+    var ddx = nx - it.x, ddy = (ninja.y - 22) - it.y;
+    if (it.type === 'coin'){
+      if (ddx * ddx + ddy * ddy < 44 * 44){
+        combo++; comboT = 2.6;
+        var val = 4 + combo; if (val > 30) val = 30;
+        bonus += val;
+        Game.float(NINJA_X + 26, ninja.y - 72, '+' + val, '#ffd166');
+        puff(it.x, it.y, 'rgba(255,214,102,0.95)', 6, 90);
+        items.splice(i, 1);
+      }
+    } else {
+      if (ddx * ddx + ddy * ddy < 48 * 48){
+        scrollT = 5;
+        Game.toast('📜 影分身！穴に落ちても1回復活');
+        puff(it.x, it.y, 'rgba(180,220,255,0.95)', 12, 110);
+        items.splice(i, 1);
+      }
+    }
+  }
+
+  /* ---------- shuriken ---------- */
+  for (i = fly.length - 1; i >= 0; i--){
+    var s = fly[i];
+    s.x -= 140 * dt; s.rot += 16 * dt;
+    if (s.x < camX - 90){ fly.splice(i, 1); continue; }
+    if (kiteT > 0) continue;
+    var sdx = nx - s.x, sdy = (ninja.y - 22) - s.y;
+    if (sdx * sdx + sdy * sdy < 36 * 36){ die(); return; }
+  }
+
+  spawnT -= dt;
+  if (spawnT <= 0 && dist > 150 && ninja.onGround && kiteT <= 0 && !boss){
+    if (platformAt(nx + 130) && platformAt(nx + 350)){
+      fly.push({ x: camX + W + 50, y: ROOF_Y - 34, rot: 0 });
+      spawnT = Math.max(1.1, 1.9 - dist * 0.0006) + Math.random() * 0.9;
+    } else spawnT = 0.3;
+  }
+
+  /* ---------- kite ---------- */
+  kiteSpawnT -= dt;
+  if (kiteSpawnT <= 0){
+    kiteSpawnT = 16 + Math.random() * 12;
+    if (!kite && kiteT <= 0 && !boss && dist > 250){
+      kite = { x: camX + W + 60, y: ROOF_Y - 185, baseY: ROOF_Y - 185 };
+    }
+  }
+  if (kite && kiteT <= 0){
+    kite.x -= 55 * dt;
+    kite.baseY = ROOF_Y - 185 + Math.sin(tt * 1.6) * 26;
+    kite.y = kite.baseY + Math.sin(tt * 4) * 6;
+    if (kite.x < camX - 150) kite = null;
+    else {
+      var kdx = nx - kite.x, kdy = (ninja.y - 24) - kite.y;
+      if (kdx * kdx + kdy * kdy < 58 * 58){
+        kiteT = 3.2;
+        Game.toast('🪁 凧に掴まった！');
+        shake = 0.4;
+        puff(kite.x, kite.y, 'rgba(255,255,255,0.9)', 12, 120);
+      }
+    }
+  }
+
+  /* ---------- boss ---------- */
+  if (!boss && dist >= bossNext && kiteT <= 0){
+    boss = { t: 10, max: 10 };
+    Game.toast('👹 大天狗が迫る！10秒逃げ切れ！');
+    shake = 0.7;
+  }
+  if (boss){
+    boss.t -= dt;
+    if (boss.t <= 0){
+      bonus += 300;
+      boss = null; bossNext += TUNE.bossSpan.v;
+      Game.float(NINJA_X + 40, ROOF_Y - 200, '+300', '#ffd166');
+      Game.toast('逃げ切った！ +300');
+      shake = 0.5;
+    }
+  }
+
+  /* ---------- score / hud ---------- */
+  var sc = totalScore();
+  if (sc !== lastScore){ lastScore = sc; Game.score(sc); }
+  var hud = '';
+  if (scrollT > 0) hud += '📜';
+  if (kiteT > 0) hud += '🪁';
+  if (boss) hud += '👹' + Math.max(0, Math.ceil(boss.t));
+  if (combo > 1) hud += '🪙' + combo;
+  if (hud !== lastHud){ lastHud = hud; Game.hud(hud); }
+}
+
+/* ================= drawing ================= */
+
+function drawSky(){
+  var g = ctx.createLinearGradient(0, 0, 0, ROOF_Y + 100);
+  for (var i = 0; i < 4; i++){
+    var a = SKY[i][0], b = SKY[i][1];
+    var r = Math.round(a[0] + (b[0] - a[0]) * nightF);
+    var gg = Math.round(a[1] + (b[1] - a[1]) * nightF);
+    var bl = Math.round(a[2] + (b[2] - a[2]) * nightF);
+    g.addColorStop(SKY_T[i], 'rgb(' + r + ',' + gg + ',' + bl + ')');
+  }
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, ROOF_Y + 110);
+
+  if (nightF < 0.99){
+    ctx.globalAlpha = 1 - nightF;
+    var sg = ctx.createRadialGradient(365, 150, 10, 365, 150, 110);
+    sg.addColorStop(0, 'rgba(255,235,170,0.95)');
+    sg.addColorStop(0.3, 'rgba(255,170,90,0.5)');
+    sg.addColorStop(1, 'rgba(255,140,70,0)');
+    ctx.fillStyle = sg;
+    ctx.beginPath(); ctx.arc(365, 150, 110, 0, 7); ctx.fill();
+    ctx.fillStyle = '#ffe9b0';
+    ctx.beginPath(); ctx.arc(365, 150, 30, 0, 7); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  if (nightF > 0.01){
+    ctx.globalAlpha = nightF;
+    var mg = ctx.createRadialGradient(365, 150, 8, 365, 150, 84);
+    mg.addColorStop(0, 'rgba(200,220,255,0.7)');
+    mg.addColorStop(1, 'rgba(180,210,255,0)');
+    ctx.fillStyle = mg;
+    ctx.beginPath(); ctx.arc(365, 150, 84, 0, 7); ctx.fill();
+    ctx.fillStyle = '#e6eeff';
+    ctx.beginPath(); ctx.arc(365, 150, 24, 0, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(190,205,235,0.7)';
+    ctx.beginPath(); ctx.arc(357, 142, 6, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(372, 158, 4, 0, 7); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+function backLayer(par, tw, hMin, hMax, col, kind){
+  ctx.fillStyle = col;
+  var i0 = Math.floor((camX * par - 170) / tw);
+  var i1 = Math.floor((camX * par + W + 170) / tw);
+  for (var i = i0; i <= i1; i++){
+    var r1 = hash(i * 3.1 + par * 17);
+    var r2 = hash(i * 7.7 + par * 31);
+    var sx = i * tw - camX * par;
+    var w = tw * (0.5 + r2 * 0.55);
+    var h = hMin + r1 * (hMax - hMin);
+    if (kind === 1){
+      ctx.fillRect(sx, ROOF_Y - h, 6 + r2 * 4, h);
+      ctx.fillRect(sx + 13, ROOF_Y - h * 0.7, 5, h * 0.7);
+      ctx.fillRect(sx - 3, ROOF_Y - h * 0.85, 18, 5);
+    } else {
+      ctx.fillRect(sx, ROOF_Y - h, w, h);
+      if (kind === 0){
+        ctx.beginPath();
+        ctx.moveTo(sx - 3, ROOF_Y - h);
+        ctx.lineTo(sx + w * 0.5, ROOF_Y - h - 14 - r1 * 12);
+        ctx.lineTo(sx + w + 3, ROOF_Y - h);
+        ctx.closePath(); ctx.fill();
+      } else {
+        ctx.fillRect(sx - 8, ROOF_Y - h - 12, w + 16, 14);
+        for (var b = 0; b < 3; b++) ctx.fillRect(sx - 8 + b * (w + 16) / 3, ROOF_Y - h - 22, (w + 16) / 6, 12);
+      }
+    }
+  }
+}
+
+function drawScenery(){
+  var th = Math.floor(dist / 800) % 3;
+  if (th === 0){
+    backLayer(0.10, 96, 70, 210, '#2a2440', 0);
+    backLayer(0.26, 74, 40, 150, '#1b1830', 0);
+  } else if (th === 1){
+    backLayer(0.10, 54, 130, 270, '#1e2a34', 1);
+    backLayer(0.24, 42, 90, 200, '#141d26', 1);
+  } else {
+    backLayer(0.08, 150, 90, 220, '#2a2440', 2);
+    backLayer(0.22, 118, 60, 170, '#1b1830', 2);
+  }
+}
+
+function drawPlatforms(){
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (var i = 0; i < platforms.length; i++){
+    var p = platforms[i];
+    var sx = p.x - camX;
+    if (sx > W + 60 || sx + p.w < -60) continue;
+    ctx.fillStyle = '#1c2233';
+    ctx.fillRect(sx, ROOF_Y + 2, p.w, H - ROOF_Y);
+    var n = Math.floor((p.w - 30) / 48);
+    for (var k = 0; k < n; k++){
+      var swx = p.x + 16 + k * 48 - camX;
+      if (swx < -30 || swx > W + 30) continue;
+      for (var row = 0; row < 2; row++){
+        var lit = hash(p.x * 0.13 + k * 1.7 + row * 3.3) < 0.42;
+        ctx.fillStyle = (lit && nightF > 0.35)
+          ? 'rgba(255,190,95,' + (0.22 + 0.55 * nightF) + ')'
+          : 'rgba(58,70,98,0.6)';
+        ctx.fillRect(swx, ROOF_Y + 30 + row * 46, 26, 16);
+      }
+    }
+    ctx.fillStyle = '#333d59';
+    ctx.fillRect(sx - 8, ROOF_Y - 12, p.w + 16, 16);
+    ctx.fillStyle = '#4a5680';
+    ctx.fillRect(sx - 8, ROOF_Y - 12, p.w + 16, 4);
+    ctx.fillStyle = 'rgba(12,15,26,0.55)';
+    var tA = Math.floor((-20 - (sx - 8)) / 18);
+    var tB = Math.ceil((W + 20 - (sx - 8)) / 18);
+    for (var t = tA; t <= tB; t++){
+      var tx = sx - 8 + t * 18;
+      if (tx > sx - 8 && tx < sx + p.w + 8) ctx.fillRect(tx, ROOF_Y - 8, 2, 11);
+    }
+    if (nightF > 0.25){
+      ctx.globalAlpha = Math.min(1, nightF * 1.3);
+      ctx.font = "26px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+      ctx.fillText('🏮', sx + 36, ROOF_Y - 30);
+      if (p.w > 320) ctx.fillText('🏮', sx + p.w - 36, ROOF_Y - 30);
+      ctx.globalAlpha = 1;
+    }
+  }
+}
+
+function drawItems(){
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (var i = 0; i < items.length; i++){
+    var it = items[i];
+    var sx = it.x - camX;
+    if (sx < -60 || sx > W + 60) continue;
+    if (it.type === 'coin'){
+      ctx.font = "26px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+      ctx.fillText('🪙', sx, it.y + Math.sin(tt * 5 + it.t * 3) * 3);
+    } else {
+      ctx.font = "32px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+      ctx.fillText('📜', sx, it.y + Math.sin(tt * 3) * 5);
+    }
+  }
+}
+
+function drawObs(){
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (var i = 0; i < obs.length; i++){
+    var o = obs[i];
+    var sx = o.x - camX;
+    if (sx < -80 || sx > W + 80) continue;
+    if (o.dead){
+      ctx.globalAlpha = Math.max(0, 1 - o.t / 0.35);
+      ctx.font = "40px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+      ctx.fillText('💥', sx, o.y);
+      ctx.globalAlpha = 1;
+      continue;
+    }
+    if (o.type === 'sam'){
+      ctx.font = "46px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+      ctx.fillText('👺', sx, o.y);
+    } else {
+      ctx.font = "38px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+      ctx.fillText('🧱', sx, o.y);
+    }
+  }
+}
+
+function drawFly(){
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (var i = 0; i < fly.length; i++){
+    var s = fly[i];
+    var sx = s.x - camX;
+    if (sx < -60 || sx > W + 60) continue;
+    ctx.save();
+    ctx.translate(sx, s.y);
+    ctx.rotate(s.rot);
+    ctx.font = "32px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText('✴️', 0, 0);
+    ctx.restore();
+  }
+}
+
+function drawKiteObj(){
+  if (!kite) return;
+  var sx = kite.x - camX;
+  if (sx < -90 || sx > W + 90) return;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = "48px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  ctx.fillText('🪁', sx, kite.y + Math.sin(tt * 3) * 5);
+}
+
+function drawBossObj(){
+  if (!boss) return;
+  var appear = Math.min(1, (boss.max - boss.t) / 2);
+  var bx = -80 + appear * 150 + Math.sin(tt * 5) * 7;
+  var by = ROOF_Y - 110 + Math.sin(tt * 3.3) * 10;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.globalAlpha = 0.95;
+  ctx.font = "96px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  ctx.fillText('👹', bx, by);
+  ctx.globalAlpha = 1;
+}
+
+function drawNinja(){
+  var onP = platformAt(camX + NINJA_X);
+  if (onP){
+    var d = Math.max(0, ROOF_Y - ninja.y);
+    var k = Math.max(0.3, 1 - d / 300);
+    ctx.save();
+    ctx.translate(NINJA_X, ROOF_Y + 4);
+    ctx.scale(k, 0.32);
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.beginPath(); ctx.arc(0, 0, 22, 0, 7); ctx.fill();
+    ctx.restore();
+  }
+  if (ninja.gliding){
+    ctx.fillStyle = 'rgba(120,160,220,0.55)';
+    ctx.beginPath();
+    ctx.moveTo(NINJA_X - 24, ninja.y - 44);
+    ctx.lineTo(NINJA_X + 26, ninja.y - 60);
+    ctx.lineTo(NINJA_X + 24, ninja.y - 34);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  var bob = ninja.onGround ? Math.sin(tt * 22) * 1.6 : 0;
+  ctx.font = "48px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  ctx.fillText('🥷', NINJA_X, ninja.y - 24 + bob);
+}
+
+function drawParts(){
+  for (var i = 0; i < parts.length; i++){
+    var p = parts[i];
+    var a = Math.max(0, p.life / p.max);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = p.col;
+    ctx.beginPath();
+    ctx.arc(p.x - camX, p.y, p.r * (0.5 + a * 0.8), 0, 7);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawNightOverlay(){
+  if (nightF > 0.02){
+    var g = ctx.createRadialGradient(NINJA_X, ninja.y - 24, 60, NINJA_X, ninja.y - 24, 340);
+    g.addColorStop(0, 'rgba(8,10,24,0)');
+    g.addColorStop(0.55, 'rgba(8,10,24,' + (0.34 * nightF) + ')');
+    g.addColorStop(1, 'rgba(6,8,20,' + (0.86 * nightF) + ')');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
+  if (boss){
+    ctx.fillStyle = 'rgba(190,25,25,' + (0.05 + 0.045 * (1 + Math.sin(tt * 7))) + ')';
+    ctx.fillRect(0, 0, W, H);
+  }
+  if (!alive){
+    ctx.fillStyle = 'rgba(120,10,10,0.25)';
+    ctx.fillRect(0, 0, W, H);
+  }
+}
+
+function draw(){
+  var mag = shake > 0 ? shake * 9 : 0;
+  ctx.save();
+  if (mag > 0) ctx.translate((Math.random() * 2 - 1) * mag, (Math.random() * 2 - 1) * mag * 0.6);
+  drawSky();
+  drawScenery();
+  ctx.fillStyle = '#0a0c16';
+  ctx.fillRect(-40, ROOF_Y + 4, W + 80, H - ROOF_Y + 40);
+  ctx.fillStyle = 'rgba(120,80,60,0.12)';
+  ctx.fillRect(-40, H - 40, W + 80, 40);
+  drawPlatforms();
+  drawItems();
+  drawObs();
+  drawFly();
+  drawKiteObj();
+  drawBossObj();
+  drawNinja();
+  drawParts();
+  drawNightOverlay();
+  ctx.restore();
+}
+
+/* ================= input ================= */
+
+function onDown(x, y, id){
+  if (!alive) return;
+  pointers++;
+  holding = true;
+  if (kiteT > 0) return;
+  if (ninja.onGround){
+    ninja.vy = -TUNE.jumpPower.v;
+    ninja.onGround = false;
+    ninja.jumps = 1;
+    puff(camX + NINJA_X, ROOF_Y, 'rgba(210,218,238,0.8)', 5, 70);
+  } else if (ninja.jumps < 2){
+    ninja.jumps = 2;
+    ninja.vy = -TUNE.jumpPower.v * 0.86;
+    puff(camX + NINJA_X, ninja.y - 6, 'rgba(225,232,250,0.9)', 12, 150);
+    puff(camX + NINJA_X, ninja.y - 24, 'rgba(255,255,255,0.7)', 6, 90);
+  }
+}
+
+function onMove(x, y, id){}
+
+function onUp(x, y, id){
+  pointers--;
+  if (pointers <= 0){ pointers = 0; holding = false; }
+}
+
+function onResize(){}
+
+/*__VAPPA_JS_END__*/
+</script>
+</body></html>

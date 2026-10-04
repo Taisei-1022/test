@@ -1,1 +1,1 @@
-{"ok":false,"err":"start: {\"error\":\"login_required\"}"}
+{"ok":true,"validateErr":null,"tune":8,"sec":161,"title":"ネオンリズムタップ","model":"deepseek-flash（思考: high）","yen":3.98,"diag":["0s instance att=1 hop=0 model=deepseek-flash","153s deepseek-flash/high 153s finish=stop out=40558 think=31739 body=20582ch"]}

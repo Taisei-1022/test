@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
+<title>マンション建設パズル</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%83%9E%E3%83%B3%E3%82%B7%E3%83%A7%E3%83%B3%E5%BB%BA%E8%A8%AD%E3%83%91%E3%82%BA%E3%83%AB%22%2C%22h%22%3A%22%E4%B8%8B%E3%81%AE%E3%83%94%E3%83%BC%E3%82%B9%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%E3%81%A7%E9%81%B8%E3%81%B3%E3%80%81%E6%96%B9%E7%9C%BC%E3%81%AE%E7%A9%BA%E3%81%8D%E3%83%9E%E3%82%B9%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%E3%81%97%E3%81%A6%E8%A8%AD%E7%BD%AE%EF%BC%81%E7%8E%84%E9%96%A2%E3%81%8B%E3%82%89%E5%BB%8A%E4%B8%8B%E3%81%A7%E3%81%A4%E3%81%AA%E3%81%8C%E3%81%A3%E3%81%9F%E9%83%A8%E5%B1%8B%E3%81%AB%E4%BD%8F%E4%BA%BA%E3%81%8C%E5%85%A5%E5%B1%85%E3%81%99%E3%82%8B%E3%80%82%E7%BD%AE%E3%81%84%E3%81%9F%E3%83%94%E3%83%BC%E3%82%B9%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%E3%81%99%E3%82%8B%E3%81%A890%E5%BA%A6%E5%9B%9E%E8%BB%A2%E3%80%8260%E7%A7%92%E3%81%A7%E4%BD%8F%E4%BA%BA%E3%82%92%E9%9B%86%E3%82%81%E3%82%88%E3%81%86%E3%80%82%22%2C%22u%22%3A%22%E4%BA%BA%22%7D-->
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
+html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
+#vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+/* vpstage＝論理480x720（2:3）の箱。HUD・オーバーレイ・ゲームDOMを全部この中に入れ、
+   箱ごと実画面へ拡縮する（座標系はゲーム内で常に1つ） */
+#vpstage{position:fixed;left:0;top:0;width:480px;height:720px;transform-origin:0 0;z-index:1;overflow:hidden}
+#vpdom{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
+#vpdom *{pointer-events:auto}
+.vp-hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
+.vp-hud span:empty{display:none}
+.vp-ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
+.vp-ov h1{font-size:28px}
+.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:340px;white-space:pre-line}
+.vp-ov .vp-big{font-size:44px;font-weight:900;color:#ffd166}
+.vp-btn{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:17px;box-shadow:0 5px 0 rgba(0,0,0,.25);touch-action:manipulation}
+.vp-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.vp-toast{position:absolute;top:52px;left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+[hidden]{display:none!important}
+</style>
+<style id="vpcss">
+/*__VAPPA_CSS__*/
+
+/*__VAPPA_CSS_END__*/
+</style>
+</head><body>
+<canvas id="vpc"></canvas>
+<div id="vpstage">
+  <div id="vpdom"></div>
+  <div class="vp-hud" id="vphud" hidden><span id="vphl">0人</span><span id="vphr"></span></div>
+  <div class="vp-toast" id="vptoast"></div>
+  <div class="vp-ov" id="vpov">
+    <h1>マンション建設パズル</h1>
+    <p>下のピースをタップで選び、方眼の空きマスをタップして設置！玄関から廊下でつながった部屋に住人が入居する。置いたピースをタップすると90度回転。60秒で住人を集めよう。</p>
+    <button class="vp-btn" id="vpstart">スタート</button>
+  </div>
+</div>
+<script id="vpimgs">
+/* ユーザー素材画像 {名前:dataURL}。中身はビルド後にアプリが注入（AIには名前だけ渡る） */
+window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
+</script>
+<script>
+window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
+var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
+// iOS Safari は fillStyle がグラデーション/パターンのオブジェクトのままだと
+// カラー絵文字を fillText できない（何も描かれない）。生成コードは
+// 「背景をグラデで塗る→そのまま絵文字を描く」形を高頻度で書くため、
+// 絵文字を含む fillText の間だけ fillStyle を単色に退避して確実に描く。
+(function(){
+  var _ft=ctx.fillText;
+  function hasEmo(s){
+    for(var i=0;i<s.length;i++){
+      var c=s.charCodeAt(i);
+      if((c>=0x2100&&c<=0x2BFF)||(c>=0xD800&&c<=0xDFFF)||c===0xFE0F)return true;
+    }
+    return false;
+  }
+  ctx.fillText=function(t,x,y,mw){
+    var s=String(t);
+    if(typeof this.fillStyle!=="string"&&hasEmo(s)){
+      var f=this.fillStyle;this.fillStyle="#000";
+      try{mw===undefined?_ft.call(this,s,x,y):_ft.call(this,s,x,y,mw);}
+      finally{this.fillStyle=f;}
+    }else{
+      mw===undefined?_ft.call(this,s,x,y):_ft.call(this,s,x,y,mw);
+    }
+  };
+})();
+// 論理画面は 480x720（2:3）固定。全端末でこのサイズとして描き、ランタイムが
+// vpstage（HUD・オーバーレイ・ゲームDOMを含む箱）ごと実画面へ拡縮する。
+// ゲームコードは端末差を一切考えなくてよい（入力座標も論理系で届く）。
+var W=480,H=720;
+var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
+(function(){
+"use strict";
+var DPR=Math.min(2,window.devicePixelRatio||1);
+function rs(){
+  var vw=window.innerWidth,vh=window.innerHeight;
+  __SC=Math.min(vw/W,vh/H);
+  __OX=(vw-W*__SC)/2;__OY=(vh-H*__SC)/2;
+  cv.width=vw*DPR;cv.height=vh*DPR;
+  ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
+  ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
+  var st=document.getElementById("vpstage");
+  if(st){st.style.transform="scale("+__SC+")";st.style.left=__OX+"px";st.style.top=__OY+"px";}
+  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
+}
+window.addEventListener("resize",rs);rs();
+// 実画面座標→論理座標（タッチ入力用）
+function toLX(x){return (x-__OX)/__SC;}
+function toLY(y){return (y-__OY)/__SC;}
+var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="人";
+// ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
+var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
+var hud=document.getElementById("vphud"),hl=document.getElementById("vphl"),hr=document.getElementById("vphr");
+var ov=document.getElementById("vpov"),toastEl=document.getElementById("vptoast"),tt=null,last=performance.now();
+window.Game={
+  img:function(n){return IMGS[n]||null;},
+  score:function(n){hl.textContent=(n|0)+unit;},
+  hud:function(t){hr.textContent=t==null?"":String(t);},
+  float:function(x,y,t,c){floats.push({x:x,y:y,t:String(t),c:c||"#fff",age:0});},
+  toast:function(t){toastEl.textContent=t;toastEl.style.opacity=1;clearTimeout(tt);tt=setTimeout(function(){toastEl.style.opacity=0;},2000);},
+  over:function(s){
+    if(!playing||ended)return;ended=true;playing=false;s=Math.max(0,Math.floor(Number(s)||0));
+    ov.innerHTML='<h1>おわり！</h1><div class="vp-big">'+s+'<small style="font-size:20px">'+unit+'</small></div><button class="vp-btn" id="vpagain">もういちど</button>';
+    ov.hidden=false;
+    document.getElementById("vpagain").addEventListener("click",start);
+    try{window.Arcade.gameOver(s);}catch(e){}
+  }
+};
+function crash(e){
+  if(crashed)return;crashed=true;playing=false;
+  try{window.__VP_ERR=String(e&&(e.stack||e.message)||e).slice(0,600);}catch(x){}
+  ov.innerHTML='<h1>😢 エラーが発生</h1><p>ゲームにエラーが起きました。<br>作成チャットで「エラーを直して」と伝えると修理できるよ。</p><button class="vp-btn" id="vpagain">もういちど</button>';
+  ov.hidden=false;
+  document.getElementById("vpagain").addEventListener("click",start);
+}
+function start(){
+  floats=[];ended=false;crashed=false;
+  try{window.init();}catch(e){crash(e);return;}
+  window.Game.score(0);ov.hidden=true;hud.hidden=false;playing=true;last=performance.now();
+}
+document.getElementById("vpstart").addEventListener("click",start);
+function fire(fn,x,y,id){
+  if(!playing||paused)return;
+  if(typeof window[fn]==="function"){try{window[fn](x,y,id);}catch(err){crash(err);}}
+}
+// pointer と touch を両対応（iOSのiframe内などpointerが飛ばない環境へのフォールバック）。
+// pointerが一度でも来たらtouchは無視して二重発火を防ぐ。
+var seenPointer=false;
+window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",toLX(e.clientX),toLY(e.clientY),e.pointerId);fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointermove",function(e){fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointerup",function(e){fire("onUp",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+// タッチの扱い（iOS対策の要点）：
+//  - touchstart は preventDefault しない
+//  - touchmove は非passiveで preventDefault → パン/スクロール横取りはこれで止まる
+//  - touchend はボタン類「以外」でだけ preventDefault → iOSのダブルタップズーム
+//    （touch-action:noneでは止まらない端末がある）を殺しつつ、ボタンの click 合成は守る
+//  - preventDefault すると iOS は click を合成しない → 生成コードが div/span で
+//    自作ボタンを作った場合に全操作不能になる。そこで「タップ」（移動が小さく
+//    短いタッチ）に限り、こちらで click を合成して補う。本物の button 等は
+//    preventDefault しない＝ネイティブ click が来るので合成しない（二重防止）
+//  - pointerイベントが来る環境では発火だけ二重防止（seenPointer）
+function tfire(fn,e){
+  if(seenPointer)return;
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,toLX(t.clientX),toLY(t.clientY),t.identifier);
+    if(fn==="onDown")fire("onMove",toLX(t.clientX),toLY(t.clientY),t.identifier);}
+}
+function uiTouch(e){var t=e.target;return !!(t&&t.closest&&t.closest("button,a,input,select,label"));}
+var tstart={};
+window.addEventListener("touchstart",function(e){
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];tstart[t.identifier]={x:t.clientX,y:t.clientY,at:Date.now()};}
+  tfire("onDown",e);
+},{passive:true});
+window.addEventListener("touchmove",function(e){if(e.cancelable)e.preventDefault();tfire("onMove",e);},{passive:false});
+window.addEventListener("touchend",function(e){
+  var prevented=false;
+  if(e.cancelable&&!uiTouch(e)){e.preventDefault();prevented=true;}
+  if(prevented){
+    for(var i=0;i<e.changedTouches.length;i++){
+      var t=e.changedTouches[i],s=tstart[t.identifier];
+      if(s&&Math.abs(t.clientX-s.x)<14&&Math.abs(t.clientY-s.y)<14&&Date.now()-s.at<1500){
+        var el=document.elementFromPoint(t.clientX,t.clientY)||e.target;
+        if(el){try{el.dispatchEvent(new MouseEvent("click",{bubbles:true,cancelable:true,view:window,clientX:t.clientX,clientY:t.clientY}));}catch(err){}}
+      }
+    }
+  }
+  for(var j=0;j<e.changedTouches.length;j++)delete tstart[e.changedTouches[j].identifier];
+  tfire("onUp",e);
+},{passive:false});
+document.addEventListener("gesturestart",function(e){e.preventDefault();});
+window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",toLX(e.clientX),toLY(e.clientY),0);});
+window.Arcade.onPause(function(){paused=true;});
+window.Arcade.onResume(function(){paused=false;last=performance.now();});
+window.Arcade.onRestart(start);
+document.addEventListener("visibilitychange",function(){if(document.hidden){paused=true;}else{paused=false;last=performance.now();}});
+function loop(now){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(now-last)/1000);last=now;
+  if(crashed)return;
+  if(playing&&!paused){try{window.update(dt);}catch(e){crash(e);return;}}
+  if(playing||ended){try{window.draw();}catch(e){crash(e);return;}}
+  for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.age+=dt;
+    if(f.age>1){floats.splice(i,1);continue;}
+    ctx.save();ctx.globalAlpha=Math.max(0,1-f.age);ctx.font="bold 16px sans-serif";ctx.textAlign="center";
+    ctx.fillStyle=f.c;ctx.fillText(f.t,f.x,f.y-f.age*30);ctx.restore();}
+}
+requestAnimationFrame(loop);
+window.Arcade.ready();
+// 自動テストプレイ用フック：親(アプリ)がスモークテストで入力を一発流すのに使う
+window.__vpTap=function(){
+  fire("onDown",W/2,H/2,1);fire("onMove",W/2+40,H/2,1);fire("onUp",W/2+40,H/2,1);
+};
+})();
+</script>
+<script id="vpgame">
+/*__VAPPA_JS__*/
+var TUNE = {
+  timeLimit: { v: 60, label: '制限時間(秒)', min: 30, max: 120, step: 5 },
+  rushCycle: { v: 10, label: 'ラッシュ間隔(秒)', min: 5, max: 25, step: 1 },
+  rushLen:   { v: 5,  label: 'ラッシュの長さ(秒)', min: 2, max: 10, step: 1 },
+  penBonus:  { v: 5,  label: 'ペントハウス加点', min: 1, max: 10, step: 1 },
+  petBonus:  { v: 1,  label: 'ペット・カフェ加点', min: 1, max: 3, step: 1 },
+  complaint: { v: 2,  label: '騒音ペナルティ', min: 0, max: 5, step: 1 },
+  fullBonus: { v: 10, label: '満室ボーナス', min: 0, max: 30, step: 5 },
+  bigPiece:  { v: 1,  label: '大型ピース出現率', min: 0, max: 2, step: 0.1 }
+};
+
+var COLS = 7, ROWS = 9;
+var CELL = 58, GX = 37, GY = 62, GW = 406, GH = 522;
+var TRAY_Y = 594, TRAY_H = 112, SLOT_W = 142, SLOT_GAP = 10, TRAY_X = 17;
+
+var DEFS = [
+  { id:'r1',    kind:'room',  sub:'normal',    label:'部屋',     cells:[[0,0]] },
+  { id:'r2',    kind:'room',  sub:'normal',    label:'大部屋',   cells:[[0,0],[0,1]] },
+  { id:'r3',    kind:'room',  sub:'normal',    label:'大部屋',   cells:[[0,0],[0,1],[0,2]] },
+  { id:'rl',    kind:'room',  sub:'normal',    label:'L字部屋',  cells:[[0,0],[1,0],[1,1]] },
+  { id:'hall1', kind:'hall',  sub:'hall',      label:'廊下',     cells:[[0,0]] },
+  { id:'hall2', kind:'hall',  sub:'hall',      label:'長い廊下', cells:[[0,0],[0,1]] },
+  { id:'elev',  kind:'elev',  sub:'elev',      label:'EV',       cells:[[0,0]] },
+  { id:'pent',  kind:'room',  sub:'penthouse', label:'👑PH',     cells:[[0,0]] },
+  { id:'pet',   kind:'room',  sub:'pet',       label:'🐶ペット', cells:[[0,0]] },
+  { id:'cafe',  kind:'room',  sub:'cafe',      label:'☕カフェ', cells:[[0,0]] },
+  { id:'musi',  kind:'room',  sub:'musician',  label:'🎸音楽家', cells:[[0,0]] },
+  { id:'fam',   kind:'room',  sub:'family',    label:'👪家族',   cells:[[0,0]] },
+  { id:'hammer',kind:'hammer',sub:'hammer',    label:'🔨解体',   cells:[[0,0]] }
+];
+
+var grid = [], pieces = [], tray = [], sel = -1;
+var timeLeft = 60, score = 0, bonusPts = 0, elapsed = 0, rushLeft = 0, rushCool = 10;
+var shake = 0, flashT = 0, ghost = null, parts = [], filledRows = [], gameEnded = false;
+var buildings = [], stars = [];
+
+function ef(s){ ctx.font = s + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif"; }
+function rrect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+function normOffs(o){ var mr=99,mc=99,i; for(i=0;i<o.length;i++){ if(o[i][0]<mr)mr=o[i][0]; if(o[i][1]<mc)mc=o[i][1]; } var out=[]; for(i=0;i<o.length;i++) out.push([o[i][0]-mr,o[i][1]-mc]); return out; }
+function rotateOffs(o){ var t=[],i; for(i=0;i<o.length;i++) t.push([o[i][1],-o[i][0]]); return normOffs(t); }
+function getDef(id){ for(var i=0;i<DEFS.length;i++){ if(DEFS[i].id===id) return DEFS[i]; } return DEFS[0]; }
+function bbox(o){ var mr=0,mc=0,i; for(i=0;i<o.length;i++){ if(o[i][0]>mr)mr=o[i][0]; if(o[i][1]>mc)mc=o[i][1]; } return { mr:mr, mc:mc }; }
+
+function layout(){
+  GW = CELL*COLS; GH = CELL*ROWS;
+  GX = Math.round((W-GW)/2);
+  GY = 62;
+  TRAY_Y = GY + GH + 10;
+  TRAY_X = Math.round((W - (SLOT_W*3 + SLOT_GAP*2))/2);
+}
+
+function makeCity(){
+  buildings = []; stars = [];
+  var x = -30;
+  while (x < W+40){
+    var w = 28 + Math.random()*52;
+    var h = 80 + Math.random()*220;
+    buildings.push({ x:x, w:w, h:h, s:Math.random() });
+    x += w + 4 + Math.random()*12;
+  }
+  for (var i=0;i<44;i++) stars.push({ x:Math.random()*W, y:Math.random()*330, r:Math.random()*1.4+0.5, p:Math.random()*6.28 });
+}
+
+function init(){
+  layout();
+  grid = [];
+  for (var r=0;r<ROWS;r++){ var row=[]; for (var c=0;c<COLS;c++) row.push(-1); grid.push(row); }
+  pieces = []; tray = []; sel = -1;
+  timeLeft = TUNE.timeLimit.v;
+  score = 0; bonusPts = 0; elapsed = 0;
+  rushLeft = 0; rushCool = TUNE.rushCycle.v;
+  shake = 0; flashT = 0; ghost = null; parts = [];
+  filledRows = [];
+  for (var i=0;i<ROWS;i++) filledRows.push(false);
+  gameEnded = false;
+  var ent = { kind:'entrance', sub:'entrance', label:'玄関', offs:[[0,0]], oy:ROWS-1, ox:3, res:0, conn:true, comp:false, rushB:0 };
+  ent.cells = absCells(ent);
+  pieces.push(ent);
+  for (var k=0;k<3;k++) tray.push(newPiece(0));
+  makeCity();
+  refresh();
+  Game.hud('⏱' + Math.ceil(timeLeft));
+}
+
+function progress(){ return Math.min(1, elapsed / TUNE.timeLimit.v); }
+
+function pickDef(prog){
+  var bp = TUNE.bigPiece.v;
+  var w = {
+    r1: 26 - 18*prog,
+    r2: 16 + 2*prog,
+    r3: (7 + 9*prog) * bp,
+    rl: (4 + 12*prog) * bp,
+    hall1: 15,
+    hall2: 9 - 3*prog,
+    elev: 7 + 3*prog,
+    pent: 2 + 2*prog,
+    pet: 3.5,
+    cafe: 3.5,
+    musi: 3.5,
+    fam: 3.5,
+    hammer: (pieces.length > 2 ? 5 : 0)
+  };
+  var ids = ['r1','r2','r3','rl','hall1','hall2','elev','pent','pet','cafe','musi','fam','hammer'];
+  var total = 0, i, t;
+  for (i=0;i<ids.length;i++){ t = w[ids[i]]; if (t < 0) t = 0; w[ids[i]] = t; total += t; }
+  var x = Math.random()*total;
+  for (i=0;i<ids.length;i++){ x -= w[ids[i]]; if (x <= 0) return getDef(ids[i]); }
+  return getDef('r1');
+}
+
+function newPiece(prog){
+  var def = pickDef(prog);
+  var offs = normOffs(def.cells);
+  var n = Math.floor(Math.random()*4);
+  for (var i=0;i<n;i++) offs = rotateOffs(offs);
+  return { id:def.id, kind:def.kind, sub:def.sub, label:def.label, offs:offs, oy:0, ox:0, res:0, conn:false, comp:false, rushB:0 };
+}
+
+function absCells(p){
+  var o = [], i;
+  for (i=0;i<p.offs.length;i++) o.push([p.oy+p.offs[i][0], p.ox+p.offs[i][1]]);
+  return o;
+}
+
+function rebuildGrid(){
+  var r,c,i,k;
+  for (r=0;r<ROWS;r++) for (c=0;c<COLS;c++) grid[r][c] = -1;
+  for (i=0;i<pieces.length;i++){
+    var p = pieces[i];
+    p.cells = absCells(p);
+    for (k=0;k<p.cells.length;k++){
+      var rr = p.cells[k][0], cc = p.cells[k][1];
+      if (rr>=0 && rr<ROWS && cc>=0 && cc<COLS) grid[rr][cc] = i;
+    }
+  }
+}
+
+function checkFit(offs, oy, ox, ignore){
+  for (var i=0;i<offs.length;i++){
+    var r = oy+offs[i][0], c = ox+offs[i][1];
+    if (r<0 || r>=ROWS || c<0 || c>=COLS) return false;
+    var o = grid[r][c];
+    if (o !== -1 && o !== ignore) return false;
+  }
+  return true;
+}
+
+function touching(a,b){
+  for (var i=0;i<a.cells.length;i++){
+    for (var j=0;j<b.cells.length;j++){
+      var dr = Math.abs(a.cells[i][0]-b.cells[j][0]);
+      var dc = Math.abs(a.cells[i][1]-b.cells[j][1]);
+      if (dr+dc === 1) return true;
+    }
+  }
+  return false;
+}
+
+function isPass(p){ return p.kind==='hall' || p.kind==='elev' || p.kind==='entrance'; }
+
+function evaluate(){
+  var i,j,k;
+  for (i=0;i<pieces.length;i++){ pieces[i].res = 0; pieces[i].conn = false; pieces[i].comp = false; }
+  var adj = [];
+  for (i=0;i<pieces.length;i++) adj.push([]);
+  for (i=0;i<pieces.length;i++){
+    for (j=i+1;j<pieces.length;j++){
+      if (touching(pieces[i], pieces[j])){ adj[i].push(j); adj[j].push(i); }
+    }
+  }
+  for (i=0;i<pieces.length;i++){
+    if (pieces[i].kind !== 'elev') continue;
+    var er = pieces[i].cells[0][0], ec = pieces[i].cells[0][1];
+    for (j=0;j<pieces.length;j++){
+      if (j === i) continue;
+      for (k=0;k<pieces[j].cells.length;k++){
+        if (pieces[j].cells[k][1] === ec && pieces[j].cells[k][0] < er){
+          adj[i].push(j); adj[j].push(i); break;
+        }
+      }
+    }
+  }
+  var ent = -1;
+  for (i=0;i<pieces.length;i++){ if (pieces[i].kind === 'entrance') ent = i; }
+  if (ent >= 0){
+    var vis = [];
+    for (i=0;i<pieces.length;i++) vis.push(false);
+    vis[ent] = true;
+    var q = [ent];
+    while (q.length){
+      var a = q.shift();
+      for (k=0;k<adj[a].length;k++){
+        var b = adj[a][k];
+        if (vis[b]) continue;
+        if (isPass(pieces[a]) || isPass(pieces[b])){ vis[b] = true; q.push(b); }
+      }
+    }
+    for (i=0;i<pieces.length;i++) pieces[i].conn = vis[i];
+  }
+  for (i=0;i<pieces.length;i++){
+    var p = pieces[i];
+    if (p.kind === 'room' && p.conn) p.res = p.offs.length + p.rushB;
+  }
+  for (i=0;i<pieces.length;i++){
+    var p2 = pieces[i];
+    if (p2.sub === 'penthouse' && p2.conn){
+      var minr = 99;
+      for (k=0;k<p2.cells.length;k++){ if (p2.cells[k][0] < minr) minr = p2.cells[k][0]; }
+      if (minr === 0) p2.res += TUNE.penBonus.v;
+    }
+  }
+  for (i=0;i<pieces.length;i++){
+    var pa = pieces[i];
+    if (pa.sub !== 'pet' || !pa.conn) continue;
+    for (j=0;j<pieces.length;j++){
+      var qa = pieces[j];
+      if (j === i || qa.kind !== 'room' || !qa.conn) continue;
+      if (touching(pa, qa)) qa.res += TUNE.petBonus.v;
+    }
+  }
+  for (i=0;i<pieces.length;i++){
+    var pc = pieces[i];
+    if (pc.sub !== 'cafe' || !pc.conn) continue;
+    var rows = {};
+    for (k=0;k<pc.cells.length;k++) rows[pc.cells[k][0]] = 1;
+    for (j=0;j<pieces.length;j++){
+      var qc = pieces[j];
+      if (j === i || qc.kind !== 'room' || !qc.conn) continue;
+      var hit = false;
+      for (k=0;k<qc.cells.length;k++){ if (rows[qc.cells[k][0]]) { hit = true; break; } }
+      if (hit) qc.res += TUNE.petBonus.v;
+    }
+  }
+  for (i=0;i<pieces.length;i++){
+    var pm = pieces[i];
+    if (pm.sub !== 'musician' || !pm.conn) continue;
+    for (j=0;j<pieces.length;j++){
+      var qm = pieces[j];
+      if (qm.sub !== 'family' || !qm.conn) continue;
+      if (touching(pm, qm)){
+        pm.res -= TUNE.complaint.v; qm.res -= TUNE.complaint.v;
+        pm.comp = true; qm.comp = true;
+      }
+    }
+  }
+  var total = 0;
+  for (i=0;i<pieces.length;i++){
+    if (pieces[i].res < 0) pieces[i].res = 0;
+    total += pieces[i].res;
+  }
+  return total;
+}
+
+function refresh(){
+  var r,c,i;
+  rebuildGrid();
+  var total = evaluate();
+  for (r=0;r<ROWS;r++){
+    if (filledRows[r]) continue;
+    var full = true;
+    for (c=0;c<COLS;c++){ if (grid[r][c] === -1){ full = false; break; } }
+    if (full){
+      filledRows[r] = true;
+      bonusPts += TUNE.fullBonus.v;
+      for (i=0;i<COLS;i++) puff(r, i, '#ffd166');
+      shake = 0.35;
+      Game.toast('🎊 ' + (ROWS-r) + '階が満室！ +' + TUNE.fullBonus.v + '人');
+    }
+  }
+  score = total + bonusPts;
+  if (score < 0) score = 0;
+  Game.score(Math.round(score));
+}
+
+function removableExists(){
+  for (var i=0;i<pieces.length;i++){ if (pieces[i].kind !== 'entrance') return true; }
+  return false;
+}
+
+function canPlaceAny(){
+  for (var i=0;i<3;i++){
+    var it = tray[i];
+    if (!it) continue;
+    if (it.kind === 'hammer'){ if (removableExists()) return true; continue; }
+    for (var r=0;r<ROWS;r++){
+      for (var c=0;c<COLS;c++){
+        if (checkFit(it.offs, r, c, -1)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function endGame(){
+  if (gameEnded) return;
+  gameEnded = true;
+  Game.over(Math.max(0, Math.round(score)));
+}
+
+function puff(r, c, col){
+  var x = GX + c*CELL + CELL/2, y = GY + r*CELL + CELL/2;
+  for (var i=0;i<9;i++){
+    var a = Math.random()*6.2832, sp = 30 + Math.random()*90;
+    parts.push({ x:x, y:y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp-40, life:0.4+Math.random()*0.4, t:0, col:col, sz:2+Math.random()*3 });
+  }
+  if (parts.length > 260) parts.splice(0, parts.length-260);
+}
+
+function rotatePiece(idx){
+  var p = pieces[idx];
+  if (!p || p.kind === 'entrance') return;
+  if (p.offs.length < 2){ shake = 0.12; return; }
+  var no = rotateOffs(p.offs);
+  if (!checkFit(no, p.oy, p.ox, idx)){
+    shake = 0.22;
+    ghost = { offs:no, oy:p.oy, ox:p.ox };
+    flashT = 0.35;
+    Game.float(GX + p.ox*CELL + CELL/2, GY + p.oy*CELL, '回せない', '#f87171');
+    return;
+  }
+  p.offs = no;
+  refresh();
+}
+
+function tapCell(r,c){
+  var idx = grid[r][c];
+  var it = (sel >= 0) ? tray[sel] : null;
+  if (it && it.kind === 'hammer'){
+    if (idx >= 0 && pieces[idx].kind !== 'entrance'){
+      puff(pieces[idx].cells[0][0], pieces[idx].cells[0][1], '#ff9f43');
+      Game.float(GX + c*CELL + CELL/2, GY + r*CELL + CELL/2, '🔨解体', '#ffb347');
+      pieces.splice(idx,1);
+      tray[sel] = newPiece(progress());
+      sel = -1;
+      shake = 0.2;
+      refresh();
+      if (!canPlaceAny()) endGame();
+    } else {
+      ghost = { offs:it.offs, oy:r, ox:c };
+      flashT = 0.35;
+      shake = 0.18;
+    }
+    return;
+  }
+  if (it){
+    if (idx === -1){
+      if (checkFit(it.offs, r, c, -1)){
+        var before = Math.round(score);
+        var p = { kind:it.kind, sub:it.sub, label:it.label, offs:it.offs, oy:r, ox:c, res:0, conn:false, comp:false, rushB:0 };
+        if (rushLeft > 0) p.rushB = it.offs.length;
+        p.cells = absCells(p);
+        pieces.push(p);
+        puff(r, c, '#ffe08a');
+        for (var k=0;k<it.offs.length;k++) puff(r+it.offs[k][0], c+it.offs[k][1], '#ffd166');
+        refresh();
+        var gain = Math.round(score) - before;
+        var cx = GX + c*CELL + CELL/2, cy = GY + r*CELL + CELL/2;
+        if (gain > 0){
+          Game.float(cx, cy-10, '+' + gain + '人', '#7dffa0');
+          Game.float(cx, cy+16, '🧑', '#ffe9a8');
+        } else {
+          Game.float(cx, cy-10, '入居0人', '#9fb3d9');
+        }
+        tray[sel] = newPiece(progress());
+        refresh();
+        if (!canPlaceAny()) endGame();
+      } else {
+        ghost = { offs:it.offs, oy:r, ox:c };
+        flashT = 0.4;
+        shake = 0.25;
+      }
+    } else {
+      rotatePiece(idx);
+    }
+    return;
+  }
+  if (idx >= 0) rotatePiece(idx);
+}
+
+function onDown(x,y){
+  if (gameEnded) return;
+  var i;
+  if (y >= TRAY_Y - 8 && y <= TRAY_Y + TRAY_H + 8){
+    for (i=0;i<3;i++){
+      var sx = TRAY_X + i*(SLOT_W + SLOT_GAP);
+      if (x >= sx && x <= sx + SLOT_W){
+        sel = (sel === i) ? -1 : i;
+        return;
+      }
+    }
+    return;
+  }
+  if (x >= GX && x < GX+GW && y >= GY && y < GY+GH){
+    var c = Math.floor((x-GX)/CELL), r = Math.floor((y-GY)/CELL);
+    if (c >= 0 && c < COLS && r >= 0 && r < ROWS) tapCell(r,c);
+  }
+}
+
+function update(dt){
+  if (shake > 0) shake -= dt;
+  if (flashT > 0) flashT -= dt;
+  for (var i=parts.length-1;i>=0;i--){
+    var q = parts[i];
+    q.t += dt;
+    if (q.t >= q.life){ parts.splice(i,1); continue; }
+    q.x += q.vx*dt; q.y += q.vy*dt; q.vy += 320*dt;
+  }
+  if (gameEnded) return;
+  elapsed += dt;
+  timeLeft -= dt;
+  if (timeLeft <= 0){
+    timeLeft = 0;
+    Game.hud('⏱0');
+    endGame();
+    return;
+  }
+  Game.hud('⏱' + Math.ceil(timeLeft));
+  rushCool -= dt;
+  if (rushLeft > 0){
+    rushLeft -= dt;
+  } else if (rushCool <= 0){
+    rushLeft = TUNE.rushLen.v;
+    rushCool = TUNE.rushCycle.v;
+    Game.toast('🎉 入居ラッシュ！ 住人2倍');
+  }
+}
+
+function roomColor(sub){
+  if (sub === 'penthouse') return '#a874e0';
+  if (sub === 'pet') return '#69c47a';
+  if (sub === 'cafe') return '#c98a4a';
+  if (sub === 'musician') return '#e06a92';
+  if (sub === 'family') return '#5fa6e0';
+  return '#e0a94e';
+}
+
+function pieceEmoji(p){
+  if (p.kind === 'entrance') return '🚪';
+  if (p.kind === 'hall') return '';
+  if (p.kind === 'elev') return '🛗';
+  if (p.kind === 'hammer') return '🔨';
+  if (p.sub === 'penthouse') return '👑';
+  if (p.sub === 'pet') return '🐶';
+  if (p.sub === 'cafe') return '☕';
+  if (p.sub === 'musician') return '🎸';
+  if (p.sub === 'family') return '👪';
+  return '🏠';
+}
+
+function drawSky(){
+  var g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0, '#1a1033');
+  g.addColorStop(0.34, '#4a2158');
+  g.addColorStop(0.60, '#a8435c');
+  g.addColorStop(0.80, '#e07a4a');
+  g.addColorStop(1, '#f6b06a');
+  ctx.fillStyle = g;
+  ctx.fillRect(0,0,W,H);
+  var i;
+  for (i=0;i<stars.length;i++){
+    var s = stars[i];
+    ctx.globalAlpha = 0.35 + 0.4*Math.abs(Math.sin(elapsed*1.6 + s.p));
+    ctx.fillStyle = '#ffeec2';
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 6.2832); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  var sy = 148;
+  var rg = ctx.createRadialGradient(344, sy, 6, 344, sy, 140);
+  rg.addColorStop(0, 'rgba(255,225,160,0.95)');
+  rg.addColorStop(0.3, 'rgba(255,165,95,0.34)');
+  rg.addColorStop(1, 'rgba(255,120,80,0)');
+  ctx.fillStyle = rg;
+  ctx.beginPath(); ctx.arc(344, sy, 140, 0, 6.2832); ctx.fill();
+  ctx.fillStyle = '#ffdca8';
+  ctx.beginPath(); ctx.arc(344, sy, 34, 0, 6.2832); ctx.fill();
+  for (i=0;i<buildings.length;i++){
+    var b = buildings[i];
+    var by = H - b.h;
+    ctx.fillStyle = '#2a1c3d';
+    ctx.fillRect(b.x, by, b.w, b.h);
+    ctx.fillStyle = 'rgba(255,205,120,0.5)';
+    var wy, wx, cnt = 0;
+    for (wy = by+12; wy < H-10; wy += 17){
+      for (wx = b.x+6; wx < b.x + b.w - 10; wx += 14){
+        cnt++;
+        if ((cnt*7 + i*3) % 5 < 2) ctx.fillRect(wx, wy, 6, 9);
+      }
+    }
+  }
+}
+
+function drawCell(p, k){
+  var r = p.cells[k][0], c = p.cells[k][1];
+  var x = GX + c*CELL, y = GY + r*CELL;
+  var col;
+  if (p.kind === 'entrance') col = '#b8543f';
+  else if (p.kind === 'hall') col = p.conn ? '#7d95b8' : '#4a5068';
+  else if (p.kind === 'elev') col = p.conn ? '#3ec6d4' : '#4a5068';
+  else col = p.conn ? roomColor(p.sub) : '#4a5068';
+  ctx.fillStyle = col;
+  rrect(x+2, y+2, CELL-4, CELL-4, 8); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+  ctx.lineWidth = 1.5;
+  rrect(x+2, y+2, CELL-4, CELL-4, 8); ctx.stroke();
+  if (p.kind === 'room'){
+    ctx.fillStyle = p.conn ? '#ffe9a8' : '#2b3050';
+    rrect(x+9, y+9, 11, 13, 2); ctx.fill();
+    rrect(x+24, y+9, 11, 13, 2); ctx.fill();
+  } else if (p.kind === 'hall'){
+    ctx.fillStyle = 'rgba(255,255,255,0.30)';
+    ctx.fillRect(x+12, y+CELL/2-2, 12, 4);
+    ctx.fillRect(x+CELL-24, y+CELL/2-2, 12, 4);
+  }
+  if (k === 0){
+    var em = pieceEmoji(p);
+    if (em){
+      ef(24);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(em, x+CELL/2, y+38);
+    }
+  }
+  if (k === 0 && p.kind === 'room' && p.conn && p.res > 0){
+    var bx = x+CELL-13, by = y+15;
+    ctx.beginPath(); ctx.arc(bx, by, 11, 0, 6.2832);
+    ctx.fillStyle = '#101733'; ctx.fill();
+    ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = '#ffe9a8';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('' + p.res, bx, by+1);
+  }
+  if (k === 0 && p.comp){
+    ef(18);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('💢', x+12, y+CELL-12);
+  }
+}
+
+function drawGrid(){
+  var px = GX-8, py = GY-8, pw = GW+16, ph = GH+16;
+  ctx.fillStyle = 'rgba(10,14,34,0.84)';
+  rrect(px, py, pw, ph, 14); ctx.fill();
+  var lvl = Math.min(1, score/160);
+  var stroke;
+  if (rushLeft > 0){
+    stroke = 'hsl(45,100%,' + Math.round(60 + 18*Math.sin(elapsed*11)) + '%)';
+  } else {
+    stroke = 'hsl(' + Math.round(210 - 60*lvl) + ',72%,' + Math.round(56 + 12*lvl) + '%)';
+  }
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 3;
+  rrect(px, py, pw, ph, 14); ctx.stroke();
+  ctx.strokeStyle = 'rgba(130,160,215,0.16)';
+  ctx.lineWidth = 1;
+  for (var c=0;c<=COLS;c++){ ctx.beginPath(); ctx.moveTo(GX+c*CELL, GY); ctx.lineTo(GX+c*CELL, GY+GH); ctx.stroke(); }
+  for (var r=0;r<=ROWS;r++){ ctx.beginPath(); ctx.moveTo(GX, GY+r*CELL); ctx.lineTo(GX+GW, GY+r*CELL); ctx.stroke(); }
+  ctx.strokeStyle = 'rgba(255,215,110,' + (0.45 + 0.25*Math.sin(elapsed*3)) + ')';
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(GX, GY+2); ctx.lineTo(GX+GW, GY+2); ctx.stroke();
+  ef(13);
+  ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+  ctx.fillStyle = 'rgba(255,225,150,0.85)';
+  ctx.fillText('👑最上階ボーナス', GX+GW-2, GY-12);
+}
+
+function drawPieces(){
+  for (var i=0;i<pieces.length;i++){
+    var p = pieces[i];
+    for (var k=0;k<p.cells.length;k++) drawCell(p, k);
+  }
+}
+
+function drawGhost(){
+  if (flashT <= 0 || !ghost) return;
+  var a = Math.max(0, Math.min(1, flashT/0.35));
+  ctx.globalAlpha = 0.55*a;
+  for (var i=0;i<ghost.offs.length;i++){
+    var r = ghost.oy+ghost.offs[i][0], c = ghost.ox+ghost.offs[i][1];
+    if (r<0 || r>=ROWS || c<0 || c>=COLS) continue;
+    ctx.fillStyle = '#ef4444';
+    rrect(GX+c*CELL+2, GY+r*CELL+2, CELL-4, CELL-4, 8); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawMini(it, px, py, mini){
+  var bb = bbox(it.offs);
+  var i;
+  for (i=0;i<it.offs.length;i++){
+    var x = px + it.offs[i][1]*mini, y = py + it.offs[i][0]*mini;
+    var col;
+    if (it.kind === 'hall') col = '#7d95b8';
+    else if (it.kind === 'elev') col = '#3ec6d4';
+    else if (it.kind === 'hammer') col = '#8b4040';
+    else col = roomColor(it.sub);
+    ctx.fillStyle = col;
+    rrect(x+1, y+1, mini-2, mini-2, 4); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1;
+    rrect(x+1, y+1, mini-2, mini-2, 4); ctx.stroke();
+  }
+  var em = pieceEmoji(it);
+  if (em){
+    ef(Math.round(mini*0.8));
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(em, px + ((bb.mc+1)*mini)/2, py + ((bb.mr+1)*mini)/2);
+  }
+}
+
+function drawTray(){
+  for (var i=0;i<3;i++){
+    var x = TRAY_X + i*(SLOT_W+SLOT_GAP), y = TRAY_Y;
+    var selected = (sel === i);
+    ctx.fillStyle = selected ? 'rgba(76,124,220,0.42)' : 'rgba(16,22,46,0.80)';
+    rrect(x, y, SLOT_W, TRAY_H, 12); ctx.fill();
+    ctx.lineWidth = selected ? 3 : 2;
+    ctx.strokeStyle = selected ? '#7fd0ff' : 'rgba(140,170,220,0.38)';
+    rrect(x, y, SLOT_W, TRAY_H, 12); ctx.stroke();
+    var it = tray[i];
+    if (!it) continue;
+    var mini = 24;
+    var bb = bbox(it.offs);
+    var pw = (bb.mc+1)*mini, ph = (bb.mr+1)*mini;
+    var px = x + (SLOT_W-pw)/2;
+    var py = y + 6 + (84-ph)/2;
+    drawMini(it, px, py, mini);
+    ctx.fillStyle = selected ? '#e8f4ff' : '#c8d6f0';
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(it.label, x+SLOT_W/2, y+TRAY_H-15);
+  }
+}
+
+function drawParts(){
+  for (var i=0;i<parts.length;i++){
+    var q = parts[i];
+    ctx.globalAlpha = Math.max(0, 1 - q.t/q.life);
+    ctx.fillStyle = q.col;
+    ctx.beginPath(); ctx.arc(q.x, q.y, q.sz, 0, 6.2832); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function draw(){
+  drawSky();
+  var ox = 0;
+  if (shake > 0) ox = (Math.random()*2-1) * 6 * Math.min(1, shake/0.3);
+  ctx.save();
+  ctx.translate(ox, 0);
+  drawGrid();
+  drawPieces();
+  drawGhost();
+  drawTray();
+  drawParts();
+  ctx.restore();
+  if (rushLeft > 0){
+    ctx.fillStyle = 'rgba(255,200,60,' + (0.10 + 0.07*Math.sin(elapsed*12)) + ')';
+    ctx.fillRect(0, 0, W, H);
+  }
+}
+/*__VAPPA_JS_END__*/
+</script>
+</body></html>

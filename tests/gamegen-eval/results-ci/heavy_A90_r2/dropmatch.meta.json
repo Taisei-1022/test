@@ -1,1 +1,1 @@
-{"ok":false,"err":"start: {\"error\":\"login_required\"}"}
+{"ok":true,"validateErr":null,"tune":7,"sec":156,"title":"おにぎり具だくさん ぱずる","model":"deepseek-flash（思考: high）","yen":3.97,"diag":["126s instance att=1 hop=0 model=deepseek-flash","0s instance att=1 hop=1 model=deepseek-flash","153s deepseek-flash/high 153s finish=stop out=40398 think=31570 body=20146ch"]}
