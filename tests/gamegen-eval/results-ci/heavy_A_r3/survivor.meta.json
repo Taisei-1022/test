@@ -1,1 +1,1 @@
-{"ok":false,"err":"start: {\"error\":\"login_required\"}"}
+{"ok":true,"validateErr":null,"tune":8,"sec":122,"title":"ゾンビ包囲網サバイバー","model":"deepseek-flash（思考: high）","yen":3.32,"diag":["0s instance att=1 hop=0 model=deepseek-flash","118s deepseek-flash/high 118s finish=stop out=33693 think=22282 body=26565ch"]}

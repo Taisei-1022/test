@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
+<title>畑を守れ！タワーディフェンス</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E7%95%91%E3%82%92%E5%AE%88%E3%82%8C%EF%BC%81%E3%82%BF%E3%83%AF%E3%83%BC%E3%83%87%E3%82%A3%E3%83%95%E3%82%A7%E3%83%B3%E3%82%B9%22%2C%22h%22%3A%22%E5%85%89%E3%82%8B%E7%A9%BA%E3%81%8D%E5%9C%B0%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%E2%86%92%E9%98%B2%E8%A1%9B%E3%82%92%E9%81%B8%E3%82%93%E3%81%A7%E8%A8%AD%E7%BD%AE%E3%80%82%E7%BD%AE%E3%81%84%E3%81%9F%E9%98%B2%E8%A1%9B%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%E3%81%99%E3%82%8B%E3%81%A8%E5%BC%B7%E5%8C%96%E3%81%A7%E3%81%8D%E3%81%BE%E3%81%99%E3%80%82%E5%AE%B3%E7%8D%A3%E3%81%8C%E7%95%91%F0%9F%A5%95%E3%81%AB%E7%9D%80%E3%81%8F%E5%89%8D%E3%81%AB%E5%80%92%E3%81%97%E3%81%A6%E3%80%81%E9%87%8E%E8%8F%9C%E3%82%92%E5%AE%88%E3%82%8A%E6%8A%9C%E3%81%91%EF%BC%81%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
+html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
+#vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+/* vpstage＝論理480x720（2:3）の箱。HUD・オーバーレイ・ゲームDOMを全部この中に入れ、
+   箱ごと実画面へ拡縮する（座標系はゲーム内で常に1つ） */
+#vpstage{position:fixed;left:0;top:0;width:480px;height:720px;transform-origin:0 0;z-index:1;overflow:hidden}
+#vpdom{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
+#vpdom *{pointer-events:auto}
+.vp-hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
+.vp-hud span:empty{display:none}
+.vp-ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
+.vp-ov h1{font-size:28px}
+.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:340px;white-space:pre-line}
+.vp-ov .vp-big{font-size:44px;font-weight:900;color:#ffd166}
+.vp-btn{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:17px;box-shadow:0 5px 0 rgba(0,0,0,.25);touch-action:manipulation}
+.vp-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.vp-toast{position:absolute;top:52px;left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+[hidden]{display:none!important}
+</style>
+<style id="vpcss">
+/*__VAPPA_CSS__*/
+
+/*__VAPPA_CSS_END__*/
+</style>
+</head><body>
+<canvas id="vpc"></canvas>
+<div id="vpstage">
+  <div id="vpdom"></div>
+  <div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
+  <div class="vp-toast" id="vptoast"></div>
+  <div class="vp-ov" id="vpov">
+    <h1>畑を守れ！タワーディフェンス</h1>
+    <p>光る空き地をタップ→防衛を選んで設置。置いた防衛をタップすると強化できます。害獣が畑🥕に着く前に倒して、野菜を守り抜け！</p>
+    <button class="vp-btn" id="vpstart">スタート</button>
+  </div>
+</div>
+<script id="vpimgs">
+/* ユーザー素材画像 {名前:dataURL}。中身はビルド後にアプリが注入（AIには名前だけ渡る） */
+window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
+</script>
+<script>
+window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
+var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
+// iOS Safari は fillStyle がグラデーション/パターンのオブジェクトのままだと
+// カラー絵文字を fillText できない（何も描かれない）。生成コードは
+// 「背景をグラデで塗る→そのまま絵文字を描く」形を高頻度で書くため、
+// 絵文字を含む fillText の間だけ fillStyle を単色に退避して確実に描く。
+(function(){
+  var _ft=ctx.fillText;
+  function hasEmo(s){
+    for(var i=0;i<s.length;i++){
+      var c=s.charCodeAt(i);
+      if((c>=0x2100&&c<=0x2BFF)||(c>=0xD800&&c<=0xDFFF)||c===0xFE0F)return true;
+    }
+    return false;
+  }
+  ctx.fillText=function(t,x,y,mw){
+    var s=String(t);
+    if(typeof this.fillStyle!=="string"&&hasEmo(s)){
+      var f=this.fillStyle;this.fillStyle="#000";
+      try{mw===undefined?_ft.call(this,s,x,y):_ft.call(this,s,x,y,mw);}
+      finally{this.fillStyle=f;}
+    }else{
+      mw===undefined?_ft.call(this,s,x,y):_ft.call(this,s,x,y,mw);
+    }
+  };
+})();
+// 論理画面は 480x720（2:3）固定。全端末でこのサイズとして描き、ランタイムが
+// vpstage（HUD・オーバーレイ・ゲームDOMを含む箱）ごと実画面へ拡縮する。
+// ゲームコードは端末差を一切考えなくてよい（入力座標も論理系で届く）。
+var W=480,H=720;
+var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
+(function(){
+"use strict";
+var DPR=Math.min(2,window.devicePixelRatio||1);
+function rs(){
+  var vw=window.innerWidth,vh=window.innerHeight;
+  __SC=Math.min(vw/W,vh/H);
+  __OX=(vw-W*__SC)/2;__OY=(vh-H*__SC)/2;
+  cv.width=vw*DPR;cv.height=vh*DPR;
+  ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
+  ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
+  var st=document.getElementById("vpstage");
+  if(st){st.style.transform="scale("+__SC+")";st.style.left=__OX+"px";st.style.top=__OY+"px";}
+  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
+}
+window.addEventListener("resize",rs);rs();
+// 実画面座標→論理座標（タッチ入力用）
+function toLX(x){return (x-__OX)/__SC;}
+function toLY(y){return (y-__OY)/__SC;}
+var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="点";
+// ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
+var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
+var hud=document.getElementById("vphud"),hl=document.getElementById("vphl"),hr=document.getElementById("vphr");
+var ov=document.getElementById("vpov"),toastEl=document.getElementById("vptoast"),tt=null,last=performance.now();
+window.Game={
+  img:function(n){return IMGS[n]||null;},
+  score:function(n){hl.textContent=(n|0)+unit;},
+  hud:function(t){hr.textContent=t==null?"":String(t);},
+  float:function(x,y,t,c){floats.push({x:x,y:y,t:String(t),c:c||"#fff",age:0});},
+  toast:function(t){toastEl.textContent=t;toastEl.style.opacity=1;clearTimeout(tt);tt=setTimeout(function(){toastEl.style.opacity=0;},2000);},
+  over:function(s){
+    if(!playing||ended)return;ended=true;playing=false;s=Math.max(0,Math.floor(Number(s)||0));
+    ov.innerHTML='<h1>おわり！</h1><div class="vp-big">'+s+'<small style="font-size:20px">'+unit+'</small></div><button class="vp-btn" id="vpagain">もういちど</button>';
+    ov.hidden=false;
+    document.getElementById("vpagain").addEventListener("click",start);
+    try{window.Arcade.gameOver(s);}catch(e){}
+  }
+};
+function crash(e){
+  if(crashed)return;crashed=true;playing=false;
+  try{window.__VP_ERR=String(e&&(e.stack||e.message)||e).slice(0,600);}catch(x){}
+  ov.innerHTML='<h1>😢 エラーが発生</h1><p>ゲームにエラーが起きました。<br>作成チャットで「エラーを直して」と伝えると修理できるよ。</p><button class="vp-btn" id="vpagain">もういちど</button>';
+  ov.hidden=false;
+  document.getElementById("vpagain").addEventListener("click",start);
+}
+function start(){
+  floats=[];ended=false;crashed=false;
+  try{window.init();}catch(e){crash(e);return;}
+  window.Game.score(0);ov.hidden=true;hud.hidden=false;playing=true;last=performance.now();
+}
+document.getElementById("vpstart").addEventListener("click",start);
+function fire(fn,x,y,id){
+  if(!playing||paused)return;
+  if(typeof window[fn]==="function"){try{window[fn](x,y,id);}catch(err){crash(err);}}
+}
+// pointer と touch を両対応（iOSのiframe内などpointerが飛ばない環境へのフォールバック）。
+// pointerが一度でも来たらtouchは無視して二重発火を防ぐ。
+var seenPointer=false;
+window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",toLX(e.clientX),toLY(e.clientY),e.pointerId);fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointermove",function(e){fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointerup",function(e){fire("onUp",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+// タッチの扱い（iOS対策の要点）：
+//  - touchstart は preventDefault しない
+//  - touchmove は非passiveで preventDefault → パン/スクロール横取りはこれで止まる
+//  - touchend はボタン類「以外」でだけ preventDefault → iOSのダブルタップズーム
+//    （touch-action:noneでは止まらない端末がある）を殺しつつ、ボタンの click 合成は守る
+//  - preventDefault すると iOS は click を合成しない → 生成コードが div/span で
+//    自作ボタンを作った場合に全操作不能になる。そこで「タップ」（移動が小さく
+//    短いタッチ）に限り、こちらで click を合成して補う。本物の button 等は
+//    preventDefault しない＝ネイティブ click が来るので合成しない（二重防止）
+//  - pointerイベントが来る環境では発火だけ二重防止（seenPointer）
+function tfire(fn,e){
+  if(seenPointer)return;
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,toLX(t.clientX),toLY(t.clientY),t.identifier);
+    if(fn==="onDown")fire("onMove",toLX(t.clientX),toLY(t.clientY),t.identifier);}
+}
+function uiTouch(e){var t=e.target;return !!(t&&t.closest&&t.closest("button,a,input,select,label"));}
+var tstart={};
+window.addEventListener("touchstart",function(e){
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];tstart[t.identifier]={x:t.clientX,y:t.clientY,at:Date.now()};}
+  tfire("onDown",e);
+},{passive:true});
+window.addEventListener("touchmove",function(e){if(e.cancelable)e.preventDefault();tfire("onMove",e);},{passive:false});
+window.addEventListener("touchend",function(e){
+  var prevented=false;
+  if(e.cancelable&&!uiTouch(e)){e.preventDefault();prevented=true;}
+  if(prevented){
+    for(var i=0;i<e.changedTouches.length;i++){
+      var t=e.changedTouches[i],s=tstart[t.identifier];
+      if(s&&Math.abs(t.clientX-s.x)<14&&Math.abs(t.clientY-s.y)<14&&Date.now()-s.at<1500){
+        var el=document.elementFromPoint(t.clientX,t.clientY)||e.target;
+        if(el){try{el.dispatchEvent(new MouseEvent("click",{bubbles:true,cancelable:true,view:window,clientX:t.clientX,clientY:t.clientY}));}catch(err){}}
+      }
+    }
+  }
+  for(var j=0;j<e.changedTouches.length;j++)delete tstart[e.changedTouches[j].identifier];
+  tfire("onUp",e);
+},{passive:false});
+document.addEventListener("gesturestart",function(e){e.preventDefault();});
+window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",toLX(e.clientX),toLY(e.clientY),0);});
+window.Arcade.onPause(function(){paused=true;});
+window.Arcade.onResume(function(){paused=false;last=performance.now();});
+window.Arcade.onRestart(start);
+document.addEventListener("visibilitychange",function(){if(document.hidden){paused=true;}else{paused=false;last=performance.now();}});
+function loop(now){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(now-last)/1000);last=now;
+  if(crashed)return;
+  if(playing&&!paused){try{window.update(dt);}catch(e){crash(e);return;}}
+  if(playing||ended){try{window.draw();}catch(e){crash(e);return;}}
+  for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.age+=dt;
+    if(f.age>1){floats.splice(i,1);continue;}
+    ctx.save();ctx.globalAlpha=Math.max(0,1-f.age);ctx.font="bold 16px sans-serif";ctx.textAlign="center";
+    ctx.fillStyle=f.c;ctx.fillText(f.t,f.x,f.y-f.age*30);ctx.restore();}
+}
+requestAnimationFrame(loop);
+window.Arcade.ready();
+// 自動テストプレイ用フック：親(アプリ)がスモークテストで入力を一発流すのに使う
+window.__vpTap=function(){
+  fire("onDown",W/2,H/2,1);fire("onMove",W/2+40,H/2,1);fire("onUp",W/2+40,H/2,1);
+};
+})();
+</script>
+<script id="vpgame">
+/*__VAPPA_JS__*/
+var TUNE = {
+  startMoney:  { v: 80,  label: '初期のお金',     min: 20, max: 200, step: 5 },
+  startVeg:    { v: 10,  label: '初期の野菜',     min: 3,  max: 20,  step: 1 },
+  hpScale:     { v: 0.15,label: '敵HPの増加率',   min: 0,  max: 0.6, step: 0.02 },
+  spdMul:      { v: 1.0, label: '敵の速さ倍率',   min: 0.5,max: 2.0, step: 0.05 },
+  prepTime:    { v: 5,   label: '準備時間(秒)',   min: 2,  max: 10,  step: 1 },
+  harvestCost: { v: 50,  label: '収穫の基本費用', min: 20, max: 150, step: 5 },
+  moneyMul:    { v: 1.0, label: '報酬のお金倍率', min: 0.5,max: 3.0, step: 0.1 }
+};
+
+var COLS = 12, ROWS = 12, CELL = 40, GY = 68;
+var WP = [[0,0],[4,0],[4,3],[1,3],[1,6],[7,6],[7,9],[3,9],[3,11],[9,11]];
+var FIELD = [[10,10],[11,10],[10,11],[11,11]];
+
+var TDEF = {
+  scare:  { name:'かかし',   emoji:'🧍',  cost:20, up:[0,30,65],  range:[90,108,128],  slow:[0.60,0.44,0.32], cd:[0,0,0],        dmg:[0,0,0],     rate:[0,0,0] },
+  archer: { name:'弓の小屋', emoji:'🏹',  cost:35, up:[0,40,85],  range:[130,150,172], slow:[1,1,1],          cd:[0,0,0],        dmg:[10,15,22],  rate:[1.2,1.35,1.5] },
+  pit:    { name:'落とし穴', emoji:'🕳️', cost:25, up:[0,25,55],  range:[64,76,88],    slow:[1,1,1],          cd:[4.0,3.2,2.6],  dmg:[0,0,0],     rate:[0,0,0], stop:[1.4,1.9,2.5] },
+  hawk:   { name:'鷹匠',     emoji:'🦅',  cost:45, up:[0,50,100], range:[130,150,175], slow:[1,1,1],          cd:[0,0,0],        dmg:[13,19,27],  rate:[1.4,1.6,1.8] }
+};
+var KINDS = ['scare','archer','pit','hawk'];
+
+var EDEF = {
+  mouse: { emoji:'🐀', hp:28,  spd:130, money:5,  size:26, fly:false },
+  boar:  { emoji:'🐗', hp:100, spd:85,  money:9,  size:30, fly:false },
+  crow:  { emoji:'🐦⬛', hp:48, spd:150, money:7,  size:28, fly:true },
+  bear:  { emoji:'🐻', hp:520, spd:65,  money:55, size:38, fly:false }
+};
+
+var pathCells, pathPts, pathSet, nearSet, blobs, speckles;
+var state, wave, reachedWave, money, veg, kills, combo, comboT;
+var enemies, towers, shots, parts, spawnQ, waveT, prepT;
+var harvestUsed, harvestCost, preview, popup, shake, tt;
+
+function cx(c){ return c * CELL + CELL / 2; }
+function cy(r){ return GY + r * CELL + CELL / 2; }
+
+function rrect(x, y, w, h, r){
+  if (r > w/2) r = w/2;
+  if (r > h/2) r = h/2;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function buildField(){
+  var i, s, a, b, dc, dr, steps, sc, sr;
+  pathCells = [];
+  for (i = 0; i < WP.length - 1; i++){
+    a = WP[i]; b = WP[i+1];
+    dc = b[0] - a[0]; dr = b[1] - a[1];
+    steps = Math.abs(dc) + Math.abs(dr);
+    sc = dc === 0 ? 0 : (dc > 0 ? 1 : -1);
+    sr = dr === 0 ? 0 : (dr > 0 ? 1 : -1);
+    for (s = 0; s < steps; s++) pathCells.push([a[0] + sc*s, a[1] + sr*s]);
+  }
+  pathCells.push([WP[WP.length-1][0], WP[WP.length-1][1]]);
+
+  pathSet = {};
+  for (i = 0; i < pathCells.length; i++) pathSet[pathCells[i][1]*COLS + pathCells[i][0]] = true;
+  for (i = 0; i < FIELD.length; i++) pathSet[FIELD[i][1]*COLS + FIELD[i][0]] = true;
+
+  pathPts = [];
+  for (i = 0; i < pathCells.length; i++){
+    pathPts.push({ x: cx(pathCells[i][0]), y: cy(pathCells[i][1]) });
+  }
+
+  nearSet = {};
+  for (i = 0; i < pathCells.length; i++){
+    var pc = pathCells[i][0], pr = pathCells[i][1];
+    for (var ddr = -1; ddr <= 1; ddr++){
+      for (var ddc = -1; ddc <= 1; ddc++){
+        var nc = pc + ddc, nr = pr + ddr;
+        if (nc < 0 || nr < 0 || nc >= COLS || nr >= ROWS) continue;
+        if (pathSet[nr*COLS + nc]) continue;
+        nearSet[nr*COLS + nc] = true;
+      }
+    }
+  }
+
+  blobs = [];
+  for (i = 0; i < 12; i++){
+    blobs.push({ x: Math.random()*W, y: GY + Math.random()*(ROWS*CELL), rx: 24 + Math.random()*36, ry: 12 + Math.random()*20 });
+  }
+  speckles = [];
+  for (i = 0; i < pathCells.length; i++){
+    for (s = 0; s < 2; s++){
+      speckles.push({ x: pathCells[i][0]*CELL + 5 + Math.random()*30, y: GY + pathCells[i][1]*CELL + 5 + Math.random()*30 });
+    }
+  }
+}
+
+function init(){
+  buildField();
+  enemies = []; towers = []; shots = []; parts = [];
+  state = 'prep'; wave = 1; reachedWave = 1;
+  money = TUNE.startMoney.v;
+  veg = TUNE.startVeg.v;
+  kills = 0; combo = 0; comboT = 0;
+  shake = 0; tt = 0;
+  spawnQ = []; waveT = 0; prepT = TUNE.prepTime.v;
+  harvestUsed = 0; harvestCost = TUNE.harvestCost.v;
+  popup = null;
+  preview = wavePreview(1);
+  updateHud();
+}
+
+function calcScore(){
+  var s = kills*10 + (veg > 0 ? veg : 0)*50 + reachedWave*100;
+  return s < 0 ? 0 : Math.round(s);
+}
+
+function updateHud(){
+  Game.score(calcScore());
+  Game.hud('💰' + money + '  🥕' + veg);
+}
+
+function makeWave(w){
+  var mice = Math.min(16, 3 + Math.floor(w*1.4));
+  var boars = w >= 2 ? Math.min(10, Math.floor(1 + w*0.5)) : 0;
+  var crows = w >= 4 ? Math.min(8, Math.floor((w-2)*0.6)) : 0;
+  var bears = (w % 5 === 0) ? 1 + Math.floor(w/20) : 0;
+  var list = [], i, tmp, k;
+  for (i = 0; i < mice; i++) list.push('mouse');
+  for (i = 0; i < boars; i++) list.push('boar');
+  for (i = 0; i < crows; i++) list.push('crow');
+  for (i = list.length - 1; i > 0; i--){
+    k = Math.floor(Math.random()*(i+1));
+    tmp = list[i]; list[i] = list[k]; list[k] = tmp;
+  }
+  for (i = 0; i < bears; i++) list.push('bear');
+  return list;
+}
+
+function wavePreview(w){
+  var list = makeWave(w);
+  var cnt = { mouse:0, boar:0, crow:0, bear:0 };
+  for (var i = 0; i < list.length; i++) cnt[list[i]]++;
+  return cnt;
+}
+
+function previewText(p){
+  var s = '';
+  if (p.mouse) s += '🐀×' + p.mouse + '  ';
+  if (p.boar)  s += '🐗×' + p.boar + '  ';
+  if (p.crow)  s += '🐦⬛×' + p.crow + '  ';
+  if (p.bear)  s += '🐻×' + p.bear;
+  return s;
+}
+
+function startWave(){
+  state = 'wave';
+  reachedWave = wave;
+  waveT = 0;
+  var list = makeWave(wave);
+  var gap = Math.max(0.38, 0.95 - wave*0.03);
+  spawnQ = [];
+  var t = 0.4;
+  for (var i = 0; i < list.length; i++){
+    spawnQ.push({ type: list[i], t: t });
+    t += (list[i] === 'bear') ? 1.6 : gap;
+  }
+  updateHud();
+}
+
+function endWave(){
+  var bonus = Math.round(20 + wave*8);
+  money += bonus;
+  wave++;
+  state = 'prep';
+  prepT = TUNE.prepTime.v;
+  preview = wavePreview(wave);
+  combo = 0;
+  Game.float(W/2, 300, 'WAVEクリア +💰' + bonus, '#ffd166');
+  updateHud();
+}
+
+function spawnEnemy(type){
+  var d = EDEF[type];
+  var hpMul = 1 + TUNE.hpScale.v * (wave - 1);
+  var hp = Math.round(d.hp * hpMul);
+  var e = {
+    type: type, emoji: d.emoji, fly: d.fly, size: d.size,
+    hp: hp, maxHp: hp, spd: d.spd, money: d.money,
+    i: 0, t: 0, x: pathPts[0].x, y: pathPts[0].y,
+    stop: 0, slowMul: 1, hitT: 0, bob: Math.random()*6.28, leak: false
+  };
+  enemies.push(e);
+}
+
+function stepEnemy(e, dist){
+  var guard = 0;
+  while (dist > 0 && guard < 200){
+    guard++;
+    if (e.i >= pathPts.length - 1){ e.leak = true; break; }
+    var a = pathPts[e.i], b = pathPts[e.i + 1];
+    var dx = b.x - a.x, dy = b.y - a.y;
+    var len = Math.sqrt(dx*dx + dy*dy);
+    if (len < 0.001){ e.i++; e.t = 0; continue; }
+    var rem = len - e.t;
+    if (dist < rem){ e.t += dist; dist = 0; }
+    else { dist -= rem; e.i++; e.t = 0; }
+  }
+  if (e.i >= pathPts.length - 1){
+    e.x = pathPts[pathPts.length-1].x;
+    e.y = pathPts[pathPts.length-1].y;
+    e.leak = true;
+    return;
+  }
+  var a2 = pathPts[e.i], b2 = pathPts[e.i + 1];
+  var dx2 = b2.x - a2.x, dy2 = b2.y - a2.y;
+  var l2 = Math.sqrt(dx2*dx2 + dy2*dy2);
+  var k = l2 > 0 ? e.t / l2 : 0;
+  e.x = a2.x + dx2*k;
+  e.y = a2.y + dy2*k;
+}
+
+function addParts(x, y, col, n){
+  for (var i = 0; i < n; i++){
+    var a = Math.random()*6.2832, sp = 40 + Math.random()*130;
+    parts.push({ x:x, y:y, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp, life:0.5, max:0.5, col:col });
+  }
+}
+
+function killEnemy(e){
+  var idx = enemies.indexOf(e);
+  if (idx < 0) return;
+  enemies.splice(idx, 1);
+  kills++;
+  combo++;
+  comboT = 2.6;
+  var mul = 1 + Math.min(combo - 1, 15) * 0.1;
+  var gain = Math.max(1, Math.round(e.money * mul * TUNE.moneyMul.v));
+  money += gain;
+  addParts(e.x, e.y, '#ffd166', 9);
+  Game.float(e.x, e.y - 18, '+' + gain, '#ffd166');
+  if (combo >= 3) Game.float(e.x, e.y - 36, 'x' + combo, '#7ef0a0');
+  updateHud();
+}
+
+function damage(e, dmg){
+  e.hp -= dmg;
+  e.hitT = 0.12;
+  addParts(e.x, e.y, '#ffe08a', 3);
+  if (e.hp <= 0) killEnemy(e);
+}
+
+function findTarget(t, d){
+  var rr = d.range[t.lvl] * d.range[t.lvl];
+  var bestG = null, bestGP = -1, bestA = null, bestAP = -1;
+  for (var i = 0; i < enemies.length; i++){
+    var e = enemies[i];
+    var dx = e.x - t.x, dy = e.y - t.y;
+    if (dx*dx + dy*dy > rr) continue;
+    var p = e.i*40 + e.t;
+    if (e.fly){ if (p > bestAP){ bestAP = p; bestA = e; } }
+    else if (p > bestGP){ bestGP = p; bestG = e; }
+  }
+  if (t.kind === 'hawk') return bestA ? bestA : bestG;
+  return bestGP >= bestAP ? bestG : bestA;
+}
+
+function towerAt(c, r){
+  for (var i = 0; i < towers.length; i++){
+    if (towers[i].c === c && towers[i].r === r) return towers[i];
+  }
+  return null;
+}
+
+function update(dt){
+  var i, j, e, t, d;
+  tt += dt;
+  if (shake > 0) shake = Math.max(0, shake - dt*3);
+  if (comboT > 0){ comboT -= dt; if (comboT <= 0) combo = 0; }
+
+  if (state === 'prep'){
+    prepT -= dt;
+    if (prepT <= 0){ prepT = 0; startWave(); }
+  } else {
+    waveT += dt;
+    var guard = 0;
+    while (spawnQ.length > 0 && spawnQ[0].t <= waveT && guard < 40){
+      spawnEnemy(spawnQ.shift().type);
+      guard++;
+    }
+  }
+
+  for (i = 0; i < enemies.length; i++){
+    e = enemies[i];
+    e.slowMul = 1;
+    for (j = 0; j < towers.length; j++){
+      t = towers[j];
+      if (t.kind !== 'scare') continue;
+      var rg = TDEF.scare.range[t.lvl];
+      var dx = t.x - e.x, dy = t.y - e.y;
+      if (dx*dx + dy*dy <= rg*rg){
+        var sm = TDEF.scare.slow[t.lvl];
+        if (sm < e.slowMul) e.slowMul = sm;
+      }
+    }
+  }
+
+  for (i = enemies.length - 1; i >= 0; i--){
+    e = enemies[i];
+    if (e.hitT > 0) e.hitT -= dt;
+    if (e.stop > 0){
+      e.stop -= dt;
+    } else {
+      stepEnemy(e, e.spd * TUNE.spdMul.v * e.slowMul * dt);
+    }
+    if (e.leak){
+      enemies.splice(i, 1);
+      veg--;
+      combo = 0; comboT = 0;
+      shake = 0.7;
+      addParts(e.x, e.y, '#ef4444', 10);
+      Game.float(e.x, e.y - 18, '-1🥕', '#f87171');
+      if (veg < 0) veg = 0;
+      updateHud();
+      if (veg <= 0){ Game.over(calcScore()); return; }
+    }
+  }
+
+  for (i = 0; i < towers.length; i++){
+    t = towers[i];
+    d = TDEF[t.kind];
+    if (t.kind === 'scare') continue;
+    if (t.kind === 'pit'){
+      t.cool -= dt;
+      if (t.cool <= 0){
+        var any = false;
+        for (j = 0; j < enemies.length; j++){
+          e = enemies[j];
+          if (e.fly) continue;
+          var ddx = e.x - t.x, ddy = e.y - t.y;
+          if (ddx*ddx + ddy*ddy <= d.range[t.lvl]*d.range[t.lvl]){
+            if (e.stop < d.stop[t.lvl]) e.stop = d.stop[t.lvl];
+            any = true;
+          }
+        }
+        t.cool = any ? d.cd[t.lvl] : 0.35;
+        if (any) addParts(t.x, t.y, '#8a6b45', 5);
+      }
+      continue;
+    }
+    t.cool -= dt;
+    if (t.cool <= 0){
+      var tgt = findTarget(t, d);
+      if (tgt){
+        t.cool = 1 / d.rate[t.lvl];
+        var dmg = d.dmg[t.lvl];
+        if (t.kind === 'hawk' && tgt.fly) dmg = dmg * 3;
+        shots.push({ x:t.x, y:t.y - 6, tx:tgt.x, ty:tgt.y, tgt:tgt, dmg:dmg, spd:560, life:1.6, kind:t.kind });
+      } else {
+        t.cool = 0.08;
+      }
+    }
+  }
+
+  for (i = shots.length - 1; i >= 0; i--){
+    var s = shots[i];
+    s.life -= dt;
+    if (s.life <= 0 || !s.tgt || s.tgt.hp <= 0 || enemies.indexOf(s.tgt) < 0){
+      shots.splice(i, 1);
+      continue;
+    }
+    s.tx = s.tgt.x; s.ty = s.tgt.y;
+    var sdx = s.tx - s.x, sdy = s.ty - s.y;
+    var dist = Math.sqrt(sdx*sdx + sdy*sdy);
+    if (dist < 13){
+      damage(s.tgt, s.dmg);
+      shots.splice(i, 1);
+      continue;
+    }
+    var mv = Math.min(dist, s.spd*dt);
+    s.x += sdx/dist*mv;
+    s.y += sdy/dist*mv;
+  }
+
+  for (i = parts.length - 1; i >= 0; i--){
+    var p = parts[i];
+    p.x += p.vx*dt; p.y += p.vy*dt;
+    p.vx *= 0.94; p.vy *= 0.94;
+    p.life -= dt;
+    if (p.life <= 0) parts.splice(i, 1);
+  }
+
+  if (state === 'wave' && spawnQ.length === 0 && enemies.length === 0){
+    endWave();
+  }
+}
+
+function draw(){
+  var i, j, e, t, c, r;
+  ctx.save();
+  var ox = 0, oy = 0;
+  if (shake > 0){
+    ox = (Math.random()*10 - 5)*shake;
+    oy = (Math.random()*10 - 5)*shake;
+  }
+  ctx.translate(ox, oy);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  ctx.fillStyle = '#6d9b3c';
+  ctx.fillRect(-30, -30, W + 60, H + 60);
+
+  ctx.fillStyle = 'rgba(0,0,0,0.055)';
+  for (i = 0; i < blobs.length; i++){
+    ctx.beginPath();
+    ctx.ellipse(blobs[i].x, blobs[i].y, blobs[i].rx, blobs[i].ry, 0, 0, 6.2832);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = 'rgba(255,255,255,0.045)';
+  for (r = 0; r < ROWS; r++){
+    for (c = 0; c < COLS; c++){
+      if ((r + c) % 2 === 0) ctx.fillRect(c*CELL, GY + r*CELL, CELL, CELL);
+    }
+  }
+
+  ctx.fillStyle = '#8b6a44';
+  for (i = 0; i < pathCells.length; i++){
+    ctx.fillRect(pathCells[i][0]*CELL - 3, GY + pathCells[i][1]*CELL - 3, CELL + 6, CELL + 6);
+  }
+  ctx.fillStyle = '#c9a877';
+  for (i = 0; i < pathCells.length; i++){
+    ctx.fillRect(pathCells[i][0]*CELL, GY + pathCells[i][1]*CELL, CELL, CELL);
+  }
+  ctx.fillStyle = 'rgba(120,90,55,0.35)';
+  for (i = 0; i < speckles.length; i++){
+    ctx.fillRect(speckles[i].x, speckles[i].y, 3, 3);
+  }
+
+  var fx = 398, fy = 488, fw = 78, fh = 58;
+  ctx.fillStyle = '#7a5a36';
+  rrect(fx - 5, fy - 5, fw + 10, fh + 10, 9); ctx.fill();
+  ctx.fillStyle = '#4d3a22';
+  rrect(fx, fy, fw, fh, 6); ctx.fill();
+  ctx.font = "20px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  ctx.fillText('🥕', fx + 18, fy + 17);
+  ctx.fillText('🥕', fx + 44, fy + 17);
+  ctx.fillText('🥕', fx + 31, fy + 42);
+
+  var pulse = 0.20 + 0.11*Math.sin(tt*3);
+  ctx.fillStyle = 'rgba(255,255,210,' + pulse.toFixed(3) + ')';
+  for (var k in nearSet){
+    var kk = parseInt(k, 10);
+    ctx.beginPath();
+    ctx.arc(cx(kk % COLS), cy(Math.floor(kk / COLS)), 4.5, 0, 6.2832);
+    ctx.fill();
+  }
+
+  for (i = 0; i < towers.length; i++){
+    t = towers[i];
+    var lc = t.lvl === 0 ? '#9ca3af' : (t.lvl === 1 ? '#e5e7eb' : '#fbbf24');
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.beginPath(); ctx.arc(t.x, t.y + 2, 16, 0, 6.2832); ctx.fill();
+    ctx.beginPath(); ctx.arc(t.x, t.y, 16, 0, 6.2832);
+    ctx.strokeStyle = lc; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.font = "26px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText(TDEF[t.kind].emoji, t.x, t.y);
+    for (j = 0; j <= t.lvl; j++){
+      ctx.beginPath();
+      ctx.arc(t.x - 6 + j*6, t.y + 20, 2.4, 0, 6.2832);
+      ctx.fillStyle = lc; ctx.fill();
+    }
+  }
+
+  for (i = 0; i < enemies.length; i++){
+    e = enemies[i];
+    var bob = e.fly ? Math.sin(tt*8 + e.bob)*3 : 0;
+    var sc2 = e.hitT > 0 ? 1.15 : 1;
+    ctx.fillStyle = 'rgba(0,0,0,0.20)';
+    ctx.beginPath();
+    ctx.ellipse(e.x, e.y + e.size*0.44, e.size*0.34, e.size*0.15, 0, 0, 6.2832);
+    ctx.fill();
+    ctx.font = Math.round(e.size*sc2) + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText(e.emoji, e.x, e.y + bob);
+    if (e.hp < e.maxHp){
+      var bw = 30, bh = 5, bx = e.x - bw/2, by = e.y - e.size*0.62 - 8 + bob;
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+      ctx.fillStyle = e.fly ? '#7dd3fc' : '#ef4444';
+      ctx.fillRect(bx, by, bw * Math.max(0, e.hp/e.maxHp), bh);
+    }
+    if (e.stop > 0){
+      ctx.fillStyle = 'rgba(255,255,180,0.85)';
+      ctx.font = "16px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+      ctx.fillText('💫', e.x + 14, e.y - 18 + bob);
+    }
+  }
+
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  for (i = 0; i < shots.length; i++){
+    var s = shots[i];
+    var ang = Math.atan2(s.ty - s.y, s.tx - s.x);
+    ctx.strokeStyle = s.kind === 'hawk' ? '#eef2ff' : '#7a4f22';
+    ctx.beginPath();
+    ctx.moveTo(s.x - Math.cos(ang)*8, s.y - Math.sin(ang)*8);
+    ctx.lineTo(s.x + Math.cos(ang)*8, s.y + Math.sin(ang)*8);
+    ctx.stroke();
+  }
+
+  for (i = 0; i < parts.length; i++){
+    var p = parts[i];
+    ctx.globalAlpha = Math.max(0, p.life / p.max);
+    ctx.fillStyle = p.col;
+    ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  if (state === 'prep'){
+    var bx = 46, by = 226, bw = 388, bh = 152;
+    ctx.fillStyle = 'rgba(12,20,36,0.90)';
+    rrect(bx, by, bw, bh, 16); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,209,102,0.75)'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = '#ffd166';
+    ctx.font = 'bold 26px sans-serif';
+    ctx.fillText('WAVE ' + wave, W/2, by + 34);
+    ctx.fillStyle = '#cfe3ff';
+    ctx.font = '15px sans-serif';
+    ctx.fillText('つぎの敵', W/2, by + 64);
+    ctx.font = "22px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText(previewText(preview), W/2, by + 96);
+    ctx.font = '15px sans-serif';
+    ctx.fillStyle = '#9fb3c8';
+    ctx.fillText('▶ タップで開始', W/2, by + 130);
+  }
+
+  if (popup){
+    ctx.fillStyle = 'rgba(10,16,28,0.88)';
+    rrect(popup.x - 8, popup.y - 8, popup.w + 16, popup.h + 16, 14); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = 2; ctx.stroke();
+    for (i = 0; i < popup.cards.length; i++){
+      var cd = popup.cards[i];
+      ctx.fillStyle = cd.enabled ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.06)';
+      rrect(cd.x, cd.y, cd.w, cd.h, 10); ctx.fill();
+      ctx.strokeStyle = cd.enabled ? 'rgba(255,255,255,0.30)' : 'rgba(255,255,255,0.10)';
+      ctx.lineWidth = 2; ctx.stroke();
+      ctx.globalAlpha = cd.enabled ? 1 : 0.4;
+      ctx.font = "30px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+      ctx.fillText(cd.emoji, cd.x + cd.w/2, cd.y + 32);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '14px sans-serif';
+      ctx.fillText(cd.label, cd.x + cd.w/2, cd.y + 70);
+      ctx.fillStyle = cd.enabled ? '#ffd166' : '#f87171';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillText(cd.sub, cd.x + cd.w/2, cd.y + 92);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  ctx.fillStyle = 'rgba(8,14,26,0.90)';
+  rrect(8, 554, W - 16, 152, 14); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 2; ctx.stroke();
+
+  ctx.fillStyle = '#e7eefc';
+  ctx.font = 'bold 17px sans-serif';
+  if (state === 'prep'){
+    ctx.fillText('WAVE ' + wave + ' まで  ' + Math.ceil(prepT) + ' 秒', W/2, 578);
+    ctx.fillStyle = '#9fb3c8';
+    ctx.font = '15px sans-serif';
+    ctx.fillText('つぎ: ' + previewText(preview), W/2, 601);
+  } else {
+    ctx.fillText('WAVE ' + wave + '   のこり ' + (enemies.length + spawnQ.length) + ' 体', W/2, 578);
+    ctx.fillStyle = combo >= 2 ? '#7ef0a0' : '#9fb3c8';
+    ctx.font = '15px sans-serif';
+    ctx.fillText(combo >= 2 ? ('コンボ ×' + combo + '  報酬アップ!') : '連続で倒すとコンボ!', W/2, 601);
+  }
+
+  var btnA = state === 'prep';
+  drawBtn(20, 610, 210, 80, btnA ? '▶ いますぐ開始' : 'WAVE 進行中', btnA ? '' : '準備を待とう', btnA, '#2f6b46');
+  var canH = money >= harvestCost;
+  drawBtn(250, 610, 210, 80, '🥕 収穫 (+1)', '💰 ' + harvestCost, canH, '#6b4a2f');
+}
+
+function drawBtn(x, y, w, h, label, sub, enabled, col){
+  ctx.fillStyle = enabled ? col : 'rgba(255,255,255,0.07)';
+  rrect(x, y, w, h, 12); ctx.fill();
+  ctx.strokeStyle = enabled ? 'rgba(255,255,255,0.32)' : 'rgba(255,255,255,0.10)';
+  ctx.lineWidth = 2; ctx.stroke();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = enabled ? '#ffffff' : 'rgba(255,255,255,0.35)';
+  ctx.font = 'bold 18px sans-serif';
+  ctx.fillText(label, x + w/2, y + h/2 - (sub ? 12 : 0));
+  if (sub){
+    ctx.fillStyle = enabled ? '#ffd166' : 'rgba(255,255,255,0.28)';
+    ctx.font = '15px sans-serif';
+    ctx.fillText(sub, x + w/2, y + h/2 + 16);
+  }
+}
+
+function openPlacePopup(c, r){
+  var cw = 104, ch = 110, gap = 8;
+  var n = KINDS.length;
+  var totalW = n*cw + (n-1)*gap;
+  var px = (W - totalW)/2;
+  var py = GY + r*CELL - ch - 10;
+  if (py < 56) py = GY + r*CELL + CELL + 10;
+  if (py + ch > 540) py = 540 - ch;
+  if (py < 56) py = 56;
+  popup = { x:px, y:py, w:totalW, h:ch, c:c, r:r, tower:null, cards:[] };
+  for (var i = 0; i < n; i++){
+    var k = KINDS[i], d = TDEF[k];
+    popup.cards.push({
+      x: px + i*(cw + gap), y: py, w: cw, h: ch,
+      emoji: d.emoji, label: d.name, sub: '💰' + d.cost,
+      enabled: money >= d.cost, action: 'place', kind: k
+    });
+  }
+}
+
+function openTowerPopup(t){
+  var d = TDEF[t.kind];
+  var cw = 128, ch = 110, gap = 10;
+  var n = t.lvl < 2 ? 2 : 1;
+  var totalW = n*cw + (n-1)*gap;
+  var px = (W - totalW)/2;
+  var py = GY + t.r*CELL - ch - 10;
+  if (py < 56) py = GY + t.r*CELL + CELL + 10;
+  if (py + ch > 540) py = 540 - ch;
+  if (py < 56) py = 56;
+  popup = { x:px, y:py, w:totalW, h:ch, c:t.c, r:t.r, tower:t, cards:[] };
+  var idx = 0;
+  if (t.lvl < 2){
+    var cost = d.up[t.lvl + 1];
+    popup.cards.push({
+      x: px, y: py, w: cw, h: ch, emoji:'⭐',
+      label: d.name + ' Lv' + (t.lvl + 2), sub: '💰' + cost,
+      enabled: money >= cost, action:'up', kind: t.kind
+    });
+    idx = 1;
+  }
+  popup.cards.push({
+    x: px + idx*(cw + gap), y: py, w: cw, h: ch, emoji:'💰',
+    label:'売却', sub:'+' + Math.round(t.spent*0.6),
+    enabled: true, action:'sell', kind: t.kind
+  });
+}
+
+function doCard(cd){
+  if (!cd.enabled){ popup = null; return; }
+  if (cd.action === 'place'){
+    var d = TDEF[cd.kind];
+    money -= d.cost;
+    towers.push({ kind:cd.kind, c:popup.c, r:popup.r, lvl:0, cool:0, x:cx(popup.c), y:cy(popup.r), spent:d.cost });
+  } else if (cd.action === 'up'){
+    var t = popup.tower;
+    if (t && t.lvl < 2){
+      var cost = TDEF[t.kind].up[t.lvl + 1];
+      money -= cost;
+      t.spent += cost;
+      t.lvl++;
+      addParts(t.x, t.y, '#ffd166', 8);
+    }
+  } else if (cd.action === 'sell'){
+    var t2 = popup.tower;
+    if (t2){
+      money += Math.round(t2.spent*0.6);
+      var idx = towers.indexOf(t2);
+      if (idx >= 0) towers.splice(idx, 1);
+      addParts(t2.x, t2.y, '#9ca3af', 6);
+    }
+  }
+  popup = null;
+  updateHud();
+}
+
+function tryHarvest(){
+  if (money < harvestCost) return;
+  money -= harvestCost;
+  veg++;
+  harvestUsed++;
+  harvestCost = Math.round(TUNE.harvestCost.v + harvestUsed*30);
+  addParts(400, 528, '#7ef0a0', 6);
+  Game.float(W/2, 470, '+1🥕', '#7ef0a0');
+  updateHud();
+}
+
+function onDown(x, y, id){
+  var i;
+  if (popup){
+    for (i = 0; i < popup.cards.length; i++){
+      var cd = popup.cards[i];
+      if (x >= cd.x && x <= cd.x + cd.w && y >= cd.y && y <= cd.y + cd.h){
+        doCard(cd);
+        return;
+      }
+    }
+    popup = null;
+    return;
+  }
+
+  if (state === 'prep' && x >= 46 && x <= 434 && y >= 226 && y <= 378){
+    prepT = 0;
+    return;
+  }
+
+  if (y >= 606 && y <= 694){
+    if (x >= 240 && x <= 464){ tryHarvest(); return; }
+    if (x >= 16 && x <= 240){ if (state === 'prep') prepT = 0; return; }
+  }
+
+  if (y >= GY && y < GY + ROWS*CELL && x >= 0 && x < W){
+    var c = Math.floor(x / CELL);
+    var r = Math.floor((y - GY) / CELL);
+    if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return;
+    if (pathSet[r*COLS + c]) return;
+    var t = towerAt(c, r);
+    if (t) openTowerPopup(t);
+    else openPlacePopup(c, r);
+  }
+}
+
+function onMove(x, y, id){}
+function onUp(x, y, id){}
+function onResize(){}
+/*__VAPPA_JS_END__*/
+</script>
+</body></html>

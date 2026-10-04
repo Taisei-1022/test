@@ -1,1 +1,1 @@
-{"ok":false,"err":"start: {\"error\":\"login_required\"}"}
+{"ok":true,"validateErr":null,"tune":8,"sec":231,"title":"マンションビルダー60","model":"deepseek-flash（思考: high）","yen":6.39,"diag":["0s instance att=1 hop=0 model=deepseek-flash","172s deepseek-flash/high 172s finish=stop out=46081 think=34834 body=25648ch","224s deepseek-flash/high 51s finish=stop out=16228 think=5680 body=24536ch"]}
