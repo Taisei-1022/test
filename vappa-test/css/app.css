@@ -1,0 +1,450 @@
+:root{
+  /* ブランド：ダーク×バイオレット（--gold はアクセント変数名のまま流用） */
+  --bg:#141221; --ink:#f1eefb; --dim:#9a93b5; --rule:#2c2740; --plate:#1d1a2e; --gold:#8b5cf6;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+  -webkit-user-select:none;user-select:none;overscroll-behavior:none;
+  /* iOSはuser-scalable=noを無視するため、ダブルタップ拡大(=2連続タップで固まる症状)をここで無効化。
+     スクロール/パンは維持しつつダブルタップズームと300msタップ遅延だけ消す。 */
+  touch-action:manipulation;}
+
+/* 画面切替を少しだけフェード（アプリっぽい滑らかさ） */
+@keyframes vfade{from{opacity:.35}to{opacity:1}}
+.view.active{animation:vfade .18s ease both;}
+.crscreen.on{animation:vfade .15s ease both;}
+
+/* ホーム追加 / インストール 案内バー */
+.a2hs{position:fixed;left:10px;right:10px;bottom:calc(var(--tab) + 10px);z-index:40;
+  background:var(--plate);border:1px solid var(--rule);border-radius:14px;
+  display:flex;align-items:center;gap:10px;padding:10px 12px;
+  box-shadow:0 10px 28px rgba(0,0,0,.45);
+  transform:translateY(160%);opacity:0;transition:transform .3s ease, opacity .3s ease;}
+.a2hs.show{transform:none;opacity:1;}
+.a2hs-ic{flex:none;display:flex;align-items:center;justify-content:center;width:34px;}
+.a2hs-tx{flex:1;min-width:0;font-size:12px;color:var(--dim);line-height:1.45;}
+.a2hs-tx b{display:block;color:var(--ink);font-size:14px;font-weight:800;margin-bottom:1px;}
+.a2hs-tx strong{color:var(--gold);font-weight:800;}
+.a2hs-add{flex:none;background:var(--gold);color:#ffffff;border:0;border-radius:9px;
+  padding:.5rem .9rem;font:inherit;font-weight:800;font-size:13px;cursor:pointer;}
+.a2hs-x{flex:none;background:transparent;border:0;color:var(--dim);font-size:22px;line-height:1;padding:0 4px;cursor:pointer;}
+/* アップデート通知バー */
+.updbar{position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 14px);z-index:60;
+  display:flex;align-items:center;gap:10px;background:var(--plate);border:1px solid #3a3460;border-radius:14px;
+  padding:12px 14px;box-shadow:0 10px 28px rgba(0,0,0,.5);
+  transform:translateY(180%);transition:transform .3s ease;}
+.updbar.show{transform:none;}
+.updbar span{flex:1;font-weight:800;font-size:14px;color:var(--ink);}
+.updbar button{flex:none;background:var(--gold);color:#fff;border:0;border-radius:10px;
+  padding:.55rem 1rem;font:inherit;font-weight:800;font-size:14px;cursor:pointer;}
+.updbar #updx{background:transparent;color:var(--dim);font-size:22px;line-height:1;padding:0 4px;}
+/* 生成中バー（どの画面でも見える） */
+.genbar{position:fixed;left:12px;right:12px;bottom:calc(var(--tab) + 10px);z-index:55;
+  display:flex;align-items:center;gap:10px;background:var(--plate);border:1px solid #3a3460;border-radius:14px;
+  padding:11px 14px;box-shadow:0 10px 28px rgba(0,0,0,.5);font-weight:800;font-size:13px;color:var(--ink);}
+.genbar[hidden]{display:none;}
+.genspin{flex:none;width:18px;height:18px;border-radius:50%;border:2.5px solid rgba(139,92,246,.3);
+  border-top-color:var(--gold);animation:genspin .8s linear infinite;}
+@keyframes genspin{to{transform:rotate(360deg);}}
+/* 今日のAI作成 使用状況 */
+.usagebox{background:var(--plate);border:1px solid var(--rule);border-radius:12px;
+  padding:12px 14px;font-size:15px;color:var(--ink);font-weight:700;}
+.usagebox b{font-weight:800;}
+.usagebox .dim{color:var(--dim);font-weight:700;font-size:13px;}
+/* バージョン表示（デプロイ確認用・薄く） */
+.verbadge{position:fixed;top:calc(env(safe-area-inset-top) + 3px);right:7px;z-index:70;
+  font-size:9px;line-height:1;color:var(--dim);opacity:.45;pointer-events:none;
+  font-variant-numeric:tabular-nums;letter-spacing:.02em;}
+a{color:inherit;text-decoration:none;}
+
+/* ---- ホーム ---- */
+.app{max-width:680px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 14px) 14px 40px;}
+.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:14px;}
+.brand{font-size:22px;font-weight:800;letter-spacing:.02em;}
+.brand .logo{height:30px;width:auto;display:block;margin-bottom:3px;}
+.brand small{display:block;font-size:11px;letter-spacing:.18em;color:var(--gold);font-weight:700;}
+.crbar .t .logo{height:26px;width:auto;display:block;}
+.name{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);}
+.name input{background:var(--plate);border:1px solid var(--rule);color:var(--ink);border-radius:8px;
+  padding:.4rem .6rem;font:inherit;font-size:13px;width:120px;}
+
+.section{font-size:12px;letter-spacing:.14em;color:var(--dim);margin:18px 2px 10px;}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+@media(min-width:560px){.grid{grid-template-columns:1fr 1fr 1fr;}}
+.card{display:block;background:var(--plate);border:1px solid var(--rule);border-radius:14px;
+  padding:14px;position:relative;overflow:hidden;}
+.card .thumb{height:84px;border-radius:10px;margin:-2px -2px 10px;
+  display:flex;align-items:center;justify-content:center;}
+.card .thumb b{font-size:15px;font-weight:800;color:rgba(0,0,0,.72);text-align:center;padding:0 10px;line-height:1.3;}
+.card .cat{position:absolute;top:10px;left:10px;font-size:10px;font-weight:700;
+  background:rgba(0,0,0,.4);color:#fff;padding:2px 8px;border-radius:999px;}
+.card .ttl{font-size:14px;font-weight:800;margin:0 0 2px;}
+.card .meta{font-size:11px;color:var(--dim);}
+.card .blurb{font-size:11px;color:var(--dim);margin-top:6px;line-height:1.5;min-height:2.6em;}
+/* ---- 急上昇（上部の小さいカード横スクロール） ---- */
+.trending{margin:2px 0 10px;}
+.trendhd{font-weight:900;font-size:14px;margin:0 2px 8px;}
+.trendrow{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
+.trendrow::-webkit-scrollbar{display:none;}
+.tcard{flex:0 0 132px;display:block;background:var(--plate);border:1px solid var(--rule);
+  border-radius:12px;overflow:hidden;text-decoration:none;color:var(--ink);}
+.tcard .tt{height:74px;display:flex;align-items:center;justify-content:center;}
+.tcard .tt b{font-size:12px;font-weight:800;color:rgba(0,0,0,.72);text-align:center;padding:0 8px;line-height:1.25;}
+.tcard .tnm{font-size:12px;font-weight:800;padding:7px 9px;line-height:1.3;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.card .cardbtns{display:flex;gap:8px;margin-top:10px;}
+.cbtn{flex:1;text-align:center;border:1px solid var(--rule);border-radius:9px;padding:.6rem .2rem;
+  font-weight:800;font-size:12px;color:var(--ink);white-space:nowrap;}
+.cbtn.pri{background:var(--gold);color:#ffffff;border:0;}
+/* 共有アイコン：カード右上に丸ボタンで重ねる（遊ぶ/ランキングを潰さない） */
+.card .shareic{position:absolute;top:8px;right:8px;width:34px;height:34px;border-radius:50%;
+  border:1px solid var(--rule);background:rgba(16,18,28,.62);color:#fff;display:flex;align-items:center;
+  justify-content:center;z-index:3;cursor:pointer;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);}
+.card .shareic svg{width:17px;height:17px;}
+/* 一覧・バー用の小さな共有アイコンボタン */
+.shareic2{flex:0 0 auto !important;display:inline-flex;align-items:center;justify-content:center;
+  width:40px;color:var(--ink);}
+.shareic2 svg{width:17px;height:17px;}
+.bar .rankbtn{border:1px solid var(--rule);border-radius:9px;padding:.4rem .7rem;font-size:12px;
+  font-weight:800;color:var(--ink);white-space:nowrap;background:transparent;}
+.bar .rankbtn.shareic2{padding:.4rem .55rem;width:auto;}
+
+/* ---- プレイ画面 ---- */
+.play{position:fixed;inset:0;display:flex;flex-direction:column;}
+.bar{display:flex;align-items:center;gap:10px;padding:calc(env(safe-area-inset-top) + 8px) 12px 8px;
+  background:var(--plate);border-bottom:1px solid var(--rule);}
+.bar .back{width:36px;height:36px;border-radius:9px;border:1px solid var(--rule);background:transparent;
+  color:var(--ink);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.bar .t{font-size:15px;font-weight:800;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bar .best{font-size:12px;color:var(--dim);text-align:right;line-height:1.2;}
+.bar .best b{display:block;color:var(--gold);font-size:15px;}
+.frameWrap{position:relative;flex:1;background:#000;}
+.frameWrap iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;touch-action:none;}
+
+.lb{background:var(--plate);border-top:1px solid var(--rule);max-height:42vh;overflow:auto;}
+.lb h3{margin:0;padding:10px 14px;font-size:12px;letter-spacing:.12em;color:var(--dim);
+  position:sticky;top:0;background:var(--plate);border-bottom:1px solid var(--rule);}
+.lb ol{list-style:none;margin:0;padding:4px 0 10px;}
+.lb li{display:flex;align-items:center;gap:10px;padding:7px 14px;font-size:14px;}
+.lb li .rk{width:22px;color:var(--dim);font-weight:800;text-align:center;}
+.lb li .pl{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.lb li .sc{font-weight:800;font-variant-numeric:tabular-nums;}
+.lb li.me{color:var(--gold);}
+.lb .empty{padding:16px 14px;color:var(--dim);font-size:13px;}
+
+.toast{position:fixed;left:50%;top:30%;transform:translateX(-50%);
+  background:var(--gold);color:#ffffff;font-weight:800;padding:.7rem 1.1rem;border-radius:12px;
+  font-size:15px;opacity:0;transition:opacity .25s, top .25s;pointer-events:none;z-index:30;}
+.toast.show{opacity:1;top:24%;}
+
+/* ---- タブ構成（遊ぶ/作る/マイページ） ---- */
+/* ホームバー用の余白は standalone（ホームから起動）の時だけ。ブラウザでは付けない（下に隙間が出るため） */
+:root{--tab:52px;}
+/* 安全領域そのままだとホームバーの上が空きすぎるので16px詰める（最低6pxは残す） */
+html.standalone{--sab:max(env(safe-area-inset-bottom) - 16px, 6px); --tab:calc(52px + var(--sab));}
+.screen{position:fixed;left:0;right:0;top:0;bottom:var(--tab);overflow:hidden;}
+.view{position:absolute;inset:0;overflow:auto;display:none;-webkit-overflow-scrolling:touch;}
+.view.active{display:block;}
+.view.col.active{display:flex;flex-direction:column;}
+
+.tabbar{position:fixed;left:0;right:0;bottom:0;height:var(--tab);display:flex;
+  background:var(--plate);border-top:1px solid var(--rule);z-index:20;}
+html.standalone .tabbar{padding-bottom:var(--sab);}
+.tabbar button{flex:1;background:transparent;border:0;color:var(--dim);font:inherit;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  font-size:10.5px;font-weight:700;cursor:pointer;}
+.tabbar button svg{width:22px;height:22px;display:block;}
+.tabbar button .ic{stroke:var(--dim);fill:none;}
+.tabbar button .icf{fill:var(--dim);stroke:none;}  /* 非選択の塗りアイコン（遊ぶの▷）が黒くならないように */
+.tabbar button.on{color:var(--gold);}
+.tabbar button.on .ic{stroke:var(--gold);}
+.tabbar button.on .icf{fill:var(--gold);stroke:none;}
+
+/* ---- 作る（サブ画面: 一覧 / チャット / プレビュー） ---- */
+.crscreen{position:absolute;inset:0;display:none;flex-direction:column;}
+.crscreen.on{display:flex;}
+.crbar{display:flex;align-items:center;gap:10px;padding:calc(env(safe-area-inset-top) + 14px) 14px 10px;border-bottom:1px solid var(--rule);}
+.crbar .back{width:34px;height:34px;border-radius:9px;border:1px solid var(--rule);background:transparent;
+  color:var(--ink);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.crbar .t{flex:1;font-weight:800;font-size:18px;}
+.crbar .act{background:transparent;border:0;color:var(--gold);font:inherit;font-weight:800;font-size:15px;cursor:pointer;padding:6px;}
+.crbar .act.off{color:var(--dim);}
+/* プレビュー上部に3つ並ぶので少し小さめ＋公開は塗りつぶし */
+#cr-preview .crbar{gap:6px;}
+#cr-preview .crbar .act{font-size:13px;padding:5px 6px;white-space:nowrap;}
+.crbar .act.gold{background:var(--gold);color:#ffffff;border-radius:8px;padding:6px 12px;}
+.draftbadge,.livebadge,.newbadge{display:inline-block;margin:0 6px 4px 0;font-size:10px;font-weight:800;
+  border-radius:999px;padding:1px 7px;line-height:1.4;}
+.draftbadge{color:var(--dim);border:1px solid var(--rule);}
+.livebadge{color:#3fb950;border:1px solid #2a6b39;}
+.newbadge{color:#fff;background:var(--gold);border:1px solid var(--gold);}
+.crbar .newbtn{background:var(--gold);color:#ffffff;border:0;border-radius:10px;padding:.5rem .85rem;font:inherit;font-weight:800;font-size:14px;cursor:pointer;}
+.crbar .howtobtn{width:34px;height:34px;flex:none;border-radius:50%;border:1px solid var(--rule);background:transparent;
+  color:var(--ink);font:inherit;font-weight:800;font-size:15px;cursor:pointer;}
+
+/* ---- 作り方チュートリアル ---- */
+.howto{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:18px;}
+.howto[hidden]{display:none;}
+.howtobox{width:100%;max-width:420px;max-height:86vh;overflow:auto;background:var(--plate);border:1px solid var(--rule);border-radius:18px;padding:18px 16px;}
+.howtobox h3{margin:0 0 4px;font-size:18px;font-weight:800;}
+.howtobox .lead{margin:0 0 14px;color:var(--dim);font-size:13px;line-height:1.6;}
+.howto ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px;}
+.howto li{display:flex;gap:12px;align-items:flex-start;}
+.howto li .no{flex:none;width:28px;height:28px;border-radius:50%;background:var(--gold);color:#fff;
+  font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center;}
+.howto li .tx{flex:1;font-size:14px;line-height:1.55;}
+.howto li .tx b{font-weight:800;}
+.howto li .tx span{display:block;color:var(--dim);font-size:12px;margin-top:2px;}
+.howto .ok{margin-top:16px;width:100%;background:var(--gold);color:#fff;border:0;border-radius:12px;
+  padding:.8rem;font:inherit;font-weight:800;font-size:15px;cursor:pointer;}
+.crbody{flex:1;overflow:auto;padding:14px;}
+
+.emptybox{display:flex;flex-direction:column;justify-content:center;min-height:46vh;
+  text-align:center;color:var(--dim);font-size:14px;line-height:1.8;padding:0 20px;}
+.crelist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px;}
+.crelist li{display:flex;flex-wrap:wrap;align-items:center;gap:10px;background:var(--plate);border:1px solid var(--rule);border-radius:12px;padding:10px;}
+.crelist li .ic{width:54px;height:42px;border-radius:8px;flex:none;background-size:cover;background-position:center;}
+.crelist li .mid{flex:1;min-width:0;}
+.crelist li .nm{font-weight:800;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.crelist li .dt{font-size:11px;color:var(--dim);}
+.liacts{flex-basis:100%;display:flex;gap:8px;margin-top:2px;}
+.liacts a,.liacts button{flex:1;text-align:center;border:1px solid var(--rule);background:transparent;color:var(--ink);
+  border-radius:8px;padding:.45rem .2rem;font:inherit;font-weight:700;font-size:12px;cursor:pointer;text-decoration:none;}
+.liacts a.go{background:var(--gold);color:#ffffff;border:0;}
+.liacts button.del{color:#e5484d;}
+
+/* ---- 公開フォーム ---- */
+.section2{font-size:12px;letter-spacing:.1em;color:var(--dim);margin:14px 2px 8px;}
+.field{width:100%;background:var(--plate);border:1px solid var(--rule);color:var(--ink);border-radius:11px;
+  padding:.7rem .8rem;font:inherit;font-size:15px;}
+textarea.field{resize:vertical;line-height:1.5;}
+.thumbpick{display:flex;gap:12px;align-items:center;}
+.thumbprev{width:120px;height:90px;border-radius:12px;flex:none;overflow:hidden;background-size:cover;background-position:center;
+  display:flex;align-items:center;justify-content:center;color:rgba(0,0,0,.72);font-weight:800;text-align:center;font-size:13px;padding:0 8px;}
+.thumbacts{display:flex;flex-direction:column;gap:8px;}
+.filebtn{display:inline-block;text-align:center;background:var(--gold);color:#ffffff;border-radius:10px;
+  padding:.55rem .9rem;font-weight:800;font-size:13px;cursor:pointer;}
+.ghostbtn{background:transparent;border:1px solid var(--rule);color:var(--ink);border-radius:10px;
+  padding:.5rem .9rem;font:inherit;font-weight:700;font-size:13px;cursor:pointer;}
+
+.bigpv{height:200px;border-radius:16px;display:flex;align-items:center;justify-content:center;
+  color:rgba(0,0,0,.72);font-weight:800;font-size:18px;text-align:center;padding:0 16px;margin-bottom:14px;}
+/* プレビュー枠＝ゲームの論理比率(2:3)に固定。ゲームが余白なくピッタリ収まる */
+.pvframe{position:relative;width:min(100%,calc(62vh * 2 / 3));aspect-ratio:2/3;
+  border:1px solid var(--rule);border-radius:14px;overflow:hidden;background:#000;margin:0 auto 12px;}
+.pvframe iframe{width:100%;height:100%;border:0;display:block;touch-action:none;}
+.pvnote{color:var(--dim);font-size:13px;line-height:1.7;margin:0 0 16px;}
+
+/* 設定トグル（マイページ：作り方など） */
+.prefrow{display:flex;align-items:center;justify-content:space-between;gap:14px;
+  background:var(--plate);border:1px solid var(--rule);border-radius:12px;padding:12px 14px;cursor:pointer;}
+.prefrow .prefk{font-size:14px;font-weight:700;color:var(--ink);line-height:1.4;}
+.prefrow .prefk small{display:block;font-size:11px;font-weight:600;color:var(--dim);margin-top:2px;}
+.switch{appearance:none;-webkit-appearance:none;flex:none;width:48px;height:28px;border-radius:99px;
+  background:var(--rule);position:relative;cursor:pointer;transition:background .18s;outline:none;border:0;}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;
+  background:#fff;transition:transform .18s;box-shadow:0 1px 3px rgba(0,0,0,.4);}
+.switch:checked{background:var(--gold);}
+.switch:checked::after{transform:translateX(20px);}
+
+/* チャット入力横の素材ボタン（途中からでも素材を追加できる入口） */
+.composer #assetBtn{flex:none;width:42px;min-height:42px;border:1px solid var(--rule);
+  background:var(--plate);border-radius:12px;font-size:18px;cursor:pointer;padding:0;}
+.composer #assetBtn:active{transform:scale(.96);}
+
+/* 素材画像アップロード（素材パネル内） */
+.imgsec{grid-column:1/-1;display:flex;flex-direction:column;gap:8px;margin:2px 0 6px;}
+.assetup{display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  border:1.5px dashed var(--rule);border-radius:12px;padding:.65rem;cursor:pointer;
+  font-size:13px;font-weight:800;color:var(--dim);}
+.imgcell{display:flex;align-items:center;gap:8px;background:var(--plate);border:1px solid var(--rule);
+  border-radius:12px;padding:6px 8px;}
+.imgcell img{width:40px;height:40px;object-fit:contain;border-radius:8px;background:#0b0e1c;flex:none;}
+.imglabel{flex:1;min-width:0;background:transparent;border:0;border-bottom:1px dashed var(--rule);
+  color:var(--ink);font:inherit;font-size:13px;padding:4px 2px;outline:none;}
+.imgdel{flex:none;border:0;background:transparent;color:var(--dim);font-size:14px;cursor:pointer;padding:4px 6px;}
+.imghint{font-size:11px;color:var(--dim);line-height:1.5;}
+.traychip.imgchip{display:inline-flex;align-items:center;gap:5px;}
+.traychip.imgchip img{width:20px;height:20px;object-fit:contain;border-radius:4px;}
+
+/* 難易度調整（管理者用）：プレビュー枠外（下の説明行の右）の⚙️＋ボトムシート */
+.pvtools{display:flex;align-items:flex-start;gap:10px;}
+.pvtools .pvnote{flex:1;min-width:0;}
+#pvTune{flex:none;width:44px;height:44px;
+  border-radius:50%;border:1px solid var(--rule);background:rgba(29,26,46,.9);
+  font-size:20px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.45);}
+#tunePanel[hidden]{display:none;}   /* display:flexがhidden属性を潰さないように */
+#tunePanel{position:fixed;left:0;right:0;bottom:0;z-index:60;max-height:56vh;
+  display:flex;flex-direction:column;overflow:hidden;
+  background:var(--plate);border-top:1px solid var(--rule);border-radius:18px 18px 0 0;
+  box-shadow:0 -12px 32px rgba(0,0,0,.5);}
+/* ヘッダーはスクロールしない＝✕が常に見える。スワイプダウンで閉じるハンドルも兼ねる */
+.tphead{flex:none;padding:8px 16px 8px;border-bottom:1px solid var(--rule);touch-action:none;}
+.tpgrip{width:44px;height:5px;border-radius:99px;background:var(--rule);margin:0 auto 8px;}
+.tpheadrow{display:flex;align-items:center;gap:8px;}
+.tphead b{font-size:15px;}
+.tphead .tpnote{flex:1;font-size:10.5px;color:var(--dim);line-height:1.3;}
+/* スライダー領域だけがスクロール。右44pxはスライダー無しの「スクロールレーン」 */
+.tpscroll{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding:8px 56px calc(16px + env(safe-area-inset-bottom)) 16px;}
+.tprail{position:absolute;right:24px;top:72px;bottom:calc(16px + env(safe-area-inset-bottom));
+  width:4px;border-radius:99px;background:rgba(154,147,181,.35);pointer-events:none;}
+#tuneReset{border:1px solid var(--rule);background:transparent;color:var(--dim);border-radius:9px;
+  padding:.35rem .6rem;font:inherit;font-size:12px;font-weight:700;cursor:pointer;}
+#tuneClose{border:0;background:transparent;color:var(--dim);font-size:16px;cursor:pointer;padding:4px 6px;}
+.tctrl{margin:2px 0 4px;}
+.tctrl .row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;}
+.tctrl .k{font-size:13px;font-weight:700;}
+.tctrl .v{font-size:14px;font-weight:900;color:var(--gold);white-space:nowrap;}
+/* 自作スライダー（iOS Safariでも確実に指で動く。sim.htmlと同じ方式） */
+.tsl{position:relative;height:40px;width:100%;touch-action:none;cursor:pointer;
+  -webkit-user-select:none;user-select:none;}
+.tsl .trk{position:absolute;top:50%;left:0;right:0;height:6px;transform:translateY(-50%);
+  border-radius:99px;background:var(--rule);overflow:hidden;}
+.tsl .fil{position:absolute;inset:0;width:40%;background:var(--gold);border-radius:99px;}
+.tsl .thb{position:absolute;top:50%;left:40%;width:26px;height:26px;transform:translate(-50%,-50%);
+  border-radius:50%;background:#fff;border:3px solid var(--gold);box-shadow:0 2px 8px rgba(0,0,0,.4);}
+.tsl.drag .thb{transform:translate(-50%,-50%) scale(1.12);}
+.tsl:focus-visible{outline:none;}
+.tsl:focus-visible .thb{outline:2px solid #fff;outline-offset:2px;}
+.pvbtns{display:flex;flex-direction:column;gap:10px;}
+.pvbtns button{border:1px solid var(--rule);background:transparent;color:var(--ink);border-radius:11px;
+  padding:.8rem;font:inherit;font-weight:800;font-size:15px;cursor:pointer;}
+.pvbtns button.pri{background:var(--gold);color:#ffffff;border:0;}
+
+/* ---- 作る（AIチャット モック） ---- */
+.chatlog{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
+.chatlog>*{flex:0 0 auto;}
+.optrow{display:flex;flex-wrap:wrap;gap:8px;align-self:flex-start;max-width:92%;}
+.optrow button{background:var(--plate);border:1px solid var(--gold);color:var(--gold);
+  border-radius:999px;padding:.5rem .85rem;font:inherit;font-size:13px;font-weight:700;cursor:pointer;}
+.msg{max-width:84%;padding:10px 13px;border-radius:14px;font-size:14px;line-height:1.6;white-space:pre-wrap;}
+.msg.bot{align-self:flex-start;background:var(--plate);border:1px solid var(--rule);border-bottom-left-radius:5px;}
+.msg.user{align-self:flex-end;background:var(--gold);color:#ffffff;font-weight:600;border-bottom-right-radius:5px;}
+.msg.typing{color:var(--dim);font-style:italic;}
+/* チャットは長押しで選択→コピー/カット（OS標準メニュー）を出せるようにする */
+.chatlog .msg{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default;cursor:text;}
+.gencard{align-self:flex-start;max-width:84%;border:1px solid var(--rule);border-radius:14px;overflow:hidden;background:var(--plate);}
+.gencard .pv{height:96px;display:flex;align-items:center;justify-content:center;color:rgba(0,0,0,.7);font-weight:800;text-align:center;padding:0 12px;}
+.gencard .bd{padding:10px 12px;}
+.gencard .bd .t{font-weight:800;font-size:14px;margin-bottom:8px;}
+.gencard .row{display:flex;gap:8px;}
+.gencard .row button{flex:1;border:1px solid var(--rule);background:transparent;color:var(--ink);
+  border-radius:9px;padding:.5rem;font:inherit;font-weight:700;font-size:13px;cursor:pointer;}
+.gencard .row button.pri{background:var(--gold);color:#ffffff;border:0;}
+.composer{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--rule);background:var(--bg);}
+.composer input,.composer textarea{flex:1;background:var(--plate);border:1px solid var(--rule);color:var(--ink);
+  border-radius:11px;padding:.65rem .8rem;font:inherit;font-size:15px;}
+.composer textarea{resize:none;line-height:1.5;max-height:120px;overflow-y:auto;min-height:0;}
+.composer button{background:var(--gold);color:#ffffff;border:0;border-radius:11px;
+  padding:0 1.05rem;font:inherit;font-weight:800;cursor:pointer;}
+.chips{display:flex;gap:8px;flex-wrap:wrap;padding:0 14px 6px;}
+.chips button{background:transparent;border:1px solid var(--rule);color:var(--dim);
+  border-radius:999px;padding:.35rem .7rem;font:inherit;font-size:12px;cursor:pointer;}
+
+/* ---- 遊ぶ：フィルター・並び替え ---- */
+.filterbar{margin:6px 2px 12px;}
+.catchips{display:flex;gap:8px;flex-wrap:wrap;}
+.catchip{background:transparent;border:1px solid var(--rule);color:var(--dim);border-radius:999px;
+  padding:.35rem .8rem;font:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;}
+.catchip.on{background:var(--gold);color:#ffffff;border-color:var(--gold);}
+.catchips.pick{margin:2px 0;}
+.sortrow{display:flex;justify-content:flex-end;margin-top:10px;}
+.sortsel{font-size:11px;color:var(--dim);display:flex;align-items:center;gap:6px;}
+.sortsel select{background:var(--plate);border:1px solid var(--rule);color:var(--ink);border-radius:8px;
+  padding:.3rem .5rem;font:inherit;font-size:12px;}
+
+/* ---- 相談：素材（絵文字）ピッカー ---- */
+.assetbar{padding:0 14px 4px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.assettoggle{background:transparent;border:1px solid var(--rule);color:var(--ink);border-radius:999px;
+  padding:.35rem .8rem;font:inherit;font-size:12px;font-weight:700;cursor:pointer;flex:none;}
+.assettoggle.on{border-color:var(--gold);color:var(--gold);}
+.assettray{display:flex;gap:6px;flex-wrap:wrap;align-items:center;min-height:24px;}
+.assettray .hint{color:var(--dim);font-size:11px;}
+.traychip{background:var(--plate);border:1px solid var(--gold);color:var(--gold);border-radius:999px;
+  padding:.25rem .6rem;font:inherit;font-size:13px;font-weight:700;cursor:pointer;}
+/* 素材ピッカー本体＝チャットの上に重なるボトムシート（TUNEパネルと同じデザイン言語） */
+.assetshade{position:fixed;inset:0;z-index:58;background:rgba(5,4,12,.5);
+  backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);}
+.assetshade[hidden]{display:none;}
+@keyframes sheetup{from{transform:translateY(24px);opacity:.4}to{transform:none;opacity:1}}
+.assetpanel{position:fixed;left:0;right:0;bottom:0;z-index:60;max-height:62vh;overflow:auto;
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px;
+  padding:6px 16px calc(16px + env(safe-area-inset-bottom));
+  background:var(--plate);border-top:1px solid var(--rule);border-radius:20px 20px 0 0;
+  box-shadow:0 -14px 40px rgba(0,0,0,.55);
+  animation:sheetup .22s cubic-bezier(.2,.8,.3,1) both;}
+.assetpanel[hidden]{display:none;}
+.assethead{grid-column:1/-1;position:sticky;top:0;z-index:1;background:var(--plate);
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:4px 0 10px;font-size:14px;color:var(--ink);font-weight:800;}
+.assethead::before{content:"";position:absolute;top:2px;left:50%;transform:translateX(-50%);
+  width:38px;height:4px;border-radius:99px;background:var(--rule);}
+.assethead span{padding-top:10px;}
+.assetclose{background:transparent;border:0;color:var(--dim);border-radius:999px;
+  margin-top:8px;padding:.3rem .5rem;font:inherit;font-size:15px;font-weight:800;cursor:pointer;flex:none;}
+.assetsec{grid-column:1/-1;font-size:11.5px;font-weight:800;color:var(--dim);
+  letter-spacing:.04em;margin:6px 0 -2px;}
+.assetcell{background:var(--plate);border:1px solid var(--rule);border-radius:10px;color:var(--ink);
+  padding:8px 2px;font:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;}
+.assetcell.on{border-color:var(--gold);background:rgba(230,180,80,.14);}
+.assetcell .em{font-size:24px;line-height:1;}
+.assetcell .nm{font-size:10px;color:var(--dim);}
+
+/* ---- サムネ切り抜きモーダル ---- */
+.cropmodal{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:18px;}
+.cropmodal[hidden]{display:none;}
+.cropbox{width:100%;max-width:420px;background:var(--plate);border:1px solid var(--rule);border-radius:16px;padding:14px;}
+.crophead{font-weight:800;font-size:15px;margin-bottom:10px;}
+.crophead small{display:block;font-size:11px;color:var(--dim);font-weight:600;margin-top:2px;}
+.cropview{position:relative;width:100%;aspect-ratio:4/3;border-radius:12px;overflow:hidden;background:#000;
+  touch-action:none;cursor:grab;}
+.cropview img{position:absolute;left:0;top:0;max-width:none;user-select:none;-webkit-user-drag:none;}
+.croprow{display:flex;align-items:center;gap:10px;margin:12px 2px 4px;font-size:12px;color:var(--dim);}
+.croprow input[type=range]{flex:1;accent-color:var(--gold);}
+.cropbtns{display:flex;gap:10px;margin-top:12px;}
+.cropbtns button{flex:1;border:1px solid var(--rule);background:transparent;color:var(--ink);border-radius:11px;
+  padding:.7rem;font:inherit;font-weight:800;font-size:15px;cursor:pointer;}
+.cropbtns button.pri{background:var(--gold);color:#ffffff;border:0;}
+
+/* ---- マイページ ---- */
+.records{list-style:none;margin:0;padding:0;}
+.records li{display:flex;align-items:center;gap:10px;padding:12px 2px;border-bottom:1px solid var(--rule);}
+.records li .nm{flex:1;font-weight:700;}
+.records li .bs{font-weight:800;color:var(--gold);font-variant-numeric:tabular-nums;}
+.records li .bs.none{color:var(--dim);font-weight:600;}
+
+/* マイページ下部の法的リンク（プライバシーポリシー等） */
+.legal{margin:26px 0 6px;text-align:center;}
+.legal a{color:var(--dim);font-size:12px;text-decoration:none;border-bottom:1px solid transparent;}
+.legal a:active{color:var(--ink);}
+
+/* ---- 設計書エディタ（ビルド前の確認・編集） ---- */
+#specov{position:fixed;inset:0;z-index:130;background:#12101f;display:flex;flex-direction:column;}
+#specov[hidden]{display:none;}
+#specov .spechead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:calc(env(safe-area-inset-top) + 12px) 14px 10px;border-bottom:1px solid var(--rule);}
+#specov .spechead b{font-size:16px;}
+#specov .spechead .dim{flex:1 1 100%;order:3;}
+#specov .spechead button{margin-left:auto;background:var(--gold);color:#fff;border:0;border-radius:10px;
+  padding:.5rem 1rem;font:inherit;font-weight:800;font-size:13px;cursor:pointer;}
+#specta{flex:1;background:#0f0d18;color:#e7e3f5;border:0;padding:14px 14px calc(env(safe-area-inset-bottom) + 14px);
+  font:13px/1.75 ui-monospace,Menlo,Consolas,monospace;resize:none;outline:none;-webkit-user-select:text;user-select:text;}
+#loginGateGo[hidden],#loginGateErr[hidden],#acctIn[hidden],#gisMyErr[hidden]{display:none !important;}   /* ログインの予備ボタン・エラー表示 */
+/* プロフィール入力（@ID・表示名） */
+.pfl{display:block;text-align:left;font-size:13px;font-weight:800;margin-top:12px}
+.pfl small{display:block;font-weight:400;font-size:11px;opacity:.7;margin:2px 0 6px}
+.pfl input,.pfl textarea{width:100%;box-sizing:border-box;background:var(--bg,#141221);border:1px solid #3a3460;color:#fff;border-radius:10px;padding:.6rem .7rem;font:inherit;font-weight:400}
+.pfid{display:flex;align-items:center;gap:4px}.pfid span{font-size:16px;opacity:.8}
+.pfmsg{font-size:12px;min-height:16px;margin:4px 0 0;text-align:left;color:#f87171}.pfmsg.good{color:#34d399}
+#profileGate [hidden]{display:none!important}
+.pfh{font-size:12px;opacity:.7}.pfbio{font-size:12.5px;opacity:.85;margin-top:4px;white-space:pre-wrap}
+#nameSec[hidden],#nameRow[hidden]{display:none!important}
+a.ghostbtn{text-decoration:none;display:inline-block}
+/* 遊ぶ：検索ボタン・作者リンク */
+.searchbtn{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:12px;border:1px solid var(--rule);color:var(--ink)}
+.searchbtn svg{width:19px;height:19px}
+a.authlink{color:inherit;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px}
+/* いいね */
+.m-like{color:var(--dim);margin-right:6px}.m-like b{font-weight:800}.m-like.on{color:#f472b6}

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#0b0b10" />
+<title>Vappa 試遊室</title>
+<link rel="icon" href="data:," />
+<link rel="stylesheet" href="css/app.css" />
+<style>
+  /* 試遊版であることが分かる小さな印 */
+  .testmark{font-size:10px;font-weight:800;letter-spacing:.06em;color:#111;background:#ffd34d;border-radius:6px;padding:2px 6px;margin-right:6px;vertical-align:2px}
+</style>
+</head>
+<body>
+<!-- 本番の play.html と同じ枠（ランキング・共有・通報は本番でのみ動くので省略） -->
+<div class="play">
+  <div class="bar">
+    <a class="back" href="index.html" aria-label="戻る">‹</a>
+    <div class="t"><span class="testmark">試遊</span><span id="title">…</span></div>
+    <div class="best"><span>自己ベスト</span><b id="best">—</b></div>
+  </div>
+  <div class="frameWrap"><iframe id="frame" allow="autoplay; fullscreen" title="game"></iframe></div>
+</div>
+<div class="toast" id="toast"></div>
+<script src="js/games-test.js"></script>
+<script>
+(function(){
+  var id = new URLSearchParams(location.search).get("game");
+  var g = (window.TEST_GAMES||[]).filter(function(x){ return x.id===id; })[0];
+  var frame = document.getElementById("frame"), bestEl = document.getElementById("best"), toast = document.getElementById("toast");
+  if(!g){ document.getElementById("title").textContent = "ゲームが見つかりません"; return; }
+  document.title = g.title + " | Vappa 試遊室";
+  document.getElementById("title").textContent = g.title;
+  function getBest(){ try{ return localStorage.getItem("best_"+g.id); }catch(e){ return null; } }
+  function showBest(){ var b=getBest(); bestEl.textContent = b===null ? "—" : b + g.unit; }
+  function say(t){ toast.textContent=t; toast.classList.add("show"); clearTimeout(say.t); say.t=setTimeout(function(){ toast.classList.remove("show"); },1800); }
+  showBest();
+  frame.src = "games/" + g.id + "/index.html";
+  window.addEventListener("message", function(e){
+    var d = e.data; if(!d || !d.__arcade || e.source !== frame.contentWindow) return;
+    if(d.call === "gameOver" && d.payload && typeof d.payload.score !== "undefined"){
+      var v = +d.payload.score, b = getBest();
+      if(b === null || (g.low ? v < +b : v > +b)){
+        try{ localStorage.setItem("best_"+g.id, v); }catch(err){}
+        if(b !== null) say("自己ベスト更新！ " + v + g.unit);
+      }
+      showBest();
+    }
+  });
+  // 本番と同じく、タブを離れたら一時停止・戻ったら再開
+  document.addEventListener("visibilitychange", function(){
+    if(frame.contentWindow) frame.contentWindow.postMessage({ __arcadeCtl:true, call: document.hidden ? "pause" : "resume" }, "*");
+  });
+})();
+</script>
+</body>
+</html>
