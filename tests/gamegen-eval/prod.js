@@ -43,6 +43,9 @@ async function one(c) {
     const body = args.flow
       ? { messages: [{ role: "user", content: c.title + "を作りたい" }, { role: "assistant", content: "どんな内容にする？" }, { role: "user", content: c.spec + "\nこれで作って" }], build: true, token: "eval-" + TAG + "-" + c.id }
       : { messages: [{ role: "user", content: c.title + "を作って" }], build: true, spec: c.spec, token: "eval-" + TAG + "-" + c.id };
+    // 品質評価：GitHub Actions から、サーバーの鍵（EVAL_SRV）付きで送る＝ログイン・回数制限なしの管理者扱い
+    if (process.env.EVAL_SRV) body.eval = process.env.EVAL_SRV;
+    if (args.maxout) body.maxOut = parseInt(args.maxout, 10);   // 出力上限の試し値（例 90000）
     const start = await post(body);
     if (!start.job_id) throw new Error("start: " + JSON.stringify(start).slice(0, 160));
     let d = null;

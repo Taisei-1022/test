@@ -1,0 +1,52 @@
+name: Eval generate (品質評価の生成)
+
+# 設計書セットを本番の generate 関数で作り、結果を tests/gamegen-eval/results-ci/<tag>/ にコミットする。
+# 採点（自動テストプレイ）は Claude のセッション側で行う。
+# 管理者扱いにするため、Supabase のサービス鍵を Management API から取り出してリクエストに付ける（ログには出さない）。
+on:
+  workflow_dispatch:
+    inputs:
+      set:   { description: "設計書セット（rich / heavy など）", required: true, default: "heavy" }
+      tag:   { description: "結果の名前（例 heavy_A_r1）", required: true }
+      maxout: { description: "出力上限の試し値（空なら本番と同じ 48000）", required: false, default: "" }
+      flow:  { description: "相談の会話として送る（true/false）", required: false, default: "false" }
+
+permissions:
+  contents: write
+
+concurrency:
+  group: eval-gen
+  cancel-in-progress: false
+
+jobs:
+  gen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: httrzepweyxzbkosdoau
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Get service key
+        run: |
+          KEY=$(curl -sS "https://api.supabase.com/v1/projects/$PROJECT_REF/api-keys?reveal=true" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" | jq -r '.[] | select(.name=="service_role") | .api_key' | head -1)
+          [ -z "$KEY" ] && { echo "service key not found"; exit 1; }
+          echo "::add-mask::$KEY"
+          echo "EVAL_SRV=$KEY" >> "$GITHUB_ENV"
+      - name: Generate
+        run: |
+          ARGS="--tag=${{ inputs.tag }} --set=${{ inputs.set }}"
+          [ -n "${{ inputs.maxout }}" ] && ARGS="$ARGS --maxout=${{ inputs.maxout }}"
+          [ "${{ inputs.flow }}" = "true" ] && ARGS="$ARGS --flow"
+          node tests/gamegen-eval/prod.js $ARGS
+      - name: Commit results
+        run: |
+          mkdir -p tests/gamegen-eval/results-ci
+          rm -rf tests/gamegen-eval/results-ci/${{ inputs.tag }}
+          cp -r tests/gamegen-eval/results/${{ inputs.tag }} tests/gamegen-eval/results-ci/
+          git config user.name "vappa-eval-bot"; git config user.email "eval-bot@users.noreply.github.com"
+          git add -f tests/gamegen-eval/results-ci/${{ inputs.tag }}
+          git commit -m "eval: ${{ inputs.tag }} の生成結果（${{ inputs.set }}${{ inputs.maxout && format(' / maxout {0}', inputs.maxout) || '' }}）"
+          for i in 1 2 3 4; do git pull --rebase origin "$GITHUB_REF_NAME" && git push origin "HEAD:$GITHUB_REF_NAME" && break; sleep $((i*3)); done

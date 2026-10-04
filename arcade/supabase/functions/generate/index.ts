@@ -1355,7 +1355,7 @@ const MODELS = { plan: "claude-haiku-4-5-20251001", build: "claude-opus-4-8" };
 // provider ごとに呼び出しを実装（anthropic / openai / gemini / deepseek）。
 // anthropic 以外は envKey のシークレット（Supabase の Edge Function Secrets）が必要。
 // モデルIDが変わったらここを書き換えるだけでよい。
-type ModelSpec = { provider: "anthropic" | "openai" | "gemini" | "deepseek" | "xai"; model: string; effort?: string; envKey?: string };
+type ModelSpec = { provider: "anthropic" | "openai" | "gemini" | "deepseek" | "xai"; model: string; effort?: string; envKey?: string; maxOut?: number };
 const TEST_MODELS: Record<string, ModelSpec> = {
   "opus":     { provider: "anthropic", model: "claude-opus-4-8", effort: "medium" },
   "opus-h":   { provider: "anthropic", model: "claude-opus-4-8", effort: "high" },
@@ -1609,7 +1609,8 @@ async function callOpenAICompat(spec: ModelSpec, system: string, messages: Msg[]
     // max_tokens は思考分も含む。V4 時代の 16000 だと、V4.1 は複雑なゲームで思考だけで
     // 使い切り、本文が空（empty_json_output）になっていた（本番で確認）。V4.1 の出力上限は
     // 384K なので、思考ありは広く取る。実際に使った量は diag に残る。
-    body.max_tokens = spec.effort ? 48000 : 16000;
+    // maxOut：品質評価（自動テスト）だけで使う上限の試し値。本番の既定は 48000 のまま
+    body.max_tokens = spec.maxOut || (spec.effort ? 48000 : 16000);
   } else if (spec.provider === "xai") {
     body.max_tokens = 16000;   // xAI は max_tokens（思考分も含む）
   } else {
@@ -1778,7 +1779,7 @@ Deno.serve(async (req) => {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) return json({ error: "missing_api_key" }, 500);
 
-  let messages: Msg[] = [], prevHtml = "", token = "?", jobId = "", wantUsage = false, isAdmin = false, forceBuild = false, testModel = "";
+  let messages: Msg[] = [], prevHtml = "", token = "?", jobId = "", wantUsage = false, isAdmin = false, forceBuild = false, testModel = "", evalMaxOut = 0;
   let irun: IRun | null = null, wantSpec = false, uspec = "";
   let report: Record<string, string> | null = null, panel: Record<string, unknown> | null = null, wantAck = false;
   let scoreReq: { game_id?: string; score?: number; player?: string } | null = null;
@@ -1802,6 +1803,8 @@ Deno.serve(async (req) => {
     if (typeof b?.model === "string") testModel = b.model.slice(0, 30);   // 管理者のみ有効（下で判定）
     // 管理者判定：コードが設定済みで、リクエストの admin と一致したときだけ true
     if (ADMIN_CODE && typeof b?.admin === "string" && b.admin === ADMIN_CODE) isAdmin = true;
+    // 品質評価（GitHub Actions の自動テスト）：サーバー自身の鍵を持つ時だけ管理者扱い（ログイン・回数制限なし）
+    if (SUPA_SRV && typeof b?.eval === "string" && b.eval === SUPA_SRV) { isAdmin = true; evalMaxOut = Math.min(120000, Math.max(0, Number(b?.maxOut) || 0)); }
     if (Array.isArray(b?.messages)) {
       messages = b.messages.filter((m: Msg) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
         .map((m: Msg) => ({ role: m.role, content: String(m.content).slice(0, 4000) }));
@@ -1943,7 +1946,8 @@ Deno.serve(async (req) => {
 
   // ---- ビルド：非同期ジョブで開始。テーブルが無ければ同期ストリーミングにフォールバック ----
   // モデル差替えは管理者のみ（一般ユーザーの model 指定は無視して本番モデル）
-  const buildSpec = specFor(isAdmin ? testModel : undefined);
+  const buildSpec0 = specFor(isAdmin ? testModel : undefined);
+  const buildSpec = evalMaxOut ? { ...buildSpec0, maxOut: evalMaxOut } : buildSpec0;
   const id = await createJob(token);
   if (id) {
     const work = (async () => {
