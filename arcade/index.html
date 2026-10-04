@@ -11,7 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="apple-touch-icon" href="icon-180.png?v=3" />
 <link rel="icon" href="icon-192.png?v=3" />
-<link rel="stylesheet" href="css/app.css?v=43" />
+<link rel="stylesheet" href="css/app.css?v=44" />
 <title>Vappa</title>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6804943232069371" crossorigin="anonymous"></script>
 <meta property="og:type" content="website" />
@@ -323,6 +323,7 @@
 <script src="js/ai.js?v=21"></script>
 <script src="js/catalog.js?v=16"></script>
 <script src="js/share.js?v=6"></script>
+<script src="js/like.js?v=1"></script>
 <script src="js/arcade-embed.js?v=4"></script>
 <script src="js/pwa.js?v=1"></script>
 <script src="js/sw-reg.js?v=2"></script>
@@ -330,7 +331,7 @@
 (function () {
   "use strict";
   // デプロイ反映の確認用バージョン（更新のたびに数字を上げる）
-  var APP_VERSION = "1.0.0";
+  var APP_VERSION = "1.0.1";
   try { document.getElementById("ver").textContent = "v" + APP_VERSION; } catch(e){}
   // ホームから起動（standalone）時だけホームバー用の余白を付ける（ブラウザでは隙間になるため）
   if((window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true)
@@ -459,6 +460,7 @@
     }).join("");
     catChips.innerHTML=html;
   }
+  if(window.Like) Like.bind(grid);   // カードのいいね（押すとその場で切り替わる。ゲームは開かない）
   // 共有アイコンのタップは一度だけ委譲（再描画ごとに付け直さない）
   grid.addEventListener("click", function(e){ var b=e.target.closest&&e.target.closest("[data-share]"); if(b&&window.Share){ Share.open({gameId:b.getAttribute("data-share"), gameTitle:b.getAttribute("data-title")}); } });
   function cardHTML(row){
@@ -468,7 +470,7 @@
       '<span class="cat">'+esc(it.category)+'</span>'+
       '<button class="shareic" data-share="'+it.id+'" data-title="'+esc(it.title)+'" aria-label="共有">'+SHARE_SVG+'</button>'+
       '<div class="ttl">'+esc(it.title)+'</div>'+
-      '<div class="meta"><span class="m-like'+(Store.isLiked&&Store.isLiked(it.id)?" on":"")+'">♥ <b>'+(row.likes||0)+'</b></span> 作 '+(it.handle?'<a class="authlink" href="creator.html?u='+encodeURIComponent(it.handle)+'">'+esc(it.author)+'</a>':esc(it.author))+' ・ <span class="m-plays">'+(row.plays||0)+'プレイ</span>'+(it.created?(' ・ 作成日 '+fmtYmd(it.created)):'')+'</div>'+
+      '<div class="meta">'+(window.Like?Like.html(it.id,row.likes||0,(Store.isLiked&&Store.isLiked(it.id)),"sm"):"")+' 作 '+(it.handle?'<a class="authlink" href="creator.html?u='+encodeURIComponent(it.handle)+'">'+esc(it.author)+'</a>':esc(it.author))+' ・ <span class="m-plays">'+(row.plays||0)+'プレイ</span>'+(it.created?(' ・ 作成日 '+fmtYmd(it.created)):'')+'</div>'+
       '<div class="blurb">'+esc(it.blurb)+'</div>'+
       '<div class="meta m-top" style="margin-top:6px;color:var(--gold)">1位 '+esc(topTxt)+'</div>'+
       '<div class="cardbtns">'+

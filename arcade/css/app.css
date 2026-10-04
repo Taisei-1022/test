@@ -448,3 +448,7 @@ a.ghostbtn{text-decoration:none;display:inline-block}
 a.authlink{color:inherit;text-decoration:underline;text-decoration-color:rgba(255,255,255,.35);text-underline-offset:2px}
 /* いいね */
 .m-like{color:var(--dim);margin-right:6px}.m-like b{font-weight:800}.m-like.on{color:#f472b6}
+/* カードのいいね（共通部品 js/like.js） */
+.card .meta .vlike{padding:2px 4px 2px 0;margin:0 4px 0 -1px;vertical-align:middle;color:var(--dim)}
+.card .meta .vlike .vh{width:17px;height:17px}
+.card .meta .vlike .cnt{font-size:11.5px}

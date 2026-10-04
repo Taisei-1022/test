@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<link rel="stylesheet" href="css/app.css?v=43" />
+<link rel="stylesheet" href="css/app.css?v=44" />
 <title>プレイ</title>
 <style>
   .menupop{position:fixed;right:12px;top:calc(env(safe-area-inset-top) + 54px);z-index:9980;min-width:210px;background:#1d1a2e;border:1px solid #3a3460;border-radius:14px;padding:6px;box-shadow:0 12px 32px rgba(0,0,0,.5)}
@@ -14,7 +14,9 @@
   .menupop .mi svg{width:18px;height:18px;flex:none;opacity:.85}
   .menupop #reportBtn{color:#f3a3a3}
   .menupop .mi[hidden]{display:none}
-  .menupop #likeBtn.on{color:#f472b6} .menupop #likeBtn.on svg{fill:#f472b6}
+  .likeTop{display:inline-flex;flex:0 0 auto}
+  .likeTop .vlike{border:1px solid var(--rule);border-radius:9px;padding:.32rem .55rem;color:var(--ink)}
+  .reslike .vlike{width:100%;justify-content:center;padding:13px 10px;border-radius:14px;border:1px solid #3a3d52;background:#23263a;color:#fff}
 </style>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6804943232069371" crossorigin="anonymous"></script>
 <meta property="og:type" content="website" />
@@ -30,12 +32,12 @@
   <div class="bar">
     <a class="back" href="index.html" aria-label="戻る">‹</a>
     <div class="t" id="title">…</div>
+    <span class="likeTop" id="likeTop"></span>
     <button class="rankbtn shareic2" id="menuBtn" aria-label="メニュー" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
     <div class="best"><span>自己ベスト</span><b id="best">—</b></div>
   </div>
   <!-- ハンバーガーメニュー：ランキング／共有／通報 -->
   <div id="menuPop" class="menupop" role="menu" hidden>
-    <button class="mi" id="likeBtn" type="button" role="menuitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.4-9.2-9A5 5 0 0 1 12 6a5 5 0 0 1 9.2 5c-2.2 4.6-9.2 9-9.2 9z"/></svg><span id="likeTxt">いいね</span></button>
     <a class="mi" id="rankBtn" role="menuitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4"/></svg>ランキング</a>
     <a class="mi" id="authorBtn" role="menuitem" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 19c1-3.4 4-5 6.5-5s5.5 1.6 6.5 5"/></svg><span id="authorTxt">作者のページ</span></a>
     <button class="mi" id="shareBtn" type="button" role="menuitem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>共有・挑戦状を送る</button>
@@ -55,6 +57,7 @@
 <script src="js/share.js?v=6"></script>
 <script src="js/sw-reg.js?v=2"></script>
 <script src="js/arcade-embed.js?v=4"></script>
+<script src="js/like.js?v=1"></script>
 <script>
 (function () {
   "use strict";
@@ -180,9 +183,9 @@
     rank.addEventListener("click", function () {
       if (GAME) location.href = "leaderboard.html?game=" + encodeURIComponent(GAME.id) + "&from=play";
     });
-    var lb = sheetBtn("♡ 0", false);
-    lb.id = "__likeRes"; lb.style.flex = "0 0 92px";
-    lb.addEventListener("click", toggleLike);
+    var lb = document.createElement("div");
+    lb.className = "reslike"; lb.style.cssText = "flex:0 0 96px;margin-top:8px;display:flex";
+    if (GAME && window.Like) lb.innerHTML = Like.html(GAME.id, 0, false, "lg");   // 状態は共通部品が覚えている
     row.appendChild(again); row.appendChild(rank); row.appendChild(lb);
     sheet.appendChild(row);
 
@@ -202,7 +205,6 @@
     ov.appendChild(sheet);
     ov.addEventListener("click", function (e) { if (!(e.target.closest && e.target.closest("button"))) closeResult(); });
     document.body.appendChild(ov);
-    paintLike();
   }
 
   // ---- 通報（ユーザーが作った作品だけ）----
@@ -253,21 +255,8 @@
     document.body.appendChild(ov);
   }
 
-  // ---- いいね（同じ人は1ゲーム1回。メニューと結果画面から）----
-  var likeTotal = 0, liked = false;
-  function paintLike() {
-    var b = document.getElementById("likeBtn"); if (!b) return;
-    b.classList.toggle("on", liked);
-    document.getElementById("likeTxt").textContent = (liked ? "いいね済み" : "いいね") + "（" + likeTotal + "）";
-    var rb = document.getElementById("__likeRes"); if (rb) { rb.textContent = (liked ? "♥ " : "♡ ") + likeTotal; rb.style.color = liked ? "#f472b6" : "#fff"; }
-  }
-  function toggleLike() {
-    if (!GAME || !Store.like) return;
-    var want = !liked; liked = want; likeTotal = Math.max(0, likeTotal + (want ? 1 : -1)); paintLike();   // 先に見た目を変える
-    Store.like(GAME.id, want).then(function (d) { liked = d.liked; likeTotal = d.total; paintLike(); if (want) showToast("いいねしました"); })
-      .catch(function () { liked = !want; likeTotal = Math.max(0, likeTotal + (want ? -1 : 1)); paintLike(); showToast("いいねできませんでした。時間をおいてね"); });
-  }
-  document.getElementById("likeBtn").addEventListener("click", toggleLike);
+  // ---- いいね（上部の♡と結果画面。見た目と動きは js/like.js の共通部品）----
+  if (window.Like) Like.bind(document);
 
   // ---- メニュー（ランキング／共有／通報）。開いている間はゲームを一時停止 ----
   var menuBtn = document.getElementById("menuBtn"), menuPop = document.getElementById("menuPop");
@@ -308,8 +297,9 @@
     else loadGameFrame(frame, game.html);                      // 生成・持ち込み：隔離（sandbox+CSP）して再生
 
     refreshBest(game.id).then(showChallengeBanner);
-    liked = Store.isLiked ? Store.isLiked(game.id) : false; paintLike();
-    if (Store.likeStats) Store.likeStats().then(function (m) { likeTotal = (m[game.id] && m[game.id].total) || 0; paintLike(); });
+    var liked0 = Store.isLiked ? Store.isLiked(game.id) : false;
+    document.getElementById("likeTop").innerHTML = Like.html(game.id, 0, liked0, "md");
+    if (Store.likeStats) Store.likeStats().then(function (m) { Like.set(game.id, (m[game.id] && m[game.id].total) || 0, null); });
 
     // ゲーム → 殻
     window.addEventListener("message", function (e) {
