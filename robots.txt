@@ -4,6 +4,7 @@ Disallow: /arcade/manage.html
 Disallow: /arcade/admin.html
 Disallow: /arcade/auth.html
 Disallow: /arcade/eval/
+Disallow: /arcade/preview/
 Disallow: /arcade/diag/
 Disallow: /arcade/sim.html
 Disallow: /tests/

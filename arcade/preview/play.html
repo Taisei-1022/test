@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1" />
+<meta name="robots" content="noindex,nofollow" />
+<link rel="stylesheet" href="../css/app.css?v=43" />
+<title>試遊</title>
+</head>
+<body>
+<!-- 試遊室：本番でユーザー作品を遊ぶ時と同じ「隔離された箱」でゲームを動かす（取り込み後と同じ条件）。記録は保存しない。 -->
+<div class="play">
+  <div class="bar">
+    <a class="back" href="./" aria-label="戻る">‹</a>
+    <div class="t" id="title">…</div>
+    <div class="best"><span>自己ベスト</span><b id="best">—</b></div>
+  </div>
+  <div class="frameWrap"><iframe id="frame" allow="autoplay; fullscreen" title="game"></iframe></div>
+</div>
+<div class="toast" id="toast"></div>
+<script src="games-test.js?v=1"></script>
+<script src="../js/arcade-embed.js?v=4"></script>
+<script>
+(function () {
+  "use strict";
+  var id = new URLSearchParams(location.search).get("g") || "";
+  var meta = (window.TEST_GAMES || []).filter(function (g) { return g.id === id; })[0];
+  if (!meta) { location.replace("./"); return; }
+  var unit = meta.unit || "点", low = !!meta.low, KEY = "vappa.preview.best." + id;
+  var frame = document.getElementById("frame"), toast = document.getElementById("toast");
+  document.getElementById("title").textContent = meta.title; document.title = meta.title + "（試遊）";
+  function best() { try { var v = localStorage.getItem(KEY); return v == null ? null : +v; } catch (e) { return null; } }
+  function paint() { var b = best(); document.getElementById("best").textContent = b == null ? "—" : b + unit; }
+  function show(m) { toast.textContent = m; toast.classList.add("show"); setTimeout(function () { toast.classList.remove("show"); }, 2200); }
+  function ctl(c) { try { frame.contentWindow.postMessage({ __arcadeCtl: true, call: c }, "*"); } catch (e) {} }
+  paint();
+  fetch("games/" + id + "/index.html?v=" + Date.now()).then(function (r) { return r.text(); }).then(function (html) {
+    // 公式用の SDK 読み込みは外す（取り込み時と同じ。箱の中にはプレイ画面が同じ API を差し込む）
+    html = html.replace(/<script[^>]*src=["'][^"']*arcade-sdk\.js[^"']*["'][^>]*>\s*<\/script>\s*/gi, "");
+    loadGameFrame(frame, html);
+  });
+  window.addEventListener("message", function (e) {
+    var d = e.data; if (!d || !d.__arcade || d.call !== "gameOver") return;
+    var s = Math.round(Number(d.payload && d.payload.score) || 0), b = best();
+    var upd = b == null || (low ? s < b : s > b);
+    if (upd) { try { localStorage.setItem(KEY, String(s)); } catch (e2) {} paint(); }
+    show((upd ? "自己ベスト更新！ " : "") + s + unit + "（試遊なので記録は保存されません）");
+  });
+  document.addEventListener("visibilitychange", function () { ctl(document.hidden ? "pause" : "resume"); });
+})();
+</script>
+</body>
+</html>
