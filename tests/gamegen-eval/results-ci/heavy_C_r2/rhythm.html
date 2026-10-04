@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
+<title>ネオンリズムタップ 4レーン</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%83%8D%E3%82%AA%E3%83%B3%E3%83%AA%E3%82%BA%E3%83%A0%E3%82%BF%E3%83%83%E3%83%97%204%E3%83%AC%E3%83%BC%E3%83%B3%22%2C%22h%22%3A%224%E3%81%A4%E3%81%AE%E3%83%AC%E3%83%BC%E3%83%B3%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%EF%BC%81%E3%83%8E%E3%83%BC%E3%83%84%E3%81%8C%E3%83%A9%E3%82%A4%E3%83%B3%E3%81%AB%E9%87%8D%E3%81%AA%E3%81%A3%E3%81%9F%E7%9E%AC%E9%96%93%E3%81%AB%E3%82%BF%E3%83%83%E3%83%97%E3%80%82%E9%95%B7%E3%81%84%E3%83%8E%E3%83%BC%E3%83%84%E3%81%AF%E6%8A%BC%E3%81%97%E7%B6%9A%E3%81%91%E3%80%81%E9%87%91%E3%83%8E%E3%83%BC%E3%83%84%E2%AD%90%E3%81%AF%E9%AB%98%E5%BE%97%E7%82%B9%E3%80%82PERFECT%E3%81%A7%E3%83%95%E3%82%A3%E3%83%BC%E3%83%90%E3%83%BC%E3%82%B2%E3%83%BC%E3%82%B8%E3%82%92%E8%B2%AF%E3%82%81%E3%81%A6%E3%82%B9%E3%82%B3%E3%82%A22%E5%80%8D%EF%BC%81%E3%83%A9%E3%82%A4%E3%83%95%E3%81%8C0%E3%81%AB%E3%81%AA%E3%82%8B%E3%81%8B%E6%9B%B2%E3%81%8C%E7%B5%82%E3%82%8F%E3%82%8B%E3%81%A8%E7%B5%90%E6%9E%9C%E7%99%BA%E8%A1%A8%E3%80%82%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
+html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
+#vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+/* vpstage＝論理480x720（2:3）の箱。HUD・オーバーレイ・ゲームDOMを全部この中に入れ、
+   箱ごと実画面へ拡縮する（座標系はゲーム内で常に1つ） */
+#vpstage{position:fixed;left:0;top:0;width:480px;height:720px;transform-origin:0 0;z-index:1;overflow:hidden}
+#vpdom{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
+#vpdom *{pointer-events:auto}
+.vp-hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
+.vp-hud span:empty{display:none}
+.vp-ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
+.vp-ov h1{font-size:28px}
+.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:340px;white-space:pre-line}
+.vp-ov .vp-big{font-size:44px;font-weight:900;color:#ffd166}
+.vp-btn{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:17px;box-shadow:0 5px 0 rgba(0,0,0,.25);touch-action:manipulation}
+.vp-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.vp-toast{position:absolute;top:52px;left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+[hidden]{display:none!important}
+</style>
+<style id="vpcss">
+/*__VAPPA_CSS__*/
+
+/*__VAPPA_CSS_END__*/
+</style>
+</head><body>
+<canvas id="vpc"></canvas>
+<div id="vpstage">
+  <div id="vpdom"></div>
+  <div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
+  <div class="vp-toast" id="vptoast"></div>
+  <div class="vp-ov" id="vpov">
+    <h1>ネオンリズムタップ 4レーン</h1>
+    <p>4つのレーンをタップ！ノーツがラインに重なった瞬間にタップ。長いノーツは押し続け、金ノーツ⭐は高得点。PERFECTでフィーバーゲージを貯めてスコア2倍！ライフが0になるか曲が終わると結果発表。</p>
+    <button class="vp-btn" id="vpstart">スタート</button>
+  </div>
+</div>
+<script id="vpimgs">
+/* ユーザー素材画像 {名前:dataURL}。中身はビルド後にアプリが注入（AIには名前だけ渡る） */
+window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
+</script>
+<script>
+window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
+var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
+// iOS Safari は fillStyle がグラデーション/パターンのオブジェクトのままだと
+// カラー絵文字を fillText できない（何も描かれない）。生成コードは
+// 「背景をグラデで塗る→そのまま絵文字を描く」形を高頻度で書くため、
+// 絵文字を含む fillText の間だけ fillStyle を単色に退避して確実に描く。
+(function(){
+  var _ft=ctx.fillText;
+  function hasEmo(s){
+    for(var i=0;i<s.length;i++){
+      var c=s.charCodeAt(i);
+      if((c>=0x2100&&c<=0x2BFF)||(c>=0xD800&&c<=0xDFFF)||c===0xFE0F)return true;
+    }
+    return false;
+  }
+  ctx.fillText=function(t,x,y,mw){
+    var s=String(t);
+    if(typeof this.fillStyle!=="string"&&hasEmo(s)){
+      var f=this.fillStyle;this.fillStyle="#000";
+      try{mw===undefined?_ft.call(this,s,x,y):_ft.call(this,s,x,y,mw);}
+      finally{this.fillStyle=f;}
+    }else{
+      mw===undefined?_ft.call(this,s,x,y):_ft.call(this,s,x,y,mw);
+    }
+  };
+})();
+// 論理画面は 480x720（2:3）固定。全端末でこのサイズとして描き、ランタイムが
+// vpstage（HUD・オーバーレイ・ゲームDOMを含む箱）ごと実画面へ拡縮する。
+// ゲームコードは端末差を一切考えなくてよい（入力座標も論理系で届く）。
+var W=480,H=720;
+var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
+(function(){
+"use strict";
+var DPR=Math.min(2,window.devicePixelRatio||1);
+function rs(){
+  var vw=window.innerWidth,vh=window.innerHeight;
+  __SC=Math.min(vw/W,vh/H);
+  __OX=(vw-W*__SC)/2;__OY=(vh-H*__SC)/2;
+  cv.width=vw*DPR;cv.height=vh*DPR;
+  ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
+  ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
+  var st=document.getElementById("vpstage");
+  if(st){st.style.transform="scale("+__SC+")";st.style.left=__OX+"px";st.style.top=__OY+"px";}
+  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
+}
+window.addEventListener("resize",rs);rs();
+// 実画面座標→論理座標（タッチ入力用）
+function toLX(x){return (x-__OX)/__SC;}
+function toLY(y){return (y-__OY)/__SC;}
+var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="点";
+// ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
+var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
+var hud=document.getElementById("vphud"),hl=document.getElementById("vphl"),hr=document.getElementById("vphr");
+var ov=document.getElementById("vpov"),toastEl=document.getElementById("vptoast"),tt=null,last=performance.now();
+window.Game={
+  img:function(n){return IMGS[n]||null;},
+  score:function(n){hl.textContent=(n|0)+unit;},
+  hud:function(t){hr.textContent=t==null?"":String(t);},
+  float:function(x,y,t,c){floats.push({x:x,y:y,t:String(t),c:c||"#fff",age:0});},
+  toast:function(t){toastEl.textContent=t;toastEl.style.opacity=1;clearTimeout(tt);tt=setTimeout(function(){toastEl.style.opacity=0;},2000);},
+  over:function(s){
+    if(!playing||ended)return;ended=true;playing=false;s=Math.max(0,Math.floor(Number(s)||0));
+    ov.innerHTML='<h1>おわり！</h1><div class="vp-big">'+s+'<small style="font-size:20px">'+unit+'</small></div><button class="vp-btn" id="vpagain">もういちど</button>';
+    ov.hidden=false;
+    document.getElementById("vpagain").addEventListener("click",start);
+    try{window.Arcade.gameOver(s);}catch(e){}
+  }
+};
+function crash(e){
+  if(crashed)return;crashed=true;playing=false;
+  try{window.__VP_ERR=String(e&&(e.stack||e.message)||e).slice(0,600);}catch(x){}
+  ov.innerHTML='<h1>😢 エラーが発生</h1><p>ゲームにエラーが起きました。<br>作成チャットで「エラーを直して」と伝えると修理できるよ。</p><button class="vp-btn" id="vpagain">もういちど</button>';
+  ov.hidden=false;
+  document.getElementById("vpagain").addEventListener("click",start);
+}
+function start(){
+  floats=[];ended=false;crashed=false;
+  try{window.init();}catch(e){crash(e);return;}
+  window.Game.score(0);ov.hidden=true;hud.hidden=false;playing=true;last=performance.now();
+}
+document.getElementById("vpstart").addEventListener("click",start);
+function fire(fn,x,y,id){
+  if(!playing||paused)return;
+  if(typeof window[fn]==="function"){try{window[fn](x,y,id);}catch(err){crash(err);}}
+}
+// pointer と touch を両対応（iOSのiframe内などpointerが飛ばない環境へのフォールバック）。
+// pointerが一度でも来たらtouchは無視して二重発火を防ぐ。
+var seenPointer=false;
+window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",toLX(e.clientX),toLY(e.clientY),e.pointerId);fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointermove",function(e){fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointerup",function(e){fire("onUp",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+// タッチの扱い（iOS対策の要点）：
+//  - touchstart は preventDefault しない
+//  - touchmove は非passiveで preventDefault → パン/スクロール横取りはこれで止まる
+//  - touchend はボタン類「以外」でだけ preventDefault → iOSのダブルタップズーム
+//    （touch-action:noneでは止まらない端末がある）を殺しつつ、ボタンの click 合成は守る
+//  - preventDefault すると iOS は click を合成しない → 生成コードが div/span で
+//    自作ボタンを作った場合に全操作不能になる。そこで「タップ」（移動が小さく
+//    短いタッチ）に限り、こちらで click を合成して補う。本物の button 等は
+//    preventDefault しない＝ネイティブ click が来るので合成しない（二重防止）
+//  - pointerイベントが来る環境では発火だけ二重防止（seenPointer）
+function tfire(fn,e){
+  if(seenPointer)return;
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,toLX(t.clientX),toLY(t.clientY),t.identifier);
+    if(fn==="onDown")fire("onMove",toLX(t.clientX),toLY(t.clientY),t.identifier);}
+}
+function uiTouch(e){var t=e.target;return !!(t&&t.closest&&t.closest("button,a,input,select,label"));}
+var tstart={};
+window.addEventListener("touchstart",function(e){
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];tstart[t.identifier]={x:t.clientX,y:t.clientY,at:Date.now()};}
+  tfire("onDown",e);
+},{passive:true});
+window.addEventListener("touchmove",function(e){if(e.cancelable)e.preventDefault();tfire("onMove",e);},{passive:false});
+window.addEventListener("touchend",function(e){
+  var prevented=false;
+  if(e.cancelable&&!uiTouch(e)){e.preventDefault();prevented=true;}
+  if(prevented){
+    for(var i=0;i<e.changedTouches.length;i++){
+      var t=e.changedTouches[i],s=tstart[t.identifier];
+      if(s&&Math.abs(t.clientX-s.x)<14&&Math.abs(t.clientY-s.y)<14&&Date.now()-s.at<1500){
+        var el=document.elementFromPoint(t.clientX,t.clientY)||e.target;
+        if(el){try{el.dispatchEvent(new MouseEvent("click",{bubbles:true,cancelable:true,view:window,clientX:t.clientX,clientY:t.clientY}));}catch(err){}}
+      }
+    }
+  }
+  for(var j=0;j<e.changedTouches.length;j++)delete tstart[e.changedTouches[j].identifier];
+  tfire("onUp",e);
+},{passive:false});
+document.addEventListener("gesturestart",function(e){e.preventDefault();});
+window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",toLX(e.clientX),toLY(e.clientY),0);});
+window.Arcade.onPause(function(){paused=true;});
+window.Arcade.onResume(function(){paused=false;last=performance.now();});
+window.Arcade.onRestart(start);
+document.addEventListener("visibilitychange",function(){if(document.hidden){paused=true;}else{paused=false;last=performance.now();}});
+function loop(now){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(now-last)/1000);last=now;
+  if(crashed)return;
+  if(playing&&!paused){try{window.update(dt);}catch(e){crash(e);return;}}
+  if(playing||ended){try{window.draw();}catch(e){crash(e);return;}}
+  for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.age+=dt;
+    if(f.age>1){floats.splice(i,1);continue;}
+    ctx.save();ctx.globalAlpha=Math.max(0,1-f.age);ctx.font="bold 16px sans-serif";ctx.textAlign="center";
+    ctx.fillStyle=f.c;ctx.fillText(f.t,f.x,f.y-f.age*30);ctx.restore();}
+}
+requestAnimationFrame(loop);
+window.Arcade.ready();
+// 自動テストプレイ用フック：親(アプリ)がスモークテストで入力を一発流すのに使う
+window.__vpTap=function(){
+  fire("onDown",W/2,H/2,1);fire("onMove",W/2+40,H/2,1);fire("onUp",W/2+40,H/2,1);
+};
+})();
+</script>
+<script id="vpgame">
+/*__VAPPA_JS__*/
+var TUNE = {
+  bpm:       { v: 128,  label: 'テンポ (BPM)',       min: 90,  max: 180, step: 2 },
+  density:   { v: 0.35, label: 'ノーツの密度',       min: 0.10, max: 0.80, step: 0.05 },
+  holdRate:  { v: 0.16, label: '長押しノーツ率',     min: 0,   max: 0.40, step: 0.02 },
+  chordRate: { v: 0.25, label: '同時押しの割合',     min: 0,   max: 0.80, step: 0.05 },
+  goldRate:  { v: 0.12, label: '金ノーツ率',         min: 0,   max: 0.40, step: 0.02 },
+  speed:     { v: 1.7,  label: 'ノーツ落下時間(秒)', min: 0.8, max: 3.0,  step: 0.1 },
+  lives:     { v: 5,    label: 'ライフ数',           min: 1,   max: 10,   step: 1 },
+  songLen:   { v: 45,   label: '曲の長さ(秒)',       min: 20,  max: 90,   step: 5 }
+};
+
+var LANEX = 16, LANEW = 112, TOPY = 64, JUDGEY = 620;
+var LANECOL = ['#22d3ee', '#a78bfa', '#f472b6', '#fbbf24'];
+var GOLDCOL = '#ffd23f';
+var JUDGE_TABLE = [
+  { name: 'PERFECT', win: 0.05, base: 100, col: '#67e8f9', freq: 1568 },
+  { name: 'GREAT',   win: 0.10, base: 50,  col: '#fbbf24', freq: 1046 }
+];
+var MISS_INFO = { name: 'MISS', col: '#f87171', freq: 150 };
+var HOLD_BONUS = 100;
+var GOLD_MULT = 3;
+var FEVER_TIME = 10;
+var FEVER_P = 0.05;
+var FEVER_G = 0.018;
+var BGPAL = [
+  ['#151f3d', '#0a0f20', '#04060d'],
+  ['#2a1040', '#170726', '#0a0313'],
+  ['#0d3b33', '#062420', '#03110f'],
+  ['#3d1020', '#26060f', '#130308'],
+  ['#1a2f0d', '#0f1d06', '#080f03'],
+  ['#3b2a06', '#251a04', '#120d02']
+];
+
+var notes, songTime, score, combo, maxCombo, lives, shake;
+var parts, rings, judges, ptrs, laneDown, laneFlash;
+var beatAcc, beatCounter, running, pps, songEnd, AC;
+var feverT, feverGauge, tempoRate, tempoShown;
+var cntPerfect, cntGreat, cntMiss, bgStage;
+var finished, finishedT, overSent, resultRank, resultAcc;
+
+function init(){
+  notes = buildChart();
+  songTime = 0; score = 0; combo = 0; maxCombo = 0;
+  lives = TUNE.lives.v; shake = 0;
+  parts = []; rings = []; judges = [];
+  ptrs = {}; laneDown = [0,0,0,0]; laneFlash = [0,0,0,0];
+  beatAcc = 1; beatCounter = 0;
+  running = true;
+  pps = (JUDGEY - TOPY) / TUNE.speed.v;
+  songEnd = TUNE.songLen.v;
+  feverT = 0; feverGauge = 0; tempoRate = 1; tempoShown = false;
+  cntPerfect = 0; cntGreat = 0; cntMiss = 0; bgStage = 0;
+  finished = false; finishedT = 0; overSent = false;
+  resultRank = 'C'; resultAcc = 0;
+  Game.score(0);
+  Game.hud('❤️'.repeat(lives));
+  initAudio();
+}
+
+function buildChart(){
+  var beat = 60 / TUNE.bpm.v;
+  var step = beat / 2;
+  var endT = TUNE.songLen.v - 2.5;
+  var chart = [];
+  var busy = [0,0,0,0];
+  var prevLane = -1;
+  var t = beat * 8;
+  var i = 0;
+  while (t < endT && chart.length < 320){
+    var prog = t / TUNE.songLen.v;
+    var onBeat = (i % 2) === 0;
+    var p = TUNE.density.v * (1 + prog * 1.6) * (onBeat ? 1 : 0.5);
+    if (Math.random() < p){
+      var lane = (Math.random() * 4) | 0;
+      var g = 0;
+      while ((lane === prevLane || busy[lane] > t + 0.02) && g < 12){ lane = (Math.random() * 4) | 0; g++; }
+      if (busy[lane] <= t + 0.02){
+        var isHold = onBeat && prog > 0.10 && (i % 4 === 0) && Math.random() < TUNE.holdRate.v;
+        var isGold = !isHold && onBeat && prog > 0.12 && Math.random() < TUNE.goldRate.v;
+        if (isHold && t + beat * 2 < endT - beat){
+          var dur = (Math.random() < 0.6 ? 1 : 2) * beat;
+          chart.push({ lane: lane, t: t, type: 'hold', dur: dur, judged: false, done: false, holdTime: 0, pid: -1, ptr: null, chord: false });
+          busy[lane] = t + dur + 0.05;
+          prevLane = lane;
+        } else {
+          var first = chart.length;
+          chart.push({ lane: lane, t: t, type: isGold ? 'gold' : 'tap', dur: 0, judged: false, done: false, holdTime: 0, pid: -1, ptr: null, chord: false });
+          busy[lane] = t + (isGold ? 0.18 : 0.13);
+          prevLane = lane;
+          if (onBeat && !isGold && Math.random() < TUNE.chordRate.v * (0.25 + prog)){
+            var l2 = (Math.random() * 4) | 0;
+            var g2 = 0;
+            while ((l2 === lane || busy[l2] > t + 0.02) && g2 < 12){ l2 = (Math.random() * 4) | 0; g2++; }
+            if (l2 !== lane && busy[l2] <= t + 0.02){
+              chart.push({ lane: l2, t: t, type: 'tap', dur: 0, judged: false, done: false, holdTime: 0, pid: -1, ptr: null, chord: true });
+              chart[first].chord = true;
+              busy[l2] = t + 0.13;
+            }
+          }
+        }
+      }
+    }
+    t += step; i++;
+  }
+  chart.sort(function(a, b){ return a.t - b.t; });
+  return chart;
+}
+
+function initAudio(){
+  if (AC) return;
+  try {
+    var C = window.AudioContext || window.webkitAudioContext;
+    if (C) AC = new C();
+  } catch(e){ AC = null; }
+}
+
+function resumeAudio(){
+  if (!AC) return;
+  try { if (AC.state === 'suspended' && AC.resume) AC.resume(); } catch(e){}
+}
+
+function beep(freq, dur, type, vol){
+  if (!AC) return;
+  try {
+    var t0 = AC.currentTime;
+    var o = AC.createOscillator();
+    var g = AC.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t0);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(AC.destination);
+    o.start(t0); o.stop(t0 + dur + 0.03);
+  } catch(e){}
+}
+
+function playBeat(i){
+  beep(110, 0.10, 'sine', 0.10);
+  var bass = [110, 110, 138.6, 164.8];
+  beep(bass[(i >> 2) % 4], 0.20, 'triangle', 0.05);
+}
+
+function comboMult(){
+  var m = 1 + Math.min(combo, 100) * 0.01;
+  if (feverT > 0) m *= 2;
+  return m;
+}
+
+function addFever(v){
+  if (feverT > 0) return;
+  feverGauge += v;
+  if (feverGauge >= 1){
+    feverGauge = 1; feverT = FEVER_TIME;
+    Game.toast('FEVER!! スコア2倍 🔥');
+    beep(1760, 0.30, 'square', 0.09);
+  }
+}
+
+function addJudge(text, lane, col){
+  judges.push({ text: text, lane: lane, col: col, life: 0.65, max: 0.65 });
+  if (judges.length > 10) judges.shift();
+}
+
+function burst(x, y, col, cnt, isStar){
+  for (var i = 0; i < cnt; i++){
+    var a = Math.random() * Math.PI * 2;
+    var s = 60 + Math.random() * 230;
+    parts.push({ x: x, y: y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 90, r: 2 + Math.random() * 3,
+                 life: 0.35 + Math.random() * 0.3, max: 0.65, col: col, st: isStar ? 1 : 0 });
+  }
+  if (parts.length > 220) parts.splice(0, parts.length - 220);
+}
+
+function endSong(){
+  if (finished) return;
+  finished = true; finishedT = 0; running = false;
+  var tot = cntPerfect + cntGreat + cntMiss;
+  resultAcc = tot > 0 ? (cntPerfect + cntGreat * 0.5) / tot : 0;
+  resultRank = resultAcc >= 0.94 ? 'S' : resultAcc >= 0.84 ? 'A' : resultAcc >= 0.68 ? 'B' : 'C';
+  beep(880, 0.25, 'triangle', 0.10);
+  beep(1320, 0.35, 'triangle', 0.07);
+}
+
+function doOver(){
+  if (overSent) return;
+  overSent = true;
+  Game.over(score);
+}
+
+function missNote(n){
+  n.done = true; n.judged = true;
+  combo = 0;
+  lives--;
+  if (lives < 0) lives = 0;
+  cntMiss++;
+  Game.hud('❤️'.repeat(lives));
+  addJudge(MISS_INFO.name, n.lane, MISS_INFO.col);
+  beep(MISS_INFO.freq, 0.16, 'sawtooth', 0.10);
+  shake = Math.max(shake, 3.5);
+  var cx = LANEX + n.lane * LANEW + LANEW / 2;
+  rings.push({ x: cx, y: JUDGEY, r: 6, life: 0.3, max: 0.3, col: MISS_INFO.col });
+  if (lives <= 0) endSong();
+}
+
+function finishHold(n){
+  var mult = comboMult();
+  var gain = Math.round(HOLD_BONUS * mult);
+  score += gain; combo++;
+  if (combo > maxCombo) maxCombo = combo;
+  cntPerfect++;
+  addFever(FEVER_P * 0.7);
+  Game.score(score);
+  var cx = LANEX + n.lane * LANEW + LANEW / 2;
+  addJudge('PERFECT', n.lane, JUDGE_TABLE[0].col);
+  burst(cx, JUDGEY, LANECOL[n.lane], 12, false);
+  rings.push({ x: cx, y: JUDGEY, r: 10, life: 0.35, max: 0.35, col: LANECOL[n.lane] });
+  Game.float(cx, JUDGEY - 110, '+' + gain, '#a5f3fc');
+  beep(2352, 0.10, 'triangle', 0.12);
+}
+
+function judgeNote(n, lane, id, delta){
+  var a = delta < 0 ? -delta : delta;
+  var j = JUDGE_TABLE[JUDGE_TABLE.length - 1];
+  for (var k = 0; k < JUDGE_TABLE.length; k++){
+    if (a <= JUDGE_TABLE[k].win){ j = JUDGE_TABLE[k]; break; }
+  }
+  n.judged = true;
+  var isP = (j === JUDGE_TABLE[0]);
+  var isGold = (n.type === 'gold');
+  var base = j.base * (isGold ? GOLD_MULT : 1);
+  var mult = comboMult();
+  var gain = Math.round(base * mult);
+  score += gain; combo++;
+  if (combo > maxCombo) maxCombo = combo;
+  if (isP) cntPerfect++; else cntGreat++;
+  addFever(isP ? FEVER_P : FEVER_G);
+  Game.score(score);
+  var st = Math.floor(combo / 50);
+  if (st > bgStage){ bgStage = st; Game.toast('コンボ ' + combo + '！背景チェンジ 🌈'); }
+  var cx = LANEX + lane * LANEW + LANEW / 2;
+  if (n.type === 'hold'){
+    n.holdTime = 0;
+    n.pid = id;
+    n.ptr = ptrs[id];
+  } else {
+    n.done = true;
+  }
+  burst(cx, JUDGEY, isGold ? GOLDCOL : LANECOL[lane], isP ? 14 : 7, isP || isGold);
+  rings.push({ x: cx, y: JUDGEY, r: 8, life: 0.3, max: 0.3, col: isGold ? GOLDCOL : LANECOL[lane] });
+  addJudge(isGold ? (j.name + '⭐') : j.name, lane, isGold ? GOLDCOL : j.col);
+  Game.float(cx, JUDGEY - 100, '+' + gain, isGold ? GOLDCOL : j.col);
+  beep(isGold ? 2637 : j.freq, 0.08, 'triangle', 0.13);
+  shake = Math.min(shake + (isP ? 2.4 : 1.4), 6);
+}
+
+function updateFx(dt){
+  for (var i = parts.length - 1; i >= 0; i--){
+    var p = parts[i];
+    p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 420 * dt;
+    p.life -= dt;
+    if (p.life <= 0) parts.splice(i, 1);
+  }
+  for (i = rings.length - 1; i >= 0; i--){
+    var r = rings[i];
+    r.r += dt * 240; r.life -= dt;
+    if (r.life <= 0) rings.splice(i, 1);
+  }
+  for (i = judges.length - 1; i >= 0; i--){
+    judges[i].life -= dt;
+    if (judges[i].life <= 0) judges.splice(i, 1);
+  }
+}
+
+function update(dt){
+  var i, n;
+  if (finished){
+    finishedT += dt;
+    updateFx(dt);
+    if (finishedT > 3.4) doOver();
+    return;
+  }
+  if (!running) return;
+  if (shake > 0) shake = Math.max(0, shake - dt * 26);
+  songTime += dt;
+
+  var halfT = songEnd * 0.5;
+  var tr = 1;
+  if (songTime > halfT){
+    var rr = (songTime - halfT) / 2.5;
+    if (rr > 1) rr = 1;
+    tr = 1 + 0.25 * rr;
+    if (!tempoShown){ tempoShown = true; Game.toast('テンポUP！🔥'); }
+  }
+  tempoRate = tr;
+
+  beatAcc += dt * (TUNE.bpm.v / 60) * tr;
+  var guard = 0;
+  while (beatAcc >= 1 && guard < 8){
+    beatAcc -= 1;
+    playBeat(beatCounter);
+    beatCounter++;
+    guard++;
+  }
+  if (beatAcc > 2) beatAcc = 1;
+
+  if (feverT > 0){
+    feverT -= dt;
+    if (feverT <= 0){ feverT = 0; feverGauge = 0; }
+    else feverGauge = feverT / FEVER_TIME;
+  }
+
+  for (i = 0; i < 4; i++){
+    if (laneFlash[i] > 0){
+      laneFlash[i] -= dt * 3.5;
+      if (laneFlash[i] < 0) laneFlash[i] = 0;
+    }
+  }
+
+  var win = JUDGE_TABLE[JUDGE_TABLE.length - 1].win;
+  for (i = notes.length - 1; i >= 0; i--){
+    n = notes[i];
+    if (n.done) continue;
+    if (!n.judged){
+      if (songTime > n.t + win){
+        missNote(n);
+        if (finished) return;
+      }
+      continue;
+    }
+    if (n.type === 'hold'){
+      var tail = n.t + n.dur;
+      if (songTime >= tail){ n.done = true; finishHold(n); continue; }
+      if (ptrs[n.pid] === n.ptr){
+        n.holdTime += dt;
+      } else {
+        n.done = true;
+        combo = 0;
+        cntMiss++;
+        addJudge(MISS_INFO.name, n.lane, MISS_INFO.col);
+        beep(200, 0.12, 'sawtooth', 0.07);
+      }
+    }
+  }
+
+  updateFx(dt);
+
+  if (songTime >= songEnd){
+    endSong();
+  }
+}
+
+function rrect(x, y, w, h, r){
+  if (w < 0) w = 0;
+  if (r > h / 2) r = h / 2;
+  if (r > w / 2) r = w / 2;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
+function pill(cx, y1, y2, w, col){
+  var r = w / 2;
+  if (y2 < y1 + r) y2 = y1 + r;
+  ctx.fillStyle = col;
+  ctx.fillRect(cx - r, y1, w, y2 - y1);
+  ctx.beginPath(); ctx.arc(cx, y1, r, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx, y2, r, 0, Math.PI * 2); ctx.fill();
+}
+
+function star(cx, cy, r, col){
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  for (var i = 0; i < 10; i++){
+    var ang = -Math.PI / 2 + i * Math.PI / 5;
+    var rad = (i % 2 === 0) ? r : r * 0.45;
+    var px = cx + Math.cos(ang) * rad;
+    var py = cy + Math.sin(ang) * rad;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
+function draw(){
+  ctx.fillStyle = '#04060d';
+  ctx.fillRect(0, 0, W, H);
+
+  var palIdx = Math.floor(combo / 50);
+  if (palIdx > BGPAL.length - 1) palIdx = BGPAL.length - 1;
+  if (palIdx < 0) palIdx = 0;
+  var pal = BGPAL[palIdx];
+  var bg = ctx.createLinearGradient(0, 56, 0, H);
+  bg.addColorStop(0, pal[0]);
+  bg.addColorStop(0.55, pal[1]);
+  bg.addColorStop(1, pal[2]);
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 56, W, H - 56);
+
+  if (feverT > 0){
+    var hue = (songTime * 180) % 360;
+    ctx.globalAlpha = 0.10 + 0.05 * Math.sin(songTime * 12);
+    ctx.fillStyle = 'hsl(' + hue + ',90%,55%)';
+    ctx.fillRect(0, 56, W, H - 56);
+    ctx.globalAlpha = 1;
+  }
+
+  var ox = 0, oy = 0;
+  if (shake > 0.2){
+    ox = (Math.random() * 2 - 1) * shake;
+    oy = (Math.random() * 2 - 1) * shake * 0.6;
+  }
+  ctx.save();
+  ctx.translate(ox, oy);
+
+  var l, i, lx, cx;
+  for (l = 0; l < 4; l++){
+    lx = LANEX + l * LANEW;
+    ctx.globalAlpha = 0.06;
+    ctx.fillStyle = LANECOL[l];
+    ctx.fillRect(lx, TOPY, LANEW, 712 - TOPY);
+    var pa = laneDown[l] > 0 ? 0.14 : 0;
+    if (laneFlash[l] > pa) pa = laneFlash[l];
+    if (pa > 0){
+      ctx.globalAlpha = pa;
+      ctx.fillStyle = LANECOL[l];
+      ctx.fillRect(lx, TOPY, LANEW, 712 - TOPY);
+    }
+    ctx.globalAlpha = 0.4;
+    ctx.strokeStyle = LANECOL[l];
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(lx + 1, TOPY);
+    ctx.lineTo(lx + 1, 712);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  ctx.globalAlpha = 0.4;
+  ctx.strokeStyle = LANECOL[3];
+  ctx.beginPath();
+  ctx.moveTo(LANEX + LANEW * 4 - 1, TOPY);
+  ctx.lineTo(LANEX + LANEW * 4 - 1, 712);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  var ppsEff = pps * tempoRate;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(LANEX, 40, LANEW * 4, JUDGEY - 40);
+  ctx.clip();
+  for (i = 0; i < notes.length; i++){
+    var n = notes[i];
+    if (n.done) continue;
+    var y = JUDGEY - (n.t - songTime) * ppsEff;
+    cx = LANEX + n.lane * LANEW + LANEW / 2;
+    if (n.type === 'hold'){
+      var ty = y + n.dur * ppsEff;
+      if (ty < 40 || y > JUDGEY + 40) continue;
+      ctx.globalAlpha = 0.5;
+      pill(cx, y, ty, 24, LANECOL[n.lane]);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = LANECOL[n.lane];
+      ctx.beginPath(); ctx.arc(cx, y, 17, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.beginPath(); ctx.arc(cx, y, 6, 0, Math.PI * 2); ctx.fill();
+    } else if (n.type === 'gold'){
+      if (y < 40 || y > JUDGEY + 40) continue;
+      ctx.globalAlpha = 0.30;
+      ctx.fillStyle = GOLDCOL;
+      ctx.beginPath(); ctx.arc(cx, y, 27, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.save();
+      ctx.translate(cx, y);
+      ctx.rotate(songTime * 2.6);
+      star(0, 0, 19, GOLDCOL);
+      ctx.restore();
+      ctx.fillStyle = 'rgba(255,255,255,0.95)';
+      ctx.beginPath(); ctx.arc(cx, y, 5, 0, Math.PI * 2); ctx.fill();
+    } else {
+      if (y < 40 || y > JUDGEY + 40) continue;
+      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = LANECOL[n.lane];
+      ctx.beginPath(); ctx.arc(cx, y, 24, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = LANECOL[n.lane];
+      ctx.beginPath(); ctx.arc(cx, y, 16, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.beginPath(); ctx.arc(cx, y, 6, 0, Math.PI * 2); ctx.fill();
+    }
+    if (n.chord){
+      ctx.globalAlpha = 0.7;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(cx, y, 23, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  }
+  ctx.restore();
+
+  for (i = 4; i >= 1; i--){
+    ctx.globalAlpha = 0.05 * i;
+    ctx.fillStyle = '#9ae6ff';
+    ctx.fillRect(LANEX, JUDGEY - i * 3, LANEW * 4, i * 6);
+  }
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#e0f7ff';
+  ctx.fillRect(LANEX, JUDGEY - 2, LANEW * 4, 4);
+
+  for (i = 0; i < rings.length; i++){
+    var rr = rings[i];
+    ctx.globalAlpha = Math.max(0, rr.life / rr.max) * 0.9;
+    ctx.strokeStyle = rr.col;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(rr.x, JUDGEY, rr.r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  for (i = 0; i < parts.length; i++){
+    var pt = parts[i];
+    ctx.globalAlpha = Math.max(0, pt.life / pt.max);
+    if (pt.st){
+      star(pt.x, pt.y, pt.r * 2.4, pt.col);
+    } else {
+      ctx.fillStyle = pt.col;
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (i = 0; i < judges.length; i++){
+    var jd = judges[i];
+    var jx = LANEX + jd.lane * LANEW + LANEW / 2;
+    var jy = JUDGEY - 64 - (1 - jd.life / jd.max) * 26;
+    ctx.globalAlpha = Math.min(1, jd.life / (jd.max * 0.55));
+    ctx.fillStyle = jd.col;
+    ctx.font = 'bold 20px sans-serif';
+    ctx.fillText(jd.text, jx, jy);
+  }
+  ctx.globalAlpha = 1;
+
+  if (feverT > 0){
+    ctx.globalAlpha = 0.7 + 0.3 * Math.sin(songTime * 14);
+    ctx.fillStyle = '#ffd166';
+    ctx.font = 'bold 22px sans-serif';
+    ctx.fillText('🔥 FEVER ×2 🔥', W / 2, 96);
+    ctx.globalAlpha = 1;
+  }
+
+  if (combo >= 3){
+    ctx.save();
+    ctx.globalAlpha = 0.95;
+    ctx.shadowColor = feverT > 0 ? '#ff8a3d' : '#22d3ee';
+    ctx.shadowBlur = 22;
+    ctx.fillStyle = feverT > 0 ? '#ffd166' : '#e6f7ff';
+    ctx.font = 'bold 74px sans-serif';
+    ctx.fillText(String(combo), W / 2, 280);
+    ctx.restore();
+    ctx.fillStyle = feverT > 0 ? '#ffb347' : '#67e8f9';
+    ctx.font = 'bold 18px sans-serif';
+    ctx.fillText('COMBO  ×' + comboMult().toFixed(1), W / 2, 330);
+    ctx.globalAlpha = 1;
+  } else if (songTime < 3.2){
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = '#7dd3fc';
+    ctx.font = 'bold 26px sans-serif';
+    ctx.fillText('READY...', W / 2, 300);
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.restore();
+
+  ctx.fillStyle = 'rgba(110,170,255,0.16)';
+  ctx.fillRect(LANEX, 57, LANEW * 4, 5);
+  var prog = songTime / songEnd;
+  if (prog < 0) prog = 0;
+  if (prog > 1) prog = 1;
+  ctx.fillStyle = tempoRate > 1.02 ? '#f59e0b' : '#38bdf8';
+  ctx.fillRect(LANEX, 57, LANEW * 4 * prog, 5);
+
+  var maxL = TUNE.lives.v;
+  var lr = lives / maxL;
+  if (lr < 0) lr = 0;
+  if (lr > 1) lr = 1;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#8fb6e8';
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillText('LIFE', 18, 656);
+  rrect(80, 648, 384, 16, 8);
+  ctx.fillStyle = 'rgba(255,255,255,0.10)';
+  ctx.fill();
+  if (lr > 0){
+    var lc1 = lr > 0.5 ? '#22c55e' : lr > 0.25 ? '#facc15' : '#ef4444';
+    rrect(80, 648, 384 * lr, 16, 8);
+    ctx.fillStyle = lc1;
+    ctx.fill();
+  }
+
+  ctx.fillStyle = '#8fb6e8';
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillText('FEVER', 18, 694);
+  var fr = feverT > 0 ? (feverT / FEVER_TIME) : feverGauge;
+  if (fr > 1) fr = 1;
+  rrect(80, 686, 384, 16, 8);
+  ctx.fillStyle = 'rgba(255,255,255,0.10)';
+  ctx.fill();
+  if (fr > 0){
+    var fg = ctx.createLinearGradient(80, 0, 464, 0);
+    if (feverT > 0){
+      var hh = (songTime * 220) % 360;
+      fg.addColorStop(0, 'hsl(' + hh + ',100%,62%)');
+      fg.addColorStop(1, 'hsl(' + ((hh + 120) % 360) + ',100%,62%)');
+    } else {
+      fg.addColorStop(0, '#f59e0b');
+      fg.addColorStop(1, '#ef4444');
+    }
+    rrect(80, 686, 384 * fr, 16, 8);
+    ctx.fillStyle = fg;
+    ctx.fill();
+  }
+
+  if (finished) drawResult();
+}
+
+function row(label, val, col, y){
+  ctx.textAlign = 'left';
+  ctx.fillStyle = col;
+  ctx.font = 'bold 18px sans-serif';
+  ctx.fillText(label, 80, y);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#f1f5f9';
+  ctx.fillText(String(val), 400, y);
+}
+
+function drawResult(){
+  ctx.fillStyle = 'rgba(3,6,14,0.88)';
+  ctx.fillRect(0, 56, W, H - 56);
+
+  rrect(30, 130, 420, 470, 18);
+  ctx.fillStyle = 'rgba(20,30,55,0.95)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(120,180,255,0.5)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#93c5fd';
+  ctx.font = 'bold 26px sans-serif';
+  ctx.fillText('RESULT', W / 2, 172);
+
+  var rc = resultRank === 'S' ? '#facc15' : resultRank === 'A' ? '#22d3ee' : resultRank === 'B' ? '#a3e635' : '#f87171';
+  ctx.save();
+  ctx.shadowColor = rc;
+  ctx.shadowBlur = 26;
+  ctx.fillStyle = rc;
+  ctx.font = 'bold 92px sans-serif';
+  ctx.fillText(resultRank, W / 2, 258);
+  ctx.restore();
+
+  ctx.fillStyle = 'rgba(160,190,230,0.75)';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillText('RANK', W / 2, 308);
+
+  ctx.strokeStyle = 'rgba(120,180,255,0.25)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(70, 332);
+  ctx.lineTo(410, 332);
+  ctx.stroke();
+
+  row('PERFECT', cntPerfect, '#67e8f9', 364);
+  row('GREAT', cntGreat, '#fbbf24', 402);
+  row('MISS', cntMiss, '#f87171', 440);
+  row('MAX COMBO', maxCombo, '#c4b5fd', 478);
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = 'bold 18px sans-serif';
+  ctx.fillText('精度 ' + (resultAcc * 100).toFixed(1) + '%', W / 2, 528);
+
+  ctx.globalAlpha = 0.55 + 0.45 * Math.sin(finishedT * 6);
+  ctx.fillStyle = '#8fb6e8';
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillText('タップでけっかへ', W / 2, 568);
+  ctx.globalAlpha = 1;
+}
+
+function onDown(x, y, id){
+  if (finished){
+    if (finishedT > 0.5) doOver();
+    return;
+  }
+  resumeAudio();
+  if (!running) return;
+  var lane = Math.floor((x - LANEX) / LANEW);
+  if (lane < 0 || lane > 3) return;
+  var p = { lane: lane, note: null };
+  ptrs[id] = p;
+  laneDown[lane]++;
+  laneFlash[lane] = 0.22;
+  var win = JUDGE_TABLE[JUDGE_TABLE.length - 1].win;
+  var best = null, bestA = win + 0.001;
+  for (var i = 0; i < notes.length; i++){
+    var n = notes[i];
+    if (n.lane !== lane || n.judged || n.done) continue;
+    var d = songTime - n.t;
+    if (d < -win || d > win) continue;
+    var a = d < 0 ? -d : d;
+    if (a < bestA){ bestA = a; best = n; }
+  }
+  if (best) judgeNote(best, lane, id, songTime - best.t);
+  else beep(220, 0.03, 'sine', 0.03);
+}
+
+function onMove(x, y, id){}
+
+function onUp(x, y, id){
+  var p = ptrs[id];
+  if (!p) return;
+  if (laneDown[p.lane] > 0) laneDown[p.lane]--;
+  delete ptrs[id];
+}
+/*__VAPPA_JS_END__*/
+</script>
+</body></html>

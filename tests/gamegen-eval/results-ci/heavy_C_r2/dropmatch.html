@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
+<title>おにぎり具材ぱずる</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%81%8A%E3%81%AB%E3%81%8E%E3%82%8A%E5%85%B7%E6%9D%90%E3%81%B1%E3%81%9A%E3%82%8B%22%2C%22h%22%3A%22%E5%B7%A6%E5%8F%B3%E3%82%BF%E3%83%83%E3%83%97%E3%81%A7%E7%A7%BB%E5%8B%95%EF%BC%8F%E4%B8%8B%E3%82%B9%E3%83%AF%E3%82%A4%E3%83%97%E3%81%A7%E4%B8%80%E6%B0%97%E3%81%AB%E8%90%BD%E4%B8%8B%EF%BC%8F2%E6%9C%AC%E6%8C%87%E3%82%BF%E3%83%83%E3%83%97%E3%81%A7%E5%9B%9E%E8%BB%A2%E3%80%82%E5%90%8C%E3%81%98%E5%85%B7%E6%9D%90%E3%82%923%E3%81%A4%E4%BB%A5%E4%B8%8A%E3%81%A4%E3%81%AA%E3%81%92%E3%81%A6%E6%B6%88%E3%81%9D%E3%81%86%EF%BC%81%E3%82%8C%E3%82%93%E3%81%95%E3%81%A7%E5%80%8D%E3%80%85%E3%80%81%E3%81%AE%E3%82%8A%F0%9F%9F%A9%E3%82%84%E7%84%A6%E3%81%92%E2%AC%9B%E3%82%82%E4%BD%BF%E3%81%A3%E3%81%A6%E8%81%B7%E4%BA%BA%E3%81%AE%E6%8F%A1%E3%82%8A%E3%82%92%E7%9B%AE%E6%8C%87%E3%81%9B%EF%BC%81%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
+html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
+#vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+/* vpstage＝論理480x720（2:3）の箱。HUD・オーバーレイ・ゲームDOMを全部この中に入れ、
+   箱ごと実画面へ拡縮する（座標系はゲーム内で常に1つ） */
+#vpstage{position:fixed;left:0;top:0;width:480px;height:720px;transform-origin:0 0;z-index:1;overflow:hidden}
+#vpdom{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
+#vpdom *{pointer-events:auto}
+.vp-hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
+.vp-hud span:empty{display:none}
+.vp-ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
+.vp-ov h1{font-size:28px}
+.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:340px;white-space:pre-line}
+.vp-ov .vp-big{font-size:44px;font-weight:900;color:#ffd166}
+.vp-btn{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:17px;box-shadow:0 5px 0 rgba(0,0,0,.25);touch-action:manipulation}
+.vp-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.vp-toast{position:absolute;top:52px;left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+[hidden]{display:none!important}
+</style>
+<style id="vpcss">
+/*__VAPPA_CSS__*/
+
+/*__VAPPA_CSS_END__*/
+</style>
+</head><body>
+<canvas id="vpc"></canvas>
+<div id="vpstage">
+  <div id="vpdom"></div>
+  <div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
+  <div class="vp-toast" id="vptoast"></div>
+  <div class="vp-ov" id="vpov">
+    <h1>おにぎり具材ぱずる</h1>
+    <p>左右タップで移動／下スワイプで一気に落下／2本指タップで回転。同じ具材を3つ以上つなげて消そう！れんさで倍々、のり🟩や焦げ⬛も使って職人の握りを目指せ！</p>
+    <button class="vp-btn" id="vpstart">スタート</button>
+  </div>
+</div>
+<script id="vpimgs">
+/* ユーザー素材画像 {名前:dataURL}。中身はビルド後にアプリが注入（AIには名前だけ渡る） */
+window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
+</script>
+<script>
+window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
+var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
+// iOS Safari は fillStyle がグラデーション/パターンのオブジェクトのままだと
+// カラー絵文字を fillText できない（何も描かれない）。生成コードは
+// 「背景をグラデで塗る→そのまま絵文字を描く」形を高頻度で書くため、
+// 絵文字を含む fillText の間だけ fillStyle を単色に退避して確実に描く。
+(function(){
+  var _ft=ctx.fillText;
+  function hasEmo(s){
+    for(var i=0;i<s.length;i++){
+      var c=s.charCodeAt(i);
+      if((c>=0x2100&&c<=0x2BFF)||(c>=0xD800&&c<=0xDFFF)||c===0xFE0F)return true;
+    }
+    return false;
+  }
+  ctx.fillText=function(t,x,y,mw){
+    var s=String(t);
+    if(typeof this.fillStyle!=="string"&&hasEmo(s)){
+      var f=this.fillStyle;this.fillStyle="#000";
+      try{mw===undefined?_ft.call(this,s,x,y):_ft.call(this,s,x,y,mw);}
+      finally{this.fillStyle=f;}
+    }else{
+      mw===undefined?_ft.call(this,s,x,y):_ft.call(this,s,x,y,mw);
+    }
+  };
+})();
+// 論理画面は 480x720（2:3）固定。全端末でこのサイズとして描き、ランタイムが
+// vpstage（HUD・オーバーレイ・ゲームDOMを含む箱）ごと実画面へ拡縮する。
+// ゲームコードは端末差を一切考えなくてよい（入力座標も論理系で届く）。
+var W=480,H=720;
+var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
+(function(){
+"use strict";
+var DPR=Math.min(2,window.devicePixelRatio||1);
+function rs(){
+  var vw=window.innerWidth,vh=window.innerHeight;
+  __SC=Math.min(vw/W,vh/H);
+  __OX=(vw-W*__SC)/2;__OY=(vh-H*__SC)/2;
+  cv.width=vw*DPR;cv.height=vh*DPR;
+  ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
+  ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
+  var st=document.getElementById("vpstage");
+  if(st){st.style.transform="scale("+__SC+")";st.style.left=__OX+"px";st.style.top=__OY+"px";}
+  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
+}
+window.addEventListener("resize",rs);rs();
+// 実画面座標→論理座標（タッチ入力用）
+function toLX(x){return (x-__OX)/__SC;}
+function toLY(y){return (y-__OY)/__SC;}
+var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="点";
+// ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
+var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
+var hud=document.getElementById("vphud"),hl=document.getElementById("vphl"),hr=document.getElementById("vphr");
+var ov=document.getElementById("vpov"),toastEl=document.getElementById("vptoast"),tt=null,last=performance.now();
+window.Game={
+  img:function(n){return IMGS[n]||null;},
+  score:function(n){hl.textContent=(n|0)+unit;},
+  hud:function(t){hr.textContent=t==null?"":String(t);},
+  float:function(x,y,t,c){floats.push({x:x,y:y,t:String(t),c:c||"#fff",age:0});},
+  toast:function(t){toastEl.textContent=t;toastEl.style.opacity=1;clearTimeout(tt);tt=setTimeout(function(){toastEl.style.opacity=0;},2000);},
+  over:function(s){
+    if(!playing||ended)return;ended=true;playing=false;s=Math.max(0,Math.floor(Number(s)||0));
+    ov.innerHTML='<h1>おわり！</h1><div class="vp-big">'+s+'<small style="font-size:20px">'+unit+'</small></div><button class="vp-btn" id="vpagain">もういちど</button>';
+    ov.hidden=false;
+    document.getElementById("vpagain").addEventListener("click",start);
+    try{window.Arcade.gameOver(s);}catch(e){}
+  }
+};
+function crash(e){
+  if(crashed)return;crashed=true;playing=false;
+  try{window.__VP_ERR=String(e&&(e.stack||e.message)||e).slice(0,600);}catch(x){}
+  ov.innerHTML='<h1>😢 エラーが発生</h1><p>ゲームにエラーが起きました。<br>作成チャットで「エラーを直して」と伝えると修理できるよ。</p><button class="vp-btn" id="vpagain">もういちど</button>';
+  ov.hidden=false;
+  document.getElementById("vpagain").addEventListener("click",start);
+}
+function start(){
+  floats=[];ended=false;crashed=false;
+  try{window.init();}catch(e){crash(e);return;}
+  window.Game.score(0);ov.hidden=true;hud.hidden=false;playing=true;last=performance.now();
+}
+document.getElementById("vpstart").addEventListener("click",start);
+function fire(fn,x,y,id){
+  if(!playing||paused)return;
+  if(typeof window[fn]==="function"){try{window[fn](x,y,id);}catch(err){crash(err);}}
+}
+// pointer と touch を両対応（iOSのiframe内などpointerが飛ばない環境へのフォールバック）。
+// pointerが一度でも来たらtouchは無視して二重発火を防ぐ。
+var seenPointer=false;
+window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",toLX(e.clientX),toLY(e.clientY),e.pointerId);fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointermove",function(e){fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointerup",function(e){fire("onUp",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+// タッチの扱い（iOS対策の要点）：
+//  - touchstart は preventDefault しない
+//  - touchmove は非passiveで preventDefault → パン/スクロール横取りはこれで止まる
+//  - touchend はボタン類「以外」でだけ preventDefault → iOSのダブルタップズーム
+//    （touch-action:noneでは止まらない端末がある）を殺しつつ、ボタンの click 合成は守る
+//  - preventDefault すると iOS は click を合成しない → 生成コードが div/span で
+//    自作ボタンを作った場合に全操作不能になる。そこで「タップ」（移動が小さく
+//    短いタッチ）に限り、こちらで click を合成して補う。本物の button 等は
+//    preventDefault しない＝ネイティブ click が来るので合成しない（二重防止）
+//  - pointerイベントが来る環境では発火だけ二重防止（seenPointer）
+function tfire(fn,e){
+  if(seenPointer)return;
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,toLX(t.clientX),toLY(t.clientY),t.identifier);
+    if(fn==="onDown")fire("onMove",toLX(t.clientX),toLY(t.clientY),t.identifier);}
+}
+function uiTouch(e){var t=e.target;return !!(t&&t.closest&&t.closest("button,a,input,select,label"));}
+var tstart={};
+window.addEventListener("touchstart",function(e){
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];tstart[t.identifier]={x:t.clientX,y:t.clientY,at:Date.now()};}
+  tfire("onDown",e);
+},{passive:true});
+window.addEventListener("touchmove",function(e){if(e.cancelable)e.preventDefault();tfire("onMove",e);},{passive:false});
+window.addEventListener("touchend",function(e){
+  var prevented=false;
+  if(e.cancelable&&!uiTouch(e)){e.preventDefault();prevented=true;}
+  if(prevented){
+    for(var i=0;i<e.changedTouches.length;i++){
+      var t=e.changedTouches[i],s=tstart[t.identifier];
+      if(s&&Math.abs(t.clientX-s.x)<14&&Math.abs(t.clientY-s.y)<14&&Date.now()-s.at<1500){
+        var el=document.elementFromPoint(t.clientX,t.clientY)||e.target;
+        if(el){try{el.dispatchEvent(new MouseEvent("click",{bubbles:true,cancelable:true,view:window,clientX:t.clientX,clientY:t.clientY}));}catch(err){}}
+      }
+    }
+  }
+  for(var j=0;j<e.changedTouches.length;j++)delete tstart[e.changedTouches[j].identifier];
+  tfire("onUp",e);
+},{passive:false});
+document.addEventListener("gesturestart",function(e){e.preventDefault();});
+window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",toLX(e.clientX),toLY(e.clientY),0);});
+window.Arcade.onPause(function(){paused=true;});
+window.Arcade.onResume(function(){paused=false;last=performance.now();});
+window.Arcade.onRestart(start);
+document.addEventListener("visibilitychange",function(){if(document.hidden){paused=true;}else{paused=false;last=performance.now();}});
+function loop(now){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(now-last)/1000);last=now;
+  if(crashed)return;
+  if(playing&&!paused){try{window.update(dt);}catch(e){crash(e);return;}}
+  if(playing||ended){try{window.draw();}catch(e){crash(e);return;}}
+  for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.age+=dt;
+    if(f.age>1){floats.splice(i,1);continue;}
+    ctx.save();ctx.globalAlpha=Math.max(0,1-f.age);ctx.font="bold 16px sans-serif";ctx.textAlign="center";
+    ctx.fillStyle=f.c;ctx.fillText(f.t,f.x,f.y-f.age*30);ctx.restore();}
+}
+requestAnimationFrame(loop);
+window.Arcade.ready();
+// 自動テストプレイ用フック：親(アプリ)がスモークテストで入力を一発流すのに使う
+window.__vpTap=function(){
+  fire("onDown",W/2,H/2,1);fire("onMove",W/2+40,H/2,1);fire("onUp",W/2+40,H/2,1);
+};
+})();
+</script>
+<script id="vpgame">
+/*__VAPPA_JS__*/
+var TUNE = {
+  fallSpeed:   { v: 0.80, label: '落下間隔(秒)',    min: 0.15, max: 1.6,  step: 0.05 },
+  minSpeed:    { v: 0.14, label: '最速落下間隔',    min: 0.06, max: 0.5,  step: 0.02 },
+  speedUp:     { v: 0.06, label: 'レベル毎の加速',  min: 0,    max: 0.2,  step: 0.01 },
+  maxTypes:    { v: 5,    label: '具材の最大種類',  min: 3,    max: 5,    step: 1 },
+  garbageRate: { v: 0.55, label: '焦げごはん率',    min: 0,    max: 1,    step: 0.05 },
+  specialInt:  { v: 5.0,  label: '特殊の間隔(秒)',  min: 1.5,  max: 12,   step: 0.5 },
+  levelStep:   { v: 300,  label: 'レベルアップ点数', min: 100, max: 1000, step: 50 },
+  chainMul:    { v: 1.0,  label: 'れんさ倍率',      min: 0.5,  max: 3,    step: 0.1 },
+  slowmo:      { v: 2.2,  label: '握り演出(秒)',    min: 0.5,  max: 5,    step: 0.1 }
+};
+
+var COLS = 6, ROWS = 12;
+var GARB = -1;
+var ITEMS = [
+  { e: '🔴', c: '#ffe3ea', ring: '#e8447a', n: '梅' },
+  { e: '🟠', c: '#ffedd8', ring: '#f0942a', n: '鮭' },
+  { e: '🟤', c: '#eadfd0', ring: '#8a5a2b', n: '昆布' },
+  { e: '⚪', c: '#f4f7ff', ring: '#7f9fd4', n: 'ツナ' },
+  { e: '🟫', c: '#ded0c6', ring: '#6b4f3a', n: 'おかか' }
+];
+
+var cell, boardW, boardH, boardX, boardY, panelX, panelY, panelW, panelH;
+var board, piece, queue, score, elapsed, gravityT, state, chain, lv, activeTypes;
+var flashCells, flashT, settleT, shake, particles, bg, pointers, multi;
+var specialT, nori, slowT, bannerT, bannerText, bannerSub;
+
+function init(){
+  cell = 54;
+  boardW = COLS * cell;
+  boardH = ROWS * cell;
+  boardX = 36;
+  boardY = 60;
+  panelX = boardX + boardW + 14;
+  panelY = boardY;
+  panelW = 480 - 16 - panelX;
+  panelH = boardH;
+
+  board = [];
+  for (var r = 0; r < ROWS; r++){
+    board[r] = [];
+    for (var c = 0; c < COLS; c++) board[r][c] = null;
+  }
+  score = 0; elapsed = 0; gravityT = 0; chain = 0;
+  lv = 1;
+  activeTypes = Math.min(3, Math.floor(TUNE.maxTypes.v));
+  queue = [];
+  for (var i = 0; i < 6; i++) queue.push(randType());
+  piece = null;
+  flashCells = null; flashT = 0; settleT = 0; shake = 0;
+  particles = [];
+  pointers = {}; multi = false;
+  specialT = TUNE.specialInt.v * 0.6;
+  nori = null; slowT = 0; bannerT = 0; bannerText = ''; bannerSub = '';
+  state = 'play';
+  bg = makeBg();
+  Game.score(0);
+  Game.hud('🔥Lv1');
+  spawnPiece();
+}
+
+function randType(){ return Math.floor(Math.random() * activeTypes); }
+
+function subOff(rot){
+  if (rot === 0) return [0, -1];
+  if (rot === 1) return [1, 0];
+  if (rot === 2) return [0, 1];
+  return [-1, 0];
+}
+
+function free(c, r){
+  return c >= 0 && c < COLS && r >= 0 && r < ROWS && !board[r][c];
+}
+
+function canPlace(c, r, rot){
+  if (!free(c, r)) return false;
+  var s = subOff(rot);
+  return free(c + s[0], r + s[1]);
+}
+
+function spawnPiece(){
+  var a = queue.shift(), b = queue.shift();
+  queue.push(randType(), randType());
+  var tries = [2, 1, 3, 0, 4, 5];
+  var sc = -1;
+  for (var i = 0; i < tries.length; i++){
+    if (canPlace(tries[i], 1, 0)){ sc = tries[i]; break; }
+  }
+  if (sc < 0){ state = 'over'; Game.over(score); return; }
+  piece = { c: sc, r: 1, rot: 0, a: a, b: b };
+  gravityT = 0;
+}
+
+function movePiece(dir){
+  if (!piece || state !== 'play') return;
+  if (canPlace(piece.c + dir, piece.r, piece.rot)) piece.c += dir;
+}
+
+function rotatePiece(){
+  if (!piece || state !== 'play') return;
+  var nr = (piece.rot + 1) % 4;
+  var kicks = [0, -1, 1, -2, 2];
+  for (var i = 0; i < kicks.length; i++){
+    if (canPlace(piece.c + kicks[i], piece.r, nr)){
+      piece.c += kicks[i];
+      piece.rot = nr;
+      return;
+    }
+  }
+}
+
+function hardDrop(){
+  if (!piece || state !== 'play') return;
+  var d = 0;
+  while (canPlace(piece.c, piece.r + 1, piece.rot)){ piece.r++; d++; }
+  if (d > 0) shake = Math.min(0.28, 0.06 + d * 0.012);
+  lockPiece();
+}
+
+function lockPiece(){
+  if (!piece) return;
+  var s = subOff(piece.rot);
+  board[piece.r][piece.c] = { t: piece.a, ay: 0 };
+  board[piece.r + s[1]][piece.c + s[0]] = { t: piece.b, ay: 0 };
+  var lx = boardX + piece.c * cell + cell / 2;
+  var ly = boardY + piece.r * cell + cell / 2;
+  for (var k = 0; k < 3; k++) spawnSteam(lx + (Math.random() - 0.5) * cell, ly + (Math.random() - 0.5) * cell);
+  piece = null;
+  chain = 0;
+  stepClear();
+}
+
+function findClears(){
+  var clear = {};
+  var visited = [];
+  var r, c;
+  for (r = 0; r < ROWS; r++){ visited[r] = []; for (c = 0; c < COLS; c++) visited[r][c] = false; }
+  var dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  var groups = [];
+  for (r = 0; r < ROWS; r++){
+    for (c = 0; c < COLS; c++){
+      var cv2 = board[r][c];
+      if (!cv2 || cv2.t < 0 || visited[r][c]) continue;
+      var stack = [[r, c]];
+      var cells = [];
+      visited[r][c] = true;
+      while (stack.length){
+        var p = stack.pop();
+        cells.push(p);
+        for (var d = 0; d < 4; d++){
+          var nr = p[0] + dirs[d][0], nc = p[1] + dirs[d][1];
+          if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) continue;
+          if (visited[nr][nc]) continue;
+          var q = board[nr][nc];
+          if (!q || q.t !== cv2.t) continue;
+          visited[nr][nc] = true;
+          stack.push([nr, nc]);
+        }
+      }
+      if (cells.length >= 3) groups.push(cells);
+    }
+  }
+  for (var i = 0; i < groups.length; i++){
+    for (var j = 0; j < groups[i].length; j++){
+      clear[groups[i][j][0] * COLS + groups[i][j][1]] = true;
+    }
+  }
+  var keys = Object.keys(clear);
+  for (var m = 0; m < keys.length; m++){
+    var kr = Math.floor(keys[m] / COLS), kc = keys[m] % COLS;
+    for (var d2 = 0; d2 < 4; d2++){
+      var nr2 = kr + dirs[d2][0], nc2 = kc + dirs[d2][1];
+      if (nr2 < 0 || nr2 >= ROWS || nc2 < 0 || nc2 >= COLS) continue;
+      var q2 = board[nr2][nc2];
+      if (q2 && q2.t < 0) clear[nr2 * COLS + nc2] = true;
+    }
+  }
+  return clear;
+}
+
+function stepClear(){
+  var cl = findClears();
+  var keys = Object.keys(cl);
+  if (keys.length === 0){
+    chain = 0;
+    state = 'play';
+    if (piece){
+      var gd = 0;
+      while (gd++ < ROWS && piece.r > 0 && !canPlace(piece.c, piece.r, piece.rot)) piece.r--;
+      if (!canPlace(piece.c, piece.r, piece.rot)){ lockPiece(); return; }
+    } else {
+      spawnPiece();
+    }
+    return;
+  }
+  chain++;
+  if (chain >= 10 && slowT <= 0.2){
+    slowT = TUNE.slowmo.v;
+    bannerText = '職人の握り！';
+    bannerSub = chain + 'れんさ 達成';
+    bannerT = TUNE.slowmo.v + 0.4;
+    for (var b = 0; b < 14; b++) spawnSparkle(boardX + Math.random() * boardW, boardY + Math.random() * boardH * 0.55);
+  }
+  flashCells = cl;
+  flashT = 0.30;
+  state = 'flash';
+  for (var i = 0; i < keys.length; i++){
+    var r = Math.floor(keys[i] / COLS), c = keys[i] % COLS;
+    var x = boardX + c * cell + cell / 2;
+    var y = boardY + r * cell + cell / 2;
+    for (var k = 0; k < 2; k++) spawnSteam(x + (Math.random() - 0.5) * cell * 0.7, y + (Math.random() - 0.5) * cell * 0.7);
+    spawnSparkle(x, y);
+  }
+  if (chain >= 2) shake = Math.max(shake, 0.14 + chain * 0.05);
+}
+
+function finishFlash(){
+  var keys = Object.keys(flashCells);
+  var n = 0, sx = 0, sy = 0;
+  for (var i = 0; i < keys.length; i++){
+    var r = Math.floor(keys[i] / COLS), c = keys[i] % COLS;
+    var v = board[r][c];
+    if (v){ if (v.t >= 0) n++; board[r][c] = null; }
+    sx += boardX + c * cell + cell / 2;
+    sy += boardY + r * cell + cell / 2;
+  }
+  if (keys.length){ sx /= keys.length; sy /= keys.length; }
+  var mult = Math.pow(2, Math.max(0, chain - 1));
+  var pts = Math.floor(n * 10 * mult * TUNE.chainMul.v);
+  if (pts > 0){
+    score += pts;
+    Game.score(score);
+    Game.float(sx, sy, '+' + pts, '#ffe066');
+    checkLevel();
+  }
+  if (chain >= 2) Game.float(sx, sy - 30, chain + 'れんさ ×' + mult, '#7ef0ff');
+  flashCells = null;
+  applyGravity();
+  state = 'settle';
+  settleT = 0.13;
+}
+
+function applyGravity(){
+  for (var c = 0; c < COLS; c++){
+    var write = ROWS - 1;
+    for (var r = ROWS - 1; r >= 0; r--){
+      var v = board[r][c];
+      if (!v) continue;
+      if (write !== r){
+        board[write][c] = v;
+        board[r][c] = null;
+        v.ay = (write - r) * cell;
+      }
+      write--;
+    }
+  }
+}
+
+function checkLevel(){
+  var nl = 1 + Math.floor(score / TUNE.levelStep.v);
+  if (nl <= lv) return;
+  var up = nl - lv;
+  lv = nl;
+  var cap = Math.floor(TUNE.maxTypes.v);
+  activeTypes = Math.min(cap, activeTypes + up);
+  Game.hud('🔥Lv' + lv);
+  bannerText = 'レベルアップ！';
+  bannerSub = 'Lv' + lv + '  具材' + activeTypes + '種類  落下アップ';
+  bannerT = 1.5;
+  shake = Math.max(shake, 0.22);
+  for (var i = 0; i < 12; i++) spawnSparkle(boardX + Math.random() * boardW, boardY + Math.random() * boardH * 0.5);
+}
+
+function fireSpecial(){
+  if (Math.random() < TUNE.garbageRate.v) riseGarbage();
+  else spawnNori();
+}
+
+function riseGarbage(){
+  var s = piece ? subOff(piece.rot) : [0, 0];
+  var cands = [];
+  for (var c = 0; c < COLS; c++){
+    if (board[0][c]) continue;
+    if (piece && (piece.c === c || piece.c + s[0] === c)) continue;
+    cands.push(c);
+  }
+  if (!cands.length) return;
+  var col = cands[Math.floor(Math.random() * cands.length)];
+  for (var r = 0; r < ROWS - 1; r++){
+    var v = board[r + 1][col];
+    board[r][col] = v;
+    if (v) v.ay = -cell;
+  }
+  board[ROWS - 1][col] = { t: GARB, ay: -cell };
+  shake = Math.max(shake, 0.12);
+  Game.float(boardX + col * cell + cell / 2, boardY + boardH - cell * 0.8, '⬛せり上がり', '#e0c49a');
+}
+
+function spawnNori(){
+  if (nori) return;
+  var s = piece ? subOff(piece.rot) : [0, 0];
+  var cands = [];
+  for (var c = 0; c < COLS; c++){
+    if (piece && (piece.c === c || piece.c + s[0] === c)) continue;
+    for (var r = 0; r < ROWS; r++){
+      if (board[r][c]){ cands.push(c); break; }
+    }
+  }
+  if (!cands.length) return;
+  var col = cands[Math.floor(Math.random() * cands.length)];
+  nori = { c: col, y: boardY + cell * 0.5, vy: 90 };
+  Game.float(boardX + col * cell + cell / 2, boardY + 22, 'のり！', '#7ef0a0');
+}
+
+function noriTargetRow(c){
+  for (var r = 0; r < ROWS; r++){
+    if (board[r][c]) return Math.max(0, r - 1);
+  }
+  return ROWS - 1;
+}
+
+function updateNori(s){
+  if (!nori) return;
+  var tr = noriTargetRow(nori.c);
+  var ty = boardY + tr * cell + cell / 2;
+  nori.vy = Math.min(560, nori.vy + 700 * s);
+  nori.y += nori.vy * s;
+  if (nori.y >= ty){
+    nori.y = ty;
+    if (state === 'play') noriLand(tr);
+  }
+}
+
+function noriLand(tr){
+  var c = nori.c;
+  nori = null;
+  var cx = boardX + c * cell + cell / 2;
+  var ly = boardY + tr * cell + cell / 2;
+  for (var k = 0; k < 6; k++) spawnSparkle(cx, ly);
+  var t = -99;
+  if (tr + 1 < ROWS && board[tr + 1][c]) t = board[tr + 1][c].t;
+  if (t < 0) return;
+  var cells = {};
+  var n = 0;
+  for (var r = 0; r < ROWS; r++){
+    var v = board[r][c];
+    if (v && v.t === t){ cells[r * COLS + c] = true; n++; }
+  }
+  if (n === 0) return;
+  chain = 1;
+  flashCells = cells;
+  flashT = 0.30;
+  state = 'flash';
+  shake = Math.max(shake, 0.16);
+  Game.float(cx, ly - 22, 'のりパワー！', '#7ef0a0');
+  for (var r2 = 0; r2 < ROWS; r2++){
+    if (cells[r2 * COLS + c]) spawnSteam(cx, boardY + r2 * cell + cell / 2);
+  }
+}
+
+function spawnSteam(x, y){
+  if (particles.length > 140) return;
+  particles.push({ k: 0, x: x, y: y, vx: (Math.random() - 0.5) * 34, vy: -46 - Math.random() * 46, life: 0.75, max: 0.75, r: 5 + Math.random() * 7 });
+}
+
+function spawnSparkle(x, y){
+  if (particles.length > 140) return;
+  var a = Math.random() * Math.PI * 2, sp = 55 + Math.random() * 100;
+  particles.push({ k: 1, x: x, y: y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 34, life: 0.6, max: 0.6, r: 0 });
+}
+
+function updateParticles(dt){
+  for (var i = particles.length - 1; i >= 0; i--){
+    var p = particles[i];
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.life -= dt;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function update(dt){
+  if (state === 'over'){ updateParticles(dt); return; }
+  elapsed += dt;
+  if (shake > 0) shake = Math.max(0, shake - dt * 1.5);
+  if (bannerT > 0) bannerT -= dt;
+  if (slowT > 0) slowT -= dt;
+  var ts = slowT > 0 ? 0.3 : 1;
+  var s = dt * ts;
+
+  updateParticles(s);
+
+  for (var r = 0; r < ROWS; r++){
+    for (var c = 0; c < COLS; c++){
+      var v = board[r][c];
+      if (!v || v.ay === 0) continue;
+      if (v.ay > 0){
+        v.ay -= 3000 * s;
+        if (v.ay < 0) v.ay = 0;
+      } else {
+        v.ay += 420 * s;
+        if (v.ay > 0) v.ay = 0;
+      }
+    }
+  }
+
+  if (state === 'play'){
+    specialT -= s;
+    if (specialT <= 0){
+      specialT = TUNE.specialInt.v * (0.75 + Math.random() * 0.5);
+      fireSpecial();
+    }
+    if (piece){
+      var iv = Math.max(TUNE.minSpeed.v, TUNE.fallSpeed.v - (lv - 1) * TUNE.speedUp.v);
+      gravityT += s;
+      var guard = 0;
+      while (gravityT >= iv && guard++ < 24){
+        gravityT -= iv;
+        if (canPlace(piece.c, piece.r + 1, piece.rot)) piece.r++;
+        else { lockPiece(); break; }
+      }
+    }
+  } else if (state === 'flash'){
+    flashT -= s;
+    if (flashT <= 0) finishFlash();
+  } else if (state === 'settle'){
+    settleT -= s;
+    if (settleT <= 0) stepClear();
+  }
+
+  if (state === 'over') return;
+  updateNori(s);
+}
+
+function makeBg(){
+  var cvs = document.createElement('canvas');
+  cvs.width = W; cvs.height = H;
+  var g = cvs.getContext('2d');
+  var grd = g.createLinearGradient(0, 0, 0, H);
+  grd.addColorStop(0, '#1d2647');
+  grd.addColorStop(0.55, '#141b33');
+  grd.addColorStop(1, '#0e1428');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, W, H);
+  var R = 46;
+  g.strokeStyle = 'rgba(140,175,240,0.10)';
+  g.lineWidth = 2;
+  for (var ry = -1; ry * R * 0.55 < H + R; ry++){
+    for (var rx = -2; rx * R < W + R * 2; rx++){
+      var x = rx * R + (((ry % 2) + 2) % 2 ? R / 2 : 0);
+      var y = ry * R * 0.55;
+      for (var k = 1; k <= 3; k++){
+        g.beginPath();
+        g.arc(x, y, R * k / 6, 0, Math.PI * 2);
+        g.stroke();
+      }
+    }
+  }
+  return cvs;
+}
+
+function rrect(x, y, w, h, r){
+  var m = Math.min(w, h) / 2;
+  if (r > m) r = m;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
+function drawItem(x, y, t, rad){
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, rad, 0, Math.PI * 2);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  if (t < 0){
+    ctx.fillStyle = '#5b4130';
+    ctx.fill();
+    ctx.strokeStyle = '#a9805a';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.font = Math.round(rad * 1.5) + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText('⬛', x, y);
+  } else {
+    var it = ITEMS[((t % ITEMS.length) + ITEMS.length) % ITEMS.length];
+    ctx.fillStyle = it.c;
+    ctx.fill();
+    ctx.strokeStyle = it.ring;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.font = Math.round(rad * 1.5) + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText(it.e, x, y);
+  }
+  ctx.restore();
+}
+
+function drawNoriIcon(x, y, rad){
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, rad, 0, Math.PI * 2);
+  ctx.fillStyle = '#1d3a24';
+  ctx.fill();
+  ctx.strokeStyle = '#6ef09a';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = Math.round(rad * 1.5) + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  ctx.fillText('🟩', x, y);
+  ctx.restore();
+}
+
+function drawParticles(){
+  for (var i = 0; i < particles.length; i++){
+    var p = particles[i];
+    var a = p.life / p.max;
+    if (a < 0) a = 0;
+    ctx.globalAlpha = a;
+    if (p.k === 0){
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r * (1.5 - a * 0.5), 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(235,245,255,0.9)';
+      ctx.fill();
+    } else {
+      ctx.font = "18px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('✨', p.x, p.y);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+function sep(y){
+  ctx.strokeStyle = 'rgba(150,185,255,0.20)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(panelX + 8, y);
+  ctx.lineTo(panelX + panelW - 8, y);
+  ctx.stroke();
+}
+
+function drawPanel(){
+  ctx.fillStyle = 'rgba(10,14,30,0.62)';
+  rrect(panelX, panelY, panelW, panelH, 14);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(150,185,255,0.30)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  var cx = panelX + panelW / 2;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  ctx.fillStyle = '#9fc0ff';
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillText('つぎ', cx, panelY + 22);
+
+  if (queue && queue.length >= 4){
+    drawItem(cx, panelY + 58, queue[1], 18);
+    drawItem(cx, panelY + 94, queue[0], 18);
+    ctx.fillStyle = '#7f9ac9';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillText('そのつぎ', cx, panelY + 128);
+    drawItem(cx, panelY + 158, queue[3], 13);
+    drawItem(cx, panelY + 184, queue[2], 13);
+  }
+
+  sep(panelY + 208);
+
+  ctx.fillStyle = '#9fc0ff';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillText('そうさ', cx, panelY + 230);
+  ctx.fillStyle = '#c3d3f2';
+  ctx.font = '14px sans-serif';
+  ctx.fillText('左右タップ', cx, panelY + 254);
+  ctx.fillText('下スワイプ', cx, panelY + 276);
+  ctx.fillText('2本指回転', cx, panelY + 298);
+
+  sep(panelY + 320);
+
+  ctx.fillStyle = '#9fc0ff';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillText('いちらん', cx, panelY + 342);
+
+  for (var i = 0; i < ITEMS.length; i++){
+    if (i >= activeTypes) ctx.globalAlpha = 0.22;
+    drawItem(cx, panelY + 376 + i * 36, i, 13);
+    ctx.globalAlpha = 1;
+  }
+
+  sep(panelY + 556);
+
+  drawNoriIcon(cx - 24, panelY + 580, 11);
+  ctx.fillStyle = '#9fe8c0';
+  ctx.font = '14px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('のり', cx + 20, panelY + 580);
+
+  drawItem(cx - 24, panelY + 610, GARB, 11);
+  ctx.fillStyle = '#e0c49a';
+  ctx.font = '14px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('焦げ', cx + 20, panelY + 610);
+}
+
+function draw(){
+  if (bg) ctx.drawImage(bg, 0, 0);
+  else { ctx.fillStyle = '#151b30'; ctx.fillRect(0, 0, W, H); }
+
+  drawPanel();
+
+  var ox = 0, oy = 0;
+  if (shake > 0){
+    ox = (Math.random() - 0.5) * shake * 26;
+    oy = (Math.random() - 0.5) * shake * 26;
+  }
+
+  ctx.save();
+  ctx.translate(ox, oy);
+
+  ctx.fillStyle = 'rgba(8,12,26,0.62)';
+  rrect(boardX - 6, boardY - 6, boardW + 12, boardH + 12, 14);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(150,185,255,0.35)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(140,175,255,0.09)';
+  ctx.lineWidth = 1;
+  var c, r;
+  for (c = 1; c < COLS; c++){
+    ctx.beginPath();
+    ctx.moveTo(boardX + c * cell, boardY);
+    ctx.lineTo(boardX + c * cell, boardY + boardH);
+    ctx.stroke();
+  }
+  for (r = 1; r < ROWS; r++){
+    ctx.beginPath();
+    ctx.moveTo(boardX, boardY + r * cell);
+    ctx.lineTo(boardX + boardW, boardY + r * cell);
+    ctx.stroke();
+  }
+
+  if (nori){
+    var ncx = boardX + nori.c * cell;
+    ctx.fillStyle = 'rgba(110,240,150,0.12)';
+    ctx.fillRect(ncx + 2, boardY, cell - 4, boardH);
+    if (ctx.setLineDash){
+      ctx.setLineDash([6, 6]);
+      ctx.strokeStyle = 'rgba(120,255,160,0.55)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(ncx + cell / 2, boardY + 2);
+      ctx.lineTo(ncx + cell / 2, nori.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  var rad = cell * 0.40;
+  for (r = 0; r < ROWS; r++){
+    for (c = 0; c < COLS; c++){
+      var v = board[r][c];
+      if (!v) continue;
+      var x = boardX + c * cell + cell / 2;
+      var y = boardY + r * cell + cell / 2 - v.ay;
+      var fl = flashCells && flashCells[r * COLS + c];
+      if (fl){
+        ctx.globalAlpha = 0.5 + 0.5 * Math.abs(Math.sin(flashT * 30));
+        drawItem(x, y, v.t, rad * (1 + Math.sin(flashT * 44) * 0.12));
+        ctx.globalAlpha = 1;
+      } else {
+        drawItem(x, y, v.t, rad);
+      }
+    }
+  }
+
+  if (piece){
+    var px = boardX + piece.c * cell + cell / 2;
+    var py = boardY + piece.r * cell + cell / 2;
+    var s2 = subOff(piece.rot);
+    var gy = piece.r;
+    while (canPlace(piece.c, gy + 1, piece.rot)) gy++;
+    if (gy !== piece.r){
+      var gyy = boardY + gy * cell + cell / 2;
+      ctx.globalAlpha = 0.16;
+      drawItem(px + s2[0] * cell, gyy + s2[1] * cell, piece.b, rad);
+      drawItem(px, gyy, piece.a, rad);
+      ctx.globalAlpha = 1;
+    }
+    drawItem(px + s2[0] * cell, py + s2[1] * cell, piece.b, rad);
+    drawItem(px, py, piece.a, rad);
+  }
+
+  if (nori){
+    ctx.font = "34px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🟩', boardX + nori.c * cell + cell / 2, nori.y);
+  }
+
+  drawParticles();
+
+  if (state === 'flash' && chain >= 2){
+    var prog = 1 - Math.max(0, flashT) / 0.30;
+    var sc2 = 1 + Math.sin(Math.min(1, prog * 3) * Math.PI) * 0.4;
+    var mult2 = Math.pow(2, chain - 1);
+    ctx.save();
+    ctx.translate(boardX + boardW / 2, boardY + 150);
+    ctx.scale(sc2, sc2);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 36px sans-serif';
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = 'rgba(20,10,40,0.9)';
+    ctx.strokeText(chain + 'れんさ！', 0, 0);
+    ctx.fillStyle = '#ffe066';
+    ctx.fillText(chain + 'れんさ！', 0, 0);
+    ctx.font = 'bold 22px sans-serif';
+    ctx.lineWidth = 5;
+    ctx.strokeText('×' + mult2 + ' ボーナス', 0, 36);
+    ctx.fillStyle = '#7ef0ff';
+    ctx.fillText('×' + mult2 + ' ボーナス', 0, 36);
+    ctx.restore();
+  }
+
+  ctx.restore();
+
+  if (slowT > 0){
+    ctx.globalAlpha = Math.min(0.26, slowT * 0.2);
+    ctx.fillStyle = '#3ad2ff';
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+  }
+
+  if (bannerT > 0){
+    var ba = Math.min(1, bannerT / 0.45);
+    var bh = bannerSub ? 96 : 62;
+    var bw = 370;
+    var bx = (W - bw) / 2;
+    var by = 300 - bh / 2;
+    ctx.save();
+    ctx.globalAlpha = ba;
+    ctx.fillStyle = 'rgba(12,16,34,0.88)';
+    rrect(bx, by, bw, bh, 16);
+    ctx.fill();
+    ctx.strokeStyle = '#ffd166';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffe066';
+    ctx.font = 'bold 30px sans-serif';
+    ctx.fillText(bannerText, W / 2, by + (bannerSub ? 36 : 31));
+    if (bannerSub){
+      ctx.fillStyle = '#9fe8ff';
+      ctx.font = 'bold 17px sans-serif';
+      ctx.fillText(bannerSub, W / 2, by + 70);
+    }
+    ctx.restore();
+  }
+}
+
+function onDown(x, y, id){
+  if (state === 'over') return;
+  var n = 0;
+  for (var k in pointers) n++;
+  pointers[id] = { x0: x, y0: y, x: x, y: y };
+  if (n >= 1){
+    multi = true;
+    rotatePiece();
+  }
+}
+
+function onMove(x, y, id){
+  var p = pointers[id];
+  if (p){ p.x = x; p.y = y; }
+}
+
+function onUp(x, y, id){
+  var p = pointers[id];
+  delete pointers[id];
+  var left = 0;
+  for (var k in pointers) left++;
+  var wasMulti = multi;
+  if (left === 0) multi = false;
+  if (!p || wasMulti) return;
+  var dx = x - p.x0;
+  var dy = y - p.y0;
+  if (dy > 34 && dy > Math.abs(dx) * 1.1){ hardDrop(); return; }
+  if (Math.abs(dx) < 26 && Math.abs(dy) < 26){
+    movePiece(p.x0 < W / 2 ? -1 : 1);
+    return;
+  }
+  if (Math.abs(dx) >= 26 && Math.abs(dx) > Math.abs(dy)) movePiece(dx < 0 ? -1 : 1);
+}
+
+/*__VAPPA_JS_END__*/
+</script>
+</body></html>

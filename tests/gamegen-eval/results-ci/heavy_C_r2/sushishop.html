@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
+<title>回転寿司店長</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E5%9B%9E%E8%BB%A2%E5%AF%BF%E5%8F%B8%E5%BA%97%E9%95%B7%22%2C%22h%22%3A%22%E4%B8%8B%E3%81%AE%E3%83%8D%E3%82%BF%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%E3%81%97%E3%81%A6%E5%AF%BF%E5%8F%B8%E3%82%92%E3%81%AB%E3%81%8E%E3%82%8A%E3%80%81%E3%83%AC%E3%83%BC%E3%83%B3%E3%81%AB%E6%B5%81%E3%81%9D%E3%81%86%E3%80%82%E3%81%8A%E5%AE%A2%E3%81%95%E3%82%93%E3%81%AE%E5%90%B9%E3%81%8D%E5%87%BA%E3%81%97%E3%81%A8%E5%90%8C%E3%81%98%E3%83%8D%E3%82%BF%E3%81%8C%E5%89%8D%E3%82%92%E9%80%9A%E3%82%8B%E3%81%A8%E9%A3%9F%E3%81%B9%E3%81%A6%E3%81%8A%E9%87%91%E3%82%92%E6%89%95%E3%81%86%E3%82%88%E3%80%82%E5%9C%A8%E5%BA%AB%E3%81%8C%E5%88%87%E3%82%8C%E3%81%9F%E3%82%89%E3%80%8C%E4%BB%95%E5%85%A5%E3%82%8C%E3%80%8D%E3%80%81%E5%BE%85%E3%81%9F%E3%81%9B%E3%81%99%E3%81%8E%E3%81%9F%E3%82%89%E3%80%8C%E3%81%8A%E8%8C%B6%E3%80%8D%F0%9F%8D%B5%E3%80%8290%E7%A7%92%E3%81%A7%E5%A3%B2%E4%B8%8A%E3%82%92%E6%9C%80%E5%A4%A7%E5%8C%96%EF%BC%81%22%2C%22u%22%3A%22%E5%86%86%22%7D-->
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
+html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
+#vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+/* vpstage＝論理480x720（2:3）の箱。HUD・オーバーレイ・ゲームDOMを全部この中に入れ、
+   箱ごと実画面へ拡縮する（座標系はゲーム内で常に1つ） */
+#vpstage{position:fixed;left:0;top:0;width:480px;height:720px;transform-origin:0 0;z-index:1;overflow:hidden}
+#vpdom{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
+#vpdom *{pointer-events:auto}
+.vp-hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
+.vp-hud span:empty{display:none}
+.vp-ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
+.vp-ov h1{font-size:28px}
+.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:340px;white-space:pre-line}
+.vp-ov .vp-big{font-size:44px;font-weight:900;color:#ffd166}
+.vp-btn{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:17px;box-shadow:0 5px 0 rgba(0,0,0,.25);touch-action:manipulation}
+.vp-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.vp-toast{position:absolute;top:52px;left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+[hidden]{display:none!important}
+</style>
+<style id="vpcss">
+/*__VAPPA_CSS__*/
+
+/*__VAPPA_CSS_END__*/
+</style>
+</head><body>
+<canvas id="vpc"></canvas>
+<div id="vpstage">
+  <div id="vpdom"></div>
+  <div class="vp-hud" id="vphud" hidden><span id="vphl">0円</span><span id="vphr"></span></div>
+  <div class="vp-toast" id="vptoast"></div>
+  <div class="vp-ov" id="vpov">
+    <h1>回転寿司店長</h1>
+    <p>下のネタをタップして寿司をにぎり、レーンに流そう。お客さんの吹き出しと同じネタが前を通ると食べてお金を払うよ。在庫が切れたら「仕入れ」、待たせすぎたら「お茶」🍵。90秒で売上を最大化！</p>
+    <button class="vp-btn" id="vpstart">スタート</button>
+  </div>
+</div>
+<script id="vpimgs">
+/* ユーザー素材画像 {名前:dataURL}。中身はビルド後にアプリが注入（AIには名前だけ渡る） */
+window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
+</script>
+<script>
+window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
+var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
+// iOS Safari は fillStyle がグラデーション/パターンのオブジェクトのままだと
+// カラー絵文字を fillText できない（何も描かれない）。生成コードは
+// 「背景をグラデで塗る→そのまま絵文字を描く」形を高頻度で書くため、
+// 絵文字を含む fillText の間だけ fillStyle を単色に退避して確実に描く。
+(function(){
+  var _ft=ctx.fillText;
+  function hasEmo(s){
+    for(var i=0;i<s.length;i++){
+      var c=s.charCodeAt(i);
+      if((c>=0x2100&&c<=0x2BFF)||(c>=0xD800&&c<=0xDFFF)||c===0xFE0F)return true;
+    }
+    return false;
+  }
+  ctx.fillText=function(t,x,y,mw){
+    var s=String(t);
+    if(typeof this.fillStyle!=="string"&&hasEmo(s)){
+      var f=this.fillStyle;this.fillStyle="#000";
+      try{mw===undefined?_ft.call(this,s,x,y):_ft.call(this,s,x,y,mw);}
+      finally{this.fillStyle=f;}
+    }else{
+      mw===undefined?_ft.call(this,s,x,y):_ft.call(this,s,x,y,mw);
+    }
+  };
+})();
+// 論理画面は 480x720（2:3）固定。全端末でこのサイズとして描き、ランタイムが
+// vpstage（HUD・オーバーレイ・ゲームDOMを含む箱）ごと実画面へ拡縮する。
+// ゲームコードは端末差を一切考えなくてよい（入力座標も論理系で届く）。
+var W=480,H=720;
+var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
+(function(){
+"use strict";
+var DPR=Math.min(2,window.devicePixelRatio||1);
+function rs(){
+  var vw=window.innerWidth,vh=window.innerHeight;
+  __SC=Math.min(vw/W,vh/H);
+  __OX=(vw-W*__SC)/2;__OY=(vh-H*__SC)/2;
+  cv.width=vw*DPR;cv.height=vh*DPR;
+  ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
+  ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
+  var st=document.getElementById("vpstage");
+  if(st){st.style.transform="scale("+__SC+")";st.style.left=__OX+"px";st.style.top=__OY+"px";}
+  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
+}
+window.addEventListener("resize",rs);rs();
+// 実画面座標→論理座標（タッチ入力用）
+function toLX(x){return (x-__OX)/__SC;}
+function toLY(y){return (y-__OY)/__SC;}
+var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="円";
+// ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
+var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
+var hud=document.getElementById("vphud"),hl=document.getElementById("vphl"),hr=document.getElementById("vphr");
+var ov=document.getElementById("vpov"),toastEl=document.getElementById("vptoast"),tt=null,last=performance.now();
+window.Game={
+  img:function(n){return IMGS[n]||null;},
+  score:function(n){hl.textContent=(n|0)+unit;},
+  hud:function(t){hr.textContent=t==null?"":String(t);},
+  float:function(x,y,t,c){floats.push({x:x,y:y,t:String(t),c:c||"#fff",age:0});},
+  toast:function(t){toastEl.textContent=t;toastEl.style.opacity=1;clearTimeout(tt);tt=setTimeout(function(){toastEl.style.opacity=0;},2000);},
+  over:function(s){
+    if(!playing||ended)return;ended=true;playing=false;s=Math.max(0,Math.floor(Number(s)||0));
+    ov.innerHTML='<h1>おわり！</h1><div class="vp-big">'+s+'<small style="font-size:20px">'+unit+'</small></div><button class="vp-btn" id="vpagain">もういちど</button>';
+    ov.hidden=false;
+    document.getElementById("vpagain").addEventListener("click",start);
+    try{window.Arcade.gameOver(s);}catch(e){}
+  }
+};
+function crash(e){
+  if(crashed)return;crashed=true;playing=false;
+  try{window.__VP_ERR=String(e&&(e.stack||e.message)||e).slice(0,600);}catch(x){}
+  ov.innerHTML='<h1>😢 エラーが発生</h1><p>ゲームにエラーが起きました。<br>作成チャットで「エラーを直して」と伝えると修理できるよ。</p><button class="vp-btn" id="vpagain">もういちど</button>';
+  ov.hidden=false;
+  document.getElementById("vpagain").addEventListener("click",start);
+}
+function start(){
+  floats=[];ended=false;crashed=false;
+  try{window.init();}catch(e){crash(e);return;}
+  window.Game.score(0);ov.hidden=true;hud.hidden=false;playing=true;last=performance.now();
+}
+document.getElementById("vpstart").addEventListener("click",start);
+function fire(fn,x,y,id){
+  if(!playing||paused)return;
+  if(typeof window[fn]==="function"){try{window[fn](x,y,id);}catch(err){crash(err);}}
+}
+// pointer と touch を両対応（iOSのiframe内などpointerが飛ばない環境へのフォールバック）。
+// pointerが一度でも来たらtouchは無視して二重発火を防ぐ。
+var seenPointer=false;
+window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",toLX(e.clientX),toLY(e.clientY),e.pointerId);fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointermove",function(e){fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointerup",function(e){fire("onUp",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+// タッチの扱い（iOS対策の要点）：
+//  - touchstart は preventDefault しない
+//  - touchmove は非passiveで preventDefault → パン/スクロール横取りはこれで止まる
+//  - touchend はボタン類「以外」でだけ preventDefault → iOSのダブルタップズーム
+//    （touch-action:noneでは止まらない端末がある）を殺しつつ、ボタンの click 合成は守る
+//  - preventDefault すると iOS は click を合成しない → 生成コードが div/span で
+//    自作ボタンを作った場合に全操作不能になる。そこで「タップ」（移動が小さく
+//    短いタッチ）に限り、こちらで click を合成して補う。本物の button 等は
+//    preventDefault しない＝ネイティブ click が来るので合成しない（二重防止）
+//  - pointerイベントが来る環境では発火だけ二重防止（seenPointer）
+function tfire(fn,e){
+  if(seenPointer)return;
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,toLX(t.clientX),toLY(t.clientY),t.identifier);
+    if(fn==="onDown")fire("onMove",toLX(t.clientX),toLY(t.clientY),t.identifier);}
+}
+function uiTouch(e){var t=e.target;return !!(t&&t.closest&&t.closest("button,a,input,select,label"));}
+var tstart={};
+window.addEventListener("touchstart",function(e){
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];tstart[t.identifier]={x:t.clientX,y:t.clientY,at:Date.now()};}
+  tfire("onDown",e);
+},{passive:true});
+window.addEventListener("touchmove",function(e){if(e.cancelable)e.preventDefault();tfire("onMove",e);},{passive:false});
+window.addEventListener("touchend",function(e){
+  var prevented=false;
+  if(e.cancelable&&!uiTouch(e)){e.preventDefault();prevented=true;}
+  if(prevented){
+    for(var i=0;i<e.changedTouches.length;i++){
+      var t=e.changedTouches[i],s=tstart[t.identifier];
+      if(s&&Math.abs(t.clientX-s.x)<14&&Math.abs(t.clientY-s.y)<14&&Date.now()-s.at<1500){
+        var el=document.elementFromPoint(t.clientX,t.clientY)||e.target;
+        if(el){try{el.dispatchEvent(new MouseEvent("click",{bubbles:true,cancelable:true,view:window,clientX:t.clientX,clientY:t.clientY}));}catch(err){}}
+      }
+    }
+  }
+  for(var j=0;j<e.changedTouches.length;j++)delete tstart[e.changedTouches[j].identifier];
+  tfire("onUp",e);
+},{passive:false});
+document.addEventListener("gesturestart",function(e){e.preventDefault();});
+window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",toLX(e.clientX),toLY(e.clientY),0);});
+window.Arcade.onPause(function(){paused=true;});
+window.Arcade.onResume(function(){paused=false;last=performance.now();});
+window.Arcade.onRestart(start);
+document.addEventListener("visibilitychange",function(){if(document.hidden){paused=true;}else{paused=false;last=performance.now();}});
+function loop(now){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(now-last)/1000);last=now;
+  if(crashed)return;
+  if(playing&&!paused){try{window.update(dt);}catch(e){crash(e);return;}}
+  if(playing||ended){try{window.draw();}catch(e){crash(e);return;}}
+  for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.age+=dt;
+    if(f.age>1){floats.splice(i,1);continue;}
+    ctx.save();ctx.globalAlpha=Math.max(0,1-f.age);ctx.font="bold 16px sans-serif";ctx.textAlign="center";
+    ctx.fillStyle=f.c;ctx.fillText(f.t,f.x,f.y-f.age*30);ctx.restore();}
+}
+requestAnimationFrame(loop);
+window.Arcade.ready();
+// 自動テストプレイ用フック：親(アプリ)がスモークテストで入力を一発流すのに使う
+window.__vpTap=function(){
+  fire("onDown",W/2,H/2,1);fire("onMove",W/2+40,H/2,1);fire("onUp",W/2+40,H/2,1);
+};
+})();
+</script>
+<script id="vpgame">
+/*__VAPPA_JS__*/
+var TUNE = {
+  gameTime:     { v: 90,   label: '営業時間(秒)',   min: 30,  max: 180, step: 5 },
+  beltSpeed:    { v: 150,  label: 'レーンの速さ',    min: 60,  max: 320, step: 10 },
+  patience:     { v: 14,   label: '待ち時間(秒)',    min: 5,   max: 30,  step: 1 },
+  custInterval: { v: 3,    label: '来店間隔(秒)',    min: 0.8, max: 6,   step: 0.2 },
+  custAccel:    { v: 0.03, label: '混雑ペース',      min: 0,   max: 0.1, step: 0.005 },
+  makeCd:       { v: 0.45, label: 'にぎり間隔(秒)',  min: 0.15, max: 1.2, step: 0.05 },
+  maxBelt:      { v: 5,    label: 'レーンの上限',    min: 2,   max: 12,  step: 1 },
+  reputation:   { v: 3,    label: '開始の評判(★)',   min: 1,   max: 5,   step: 1 },
+  restockCost:  { v: 350,  label: '仕入れ費用(円)',  min: 50,  max: 1000, step: 50 },
+  restockTime:  { v: 5,    label: '仕入れ到着(秒)',  min: 1,   max: 12,  step: 0.5 },
+  startStock:   { v: 3,    label: '初期の在庫',      min: 1,   max: 8,   step: 1 },
+  teaBoost:     { v: 3,    label: 'お茶の効果(秒)',  min: 0.5, max: 8,   step: 0.5 }
+};
+
+/* ===== ネタ表：needStar = 解放に必要な評判★ ===== */
+var NETA = [
+  { name: 'たまご',   emoji: '🥚', price: 80,  w: 3.0, needStar: 0 },
+  { name: 'イカ',     emoji: '🦑', price: 100, w: 2.8, needStar: 0 },
+  { name: 'エビ',     emoji: '🦐', price: 120, w: 2.5, needStar: 0 },
+  { name: 'サーモン', emoji: '🍣', price: 150, w: 2.0, needStar: 0 },
+  { name: 'マグロ',   emoji: '🐟', price: 200, w: 1.5, needStar: 0 },
+  { name: 'ウニ',     emoji: '🌰', price: 320, w: 0.9, needStar: 4 },
+  { name: '大トロ',   emoji: '🥩', price: 450, w: 0.6, needStar: 5 }
+];
+var FACES = ['👨','👩','👴','👵','🧑','👦','👧','🧔'];
+
+/* ===== お客さんの種類 ===== */
+var CTYPES = {
+  normal: { name: '普通',   badge: '',   n: 1, patMul: 1.00, tipMul: 0.30, minPrice: 0 },
+  busy:   { name: '会社員', badge: '👔', n: 1, patMul: 0.70, tipMul: 0.35, minPrice: 0 },
+  sumo:   { name: '力士',   badge: '🥋', n: 3, patMul: 1.35, tipMul: 0.30, minPrice: 0 },
+  vip:    { name: '社長',   badge: '🎩', n: 1, patMul: 0.85, tipMul: 0.80, minPrice: 150 }
+};
+
+/* ===== レイアウト（480x720 固定） ===== */
+var SEATX = [48, 144, 240, 336, 432];
+var UNLOCK = [2, 1, 3, 0, 4];
+var BUB_Y = 108, CUST_Y = 202, GAUGE_Y = 234;
+var COUNTER_Y = 252, BELT0 = 272, BELT1 = 372, SUSHI_Y = 318;
+var FRONT0 = 372, FRONT1 = 410;
+var BAR_Y = 416, BAR_H = 38;
+var TRAY0 = 458, TRAY1 = 706;
+var GRIDX = 14, GRIDY = 466, CELLW = 108, CELLH = 82, GAPX = 6, GAPY = 6;
+var RST_X = 14, RST_Y = 644, RST_W = 452, RST_H = 54;
+var MAXSTOCK = 6;
+var EFONT = "'Apple Color Emoji','Noto Color Emoji',sans-serif";
+
+var seats, sushi, parts, btnFlash;
+var score, repF, timeLeft, elapsed, spawnT, cd, beltOff, shake;
+var finished, overSent, summaryT, hudStr, bgGrad;
+var money, stock, unlocked, restockActive, restockT, teaCd;
+var stats, rushes, rushOn, rushBanner;
+
+/* ===== 初期化（開始＆リスタート毎） ===== */
+function init(){
+  var i;
+  seats = [];
+  for (i = 0; i < 5; i++) seats.push({ x: SEATX[i], open: false, cust: null, flash: 0 });
+  sushi = [];
+  parts = [];
+  btnFlash = [];
+  for (i = 0; i < 8; i++) btnFlash.push(0);
+
+  score = 0;
+  repF = TUNE.reputation.v;
+  timeLeft = TUNE.gameTime.v;
+  elapsed = 0;
+  spawnT = 1.0;
+  cd = 0;
+  beltOff = 0;
+  shake = 0;
+  finished = false;
+  overSent = false;
+  summaryT = 5.0;
+  hudStr = '';
+  money = 600;
+
+  stock = [];
+  unlocked = [];
+  for (i = 0; i < NETA.length; i++){
+    var need = NETA[i].needStar || 0;
+    var ok = repF >= need;
+    unlocked.push(ok);
+    stock.push(ok ? TUNE.startStock.v : 0);
+  }
+  restockActive = false;
+  restockT = 0;
+  teaCd = 0;
+
+  stats = { sales: 0, wasted: 0, wastedYen: 0, served: 0, orders: 0, angry: 0 };
+
+  rushes = [];
+  var T = TUNE.gameTime.v;
+  rushes.push({ a: T * 0.2, b: Math.min(T, T * 0.2 + 20) });
+  rushes.push({ a: T * 0.6, b: Math.min(T, T * 0.6 + 20) });
+  rushOn = false;
+  rushBanner = 0;
+
+  bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+  bgGrad.addColorStop(0, '#3b2418');
+  bgGrad.addColorStop(0.5, '#2a1a12');
+  bgGrad.addColorStop(1, '#160e09');
+  Game.score(0);
+  updateHud();
+}
+
+/* ===== HUD ===== */
+function updateHud(){
+  var st = Math.floor(repF + 0.0001);
+  var s = '⏱' + Math.ceil(Math.max(0, timeLeft)) + ' ⭐' + st;
+  if (s !== hudStr){ hudStr = s; Game.hud(s); }
+}
+
+/* ===== ラッシュ判定 ===== */
+function isRush(t){
+  for (var i = 0; i < rushes.length; i++){
+    if (t >= rushes[i].a && t < rushes[i].b) return true;
+  }
+  return false;
+}
+
+/* ===== 評判によるネタ解放 ===== */
+function refreshUnlocks(){
+  for (var i = 0; i < NETA.length; i++){
+    var need = NETA[i].needStar || 0;
+    if (!unlocked[i] && repF >= need){
+      unlocked[i] = true;
+      stock[i] = TUNE.startStock.v;
+      Game.toast('✨ ' + NETA[i].name + ' が使えるようになった！');
+      burst(240, 300, NETA[i].emoji, 8);
+    }
+  }
+}
+
+/* ===== お客さん生成 ===== */
+function makeCustomer(t){
+  var type = 'normal';
+  var r = Math.random();
+  if (r < 0.10) type = 'vip';
+  else if (r < 0.28) type = 'sumo';
+  else if (r < 0.55) type = 'busy';
+  var cfg = CTYPES[type];
+  var i;
+
+  var pool = [];
+  for (i = 0; i < NETA.length; i++){
+    if (!unlocked[i]) continue;
+    if (cfg.minPrice > 0 && NETA[i].price < cfg.minPrice) continue;
+    pool.push(i);
+  }
+  if (pool.length === 0){
+    for (i = 0; i < NETA.length; i++) if (unlocked[i]) pool.push(i);
+  }
+  if (pool.length === 0) pool = [0];
+
+  var order = [];
+  for (var k = 0; k < cfg.n; k++){
+    var tot = 0;
+    for (i = 0; i < pool.length; i++) tot += NETA[pool[i]].w;
+    var rr = Math.random() * tot;
+    var pick = pool[0];
+    for (i = 0; i < pool.length; i++){
+      rr -= NETA[pool[i]].w;
+      if (rr <= 0){ pick = pool[i]; break; }
+    }
+    order.push(pick);
+  }
+
+  var pat = TUNE.patience.v - t * 0.06;
+  if (pat < 7) pat = 7;
+  pat *= cfg.patMul;
+  if (pat < 5) pat = 5;
+
+  return {
+    type: type, cfg: cfg, badge: cfg.badge,
+    face: FACES[(Math.random() * FACES.length) | 0],
+    order: order, pat: pat, max: pat,
+    mood: 0, moodT: 0, age: 0, bob: Math.random() * 6.28
+  };
+}
+
+/* ===== 演出：飛び散り ===== */
+function burst(x, y, emoji, n){
+  if (parts.length > 90) return;
+  for (var i = 0; i < n; i++){
+    parts.push({
+      x: x, y: y,
+      vx: (Math.random() * 2 - 1) * 150,
+      vy: -Math.random() * 220 - 40,
+      life: 0.5 + Math.random() * 0.35,
+      emoji: emoji,
+      size: 15 + Math.random() * 10
+    });
+  }
+}
+
+/* ===== ボタン座標 ===== */
+function cellRect(i){
+  var c = i % 4;
+  var r = (i - c) / 4;
+  return { x: GRIDX + c * (CELLW + GAPX), y: GRIDY + r * (CELLH + GAPY), w: CELLW, h: CELLH };
+}
+
+/* ===== 寿司をにぎる（在庫を消費） ===== */
+function makeSushi(kind){
+  if (finished) return;
+  var rct = cellRect(kind);
+  var bcx = rct.x + rct.w / 2;
+  if (!unlocked[kind]){
+    Game.float(bcx, rct.y - 12, '★' + NETA[kind].needStar + ' で解放', '#ffd166');
+    return;
+  }
+  if (cd > 0) return;
+  if (stock[kind] <= 0){
+    shake = 0.16;
+    Game.float(bcx, rct.y - 12, '在庫切れ！', '#ff9e9e');
+    return;
+  }
+  if (sushi.length >= TUNE.maxBelt.v){
+    Game.float(240, 452, 'レーンがいっぱい！', '#ff9e9e');
+    return;
+  }
+  cd = TUNE.makeCd.v;
+  stock[kind]--;
+  btnFlash[kind] = 0.18;
+  sushi.push({ x: -44, kind: kind });
+  Game.float(bcx, rct.y - 12, NETA[kind].emoji, '#ffffff');
+}
+
+/* ===== お茶を出す ===== */
+function serveTea(){
+  if (finished) return;
+  var rct = cellRect(7);
+  var bcx = rct.x + rct.w / 2;
+  if (teaCd > 0){ Game.float(bcx, rct.y - 12, '準備中…', '#cbd5e1'); return; }
+  teaCd = 6;
+  btnFlash[7] = 0.2;
+  var n = 0;
+  for (var i = 0; i < 5; i++){
+    var st = seats[i];
+    if (!st.cust || st.cust.mood !== 0) continue;
+    st.cust.pat += TUNE.teaBoost.v;
+    if (st.cust.pat > st.cust.max) st.cust.max = st.cust.pat;
+    n++;
+    Game.float(st.x, 176, '🍵', '#a7f3d0');
+  }
+  if (n === 0) Game.float(240, 200, '🍵 お客さんがいない…', '#a7f3d0');
+  else Game.float(240, 200, '🍵 お茶で待ち時間UP！', '#a7f3d0');
+}
+
+/* ===== 仕入れ発注（5秒後に到着） ===== */
+function orderRestock(){
+  if (finished) return;
+  if (restockActive){ Game.float(240, RST_Y - 14, '配送中…', '#9fd8ff'); return; }
+  money -= TUNE.restockCost.v;
+  restockActive = true;
+  restockT = TUNE.restockTime.v;
+  shake = 0.12;
+  Game.float(240, RST_Y - 14, '-' + TUNE.restockCost.v + '円 発注！', '#ffd166');
+}
+
+/* ===== 閉店 → まとめ ===== */
+function finish(){
+  if (finished) return;
+  finished = true;
+  overSent = false;
+  summaryT = 5.0;
+  Game.hud('⏱0 ⭐' + Math.floor(repF + 0.0001));
+}
+
+/* ===== 更新 ===== */
+function update(dt){
+  if (finished){
+    if (!overSent){
+      summaryT -= dt;
+      if (summaryT <= 0){ overSent = true; Game.over(Math.floor(score)); }
+    }
+    return;
+  }
+
+  elapsed += dt;
+  timeLeft -= dt;
+  if (timeLeft <= 0){ timeLeft = 0; updateHud(); finish(); return; }
+
+  /* ラッシュ */
+  var r1 = isRush(elapsed);
+  if (r1 !== rushOn){
+    rushOn = r1;
+    if (r1){ rushBanner = 2.4; Game.toast('🔥 ラッシュタイム！'); }
+  }
+  if (rushBanner > 0) rushBanner -= dt;
+
+  /* 席開放 */
+  var n = 2 + Math.floor(elapsed / 18);
+  if (n > 5) n = 5;
+  for (var k = 0; k < n; k++) seats[UNLOCK[k]].open = true;
+
+  if (cd > 0) cd -= dt;
+  if (teaCd > 0) teaCd -= dt;
+  if (shake > 0) shake -= dt;
+  for (var b = 0; b < 8; b++) if (btnFlash[b] > 0) btnFlash[b] -= dt;
+
+  /* 仕入れ到着 */
+  if (restockActive){
+    restockT -= dt;
+    if (restockT <= 0){
+      restockT = 0;
+      restockActive = false;
+      for (var ri = 0; ri < NETA.length; ri++){
+        if (!unlocked[ri]) continue;
+        stock[ri] = Math.min(MAXSTOCK, stock[ri] + 4);
+      }
+      Game.toast('📦 仕入れが届いた！');
+      burst(240, 620, '📦', 6);
+    }
+  }
+
+  /* 来店 */
+  spawnT -= dt;
+  if (spawnT <= 0){
+    var free = [];
+    for (var i = 0; i < 5; i++) if (seats[i].open && !seats[i].cust) free.push(seats[i]);
+    if (free.length > 0){
+      var s0 = free[(Math.random() * free.length) | 0];
+      s0.cust = makeCustomer(elapsed);
+      var base = TUNE.custInterval.v - elapsed * TUNE.custAccel.v;
+      if (base < 0.9) base = 0.9;
+      if (rushOn) base *= 0.45;
+      spawnT = base;
+    } else {
+      spawnT = 0.4;
+    }
+  }
+
+  /* お客さんの状態 */
+  for (i = 0; i < 5; i++){
+    var st = seats[i];
+    if (st.flash > 0) st.flash -= dt;
+    var c = st.cust;
+    if (!c) continue;
+    c.age += dt;
+    if (c.mood !== 0){
+      c.moodT -= dt;
+      if (c.moodT <= 0) st.cust = null;
+      continue;
+    }
+    c.pat -= dt;
+    if (c.pat <= 0){
+      c.pat = 0;
+      c.mood = 2;
+      c.moodT = 0.8;
+      repF -= 0.5;
+      stats.angry++;
+      shake = 0.35;
+      Game.float(st.x, 186, '💨', '#ff9b9b');
+      burst(st.x, 200, '💢', 4);
+      if (repF <= 0){ repF = 0; updateHud(); finish(); return; }
+      updateHud();
+      refreshUnlocks();
+    }
+  }
+
+  /* レーン */
+  beltOff += TUNE.beltSpeed.v * dt;
+  for (i = sushi.length - 1; i >= 0; i--){
+    var su = sushi[i];
+    su.x += TUNE.beltSpeed.v * dt;
+    var eaten = false;
+    for (var j = 0; j < 5; j++){
+      var s2 = seats[j];
+      if (!s2.open || !s2.cust) continue;
+      var cu = s2.cust;
+      if (cu.mood !== 0) continue;
+      if (Math.abs(su.x - s2.x) > 30) continue;
+      var oi = cu.order.indexOf(su.kind);
+      if (oi < 0) continue;
+
+      cu.order.splice(oi, 1);
+      var price = NETA[su.kind].price;
+      var ff = cu.pat / cu.max;
+      if (ff > 1) ff = 1;
+      if (ff < 0) ff = 0;
+      var tip = Math.round(price * cu.cfg.tipMul * ff);
+      var gain = price + tip;
+      score += gain;
+      money += gain;
+      stats.sales += gain;
+      stats.served++;
+      repF = Math.min(5, repF + 0.02);
+      Game.score(score);
+      Game.float(s2.x, 186, '+' + gain, '#ffe6a3');
+      burst(s2.x, 320, NETA[su.kind].emoji, 5);
+      s2.flash = 0.28;
+      if (cu.order.length === 0){
+        cu.mood = 1;
+        cu.moodT = 0.9;
+        stats.orders++;
+        repF = Math.min(5, repF + 0.06);
+        Game.float(s2.x, 154, '❤️', '#ff9ec4');
+      }
+      sushi.splice(i, 1);
+      eaten = true;
+      break;
+    }
+    if (eaten) continue;
+
+    /* 1周して誰も取らなかった → 廃棄（損） */
+    if (su.x > 520){
+      sushi.splice(i, 1);
+      stats.wasted++;
+      var wc = Math.round(NETA[su.kind].price * 0.4);
+      stats.wastedYen += wc;
+      money -= wc;
+      burst(462, SUSHI_Y, '🗑️', 3);
+      Game.float(440, SUSHI_Y - 6, '廃棄 -' + wc, '#ff9e9e');
+      continue;
+    }
+  }
+
+  /* パーティクル */
+  for (i = parts.length - 1; i >= 0; i--){
+    var p = parts[i];
+    p.vy += 420 * dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.life -= dt;
+    if (p.life <= 0) parts.splice(i, 1);
+  }
+
+  refreshUnlocks();
+  updateHud();
+}
+
+/* ===== 角丸パス ===== */
+function rr(x, y, w, h, r){
+  if (w < 0) w = 0;
+  if (h < 0) h = 0;
+  if (r > w / 2) r = w / 2;
+  if (r > h / 2) r = h / 2;
+  if (r < 0) r = 0;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
+/* ===== ネタボタン描画 ===== */
+function drawNetaBtn(i){
+  var r = cellRect(i);
+  var nm = NETA[i];
+  var cx = r.x + r.w / 2;
+  var locked = !unlocked[i];
+  var out = (!locked) && stock[i] <= 0;
+  var fl = btnFlash[i];
+
+  ctx.fillStyle = locked ? '#332619' : (fl > 0 ? '#fff2cf' : '#e8c98a');
+  rr(r.x, r.y, r.w, r.h, 12); ctx.fill();
+  if (!locked){
+    ctx.fillStyle = fl > 0 ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.22)';
+    rr(r.x + 4, r.y + 4, r.w - 8, r.h - 8, 9); ctx.fill();
+  }
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = locked ? '#241a11' : '#b99b6a';
+  rr(r.x, r.y, r.w, r.h, 12); ctx.stroke();
+
+  ctx.globalAlpha = locked ? 0.3 : (out ? 0.45 : 1);
+  ctx.font = '30px ' + EFONT;
+  ctx.fillText(nm.emoji, cx, r.y + 26);
+  ctx.globalAlpha = 1;
+
+  ctx.fillStyle = locked ? '#8a7a66' : '#4a2f1c';
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillText(nm.name, cx, r.y + 50);
+
+  if (locked){
+    ctx.fillStyle = '#ffd166';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.fillText('★' + nm.needStar + ' で解放', cx, r.y + 70);
+  } else if (out){
+    ctx.fillStyle = '#c0392b';
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillText('在庫切れ', cx, r.y + 70);
+  } else {
+    ctx.fillStyle = '#7a5a33';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.fillText(nm.price + '円 ×' + stock[i], cx, r.y + 70);
+  }
+}
+
+/* ===== お茶ボタン描画 ===== */
+function drawTeaBtn(){
+  var r = cellRect(7);
+  var cx = r.x + r.w / 2;
+  var ready = teaCd <= 0;
+  var fl = btnFlash[7];
+
+  ctx.fillStyle = ready ? (fl > 0 ? '#d5ffe9' : '#a7e0c0') : '#54655c';
+  rr(r.x, r.y, r.w, r.h, 12); ctx.fill();
+  ctx.fillStyle = ready ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.08)';
+  rr(r.x + 4, r.y + 4, r.w - 8, r.h - 8, 9); ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = ready ? '#5aa07c' : '#3b4a41';
+  rr(r.x, r.y, r.w, r.h, 12); ctx.stroke();
+
+  ctx.font = '30px ' + EFONT;
+  ctx.fillText('🍵', cx, r.y + 26);
+  ctx.fillStyle = ready ? '#0d2b1f' : '#9fb3a8';
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillText('お茶', cx, r.y + 50);
+  ctx.fillStyle = ready ? '#1f5c42' : '#8ea79a';
+  ctx.font = 'bold 13px sans-serif';
+  if (ready) ctx.fillText('待ち時間+' + TUNE.teaBoost.v + '秒', cx, r.y + 70);
+  else ctx.fillText('準備中 ' + teaCd.toFixed(1) + 's', cx, r.y + 70);
+}
+
+/* ===== 描画 ===== */
+function draw(){
+  ctx.fillStyle = bgGrad || '#241a12';
+  ctx.fillRect(0, 0, W, H);
+
+  var ox = 0, oy = 0;
+  if (shake > 0){ ox = (Math.random() * 2 - 1) * 5; oy = (Math.random() * 2 - 1) * 4; }
+
+  ctx.save();
+  ctx.translate(ox, oy);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  /* --- のれん --- */
+  ctx.fillStyle = rushOn ? '#c4402f' : '#8c2f2f';
+  rr(72, 56, 336, 46, 8); ctx.fill();
+  ctx.fillStyle = 'rgba(0,0,0,0.22)';
+  for (var k2 = 1; k2 < 4; k2++) ctx.fillRect(72 + k2 * 84 - 3, 58, 6, 42);
+  ctx.fillStyle = 'rgba(255,255,255,0.10)';
+  ctx.fillRect(72, 56, 336, 4);
+  ctx.beginPath(); ctx.arc(240, 79, 15, 0, Math.PI * 2);
+  ctx.fillStyle = '#f2e9d8'; ctx.fill();
+  ctx.fillStyle = rushOn ? '#c4402f' : '#8c2f2f';
+  ctx.font = 'bold 19px sans-serif';
+  ctx.fillText('寿', 240, 80);
+  ctx.font = '28px ' + EFONT;
+  ctx.fillText('🏮', 40, 84);
+  ctx.fillText('🏮', 440, 84);
+
+  /* --- お客さん --- */
+  for (var i = 0; i < 5; i++){
+    var s = seats[i];
+    if (!s.open) continue;
+    var cx = s.x;
+    var c = s.cust;
+
+    if (!c){
+      ctx.strokeStyle = 'rgba(255,220,170,0.16)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(cx, CUST_Y, 22, 0, Math.PI * 2); ctx.stroke();
+      continue;
+    }
+
+    var cy = CUST_Y;
+    if (c.mood === 1) cy -= Math.abs(Math.sin(c.moodT * 22)) * 12;
+    else if (c.mood === 2) cx += Math.sin(c.moodT * 55) * 5;
+    else cy += Math.sin(elapsed * 3 + c.bob) * 1.5;
+
+    /* 吹き出し */
+    if (c.mood === 0){
+      var n2 = c.order.length;
+      var iw = 28;
+      var bw = n2 * iw + 20;
+      var bx = cx - bw / 2;
+      if (bx < 6) bx = 6;
+      if (bx + bw > 474) bx = 474 - bw;
+      var bmid = bx + bw / 2;
+      var f = c.pat / c.max;
+      if (f > 1) f = 1;
+      if (f < 0) f = 0;
+
+      ctx.fillStyle = f < 0.3 ? '#ffd9d9' : '#fffaf0';
+      rr(bx, BUB_Y, bw, 46, 12); ctx.fill();
+      var tx = cx;
+      if (tx < bx + 16) tx = bx + 16;
+      if (tx > bx + bw - 16) tx = bx + bw - 16;
+      ctx.beginPath();
+      ctx.moveTo(tx - 8, BUB_Y + 43);
+      ctx.lineTo(tx + 8, BUB_Y + 43);
+      ctx.lineTo(tx, BUB_Y + 58);
+      ctx.closePath(); ctx.fill();
+      if (c.type === 'vip'){
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = '#e0b34c';
+        rr(bx, BUB_Y, bw, 46, 12); ctx.stroke();
+      }
+
+      ctx.font = '22px ' + EFONT;
+      for (var q = 0; q < n2; q++){
+        ctx.fillText(NETA[c.order[q]].emoji, bmid + (q - (n2 - 1) / 2) * iw, BUB_Y + 23);
+      }
+
+      /* 待ちゲージ */
+      var gw = 56;
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      rr(cx - gw / 2, GAUGE_Y, gw, 9, 4); ctx.fill();
+      ctx.fillStyle = f > 0.55 ? '#5bd66f' : (f > 0.28 ? '#ffd166' : '#ff5d5d');
+      var fw = (gw - 4) * f;
+      if (fw > 0.6){ rr(cx - gw / 2 + 2, GAUGE_Y + 2, fw, 5, 2.5); ctx.fill(); }
+    }
+
+    if (s.flash > 0){
+      ctx.fillStyle = 'rgba(255,240,180,' + Math.min(0.6, s.flash * 1.6) + ')';
+      ctx.beginPath(); ctx.arc(cx, cy, 38, 0, Math.PI * 2); ctx.fill();
+    }
+
+    if (c.type === 'vip'){
+      ctx.strokeStyle = 'rgba(255,214,102,0.8)';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(cx, cy, 29, 0, Math.PI * 2); ctx.stroke();
+    }
+
+    ctx.font = '50px ' + EFONT;
+    ctx.fillText(c.face, cx, cy);
+
+    if (c.badge){
+      ctx.font = '22px ' + EFONT;
+      ctx.fillText(c.badge, cx + 21, cy - 25);
+    }
+    if (c.type === 'sumo'){
+      ctx.fillStyle = '#ffe6a3';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.fillText('×' + (c.order.length + 0), cx - 22, cy - 26);
+    }
+
+    if (c.mood === 1 && c.moodT > 0.45){
+      ctx.font = '24px ' + EFONT;
+      ctx.fillText('❤️', cx + 22, cy - 26);
+    }
+    if (c.mood === 2){
+      ctx.font = '24px ' + EFONT;
+      ctx.fillText('💢', cx + 24, cy - 26);
+    }
+  }
+
+  /* --- カウンター --- */
+  ctx.fillStyle = '#7a4a26';
+  ctx.fillRect(0, COUNTER_Y, W, 22);
+  ctx.fillStyle = '#a06a38';
+  ctx.fillRect(0, COUNTER_Y, W, 5);
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.fillRect(0, COUNTER_Y + 17, W, 5);
+
+  /* --- ベルトコンベア --- */
+  ctx.fillStyle = rushOn ? '#241a20' : '#191720';
+  ctx.fillRect(0, BELT0, W, BELT1 - BELT0);
+  var seg = 46;
+  var off = beltOff % seg;
+  for (var sx = -seg + off; sx < W + seg; sx += seg){
+    ctx.fillStyle = '#2b2833';
+    ctx.fillRect(sx, BELT0 + 8, seg - 9, BELT1 - BELT0 - 16);
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    ctx.fillRect(sx, BELT0 + 8, seg - 9, 3);
+  }
+  ctx.fillStyle = '#6a6678';
+  ctx.fillRect(0, BELT0, W, 5);
+  ctx.fillRect(0, BELT1 - 5, W, 5);
+  ctx.fillStyle = '#454252';
+  ctx.fillRect(0, BELT0 + 5, W, 3);
+  ctx.fillRect(0, BELT1 - 8, W, 3);
+
+  /* --- 流れる寿司 --- */
+  for (i = 0; i < sushi.length; i++){
+    var su = sushi[i];
+    var px = su.x, py = SUSHI_Y;
+    ctx.beginPath();
+    ctx.ellipse(px, py + 22, 25, 7.5, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#dfe0ec'; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = '#8f93a8'; ctx.stroke();
+    ctx.fillStyle = '#fbf7ee';
+    rr(px - 17, py + 2, 34, 16, 8); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.08)';
+    rr(px - 17, py + 12, 34, 6, 3); ctx.fill();
+    ctx.font = '30px ' + EFONT;
+    ctx.fillText(NETA[su.kind].emoji, px, py - 8);
+  }
+
+  /* --- パーティクル --- */
+  for (i = 0; i < parts.length; i++){
+    var p = parts[i];
+    var a = p.life * 2;
+    if (a > 1) a = 1;
+    if (a < 0) a = 0;
+    ctx.globalAlpha = a;
+    ctx.font = Math.round(p.size) + 'px ' + EFONT;
+    ctx.fillText(p.emoji, p.x, p.y);
+  }
+  ctx.globalAlpha = 1;
+
+  /* --- 手前カウンター --- */
+  ctx.fillStyle = '#5c3a20';
+  ctx.fillRect(0, FRONT0, W, FRONT1 - FRONT0);
+  ctx.fillStyle = '#7d5230';
+  ctx.fillRect(0, FRONT0, W, 6);
+  ctx.fillStyle = 'rgba(0,0,0,0.16)';
+  ctx.fillRect(0, FRONT1 - 5, W, 5);
+  ctx.fillStyle = 'rgba(0,0,0,0.10)';
+  for (var gy = FRONT0 + 14; gy < FRONT1 - 8; gy += 14) ctx.fillRect(0, gy, W, 2);
+
+  ctx.restore();
+
+  /* ===== ここから固定UI（揺れない） ===== */
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  /* --- レジ・ステータスバー --- */
+  ctx.fillStyle = 'rgba(20,12,6,0.88)';
+  rr(14, BAR_Y, 452, BAR_H, 10); ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(232,201,138,0.35)';
+  rr(14, BAR_Y, 452, BAR_H, 10); ctx.stroke();
+
+  ctx.textAlign = 'left';
+  ctx.font = '20px ' + EFONT;
+  ctx.fillText('💰', 26, BAR_Y + BAR_H / 2 + 1);
+  ctx.fillStyle = money < 0 ? '#ff8f8f' : '#ffe6a3';
+  ctx.font = 'bold 19px sans-serif';
+  ctx.fillText(money + '円', 52, BAR_Y + BAR_H / 2 + 1);
+  ctx.textAlign = 'right';
+  if (restockActive){
+    ctx.fillStyle = '#9fd8ff';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.fillText('📦 配送中 ' + restockT.toFixed(1) + 's', 454, BAR_Y + BAR_H / 2 + 1);
+  } else if (rushOn){
+    ctx.fillStyle = '#ffb347';
+    ctx.font = 'bold 18px sans-serif';
+    ctx.fillText('🔥 ラッシュ！', 454, BAR_Y + BAR_H / 2 + 1);
+  } else {
+    ctx.fillStyle = '#c9b79a';
+    ctx.font = '14px sans-serif';
+    ctx.fillText('在庫が切れたら仕入れ！', 454, BAR_Y + BAR_H / 2 + 1);
+  }
+  ctx.textAlign = 'center';
+
+  /* --- ネタ置き場 --- */
+  ctx.fillStyle = '#4a2f1c';
+  rr(6, TRAY0, W - 12, TRAY1 - TRAY0, 14); ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#6d4a2c';
+  rr(6, TRAY0, W - 12, TRAY1 - TRAY0, 14); ctx.stroke();
+
+  for (i = 0; i < NETA.length; i++) drawNetaBtn(i);
+  drawTeaBtn();
+
+  /* --- 仕入れボタン --- */
+  ctx.fillStyle = restockActive ? '#2b3a4a' : '#2f6b4f';
+  rr(RST_X, RST_Y, RST_W, RST_H, 12); ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  rr(RST_X, RST_Y, RST_W, RST_H, 12); ctx.stroke();
+
+  if (restockActive){
+    var pr = 1 - restockT / Math.max(0.001, TUNE.restockTime.v);
+    if (pr < 0) pr = 0;
+    if (pr > 1) pr = 1;
+    ctx.fillStyle = 'rgba(120,200,255,0.28)';
+    rr(RST_X + 3, RST_Y + 3, (RST_W - 6) * pr, RST_H - 6, 9); ctx.fill();
+    ctx.fillStyle = '#dff0ff';
+    ctx.font = 'bold 20px sans-serif';
+    ctx.fillText('📦 配送中… ' + restockT.toFixed(1) + '秒', 240, RST_Y + RST_H / 2 + 1);
+  } else {
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 19px sans-serif';
+    ctx.fillText('📦 仕入れする（-' + TUNE.restockCost.v + '円）', 240, RST_Y + 18);
+    ctx.fillStyle = '#cfe8d8';
+    ctx.font = '13px sans-serif';
+    ctx.fillText(TUNE.restockTime.v + '秒でぜんぶの在庫が+4', 240, RST_Y + 39);
+  }
+
+  /* --- ラッシュバナー --- */
+  if (rushBanner > 0 && !finished){
+    var al = Math.min(1, rushBanner * 1.6);
+    ctx.globalAlpha = al * 0.85;
+    ctx.fillStyle = '#ff8a3d';
+    rr(40, 132, 400, 56, 14); ctx.fill();
+    ctx.globalAlpha = al;
+    ctx.fillStyle = '#3a1400';
+    ctx.font = 'bold 26px sans-serif';
+    ctx.fillText('🔥 ラッシュタイム！', 240, 156);
+    ctx.font = 'bold 14px sans-serif';
+    ctx.fillText('お客さんが一気に来るぞ！', 240, 180);
+    ctx.globalAlpha = 1;
+  }
+
+  /* --- 閉店まとめ --- */
+  if (finished){
+    ctx.fillStyle = 'rgba(10,6,3,0.80)';
+    ctx.fillRect(0, 56, W, H - 56);
+
+    var px2 = 56, py2 = 150, pw = 368, ph = 400;
+    ctx.fillStyle = '#f7ecd8';
+    rr(px2, py2, pw, ph, 18); ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#8c2f2f';
+    rr(px2, py2, pw, ph, 18); ctx.stroke();
+
+    ctx.fillStyle = '#8c2f2f';
+    ctx.font = 'bold 26px sans-serif';
+    ctx.fillText('🏮 本日の営業 終了！', 240, py2 + 46);
+
+    ctx.strokeStyle = 'rgba(140,47,47,0.3)'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(px2 + 30, py2 + 74);
+    ctx.lineTo(px2 + pw - 30, py2 + 74);
+    ctx.stroke();
+
+    var rows = [
+      ['売上', score + '円'],
+      ['廃棄', stats.wasted + '皿（-' + stats.wastedYen + '円）'],
+      ['接客', stats.orders + '組 / クレーム ' + stats.angry + '件'],
+      ['手元のお金', money + '円']
+    ];
+    var ry = py2 + 108;
+    for (var t2 = 0; t2 < rows.length; t2++){
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#8a7357';
+      ctx.font = '16px sans-serif';
+      ctx.fillText(rows[t2][0], px2 + 34, ry);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#3b2418';
+      ctx.font = 'bold 21px sans-serif';
+      ctx.fillText(rows[t2][1], px2 + pw - 34, ry);
+      ry += 46;
+    }
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#8a7357';
+    ctx.font = '16px sans-serif';
+    ctx.fillText('評判', px2 + 34, ry);
+    var stv = Math.floor(repF + 0.0001);
+    for (i = 0; i < 5; i++){
+      ctx.globalAlpha = i < stv ? 1 : 0.22;
+      ctx.font = '24px ' + EFONT;
+      ctx.textAlign = 'center';
+      ctx.fillText('⭐', px2 + pw - 40 - i * 30, ry);
+    }
+    ctx.globalAlpha = 1;
+    ctx.textAlign = 'center';
+
+    ry += 50;
+    ctx.fillStyle = '#a08a6a';
+    ctx.font = '15px sans-serif';
+    ctx.fillText('閉店準備中…', 240, py2 + ph - 26);
+  }
+}
+
+/* ===== 入力 ===== */
+function onDown(x, y){
+  if (finished) return;
+  if (x >= RST_X - 4 && x <= RST_X + RST_W + 4 && y >= RST_Y - 6 && y <= RST_Y + RST_H + 6){
+    orderRestock();
+    return;
+  }
+  for (var i = 0; i < 8; i++){
+    var r = cellRect(i);
+    if (x >= r.x - 3 && x <= r.x + r.w + 3 && y >= r.y - 3 && y <= r.y + r.h + 3){
+      if (i === 7) serveTea();
+      else makeSushi(i);
+      return;
+    }
+  }
+}
+function onMove(x, y){}
+function onUp(x, y){}
+function onResize(){}
+/*__VAPPA_JS_END__*/
+</script>
+</body></html>

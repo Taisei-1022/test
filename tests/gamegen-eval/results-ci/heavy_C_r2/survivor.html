@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
+<title>ゾンビ包囲網サバイバー</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%82%BE%E3%83%B3%E3%83%93%E5%8C%85%E5%9B%B2%E7%B6%B2%E3%82%B5%E3%83%90%E3%82%A4%E3%83%90%E3%83%BC%22%2C%22h%22%3A%22%E7%94%BB%E9%9D%A2%E3%82%92%E3%83%89%E3%83%A9%E3%83%83%E3%82%B0%E3%81%97%E3%81%9F%E6%96%B9%E5%90%91%E3%81%B8%E7%A7%BB%E5%8B%95%EF%BC%88%E6%94%BB%E6%92%83%E3%81%AF%E8%87%AA%E5%8B%95%EF%BC%89%E3%80%82%E3%82%BE%E3%83%B3%E3%83%93%E3%82%92%E5%80%92%E3%81%97%E3%81%A6%F0%9F%92%8E%E3%82%92%E6%8B%BE%E3%81%84%E3%80%81%E3%83%AC%E3%83%99%E3%83%AB%E3%82%A2%E3%83%83%E3%83%97%E3%81%A73%E3%81%A4%E3%81%AE%E5%BC%B7%E5%8C%96%E3%81%8B%E3%82%891%E3%81%A4%E9%81%B8%E3%81%BC%E3%81%86%EF%BC%81%E6%AD%A6%E5%99%A8%E3%81%AF5%E7%A8%AE%E9%A1%9E%E3%80%81%E6%9C%80%E5%A4%A7Lv5%E3%80%821%E5%88%86%E3%81%94%E3%81%A8%E3%81%AE%E3%83%9C%E3%82%B9%E3%82%92%E5%80%92%E3%81%97%E3%81%A6%F0%9F%8E%81%E3%82%92%E6%89%8B%E3%81%AB%E5%85%A5%E3%82%8C%E3%82%8D%EF%BC%81%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
+html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
+#vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+/* vpstage＝論理480x720（2:3）の箱。HUD・オーバーレイ・ゲームDOMを全部この中に入れ、
+   箱ごと実画面へ拡縮する（座標系はゲーム内で常に1つ） */
+#vpstage{position:fixed;left:0;top:0;width:480px;height:720px;transform-origin:0 0;z-index:1;overflow:hidden}
+#vpdom{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
+#vpdom *{pointer-events:auto}
+.vp-hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
+.vp-hud span:empty{display:none}
+.vp-ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
+.vp-ov h1{font-size:28px}
+.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:340px;white-space:pre-line}
+.vp-ov .vp-big{font-size:44px;font-weight:900;color:#ffd166}
+.vp-btn{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:17px;box-shadow:0 5px 0 rgba(0,0,0,.25);touch-action:manipulation}
+.vp-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.vp-toast{position:absolute;top:52px;left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+[hidden]{display:none!important}
+</style>
+<style id="vpcss">
+/*__VAPPA_CSS__*/
+
+/*__VAPPA_CSS_END__*/
+</style>
+</head><body>
+<canvas id="vpc"></canvas>
+<div id="vpstage">
+  <div id="vpdom"></div>
+  <div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
+  <div class="vp-toast" id="vptoast"></div>
+  <div class="vp-ov" id="vpov">
+    <h1>ゾンビ包囲網サバイバー</h1>
+    <p>画面をドラッグした方向へ移動（攻撃は自動）。ゾンビを倒して💎を拾い、レベルアップで3つの強化から1つ選ぼう！武器は5種類、最大Lv5。1分ごとのボスを倒して🎁を手に入れろ！</p>
+    <button class="vp-btn" id="vpstart">スタート</button>
+  </div>
+</div>
+<script id="vpimgs">
+/* ユーザー素材画像 {名前:dataURL}。中身はビルド後にアプリが注入（AIには名前だけ渡る） */
+window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
+</script>
+<script>
+window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
+var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
+// iOS Safari は fillStyle がグラデーション/パターンのオブジェクトのままだと
+// カラー絵文字を fillText できない（何も描かれない）。生成コードは
+// 「背景をグラデで塗る→そのまま絵文字を描く」形を高頻度で書くため、
+// 絵文字を含む fillText の間だけ fillStyle を単色に退避して確実に描く。
+(function(){
+  var _ft=ctx.fillText;
+  function hasEmo(s){
+    for(var i=0;i<s.length;i++){
+      var c=s.charCodeAt(i);
+      if((c>=0x2100&&c<=0x2BFF)||(c>=0xD800&&c<=0xDFFF)||c===0xFE0F)return true;
+    }
+    return false;
+  }
+  ctx.fillText=function(t,x,y,mw){
+    var s=String(t);
+    if(typeof this.fillStyle!=="string"&&hasEmo(s)){
+      var f=this.fillStyle;this.fillStyle="#000";
+      try{mw===undefined?_ft.call(this,s,x,y):_ft.call(this,s,x,y,mw);}
+      finally{this.fillStyle=f;}
+    }else{
+      mw===undefined?_ft.call(this,s,x,y):_ft.call(this,s,x,y,mw);
+    }
+  };
+})();
+// 論理画面は 480x720（2:3）固定。全端末でこのサイズとして描き、ランタイムが
+// vpstage（HUD・オーバーレイ・ゲームDOMを含む箱）ごと実画面へ拡縮する。
+// ゲームコードは端末差を一切考えなくてよい（入力座標も論理系で届く）。
+var W=480,H=720;
+var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
+(function(){
+"use strict";
+var DPR=Math.min(2,window.devicePixelRatio||1);
+function rs(){
+  var vw=window.innerWidth,vh=window.innerHeight;
+  __SC=Math.min(vw/W,vh/H);
+  __OX=(vw-W*__SC)/2;__OY=(vh-H*__SC)/2;
+  cv.width=vw*DPR;cv.height=vh*DPR;
+  ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
+  ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
+  var st=document.getElementById("vpstage");
+  if(st){st.style.transform="scale("+__SC+")";st.style.left=__OX+"px";st.style.top=__OY+"px";}
+  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
+}
+window.addEventListener("resize",rs);rs();
+// 実画面座標→論理座標（タッチ入力用）
+function toLX(x){return (x-__OX)/__SC;}
+function toLY(y){return (y-__OY)/__SC;}
+var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="点";
+// ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
+var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
+var hud=document.getElementById("vphud"),hl=document.getElementById("vphl"),hr=document.getElementById("vphr");
+var ov=document.getElementById("vpov"),toastEl=document.getElementById("vptoast"),tt=null,last=performance.now();
+window.Game={
+  img:function(n){return IMGS[n]||null;},
+  score:function(n){hl.textContent=(n|0)+unit;},
+  hud:function(t){hr.textContent=t==null?"":String(t);},
+  float:function(x,y,t,c){floats.push({x:x,y:y,t:String(t),c:c||"#fff",age:0});},
+  toast:function(t){toastEl.textContent=t;toastEl.style.opacity=1;clearTimeout(tt);tt=setTimeout(function(){toastEl.style.opacity=0;},2000);},
+  over:function(s){
+    if(!playing||ended)return;ended=true;playing=false;s=Math.max(0,Math.floor(Number(s)||0));
+    ov.innerHTML='<h1>おわり！</h1><div class="vp-big">'+s+'<small style="font-size:20px">'+unit+'</small></div><button class="vp-btn" id="vpagain">もういちど</button>';
+    ov.hidden=false;
+    document.getElementById("vpagain").addEventListener("click",start);
+    try{window.Arcade.gameOver(s);}catch(e){}
+  }
+};
+function crash(e){
+  if(crashed)return;crashed=true;playing=false;
+  try{window.__VP_ERR=String(e&&(e.stack||e.message)||e).slice(0,600);}catch(x){}
+  ov.innerHTML='<h1>😢 エラーが発生</h1><p>ゲームにエラーが起きました。<br>作成チャットで「エラーを直して」と伝えると修理できるよ。</p><button class="vp-btn" id="vpagain">もういちど</button>';
+  ov.hidden=false;
+  document.getElementById("vpagain").addEventListener("click",start);
+}
+function start(){
+  floats=[];ended=false;crashed=false;
+  try{window.init();}catch(e){crash(e);return;}
+  window.Game.score(0);ov.hidden=true;hud.hidden=false;playing=true;last=performance.now();
+}
+document.getElementById("vpstart").addEventListener("click",start);
+function fire(fn,x,y,id){
+  if(!playing||paused)return;
+  if(typeof window[fn]==="function"){try{window[fn](x,y,id);}catch(err){crash(err);}}
+}
+// pointer と touch を両対応（iOSのiframe内などpointerが飛ばない環境へのフォールバック）。
+// pointerが一度でも来たらtouchは無視して二重発火を防ぐ。
+var seenPointer=false;
+window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",toLX(e.clientX),toLY(e.clientY),e.pointerId);fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointermove",function(e){fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointerup",function(e){fire("onUp",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+// タッチの扱い（iOS対策の要点）：
+//  - touchstart は preventDefault しない
+//  - touchmove は非passiveで preventDefault → パン/スクロール横取りはこれで止まる
+//  - touchend はボタン類「以外」でだけ preventDefault → iOSのダブルタップズーム
+//    （touch-action:noneでは止まらない端末がある）を殺しつつ、ボタンの click 合成は守る
+//  - preventDefault すると iOS は click を合成しない → 生成コードが div/span で
+//    自作ボタンを作った場合に全操作不能になる。そこで「タップ」（移動が小さく
+//    短いタッチ）に限り、こちらで click を合成して補う。本物の button 等は
+//    preventDefault しない＝ネイティブ click が来るので合成しない（二重防止）
+//  - pointerイベントが来る環境では発火だけ二重防止（seenPointer）
+function tfire(fn,e){
+  if(seenPointer)return;
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,toLX(t.clientX),toLY(t.clientY),t.identifier);
+    if(fn==="onDown")fire("onMove",toLX(t.clientX),toLY(t.clientY),t.identifier);}
+}
+function uiTouch(e){var t=e.target;return !!(t&&t.closest&&t.closest("button,a,input,select,label"));}
+var tstart={};
+window.addEventListener("touchstart",function(e){
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];tstart[t.identifier]={x:t.clientX,y:t.clientY,at:Date.now()};}
+  tfire("onDown",e);
+},{passive:true});
+window.addEventListener("touchmove",function(e){if(e.cancelable)e.preventDefault();tfire("onMove",e);},{passive:false});
+window.addEventListener("touchend",function(e){
+  var prevented=false;
+  if(e.cancelable&&!uiTouch(e)){e.preventDefault();prevented=true;}
+  if(prevented){
+    for(var i=0;i<e.changedTouches.length;i++){
+      var t=e.changedTouches[i],s=tstart[t.identifier];
+      if(s&&Math.abs(t.clientX-s.x)<14&&Math.abs(t.clientY-s.y)<14&&Date.now()-s.at<1500){
+        var el=document.elementFromPoint(t.clientX,t.clientY)||e.target;
+        if(el){try{el.dispatchEvent(new MouseEvent("click",{bubbles:true,cancelable:true,view:window,clientX:t.clientX,clientY:t.clientY}));}catch(err){}}
+      }
+    }
+  }
+  for(var j=0;j<e.changedTouches.length;j++)delete tstart[e.changedTouches[j].identifier];
+  tfire("onUp",e);
+},{passive:false});
+document.addEventListener("gesturestart",function(e){e.preventDefault();});
+window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",toLX(e.clientX),toLY(e.clientY),0);});
+window.Arcade.onPause(function(){paused=true;});
+window.Arcade.onResume(function(){paused=false;last=performance.now();});
+window.Arcade.onRestart(start);
+document.addEventListener("visibilitychange",function(){if(document.hidden){paused=true;}else{paused=false;last=performance.now();}});
+function loop(now){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(now-last)/1000);last=now;
+  if(crashed)return;
+  if(playing&&!paused){try{window.update(dt);}catch(e){crash(e);return;}}
+  if(playing||ended){try{window.draw();}catch(e){crash(e);return;}}
+  for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.age+=dt;
+    if(f.age>1){floats.splice(i,1);continue;}
+    ctx.save();ctx.globalAlpha=Math.max(0,1-f.age);ctx.font="bold 16px sans-serif";ctx.textAlign="center";
+    ctx.fillStyle=f.c;ctx.fillText(f.t,f.x,f.y-f.age*30);ctx.restore();}
+}
+requestAnimationFrame(loop);
+window.Arcade.ready();
+// 自動テストプレイ用フック：親(アプリ)がスモークテストで入力を一発流すのに使う
+window.__vpTap=function(){
+  fire("onDown",W/2,H/2,1);fire("onMove",W/2+40,H/2,1);fire("onUp",W/2+40,H/2,1);
+};
+})();
+</script>
+<script id="vpgame">
+/*__VAPPA_JS__*/
+var TUNE = {
+  moveSpeed:  { v: 180, label: '移動速度',         min: 90,   max: 320, step: 5 },
+  spawnRate:  { v: 1.0, label: '出現ペース(毎秒)',  min: 0.3,  max: 3,   step: 0.1 },
+  zSpeed:     { v: 42,  label: 'ゾンビの速さ',      min: 20,   max: 110, step: 2 },
+  hpScale:    { v: 1.0, label: '硬さ上昇(25秒毎)',  min: 0,    max: 4,   step: 0.1 },
+  dmg:        { v: 8,   label: '被ダメージ',        min: 2,    max: 25,  step: 1 },
+  fireRate:   { v: 0.55,label: '攻撃間隔',          min: 0.15, max: 1.5, step: 0.05 },
+  magnet:     { v: 95,  label: '宝石の吸引距離',    min: 30,   max: 260, step: 5 },
+  maxEnemies: { v: 80,  label: '敵の最大数',        min: 20,   max: 150, step: 5 }
+};
+
+var FIELD = { x: 0, y: 56, w: 480, h: 656 };
+var FIRE_BASE = 0.55;
+
+/* 武器テーブル（5種類・最大Lv5） */
+var WEAPONS = {
+  knife:  { name: 'ナイフ',     emoji: '🔪', desc: '前方に投げる' },
+  holy:   { name: '聖水',       emoji: '🔥', desc: '足元に炎' },
+  boomer: { name: 'ブーメラン', emoji: '🪃', desc: '投げて戻る' },
+  bolt:   { name: '雷',         emoji: '⚡', desc: '敵に落ちる' },
+  aura:   { name: 'オーラ',     emoji: '🌀', desc: '周囲にダメージ' }
+};
+var WKEYS = ['knife', 'holy', 'boomer', 'bolt', 'aura'];
+var MAXWLV = 5;
+
+/* 敵の種類テーブル */
+var ENEMY_TYPES = [
+  { key: 'zombie', emoji: '🧟',    hp: 4,  speed: 1.00, dmgMul: 1.0, r: 16, exp: 1, weight: 10, minTime: 0,  drop: 'gem' },
+  { key: 'runner', emoji: '🧟‍♀️', hp: 3,  speed: 1.85, dmgMul: 0.8, r: 14, exp: 1, weight: 5,  minTime: 14, drop: 'gem' },
+  { key: 'fat',    emoji: '🧟‍♂️', hp: 15, speed: 0.60, dmgMul: 1.5, r: 23, exp: 2, weight: 3,  minTime: 26, drop: 'gem' },
+  { key: 'poison', emoji: '🤢',    hp: 6,  speed: 0.95, dmgMul: 1.0, r: 17, exp: 2, weight: 3,  minTime: 40, drop: 'gem' }
+];
+var BOSS_TYPE = { key: 'boss', emoji: '🧟', hp: 130, speed: 0.55, dmgMul: 1.8, r: 40, exp: 0, weight: 0, minTime: 0, drop: 'chest' };
+
+var DROPS = { gem: { emoji: '💎', r: 10 } };
+
+var TOWN = [];
+var player, enemies, bullets, booms, flames, bolts, puddles, gems, pickups, parts, weapons;
+var joy, elapsed, kills, score, spawnT, bossT, itemT, shake, hurtFx, eid, lastHud, lastScore, gameEnded;
+var choosing, choices, choiceWrap, pendingLevels, magnetT, curFont;
+
+/* ---------- 初期化 ---------- */
+function init(){
+  player = { x: W / 2, y: FIELD.y + FIELD.h / 2, r: 15, hp: 100, maxHp: 100, inv: 0, hurt: 0, lv: 1, exp: 0, need: 5, spdMul: 1 };
+  enemies = [];
+  bullets = [];
+  booms = [];
+  flames = [];
+  bolts = [];
+  puddles = [];
+  gems = [];
+  pickups = [];
+  parts = [];
+  weapons = [{ key: 'knife', lv: 1, cd: 0.25 }];
+  joy = { id: null, bx: 0, by: 0, x: 0, y: 0 };
+  elapsed = 0; kills = 0; score = 0;
+  spawnT = 0.7; bossT = 60; itemT = 11;
+  shake = 0; hurtFx = 0; eid = 1;
+  lastHud = ''; lastScore = -1; gameEnded = false;
+  choosing = false; choices = null; choiceWrap = null; pendingLevels = 0; magnetT = 0; curFont = '';
+  var box = document.getElementById('vpdom');
+  if (box) box.innerHTML = '';
+  makeTown();
+  Game.score(0);
+  hudUpdate();
+}
+
+/* 夜の街のブロック配置（毎回同じ街） */
+function makeTown(){
+  TOWN = [];
+  var seed = 987654321;
+  var i, j, cw = 96, ch = 94;
+  for (j = 0; j < 8; j++){
+    for (i = 0; i < 5; i++){
+      seed = (seed * 16807) % 2147483647; var r1 = seed / 2147483647;
+      seed = (seed * 16807) % 2147483647; var r2 = seed / 2147483647;
+      seed = (seed * 16807) % 2147483647; var r3 = seed / 2147483647;
+      if (r1 < 0.16) continue;
+      TOWN.push({
+        x: i * cw + 10 + r2 * 6,
+        y: FIELD.y + j * ch + 10 + r3 * 6,
+        w: cw - 20 - r2 * 10,
+        h: ch - 20 - r3 * 10,
+        c: r1
+      });
+    }
+  }
+}
+
+/* ---------- 武器ヘルパ ---------- */
+function getWeapon(k){
+  for (var i = 0; i < weapons.length; i++){ if (weapons[i].key === k) return weapons[i]; }
+  return null;
+}
+function hasWeapon(k){ return getWeapon(k) !== null; }
+
+function wStat(w){
+  var lv = w.lv;
+  if (w.key === 'knife'){
+    return { cd: Math.max(0.18, 0.70 * Math.pow(0.90, lv - 1)), dmg: 3 + lv * 1.8, count: 1 + Math.floor((lv - 1) / 2), pierce: Math.floor(lv / 3) };
+  }
+  if (w.key === 'holy'){
+    return { cd: Math.max(0.70, 2.60 * Math.pow(0.87, lv - 1)), dmg: 6 + lv * 3.5, r: 30 + lv * 8, life: 2.0 + lv * 0.5 };
+  }
+  if (w.key === 'boomer'){
+    return { cd: Math.max(0.50, 1.80 * Math.pow(0.90, lv - 1)), dmg: 5 + lv * 2.4, count: 1 + Math.floor((lv - 1) / 2), range: 140 + lv * 26, spd: 300 + lv * 24 };
+  }
+  if (w.key === 'bolt'){
+    return { cd: Math.max(0.35, 1.80 * Math.pow(0.86, lv - 1)), dmg: 8 + lv * 4, count: 1 + Math.floor(lv / 2) };
+  }
+  if (w.key === 'aura'){
+    return { rad: 50 + lv * 12, dps: 4 + lv * 3.2 };
+  }
+  return { cd: 1, dmg: 1 };
+}
+
+/* ---------- エフェクト ---------- */
+function burst(x, y, n, color){
+  for (var i = 0; i < n; i++){
+    var a = Math.random() * 6.283, s = 40 + Math.random() * 170;
+    parts.push({ x: x, y: y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.3 + Math.random() * 0.4, max: 0.7, c: color, r: 2 + Math.random() * 2.6 });
+  }
+  if (parts.length > 240) parts.splice(0, parts.length - 240);
+}
+
+function setFont(size){
+  var f = size + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  if (f !== curFont){ curFont = f; ctx.font = f; }
+}
+
+/* ---------- 入力（バーチャルスティック） ---------- */
+function onDown(x, y, id){
+  if (gameEnded || choosing) return;
+  if (joy.id === null){
+    joy.id = id;
+    joy.bx = x;
+    joy.by = Math.max(90, y);
+    joy.x = x;
+    joy.y = joy.by;
+  }
+}
+function onMove(x, y, id){
+  if (choosing) return;
+  if (id === joy.id){ joy.x = x; joy.y = y; }
+}
+function onUp(x, y, id){
+  if (id === joy.id) joy.id = null;
+}
+
+/* ---------- レベルアップ強化の選択 ---------- */
+function makeChoices(){
+  var pool = [], i, j, t;
+  for (i = 0; i < weapons.length; i++){
+    if (weapons[i].lv < MAXWLV) pool.push({ kind: 'up', key: weapons[i].key });
+  }
+  if (weapons.length < WKEYS.length){
+    for (i = 0; i < WKEYS.length; i++){
+      if (!hasWeapon(WKEYS[i])) pool.push({ kind: 'new', key: WKEYS[i] });
+    }
+  }
+  pool.push({ kind: 'speed' });
+  pool.push({ kind: 'heal' });
+  for (i = pool.length - 1; i > 0; i--){
+    j = Math.floor(Math.random() * (i + 1));
+    t = pool[i]; pool[i] = pool[j]; pool[j] = t;
+  }
+  var out = pool.slice(0, 3);
+  while (out.length < 3) out.push({ kind: 'heal' });
+  for (i = 0; i < out.length; i++) out[i].label = choiceLabel(out[i]);
+  return out;
+}
+
+function choiceLabel(c){
+  if (c.kind === 'new'){
+    var d = WEAPONS[c.key];
+    return '➕ ' + d.emoji + ' ' + d.name + ' を追加（' + d.desc + '）';
+  }
+  if (c.kind === 'up'){
+    var w = getWeapon(c.key);
+    var d2 = WEAPONS[c.key];
+    var lv = w ? w.lv : 1;
+    return '⬆ ' + d2.emoji + ' ' + d2.name + ' Lv' + lv + ' → Lv' + (lv + 1);
+  }
+  if (c.kind === 'speed') return '👟 移動速度アップ (+12%)';
+  return '❤️ HP回復 (+35)';
+}
+
+function startChoice(){
+  pendingLevels--;
+  if (pendingLevels < 0) pendingLevels = 0;
+  choosing = true;
+  joy.id = null;
+  choices = makeChoices();
+  var box = document.getElementById('vpdom');
+  if (!box) return;
+  box.innerHTML = '';
+  var wrap = document.createElement('div');
+  wrap.style.cssText = 'position:absolute;left:40px;top:186px;width:400px;z-index:3;';
+  var t = document.createElement('div');
+  t.textContent = 'レベルアップ！ 強化をえらぼう';
+  t.style.cssText = 'color:#ffe066;font-size:20px;font-weight:bold;text-align:center;margin-bottom:16px;text-shadow:0 2px 8px #000;';
+  wrap.appendChild(t);
+  for (var i = 0; i < choices.length; i++){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = choices[i].label;
+    b.setAttribute('data-idx', String(i));
+    b.style.cssText = 'display:block;width:400px;height:94px;margin-bottom:16px;border-radius:18px;border:2px solid #6ea8ff;background:linear-gradient(#1c2748,#0e1526);color:#eaf2ff;font-size:18px;font-weight:bold;padding:6px;';
+    b.addEventListener('click', onChoiceClick);
+    wrap.appendChild(b);
+  }
+  box.appendChild(wrap);
+  choiceWrap = wrap;
+}
+
+function onChoiceClick(ev){
+  var el = ev.currentTarget;
+  var idx = parseInt(el.getAttribute('data-idx'), 10);
+  pickChoice(idx);
+}
+
+function pickChoice(idx){
+  if (!choosing || !choices) return;
+  var c = choices[idx];
+  if (!c) return;
+  applyChoice(c);
+  choosing = false;
+  choices = null;
+  choiceWrap = null;
+  var box = document.getElementById('vpdom');
+  if (box) box.innerHTML = '';
+  hudUpdate();
+}
+
+function applyChoice(c){
+  if (c.kind === 'new'){
+    weapons.push({ key: c.key, lv: 1, cd: 0.2 });
+    Game.toast(WEAPONS[c.key].emoji + ' ' + WEAPONS[c.key].name + ' を手に入れた！');
+  } else if (c.kind === 'up'){
+    var w = getWeapon(c.key);
+    if (w && w.lv < MAXWLV){
+      w.lv++;
+      Game.toast(WEAPONS[c.key].name + ' Lv' + w.lv + '！');
+    }
+  } else if (c.kind === 'speed'){
+    player.spdMul = Math.min(2.2, player.spdMul + 0.12);
+    Game.toast('移動速度アップ！');
+  } else if (c.kind === 'heal'){
+    player.hp = Math.min(player.maxHp, player.hp + 35);
+    Game.float(player.x, player.y - 34, '+35', '#7ee081');
+  }
+  burst(player.x, player.y, 18, '#ffe066');
+}
+
+/* ---------- 敵の生成 ---------- */
+function pickEnemyType(){
+  var pool = [];
+  var total = 0;
+  for (var i = 0; i < ENEMY_TYPES.length; i++){
+    var t = ENEMY_TYPES[i];
+    if (elapsed < t.minTime) continue;
+    pool.push(t); total += t.weight;
+  }
+  if (!pool.length) return ENEMY_TYPES[0];
+  var r = Math.random() * total;
+  for (var k = 0; k < pool.length; k++){
+    r -= pool[k].weight;
+    if (r <= 0) return pool[k];
+  }
+  return pool[pool.length - 1];
+}
+
+function spawnEnemy(){
+  if (enemies.length >= TUNE.maxEnemies.v) return;
+  var t = pickEnemyType();
+  var side = Math.floor(Math.random() * 4);
+  var m = 26, x, y;
+  if (side === 0){ x = FIELD.x - m; y = FIELD.y + Math.random() * FIELD.h; }
+  else if (side === 1){ x = FIELD.x + FIELD.w + m; y = FIELD.y + Math.random() * FIELD.h; }
+  else if (side === 2){ x = FIELD.x + Math.random() * FIELD.w; y = FIELD.y + 2; }
+  else { x = FIELD.x + Math.random() * FIELD.w; y = FIELD.y + FIELD.h + m; }
+  var bonus = Math.floor((elapsed / 25) * TUNE.hpScale.v);
+  var hp = t.hp + bonus;
+  var spMul = Math.min(1.9, 1 + elapsed / 150);
+  enemies.push({
+    id: eid++, type: t, x: x, y: y, r: t.r, hp: hp, maxHp: hp,
+    speed: TUNE.zSpeed.v * t.speed * spMul * (0.9 + Math.random() * 0.2),
+    dmg: TUNE.dmg.v * t.dmgMul, cd: 0, flash: 0, wob: Math.random() * 6.283, boss: false
+  });
+}
+
+function spawnBoss(){
+  var hp = Math.round(BOSS_TYPE.hp + elapsed * 1.3);
+  enemies.push({
+    id: eid++, type: BOSS_TYPE, x: FIELD.x + FIELD.w / 2, y: FIELD.y - 40, r: BOSS_TYPE.r,
+    hp: hp, maxHp: hp, speed: TUNE.zSpeed.v * BOSS_TYPE.speed, dmg: TUNE.dmg.v * BOSS_TYPE.dmgMul,
+    cd: 0, flash: 0, wob: Math.random() * 6.283, boss: true
+  });
+  shake = 0.5;
+}
+
+function nearestEnemies(n, range){
+  var cands = [], i, e, dx, dy, d2, r2 = range * range;
+  for (i = 0; i < enemies.length; i++){
+    e = enemies[i];
+    dx = e.x - player.x; dy = e.y - player.y; d2 = dx * dx + dy * dy;
+    if (d2 < r2) cands.push({ e: e, d2: d2 });
+  }
+  cands.sort(function(a, b){ return a.d2 - b.d2; });
+  if (cands.length > n) cands.length = n;
+  return cands;
+}
+
+/* ---------- ダメージ・死亡 ---------- */
+function hitPlayer(dmg, e){
+  if (gameEnded) return;
+  player.hp -= dmg;
+  player.inv = 0.7;
+  player.hurt = 0.55;
+  hurtFx = 1;
+  shake = 0.35;
+  if (e){
+    var a = Math.atan2(player.y - e.y, player.x - e.x);
+    e.x -= Math.cos(a) * 16;
+    e.y -= Math.sin(a) * 16;
+  }
+  burst(player.x, player.y, 9, '#ff5566');
+  Game.float(player.x, player.y - 28, '-' + Math.round(dmg), '#ff6b6b');
+  if (player.hp <= 0){ player.hp = 0; endGame(); }
+}
+
+function damageTick(amount){
+  if (gameEnded) return;
+  player.hp -= amount;
+  player.hurt = Math.max(player.hurt, 0.22);
+  hurtFx = Math.max(hurtFx, 0.4);
+  if (player.hp <= 0){ player.hp = 0; endGame(); }
+}
+
+function dropGem(x, y, exp){
+  gems.push({ x: x, y: y, vx: (Math.random() - 0.5) * 70, vy: (Math.random() - 0.5) * 70, exp: exp, r: 10, drop: 'gem', life: 22, t: 0 });
+}
+
+function killEnemy(j){
+  var e = enemies[j];
+  enemies.splice(j, 1);
+  kills++;
+  burst(e.x, e.y, 9, '#7ee081');
+  burst(e.x, e.y, 4, '#c98bff');
+  if (e.type.key === 'poison'){
+    puddles.push({ x: e.x, y: e.y, r: 36, life: 7, max: 7, t: 0 });
+  }
+  if (e.type.drop === 'chest'){
+    pickups.push({ x: e.x, y: e.y, kind: 'chest', r: 16, life: 45, t: 0 });
+    for (var k = 0; k < 4; k++) dropGem(e.x + (Math.random() - 0.5) * 54, e.y + (Math.random() - 0.5) * 54, 2);
+    shake = 0.45;
+    Game.float(e.x, e.y - 44, 'ボス撃破！🎁', '#ffd166');
+  } else {
+    dropGem(e.x, e.y, e.type.exp);
+  }
+}
+
+function gainExp(v){
+  player.exp += v;
+  var guard = 0;
+  while (player.exp >= player.need && guard < 40){
+    guard++;
+    player.exp -= player.need;
+    player.lv++;
+    player.need = Math.floor(4 + player.lv * 2.6);
+    pendingLevels++;
+  }
+}
+
+function endGame(){
+  if (gameEnded) return;
+  gameEnded = true;
+  choosing = false;
+  var box = document.getElementById('vpdom');
+  if (box) box.innerHTML = '';
+  burst(player.x, player.y, 30, '#ff4455');
+  shake = 0.6;
+  score = Math.floor(elapsed * 10) + kills;
+  Game.score(score);
+  Game.over(score);
+}
+
+/* ---------- 武器の発動 ---------- */
+function tryKnife(st){
+  var cands = nearestEnemies(st.count, 420);
+  if (!cands.length) return false;
+  for (var i = 0; i < cands.length; i++){
+    var tg = cands[i].e;
+    var ax = tg.x - player.x, ay = tg.y - player.y;
+    var ad = Math.sqrt(ax * ax + ay * ay) || 1;
+    var sp = 440;
+    bullets.push({ x: player.x, y: player.y - 6, vx: ax / ad * sp, vy: ay / ad * sp, r: 7, dmg: st.dmg, pierce: st.pierce, life: 1.5, hits: [] });
+  }
+  burst(player.x, player.y - 6, 3, '#8ef0ff');
+  return true;
+}
+
+function tryHoly(st){
+  if (!enemies.length) return false;
+  var a = Math.random() * 6.283, d = 10 + Math.random() * 30;
+  flames.push({ x: player.x + Math.cos(a) * d, y: player.y + Math.sin(a) * d, r: st.r, life: st.life, max: st.life, dps: st.dmg, t: 0 });
+  return true;
+}
+
+function tryBoomer(st){
+  var cands = nearestEnemies(st.count, 460);
+  if (!cands.length) return false;
+  for (var i = 0; i < cands.length; i++){
+    var tg = cands[i].e;
+    var ang = Math.atan2(tg.y - player.y, tg.x - player.x);
+    booms.push({ x: player.x, y: player.y, ang: ang, dist: 0, maxD: st.range, spd: st.spd, dmg: st.dmg, r: 11, spin: 0, hits: [], back: false });
+  }
+  return true;
+}
+
+function tryBolt(st){
+  if (!enemies.length) return false;
+  var n = Math.min(st.count, enemies.length);
+  for (var i = 0; i < n; i++){
+    var idx = Math.floor(Math.random() * enemies.length);
+    var en = enemies[idx];
+    if (!en) continue;
+    en.hp -= st.dmg;
+    en.flash = 0.14;
+    bolts.push({ x: en.x, y: en.y, life: 0.28, max: 0.28 });
+    burst(en.x, en.y, 6, '#fff4a0');
+    if (en.hp <= 0) killEnemy(idx);
+  }
+  return true;
+}
+
+function auraTick(w, dt){
+  var st = wStat(w);
+  for (var j = enemies.length - 1; j >= 0; j--){
+    var e = enemies[j];
+    var dx = e.x - player.x, dy = e.y - player.y;
+    var rr = st.rad + e.r;
+    if (dx * dx + dy * dy < rr * rr){
+      e.hp -= st.dps * dt;
+      e.flash = Math.max(e.flash, 0.05);
+      if (Math.random() < 0.12) burst(e.x, e.y, 1, '#c98bff');
+      if (e.hp <= 0) killEnemy(j);
+    }
+  }
+}
+
+function updateWeapons(dt){
+  var fmul = TUNE.fireRate.v / FIRE_BASE;
+  for (var i = 0; i < weapons.length; i++){
+    var w = weapons[i];
+    w.cd -= dt;
+    if (w.key === 'aura'){ auraTick(w, dt); continue; }
+    if (w.cd > 0) continue;
+    var st = wStat(w);
+    var ok = false;
+    if (w.key === 'knife') ok = tryKnife(st);
+    else if (w.key === 'holy') ok = tryHoly(st);
+    else if (w.key === 'boomer') ok = tryBoomer(st);
+    else if (w.key === 'bolt') ok = tryBolt(st);
+    w.cd = ok ? st.cd * fmul : 0.12;
+  }
+}
+
+/* ---------- 拾い物 ---------- */
+function takePickup(pk){
+  if (pk.kind === 'meat'){
+    player.hp = Math.min(player.maxHp, player.hp + 30);
+    Game.float(player.x, player.y - 34, '+30 HP', '#7ee081');
+    burst(pk.x, pk.y, 8, '#ff9a9a');
+  } else if (pk.kind === 'magnet'){
+    magnetT = 1.2;
+    Game.toast('🧲 宝石を全回収！');
+    burst(pk.x, pk.y, 12, '#8ef0ff');
+  } else if (pk.kind === 'chest'){
+    var pool = [];
+    for (var i = 0; i < weapons.length; i++){ if (weapons[i].lv < MAXWLV) pool.push(weapons[i]); }
+    if (pool.length){
+      var w = pool[Math.floor(Math.random() * pool.length)];
+      w.lv++;
+      Game.toast('🎁 ' + WEAPONS[w.key].name + ' が Lv' + w.lv + ' に強化！');
+    } else {
+      player.hp = Math.min(player.maxHp, player.hp + 40);
+      Game.toast('🎁 全武器MAX！HP回復');
+    }
+    burst(pk.x, pk.y, 20, '#ffe066');
+  }
+}
+
+/* ---------- HUD ---------- */
+function hudUpdate(){
+  var s = '❤️' + Math.max(0, Math.ceil(player.hp)) + ' ⏱' + Math.floor(elapsed) + ' Lv' + player.lv;
+  if (s !== lastHud){ lastHud = s; Game.hud(s); }
+}
+
+/* ---------- 更新 ---------- */
+function update(dt){
+  if (gameEnded) return;
+  if (choosing) return;
+  if (pendingLevels > 0){ startChoice(); return; }
+
+  elapsed += dt;
+
+  /* 移動 */
+  var mx = 0, my = 0;
+  if (joy.id !== null){
+    var dx = joy.x - joy.bx, dy = joy.y - joy.by;
+    var d = Math.sqrt(dx * dx + dy * dy);
+    var maxD = 52;
+    if (d > maxD){
+      var k = (d - maxD) / d;
+      joy.bx += dx * k; joy.by += dy * k;
+      dx = joy.x - joy.bx; dy = joy.y - joy.by; d = maxD;
+    }
+    if (d > 6){
+      var mag = Math.min(1, d / maxD);
+      mx = dx / d * mag; my = dy / d * mag;
+    }
+  }
+  var spd = TUNE.moveSpeed.v * player.spdMul;
+  player.x += mx * spd * dt;
+  player.y += my * spd * dt;
+  if (player.x < FIELD.x + player.r) player.x = FIELD.x + player.r;
+  if (player.x > FIELD.x + FIELD.w - player.r) player.x = FIELD.x + FIELD.w - player.r;
+  if (player.y < FIELD.y + player.r) player.y = FIELD.y + player.r;
+  if (player.y > FIELD.y + FIELD.h - player.r) player.y = FIELD.y + FIELD.h - player.r;
+
+  if (player.inv > 0) player.inv -= dt;
+  if (player.hurt > 0) player.hurt -= dt;
+  if (shake > 0) shake -= dt;
+  if (hurtFx > 0) hurtFx = Math.max(0, hurtFx - dt * 1.7);
+  if (magnetT > 0) magnetT -= dt;
+
+  /* ボス出現（1分ごと） */
+  bossT -= dt;
+  if (bossT <= 0){
+    bossT = 60;
+    spawnBoss();
+    Game.toast('👹 ボスゾンビ出現！');
+  }
+
+  /* アイテム出現（肉・磁石） */
+  itemT -= dt;
+  if (itemT <= 0){
+    itemT = 9 + Math.random() * 7;
+    var kind = Math.random() < 0.62 ? 'meat' : 'magnet';
+    pickups.push({
+      x: FIELD.x + 34 + Math.random() * (FIELD.w - 68),
+      y: FIELD.y + 34 + Math.random() * (FIELD.h - 68),
+      kind: kind, r: 14, life: 16, t: 0
+    });
+  }
+
+  /* 敵出現 */
+  var rate = TUNE.spawnRate.v * (1 + elapsed / 45);
+  spawnT -= dt;
+  if (spawnT <= 0){
+    spawnT = 1 / Math.min(rate, 8);
+    spawnEnemy();
+    if (elapsed > 40 && Math.random() < 0.35) spawnEnemy();
+  }
+
+  /* 敵の移動 */
+  var i, j, e, ddx, ddy, dd, ux, uy;
+  for (i = 0; i < enemies.length; i++){
+    e = enemies[i];
+    ddx = player.x - e.x; ddy = player.y - e.y;
+    dd = Math.sqrt(ddx * ddx + ddy * ddy) || 1;
+    ux = ddx / dd; uy = ddy / dd;
+    var wob = Math.sin(elapsed * 3 + e.wob) * 0.28;
+    e.x += (ux - uy * wob) * e.speed * dt;
+    e.y += (uy + ux * wob) * e.speed * dt;
+    if (e.cd > 0) e.cd -= dt;
+    if (e.flash > 0) e.flash -= dt;
+  }
+  /* 軽い押し合い（重なり防止） */
+  for (i = 0; i < enemies.length; i++){
+    var a = enemies[i];
+    var lim = Math.min(enemies.length, i + 7);
+    for (j = i + 1; j < lim; j++){
+      var b = enemies[j];
+      ddx = b.x - a.x; ddy = b.y - a.y;
+      var d2 = ddx * ddx + ddy * ddy;
+      var mr = a.r + b.r - 8;
+      if (d2 > 0.01 && d2 < mr * mr){
+        dd = Math.sqrt(d2);
+        var push = (mr - dd) * 0.5;
+        ux = ddx / dd; uy = ddy / dd;
+        a.x -= ux * push; a.y -= uy * push;
+        b.x += ux * push; b.y += uy * push;
+      }
+    }
+  }
+  /* 接触判定 */
+  for (i = 0; i < enemies.length; i++){
+    e = enemies[i];
+    ddx = player.x - e.x; ddy = player.y - e.y;
+    dd = Math.sqrt(ddx * ddx + ddy * ddy);
+    if (dd < e.r + player.r && e.cd <= 0 && player.inv <= 0){
+      hitPlayer(e.dmg, e);
+      e.cd = 1.0;
+      if (gameEnded) return;
+    }
+  }
+
+  /* 武器 */
+  updateWeapons(dt);
+  if (gameEnded) return;
+
+  /* ナイフ弾 */
+  for (i = bullets.length - 1; i >= 0; i--){
+    var bl = bullets[i];
+    bl.x += bl.vx * dt; bl.y += bl.vy * dt; bl.life -= dt;
+    var dead = bl.life <= 0 || bl.x < FIELD.x - 60 || bl.x > FIELD.x + FIELD.w + 60 || bl.y < FIELD.y - 60 || bl.y > FIELD.y + FIELD.h + 60;
+    if (!dead){
+      for (j = enemies.length - 1; j >= 0; j--){
+        var en = enemies[j];
+        var ex = en.x - bl.x, ey = en.y - bl.y;
+        if (ex * ex + ey * ey < (en.r + bl.r) * (en.r + bl.r)){
+          var already = false;
+          for (var h = 0; h < bl.hits.length; h++){ if (bl.hits[h] === en.id) already = true; }
+          if (already) continue;
+          bl.hits.push(en.id);
+          en.hp -= bl.dmg;
+          en.flash = 0.12;
+          burst(bl.x, bl.y, 3, '#a8f0ff');
+          if (en.hp <= 0) killEnemy(j);
+          if (bl.pierce > 0) bl.pierce--;
+          else { dead = true; break; }
+        }
+      }
+    }
+    if (dead) bullets.splice(i, 1);
+  }
+
+  /* ブーメラン */
+  for (i = booms.length - 1; i >= 0; i--){
+    var bm = booms[i];
+    bm.spin += dt * 14;
+    var gone = false;
+    if (!bm.back){
+      bm.x += Math.cos(bm.ang) * bm.spd * dt;
+      bm.y += Math.sin(bm.ang) * bm.spd * dt;
+      bm.dist += bm.spd * dt;
+      if (bm.dist >= bm.maxD) bm.back = true;
+    } else {
+      var bdx = player.x - bm.x, bdy = player.y - bm.y;
+      var bd = Math.sqrt(bdx * bdx + bdy * bdy) || 1;
+      bm.x += bdx / bd * bm.spd * 1.15 * dt;
+      bm.y += bdy / bd * bm.spd * 1.15 * dt;
+      if (bd < 18) gone = true;
+    }
+    if (!gone){
+      for (j = enemies.length - 1; j >= 0; j--){
+        var en2 = enemies[j];
+        var bx = en2.x - bm.x, by = en2.y - bm.y;
+        if (bx * bx + by * by < (en2.r + bm.r) * (en2.r + bm.r)){
+          var al2 = false;
+          for (var h2 = 0; h2 < bm.hits.length; h2++){ if (bm.hits[h2] === en2.id) al2 = true; }
+          if (al2) continue;
+          bm.hits.push(en2.id);
+          en2.hp -= bm.dmg;
+          en2.flash = 0.12;
+          burst(bm.x, bm.y, 3, '#ffd08a');
+          if (en2.hp <= 0) killEnemy(j);
+        }
+      }
+    }
+    if (gone) booms.splice(i, 1);
+  }
+
+  /* 聖水の炎 */
+  for (i = flames.length - 1; i >= 0; i--){
+    var fl = flames[i];
+    fl.life -= dt; fl.t += dt;
+    for (j = enemies.length - 1; j >= 0; j--){
+      var en3 = enemies[j];
+      var fx = en3.x - fl.x, fy = en3.y - fl.y;
+      var fr = fl.r + en3.r;
+      if (fx * fx + fy * fy < fr * fr){
+        en3.hp -= fl.dps * dt;
+        en3.flash = Math.max(en3.flash, 0.06);
+        if (en3.hp <= 0) killEnemy(j);
+      }
+    }
+    if (fl.life <= 0) flames.splice(i, 1);
+  }
+
+  /* 雷の演出 */
+  for (i = bolts.length - 1; i >= 0; i--){
+    bolts[i].life -= dt;
+    if (bolts[i].life <= 0) bolts.splice(i, 1);
+  }
+
+  /* 毒の水たまり */
+  for (i = puddles.length - 1; i >= 0; i--){
+    var pd = puddles[i];
+    pd.life -= dt; pd.t += dt;
+    var pdx = player.x - pd.x, pdy = player.y - pd.y;
+    if (pdx * pdx + pdy * pdy < pd.r * pd.r){
+      damageTick(16 * dt);
+      if (gameEnded) return;
+    }
+    if (pd.life <= 0) puddles.splice(i, 1);
+  }
+
+  var damp = Math.pow(0.02, dt);
+
+  /* 宝石 */
+  for (i = gems.length - 1; i >= 0; i--){
+    var g = gems[i];
+    g.t += dt; g.life -= dt;
+    ddx = player.x - g.x; ddy = player.y - g.y;
+    dd = Math.sqrt(ddx * ddx + ddy * ddy) || 1;
+    if (magnetT > 0){
+      g.vx += ddx / dd * 2600 * dt;
+      g.vy += ddy / dd * 2600 * dt;
+    } else if (dd < TUNE.magnet.v){
+      var pull = 120 + 640 * (1 - dd / TUNE.magnet.v);
+      g.vx += ddx / dd * pull * dt;
+      g.vy += ddy / dd * pull * dt;
+    }
+    g.vx *= damp; g.vy *= damp;
+    g.x += g.vx * dt; g.y += g.vy * dt;
+    if (dd < player.r + 12){
+      gainExp(g.exp);
+      burst(g.x, g.y, 4, '#7ff0ff');
+      gems.splice(i, 1);
+      continue;
+    }
+    if (g.life <= 0) gems.splice(i, 1);
+  }
+  if (gems.length > 160) gems.splice(0, gems.length - 160);
+
+  /* 拾い物 */
+  for (i = pickups.length - 1; i >= 0; i--){
+    var pk = pickups[i];
+    pk.t += dt; pk.life -= dt;
+    var kdx = player.x - pk.x, kdy = player.y - pk.y;
+    if (kdx * kdx + kdy * kdy < (player.r + 18) * (player.r + 18)){
+      takePickup(pk);
+      pickups.splice(i, 1);
+      if (gameEnded) return;
+      continue;
+    }
+    if (pk.life <= 0) pickups.splice(i, 1);
+  }
+
+  /* パーティクル */
+  for (i = parts.length - 1; i >= 0; i--){
+    var p = parts[i];
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.vx *= damp; p.vy *= damp;
+    p.life -= dt;
+    if (p.life <= 0) parts.splice(i, 1);
+  }
+
+  /* スコア・HUD */
+  var s = Math.floor(elapsed * 10) + kills;
+  if (s !== lastScore){
+    lastScore = s; score = s;
+    Game.score(s);
+  }
+  hudUpdate();
+}
+
+/* ---------- 描画 ---------- */
+function drawGround(){
+  ctx.fillStyle = '#151a2c';
+  ctx.fillRect(FIELD.x, FIELD.y, FIELD.w, FIELD.h);
+  ctx.strokeStyle = 'rgba(90,120,190,0.10)';
+  ctx.lineWidth = 1;
+  var x, y;
+  for (x = 0; x <= W; x += 48){
+    ctx.beginPath(); ctx.moveTo(x, FIELD.y); ctx.lineTo(x, FIELD.y + FIELD.h); ctx.stroke();
+  }
+  for (y = FIELD.y; y <= FIELD.y + FIELD.h; y += 48){
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+  for (var i = 0; i < TOWN.length; i++){
+    var b = TOWN[i];
+    ctx.fillStyle = 'hsl(226, 26%, ' + Math.round(9 + b.c * 6) + '%)';
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+    ctx.strokeStyle = 'rgba(120,150,220,0.13)';
+    ctx.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1);
+  }
+}
+
+function drawDark(alphaMax){
+  var g = ctx.createRadialGradient(player.x, player.y, 40, player.x, player.y, 300);
+  g.addColorStop(0, 'rgba(3,5,14,0)');
+  g.addColorStop(0.55, 'rgba(3,5,14,' + (alphaMax * 0.45) + ')');
+  g.addColorStop(1, 'rgba(3,5,14,' + alphaMax + ')');
+  ctx.fillStyle = g;
+  ctx.fillRect(FIELD.x, FIELD.y, FIELD.w, FIELD.h);
+}
+
+function draw(){
+  ctx.fillStyle = '#0b0f1c';
+  ctx.fillRect(0, 0, W, H);
+  curFont = '';
+
+  var sx = 0, sy = 0;
+  if (shake > 0){
+    var m = shake * 16;
+    sx = (Math.random() - 0.5) * m;
+    sy = (Math.random() - 0.5) * m;
+  }
+  ctx.save();
+  ctx.translate(sx, sy);
+
+  /* 地面→暗闇 */
+  ctx.save();
+  ctx.beginPath(); ctx.rect(FIELD.x, FIELD.y, FIELD.w, FIELD.h); ctx.clip();
+  drawGround();
+  drawDark(0.94);
+  ctx.restore();
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  var i, e;
+
+  /* 毒の水たまり */
+  for (i = 0; i < puddles.length; i++){
+    var pd = puddles[i];
+    var pa = Math.min(1, pd.life / 1.6);
+    var wob2 = 1 + Math.sin(pd.t * 4) * 0.05;
+    ctx.globalAlpha = 0.55 * pa;
+    ctx.fillStyle = '#6ee36e';
+    ctx.beginPath(); ctx.arc(pd.x, pd.y, pd.r * wob2, 0, 6.283); ctx.fill();
+    ctx.globalAlpha = 0.85 * pa;
+    ctx.fillStyle = '#2fbf5f';
+    ctx.beginPath(); ctx.arc(pd.x, pd.y, pd.r * 0.58 * wob2, 0, 6.283); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  /* 聖水の炎 */
+  for (i = 0; i < flames.length; i++){
+    var fl = flames[i];
+    var fa = Math.min(1, fl.life / 0.9);
+    ctx.globalAlpha = 0.33 * fa;
+    ctx.fillStyle = '#ff9a3c';
+    ctx.beginPath(); ctx.arc(fl.x, fl.y, fl.r * (1 + Math.sin(fl.t * 9) * 0.06), 0, 6.283); ctx.fill();
+    ctx.globalAlpha = 1;
+    setFont(34);
+    ctx.globalAlpha = 0.9 * fa;
+    ctx.fillText('🔥', fl.x, fl.y + Math.sin(fl.t * 8) * 2);
+    ctx.globalAlpha = 1;
+  }
+
+  /* アイテム（肉・磁石・宝箱） */
+  setFont(26);
+  for (i = 0; i < pickups.length; i++){
+    var pk = pickups[i];
+    var pb = Math.sin(pk.t * 5) * 2.5;
+    var em2 = pk.kind === 'meat' ? '🍖' : (pk.kind === 'magnet' ? '🧲' : '🎁');
+    var pal = pk.life < 4 ? (Math.floor(pk.life * 8) % 2 === 0 ? 0.35 : 1) : 1;
+    ctx.globalAlpha = pal * 0.35;
+    ctx.fillStyle = '#ffe9a8';
+    ctx.beginPath(); ctx.arc(pk.x, pk.y + pb, 17, 0, 6.283); ctx.fill();
+    ctx.globalAlpha = pal;
+    ctx.fillText(em2, pk.x, pk.y + pb);
+    ctx.globalAlpha = 1;
+  }
+
+  /* 宝石 */
+  setFont(18);
+  for (i = 0; i < gems.length; i++){
+    var g = gems[i];
+    var bob = Math.sin((g.t + g.x) * 5) * 2.5;
+    var al = g.life < 4 ? (Math.floor(g.life * 8) % 2 === 0 ? 0.35 : 1) : 1;
+    ctx.globalAlpha = al;
+    ctx.fillStyle = 'rgba(90,240,255,0.22)';
+    ctx.beginPath(); ctx.arc(g.x, g.y + bob, 13, 0, 6.283); ctx.fill();
+    ctx.fillText('💎', g.x, g.y + bob);
+    ctx.globalAlpha = 1;
+  }
+
+  /* ゾンビ */
+  for (i = 0; i < enemies.length; i++){
+    e = enemies[i];
+    var eb = Math.sin(elapsed * 7 + e.wob) * 1.8;
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.arc(e.x, e.y + e.r * 0.75, e.r * 0.6, 0, 6.283); ctx.fill();
+    setFont(Math.round(e.r * 1.7));
+    ctx.fillText(e.type.emoji, e.x, e.y + eb);
+    if (e.flash > 0){
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.beginPath(); ctx.arc(e.x, e.y + eb, e.r * 0.85, 0, 6.283); ctx.fill();
+    }
+    if (e.boss){
+      var bw = 96;
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(e.x - bw / 2, e.y - e.r - 16, bw, 7);
+      ctx.fillStyle = '#ff5a6e';
+      ctx.fillRect(e.x - bw / 2, e.y - e.r - 16, bw * Math.max(0, e.hp / e.maxHp), 7);
+    }
+  }
+
+  /* ナイフ弾 */
+  for (i = 0; i < bullets.length; i++){
+    var bl = bullets[i];
+    ctx.save();
+    ctx.translate(bl.x, bl.y);
+    ctx.rotate(Math.atan2(bl.vy, bl.vx));
+    ctx.fillStyle = 'rgba(120,230,255,0.22)';
+    ctx.beginPath(); ctx.arc(0, 0, 11, 0, 6.283); ctx.fill();
+    ctx.fillStyle = '#dfe9ff';
+    ctx.beginPath(); ctx.moveTo(11, 0); ctx.lineTo(-7, 4.5); ctx.lineTo(-7, -4.5); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#8ef0ff';
+    ctx.fillRect(-9, -2, 5, 4);
+    ctx.restore();
+  }
+
+  /* ブーメラン */
+  setFont(24);
+  for (i = 0; i < booms.length; i++){
+    var bm = booms[i];
+    ctx.fillText('🪃', bm.x, bm.y + Math.sin(bm.spin) * 2);
+  }
+
+  /* 雷 */
+  for (i = 0; i < bolts.length; i++){
+    var bo = bolts[i];
+    var ba = Math.max(0, bo.life / bo.max);
+    ctx.globalAlpha = ba;
+    ctx.strokeStyle = '#fff7a0';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(bo.x, FIELD.y);
+    ctx.lineTo(bo.x + 6, bo.y - 46);
+    ctx.lineTo(bo.x - 6, bo.y - 22);
+    ctx.lineTo(bo.x, bo.y);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,190,0.5)';
+    ctx.beginPath(); ctx.arc(bo.x, bo.y, 20 * ba + 6, 0, 6.283); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  /* パーティクル */
+  for (i = 0; i < parts.length; i++){
+    var p = parts[i];
+    var pa2 = Math.max(0, Math.min(1, p.life / p.max));
+    ctx.globalAlpha = pa2;
+    ctx.fillStyle = p.c;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (0.4 + pa2 * 0.6), 0, 6.283); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  /* 実体の上の薄い暗闇 */
+  ctx.save();
+  ctx.beginPath(); ctx.rect(FIELD.x, FIELD.y, FIELD.w, FIELD.h); ctx.clip();
+  drawDark(0.5);
+  ctx.restore();
+
+  /* オーラ */
+  var aw = getWeapon('aura');
+  if (aw){
+    var ast = wStat(aw);
+    var pulse = 0.5 + 0.5 * Math.sin(elapsed * 4);
+    ctx.globalAlpha = 0.10 + 0.06 * pulse;
+    ctx.fillStyle = '#c98bff';
+    ctx.beginPath(); ctx.arc(player.x, player.y, ast.rad, 0, 6.283); ctx.fill();
+    ctx.globalAlpha = 0.45;
+    ctx.strokeStyle = '#b07cff';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(player.x, player.y, ast.rad, 0, 6.283); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  /* 主人公 */
+  var glow = ctx.createRadialGradient(player.x, player.y, 4, player.x, player.y, 95);
+  glow.addColorStop(0, 'rgba(255,228,150,0.24)');
+  glow.addColorStop(1, 'rgba(255,228,150,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(player.x, player.y, 95, 0, 6.283); ctx.fill();
+
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath(); ctx.arc(player.x, player.y + 13, 11, 0, 6.283); ctx.fill();
+
+  var blink = (player.inv > 0 && Math.floor(player.inv * 16) % 2 === 0) ? 0.35 : 1;
+  ctx.globalAlpha = blink;
+  setFont(36);
+  ctx.fillText('🧑', player.x, player.y);
+  ctx.globalAlpha = 1;
+
+  if (player.hurt > 0){
+    var ha = Math.abs(Math.sin(player.hurt * 26)) * 0.7;
+    ctx.fillStyle = 'rgba(255,40,60,' + ha + ')';
+    ctx.beginPath(); ctx.arc(player.x, player.y, 18, 0, 6.283); ctx.fill();
+  }
+
+  ctx.restore();
+
+  /* レベルアップ選択中の暗転 */
+  if (choosing){
+    ctx.fillStyle = 'rgba(5,8,18,0.66)';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  /* 画面ふちの赤 */
+  var low = player.hp < 40 ? (1 - player.hp / 40) * 0.5 : 0;
+  var danger = Math.min(0.78, hurtFx * 0.72 + low);
+  if (danger > 0.01){
+    var vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.28, W / 2, H / 2, H * 0.62);
+    vg.addColorStop(0, 'rgba(255,20,45,0)');
+    vg.addColorStop(1, 'rgba(255,20,45,' + danger + ')');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  /* バーチャルスティック */
+  if (joy.id !== null && !choosing){
+    ctx.strokeStyle = 'rgba(210,230,255,0.28)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(joy.bx, joy.by, 52, 0, 6.283); ctx.stroke();
+    ctx.fillStyle = 'rgba(210,230,255,0.08)';
+    ctx.fill();
+    var kx = joy.x - joy.bx, ky = joy.y - joy.by;
+    var kd = Math.sqrt(kx * kx + ky * ky);
+    if (kd > 52){ kx = kx / kd * 52; ky = ky / kd * 52; }
+    ctx.fillStyle = 'rgba(220,240,255,0.42)';
+    ctx.beginPath(); ctx.arc(joy.bx + kx, joy.by + ky, 22, 0, 6.283); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(joy.bx + kx, joy.by + ky, 22, 0, 6.283); ctx.stroke();
+  }
+}
+/*__VAPPA_JS_END__*/
+</script>
+</body></html>
