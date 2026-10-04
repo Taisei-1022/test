@@ -1,0 +1,300 @@
+<title>Vappa 発信計画</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;800&family=Zen+Kaku+Gothic+New:wght@400;700&display=swap">
+<style>
+/* レイアウト：1本の読み物。要点 → 目標 → 媒体 → 中身 → 頻度 → ふり返り → 12週間 → 決めること */
+:root{
+  --bg:#f7f5fc; --surface:#ffffff; --ink:#1d1830; --dim:#625b7a; --rule:#e2ddef;
+  --accent:#7c4ddb; --accent-soft:#efe8fd; --gold:#b9770e; --gold-soft:#fff3dc;
+  --display:"M PLUS Rounded 1c","Hiragino Maru Gothic ProN","Hiragino Sans",sans-serif;
+  --body:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141221; --surface:#1d1a2e; --ink:#f1eefb; --dim:#a79fc4; --rule:#2f2946;
+  --accent:#a88bf5; --accent-soft:#2a2245; --gold:#ffcf5c; --gold-soft:#3a2f17; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141221; --surface:#1d1a2e; --ink:#f1eefb; --dim:#a79fc4; --rule:#2f2946;
+  --accent:#a88bf5; --accent-soft:#2a2245; --gold:#ffcf5c; --gold-soft:#3a2f17; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15.5px;line-height:1.8}
+.wrap{max-width:860px;margin:0 auto;padding-inline:20px;padding-block:40px 80px}
+h1,h2,h3{font-family:var(--display);font-weight:800;text-wrap:balance;line-height:1.35;margin:0}
+h1{font-size:clamp(28px,5vw,38px)}
+h2{font-size:23px;margin-top:56px;padding-bottom:8px;border-bottom:2px solid var(--rule)}
+h3{font-size:17px}
+p{margin:0}
+.lead{color:var(--dim);margin-top:8px}
+.meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.chip{font-size:12.5px;font-weight:700;padding:2px 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent)}
+.chip.gold{background:var(--gold-soft);color:var(--gold)}
+section>*+*{margin-top:14px}
+.summary{margin-top:28px;background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:20px 22px}
+.summary ol{margin:8px 0 0;padding-left:1.3em;display:grid;gap:6px}
+.summary b{color:var(--accent)}
+.note{font-size:13.5px;color:var(--dim)}
+.star{display:grid;grid-template-columns:auto 1fr;gap:6px 18px;align-items:center;background:var(--gold-soft);border-radius:14px;padding:18px 22px}
+.star .lbl{grid-column:1/-1;font-size:12.5px;font-weight:700;letter-spacing:.06em;color:var(--gold)}
+.star .big{font-family:var(--display);font-weight:800;font-size:clamp(20px,3.6vw,26px)}
+.goals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+@media (max-width:720px){.goals{grid-template-columns:1fr}}
+.goal{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:16px 18px;min-width:0}
+.goal .when{font-size:12.5px;font-weight:700;color:var(--accent)}
+.goal h3{margin-top:2px}
+.goal ul{margin:10px 0 0;padding-left:1.1em;display:grid;gap:4px;font-size:14.5px}
+.goal .num{font-variant-numeric:tabular-nums;font-weight:700}
+.tbl{overflow-x:auto;border:1px solid var(--rule);border-radius:12px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:620px;font-size:14.5px}
+th,td{text-align:left;vertical-align:top;padding:11px 14px;border-bottom:1px solid var(--rule)}
+th{font-size:12.5px;color:var(--dim);font-weight:700;letter-spacing:.04em;background:var(--bg)}
+tr:last-child td{border-bottom:0}
+td b{font-family:var(--display);font-weight:800}
+.pri{display:inline-block;font-size:12px;font-weight:700;padding:0 8px;border-radius:999px;background:var(--accent);color:var(--surface);white-space:nowrap}
+.pri.sub{background:var(--rule);color:var(--dim)}
+.flow{display:flex;flex-wrap:wrap;gap:6px;align-items:stretch;counter-reset:f}
+.step{flex:1 1 120px;background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:10px 12px;min-width:0;position:relative}
+.step b{display:block;font-family:var(--display);font-size:15px}
+.step span{font-size:12.5px;color:var(--dim);line-height:1.5;display:block}
+.step.key{border-color:var(--gold);background:var(--gold-soft)}
+.mix{display:flex;height:30px;border-radius:8px;overflow:hidden;font-size:12px;font-weight:700}
+.mix div{display:flex;align-items:center;justify-content:center;color:var(--surface);white-space:nowrap;overflow:hidden}
+.cycle{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:720px){.cycle{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.cycle div{background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:12px 14px;min-width:0}
+.cycle b{font-family:var(--display);color:var(--accent);font-size:16px;display:block}
+.cycle p{font-size:13.5px;line-height:1.65;margin-top:4px}
+.phases{display:grid;gap:12px}
+.phase{display:grid;grid-template-columns:150px 1fr;gap:16px;background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:16px 18px}
+@media (max-width:600px){.phase{grid-template-columns:1fr;gap:6px}}
+.phase .d{font-size:13px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
+.phase h3{font-size:16px}
+.phase ul{margin:6px 0 0;padding-left:1.1em;font-size:14.5px;display:grid;gap:3px}
+.ask{display:grid;gap:10px;counter-reset:a}
+.ask div{background:var(--surface);border:1px solid var(--rule);border-left:4px solid var(--gold);border-radius:10px;padding:12px 16px}
+.ask b{display:block}
+.ask span{font-size:13.5px;color:var(--dim)}
+ul.plain{margin:0;padding-left:1.2em;display:grid;gap:4px}
+footer{margin-top:56px;font-size:12.5px;color:var(--dim)}
+a{color:var(--accent)}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Vappa 発信計画（たたき台）</h1>
+    <p class="lead">ショート動画とSNSで、「送り合うくそげー」の場所として知ってもらうための計画です。数字はまだ仮で、最初の2週間の結果を見て決め直します。</p>
+    <div class="meta"><span class="chip">2026年10月4日 作成</span><span class="chip">対象：2026年10月〜2027年10月</span><span class="chip gold">数字はすべて仮</span></div>
+  </header>
+
+  <div class="summary">
+    <h3>要点</h3>
+    <ol>
+      <li>一番大事にする数字は<b>「1週間に送られた挑戦状の数」</b>。見られた回数より、遊んで友だちに送ってもらえたかを見る。</li>
+      <li>媒体は <b>TikTok（主役）・YouTube ショート・X</b> の3つ。同じ動画を3か所に出す。</li>
+      <li>最初の12週間は<b>「当たる型」を探す期間</b>。動画は週3本、X は1日1回。</li>
+      <li>動画はこちら（Claude）がまとめて作り、投稿は手で行う。<b>週1回30分のふり返り</b>で、次の週に変えることを1つだけ決める。</li>
+    </ol>
+  </div>
+
+  <section>
+    <h2>目標</h2>
+    <div class="star">
+      <div class="lbl">いちばん大事な数字</div>
+      <div class="big">1週間に送られた挑戦状の数</div>
+      <p class="note" style="grid-column:1/-1">見られる → 遊ぶ → 友だちに送る → 友だちも遊ぶ、の輪が回っているかを1つの数字で表せるため。再生数やフォロワー数は、この数字を増やすための途中の数字として見ます。</p>
+    </div>
+    <div class="goals">
+      <div class="goal">
+        <div class="when">短期｜〜2026年12月末（12週間）</div>
+        <h3>続けられる形と、当たる型を見つける</h3>
+        <ul>
+          <li>動画を <span class="num">36本</span> 出す（週3本）</li>
+          <li>再生 <span class="num">1万回</span> を超える動画が <span class="num">1本</span> 出る</li>
+          <li>3媒体のフォロワー合計 <span class="num">1,000人</span></li>
+          <li>SNSから来て遊ぶ人 <span class="num">週300人</span></li>
+          <li>挑戦状 <span class="num">週50件</span></li>
+        </ul>
+      </div>
+      <div class="goal">
+        <div class="when">中期｜〜2027年3月末</div>
+        <h3>当たる型を増やして、勢いをつける</h3>
+        <ul>
+          <li>再生 <span class="num">10万回</span> を超える動画が出る</li>
+          <li>3媒体のフォロワー合計 <span class="num">5,000人</span></li>
+          <li>挑戦状 <span class="num">週300件</span></li>
+          <li>ユーザーが作るゲーム <span class="num">月100本</span></li>
+          <li>アプリ内の「プレイ動画を保存・共有」が使える</li>
+        </ul>
+      </div>
+      <div class="goal">
+        <div class="when">長期｜〜2027年10月（1年）</div>
+        <h3>「送り合うくそげー」の場所として知られる</h3>
+        <ul>
+          <li>毎週遊ぶ人 <span class="num">1万人</span></li>
+          <li>挑戦状 <span class="num">週3,000件</span></li>
+          <li>ユーザーが自分で動画を投稿してくれる（運営以外の発信が半分以上）</li>
+          <li>有料の「盛る・目立たせる」機能で売上が立つ</li>
+        </ul>
+      </div>
+    </div>
+    <p class="note">いまの実際の数字（来訪数・挑戦状の数）がまだわからないため、上の数字は目安です。最初の2週間で今の数字を測り、10月末に決め直します。</p>
+  </section>
+
+  <section>
+    <h2>見てもらってから広まるまでの流れ</h2>
+    <p>どこで止まっているかがわかれば、直す場所もわかります。ふり返りでは、この6つの段のどこで人が減っているかを見ます。</p>
+    <div class="flow">
+      <div class="step"><b>① 見る</b><span>動画が流れてくる</span></div>
+      <div class="step"><b>② 気になる</b><span>最後まで見る・プロフィールを開く</span></div>
+      <div class="step"><b>③ 来る</b><span>vappa.app を開く</span></div>
+      <div class="step"><b>④ 遊ぶ</b><span>1回ゲームをする</span></div>
+      <div class="step key"><b>⑤ 送る</b><span>挑戦状を友だちに送る</span></div>
+      <div class="step"><b>⑥ 広まる</b><span>友だちが遊んで、また送る</span></div>
+    </div>
+    <p class="note">①〜③は各SNSの「分析」画面で見られます。③〜⑥はアプリ側の数字なので、測り方を本体のセッションと相談します（下の「数字の取り方」）。</p>
+  </section>
+
+  <section>
+    <h2>媒体と役割</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>媒体</th><th>役割</th><th>出すもの</th><th>頻度</th></tr></thead>
+      <tbody>
+        <tr><td><b>TikTok</b> <span class="pri">主役</span></td><td>知らない人に見つけてもらう。中高生〜20代が多く、「友だちと張り合う」が刺さりやすい</td><td>ショート動画（全種類）</td><td>週3本</td></tr>
+        <tr><td><b>YouTube ショート</b> <span class="pri">主役</span></td><td>検索やおすすめで、長い期間見られ続ける</td><td>TikTok と同じ動画</td><td>週3本</td></tr>
+        <tr><td><b>X</b> <span class="pri">主役</span></td><td>新作のお知らせ、挑戦状、作っている裏側。ファンとのやりとりの場</td><td>動画・画像・文字</td><td>1日1回</td></tr>
+        <tr><td><b>Instagram リール</b> <span class="pri sub">あとで</span></td><td>同じ動画を置くだけで届く人が増える</td><td>TikTok と同じ動画</td><td>1月から検討</td></tr>
+        <tr><td><b>LINE などのトーク</b> <span class="pri sub">発信しない</span></td><td>運営は投稿しない。ここはユーザーが挑戦状を送る場所で、アプリの共有ボタンが入口になる</td><td>（アプリの挑戦状）</td><td>—</td></tr>
+      </tbody>
+    </table></div>
+    <p class="note">広告費は使わない前提です。動画が1本当たったら、その動画にだけ少額の広告をかけるかを相談します。</p>
+  </section>
+
+  <section>
+    <h2>出すもの（5つの型）</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>型</th><th>中身</th><th>例</th><th>作る手間</th></tr></thead>
+      <tbody>
+        <tr><td><b>A. この点数抜ける？</b></td><td>公式ゲームの自動プレイ。崩れる・負けるなど笑える瞬間で終わる</td><td>動画1本目（バーガー8段）</td><td>少ない（ほぼ自動）</td></tr>
+        <tr><td><b>B. 張り合い物語</b></td><td>作る → 挑戦状 → 友だちに超えられる、の短いお話</td><td>動画2本目</td><td>中くらい（文言を決めるだけ）</td></tr>
+        <tr><td><b>C. 頼んでみた</b></td><td>変なお題をAIに頼んで、本当にできたゲームを遊ぶ</td><td>「上司から逃げるゲーム作って」</td><td>中くらい（実際に作る）</td></tr>
+        <tr><td><b>D. 今日のくそげー</b></td><td>ユーザーが作ったゲームの紹介（作者のOKをもらってから）</td><td>「◯◯さんの『◯◯』。開始3秒で負けた」</td><td>少ない</td></tr>
+        <tr><td><b>E. 今週の記録</b></td><td>ランキング上位、運営に勝った人の紹介</td><td>「今週の最高は23段。人間ですか？」</td><td>少ない</td></tr>
+      </tbody>
+    </table></div>
+    <p>最初の12週間の配分（動画）：</p>
+    <div class="mix" role="img" aria-label="A 40%、B 25%、C 25%、D と E 10%">
+      <div style="flex:40;background:var(--accent)">A 40%</div>
+      <div style="flex:25;background:var(--gold)">B 25%</div>
+      <div style="flex:25;background:#3f9d7b">C 25%</div>
+      <div style="flex:10;background:var(--dim)">D・E</div>
+    </div>
+    <p class="note">D と E は、ユーザーの作品や記録が増えてから比率を上げます。どの型を増やすかは、ふり返りで決めます。</p>
+  </section>
+
+  <section>
+    <h2>1週間の動き</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>曜日</th><th>TikTok・YouTube ショート</th><th>X</th><th>やること</th></tr></thead>
+      <tbody>
+        <tr><td>月</td><td>動画（A）</td><td>同じ動画＋挑戦状</td><td>ふり返り（30分）→ 今週の3本を Claude に依頼</td></tr>
+        <tr><td>火</td><td>—</td><td>D：今日のくそげー</td><td></td></tr>
+        <tr><td>水</td><td>動画（B か C）</td><td>同じ動画</td><td></td></tr>
+        <tr><td>木</td><td>—</td><td>裏側・新機能</td><td></td></tr>
+        <tr><td>金</td><td>動画（A か C）</td><td>同じ動画＋挑戦状</td><td></td></tr>
+        <tr><td>土</td><td>—</td><td>E：今週の記録</td><td></td></tr>
+        <tr><td>日</td><td>—</td><td>お休み</td><td></td></tr>
+      </tbody>
+    </table></div>
+    <p class="note">投稿する時間は夜19〜22時（平日）が基本です。ふり返りの数字を見て、昼12時台と比べます。投稿後1時間はコメントに返事をします（1日5〜10分）。</p>
+  </section>
+
+  <section>
+    <h2>ふり返りの回し方（計画 → 実行 → 確認 → 改善）</h2>
+    <div class="cycle">
+      <div><b>計画</b><p>月曜。今週ためすことを<strong>1つだけ</strong>決める（例：冒頭の字幕を質問にする）。</p></div>
+      <div><b>実行</b><p>動画3本と X の投稿。ためすこと以外は変えない。</p></div>
+      <div><b>確認</b><p>翌週の月曜に、下の記録表に数字を書く（投稿から3日後の数字で比べる）。</p></div>
+      <div><b>改善</b><p>よかったら続ける、だめならやめる。結果を1行で残す。</p></div>
+    </div>
+    <p>週ごとのふり返りに加えて、<strong>月末に1回</strong>、型ごとの成績を並べて、翌月の配分を決めます。</p>
+
+    <h3>記録する数字（投稿1本ごと）</h3>
+    <div class="tbl"><table>
+      <thead><tr><th>数字</th><th>どこで見るか</th><th>わかること</th></tr></thead>
+      <tbody>
+        <tr><td>再生数</td><td>各SNSの分析画面</td><td>①見られたか</td></tr>
+        <tr><td>最後まで見た割合</td><td>TikTok・YouTube の分析画面</td><td>②中身がおもしろかったか</td></tr>
+        <tr><td>保存・シェア数</td><td>各SNSの分析画面</td><td>②人に見せたくなったか</td></tr>
+        <tr><td>プロフィールを見た数・リンクを押した数</td><td>各SNSの分析画面</td><td>③来てくれたか</td></tr>
+        <tr><td>SNSから来た人・遊んだ人</td><td>アプリ側（相談）</td><td>③④</td></tr>
+        <tr><td>挑戦状の数</td><td>アプリ側（相談）</td><td>⑤送ってくれたか</td></tr>
+      </tbody>
+    </table></div>
+
+    <h3>数字を見て直す場所</h3>
+    <div class="tbl"><table>
+      <thead><tr><th>こうなっていたら</th><th>止まっている段</th><th>次にためすこと</th></tr></thead>
+      <tbody>
+        <tr><td>再生がすぐ止まる（最初の2秒で離れる）</td><td>① → ②</td><td>最初の1秒を変える。字幕を質問にする、いきなり崩れる場面から始める</td></tr>
+        <tr><td>最後まで見られるのに、プロフィールが見られない</td><td>② → ③</td><td>締めを変える。「点数」をもっと大きく、「抜けたらコメントで」と呼びかける</td></tr>
+        <tr><td>リンクは押されるのに、遊ばれない</td><td>③ → ④</td><td>動画と同じゲームに直接つながるリンクにする。開いた画面がわかりにくければ本体のセッションに相談</td></tr>
+        <tr><td>遊ばれるのに、挑戦状が送られない</td><td>④ → ⑤</td><td>本体のセッションに相談（結果画面の見せ方など）。動画では「送り合う」場面を増やす（型B）</td></tr>
+        <tr><td>どれも伸びない週が2週続く</td><td>全体</td><td>型の配分を大きく変える。ほかのアカウントで伸びている動画を10本見て、まねできる点を探す</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>数字の取り方（準備）</h2>
+    <ul class="plain">
+      <li>各SNSのアカウントを「ビジネス用（プロ）アカウント」にする。無料で分析画面が見られるようになります。</li>
+      <li>プロフィールのリンクを媒体ごとに変える（例：<code>vappa.app/arcade/?from=tiktok</code>）。どこから来たかを区別するためです。</li>
+      <li>この印をアプリ側で数えられるか、挑戦状の数を週ごとに見られるかは、<strong>本体のセッションへの相談事項</strong>です（ここではアプリに触りません）。</li>
+      <li>記録表はスプレッドシート1枚で十分です。必要なら作ります。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>12週間の進め方</h2>
+    <div class="phases">
+      <div class="phase">
+        <div class="d">10/5〜10/18<br>第1〜2週</div>
+        <div><h3>準備と最初の6本</h3>
+          <ul><li>3媒体のアカウント名・自己紹介・固定投稿をそろえる</li><li>動画1本目・2本目を出す。ほかの公式ゲームでA型を4本作る</li><li>今の数字（来訪・挑戦状）を測る</li></ul></div>
+      </div>
+      <div class="phase">
+        <div class="d">10/19〜11/15<br>第3〜6週</div>
+        <div><h3>型をためす</h3>
+          <ul><li>A・B・C を毎週まわして、型ごとの成績を比べる</li><li>10月末：目標の数字を決め直す</li><li>11月中旬：いちばん成績のよい型を決める</li></ul></div>
+      </div>
+      <div class="phase">
+        <div class="d">11/16〜12/27<br>第7〜12週</div>
+        <div><h3>当たった型を増やす</h3>
+          <ul><li>当たった型を週2本以上にする。シリーズ化（ゲームごと・お題ごと）</li><li>D型（ユーザー作品）を始める。作者さんへの声かけの文面を用意</li><li>アプリ内「プレイ動画を保存・共有」の提案書を本体のセッションへ渡す</li><li>12月末：12週間のまとめと、1〜3月の計画</li></ul></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>守ること</h2>
+    <ul class="plain">
+      <li>音楽は自作か、各アプリの中で選べる曲だけを使う。</li>
+      <li>ユーザーの作品や名前は、本人のOKをもらってから出す。</li>
+      <li>作り物の場面（トーク画面など）には「※画面はイメージです」を入れる。生成にかかる時間はごまかさない。</li>
+      <li>他社の名前・ロゴ・キャラクターを使わない。似せた作品も紹介しない。</li>
+      <li>人に宣伝をお願いするときは、投稿に「PR」と書いてもらう（ステマ規制）。</li>
+      <li>自動いいね・自動フォロー・自動投稿はしない。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>決めてほしいこと</h2>
+    <div class="ask">
+      <div><b>1. 目標の数字</b><span>上の数字は目安です。高すぎる・低すぎるところがあれば教えてください。</span></div>
+      <div><b>2. 使える時間</b><span>投稿とコメント返しで、1日10〜15分＋週1回のふり返り30分を想定しています。</span></div>
+      <div><b>3. Instagram</b><span>1月から同じ動画を置くかどうか。</span></div>
+      <div><b>4. アカウント名</b><span>3媒体で同じ名前（例：「Vappa｜送り合うくそげー」）にするか。</span></div>
+      <div><b>5. アプリ側の数字</b><span>媒体ごとの来訪数と挑戦状の数を見られるようにする件を、本体のセッションに頼んでよいか。</span></div>
+    </div>
+  </section>
+
+  <footer>ファイル：marketing/plan.html（関連：marketing/x-plan.md、marketing/videos/）</footer>
+</div>
