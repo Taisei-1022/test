@@ -1774,7 +1774,26 @@ async function startFlow(key: string, messages: Msg[], prevHtml: string, token: 
 // 受付インスタンスは相談ターンで寿命を消費していることが多いので、ビルド本体は
 // 自分自身をもう一度呼び出して新しいインスタンスに任せる（フルの持ち時間を確保）。
 // k にサービスロールキーを要求するので外部からは実行できない。
-type IRun = { k?: string; job?: string; messages?: Msg[]; prevHtml?: string; spec?: ModelSpec; uspec?: string; hop?: number; att?: number; pdiag?: string[] };
+type IRun = { k?: string; job?: string; messages?: Msg[]; prevHtml?: string; spec?: ModelSpec; uspec?: string; hop?: number; att?: number; pdiag?: string[];
+  two?: boolean; stage?: number; base?: Record<string, unknown>; extras?: string };
+// ↑ two: 2段階で作る（第1章＝必須の遊びを先に完成させ、第2章＝盛り要素を新しいインスタンスで足す）。品質評価で試し中
+//   stage=2 の時は base（第1段の完成品）に extras（盛り要素）を足す。失敗したら第1段の完成品を返す
+
+// 設計書を「必須（盛り要素以外）」と「盛り要素」に分ける。盛り要素の章が無ければ分けない。
+function splitSpec(spec: string): { core: string; extras: string } {
+  const m = /(^|\n)(■盛り要素[^\n]*\n[\s\S]*?)(?=\n■|$)/.exec(spec);
+  if (!m) return { core: spec, extras: "" };
+  const extras = m[2].trim();
+  const core = (spec.slice(0, m.index) + spec.slice(m.index + m[0].length)).trim() +
+    "\n■注意\nこのあと別の工程で「盛り要素」（敵・アイテムの種類、ボス、演出など）を追加する。今回は上の内容だけを、最後まで遊べる完成品として作る。" +
+    "要素を後から足しやすいよう、敵・アイテム・演出は種類を増やせる作り（配列や設定の表）にしておくこと。";
+  return { core, extras };
+}
+function sumCost(a: unknown, b: unknown) {
+  const x = (a || {}) as Record<string, number>, y = (b || {}) as Record<string, number>, o: Record<string, number> = {};
+  for (const k of new Set([...Object.keys(x), ...Object.keys(y)])) o[k] = Math.round(((+x[k] || 0) + (+y[k] || 0)) * 1e4) / 1e4;
+  return o;
+}
 // ↑ pdiag: 前のインスタンスまでの diag（引き継ぎ時に持ち越す）
 // ↑ att: 時間切れ時の引き継ぎ再挑戦カウンタ（1始まり、MAX_BUILD_ATT まで）
 const FN_SELF = SUPA_URL ? SUPA_URL.replace(/\/$/, "") + "/functions/v1/generate" : "";
@@ -1797,7 +1816,7 @@ Deno.serve(async (req) => {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) return json({ error: "missing_api_key" }, 500);
 
-  let messages: Msg[] = [], prevHtml = "", token = "?", jobId = "", wantUsage = false, isAdmin = false, forceBuild = false, testModel = "", evalMaxOut = 0;
+  let messages: Msg[] = [], prevHtml = "", token = "?", jobId = "", wantUsage = false, isAdmin = false, forceBuild = false, testModel = "", evalMaxOut = 0, evalTwo = false;
   let irun: IRun | null = null, wantSpec = false, uspec = "";
   let report: Record<string, string> | null = null, panel: Record<string, unknown> | null = null, wantAck = false;
   let scoreReq: { game_id?: string; score?: number; player?: string } | null = null;
@@ -1822,7 +1841,7 @@ Deno.serve(async (req) => {
     // 管理者判定：コードが設定済みで、リクエストの admin と一致したときだけ true
     if (ADMIN_CODE && typeof b?.admin === "string" && b.admin === ADMIN_CODE) isAdmin = true;
     // 品質評価（GitHub Actions の自動テスト）：サーバー自身の鍵を持つ時だけ管理者扱い（ログイン・回数制限なし）
-    if (typeof b?.eval === "string" && b.eval.length > 30 && await isServerKey(b.eval)) { isAdmin = true; evalMaxOut = Math.min(120000, Math.max(0, Number(b?.maxOut) || 0)); }
+    if (typeof b?.eval === "string" && b.eval.length > 30 && await isServerKey(b.eval)) { isAdmin = true; evalMaxOut = Math.min(120000, Math.max(0, Number(b?.maxOut) || 0)); evalTwo = b?.twoStage === true; }
     if (Array.isArray(b?.messages)) {
       messages = b.messages.filter((m: Msg) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
         .map((m: Msg) => ({ role: m.role, content: String(m.content).slice(0, 4000) }));
@@ -1873,7 +1892,30 @@ Deno.serve(async (req) => {
     const rJob = irun.job;
     const att = irun.att || 1;
     const rWork = (async () => {
-      let r; try { r = await buildOnce(key, rMsgs, rPrev, rSpec, rUspec, att >= 2); } catch (e) { r = buildErr(e); }
+      // ---- 2段階の第2段：第1段の完成品に盛り要素を足す（失敗したら第1段の完成品を返す）----
+      if (irun.stage === 2 && irun.base && irun.extras) {
+        const base = irun.base;
+        const instr = "このゲームに、次の「盛り要素」をすべて追加してください。今の遊び・操作・点数の決め方・終了条件・見た目は保ったまま、要素を足すだけにすること。" +
+          "足した要素が画面で分かるようにし、ゲームが最後まで遊べる状態を必ず保つこと。\n\n" + irun.extras;
+        let r2: Record<string, unknown>;
+        try { r2 = await buildOnce(key, [{ role: "user", content: instr }], String(base.html || ""), rSpec, "", true) as Record<string, unknown>; }
+        catch (e) { r2 = buildErr(e) as Record<string, unknown>; }
+        if (r2 && !r2.error && r2.html) {
+          diag("stage2 ok");
+          await finishJob(rJob, withDiag({ ...r2, title: r2.title || base.title, category: base.category, spec: base.spec, reply: base.reply,
+            cost: sumCost(base.cost, r2.cost), sec: (+(base.sec as number) || 0) + (+(r2.sec as number) || 0), stages: 2 }));
+        } else {
+          diag("stage2 failed: " + String(r2 && r2.error) + " → 第1段の完成品を返す");
+          await finishJob(rJob, withDiag({ ...base, cost: sumCost(base.cost, r2 && r2.cost), stages: 1 }));
+        }
+        return;
+      }
+      let rCore = rUspec, extras = "";
+      if (irun.two && rUspec && att < 2) {
+        const sp = splitSpec(rUspec);
+        if (sp.extras) { rCore = sp.core; extras = sp.extras; diag("two-stage: core " + rCore.length + "ch / extras " + extras.length + "ch"); }
+      }
+      let r; try { r = await buildOnce(key, rMsgs, rPrev, rSpec, rCore, att >= 2); } catch (e) { r = buildErr(e); }
       // 時間切れは「失敗」として確定させず、新しいインスタンス（＝まっさらな400秒）へ
       // 引き継いで再挑戦する。最終回は思考オフの最速モデルで確実性を上げる。
       const rerr = r && (r as { error?: string }).error;
@@ -1882,6 +1924,14 @@ Deno.serve(async (req) => {
         diag("att" + att + " " + rerr + " → handoff att" + (att + 1) + " " + nextSpec.model + "/" + (nextSpec.effort || "off"));
         const moved = await dispatchRun({ ...irun, hop: 0, att: att + 1, spec: nextSpec, pdiag: DIAG });
         if (moved) { CUR_JOB = ""; return; }   // ジョブは pending のまま。引き継ぎ先が結果を書く
+      }
+      // 第1段ができたら、新しいインスタンス（まっさらな持ち時間）で第2段へ
+      const rr = r as Record<string, unknown>;
+      if (extras && rr && !rr.error && rr.html) {
+        diag("stage1 ok → stage2");
+        const moved = await dispatchRun({ ...irun, hop: 0, stage: 2, base: rr, extras, pdiag: DIAG });
+        if (moved) { CUR_JOB = ""; return; }
+        diag("stage2 dispatch failed → 第1段の完成品を返す");
       }
       await finishJob(rJob, withDiag(r));
     })();
@@ -1971,7 +2021,7 @@ Deno.serve(async (req) => {
     const work = (async () => {
       // まず自己呼び出しで新しいインスタンスに任せる（受付までに消費した寿命を引き継がない）。
       // 失敗したらこのインスタンスで従来どおり生成（残り寿命内のタイムアウトが守る）。
-      const moved = await dispatchRun({ k: SUPA_SRV, job: id, messages, prevHtml, spec: buildSpec, uspec });
+      const moved = await dispatchRun({ k: SUPA_SRV, job: id, messages, prevHtml, spec: buildSpec, uspec, two: evalTwo });
       if (moved) return;
       DIAG = []; CUR_JOB = id; diag("direct build (dispatch failed)");
       let r; try { r = await buildOnce(key, messages, prevHtml, buildSpec, uspec); } catch (e) { r = buildErr(e); }

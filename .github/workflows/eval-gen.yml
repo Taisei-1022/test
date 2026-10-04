@@ -46,11 +46,13 @@ jobs:
             ARGS="--tag=$TAG --set=$SET"
             [ -n "$MAXOUT" ] && ARGS="$ARGS --maxout=$MAXOUT"
             [ "$FLOW" = "true" ] && ARGS="$ARGS --flow"
+            TWO=$(jq -r ".runs[$i].two // false" tests/gamegen-eval/eval-request.json)
+            [ "$TWO" = "true" ] && ARGS="$ARGS --two"
             echo "=== $ARGS"
             node tests/gamegen-eval/prod.js $ARGS || true
             mkdir -p tests/gamegen-eval/results-ci && rm -rf tests/gamegen-eval/results-ci/$TAG
             cp -r tests/gamegen-eval/results/$TAG tests/gamegen-eval/results-ci/
             git add -f tests/gamegen-eval/results-ci/$TAG
-            git commit -q -m "eval: $TAG の生成結果（$SET${MAXOUT:+ / maxout $MAXOUT}）" || true
+            git commit -q -m "eval: $TAG の生成結果（$SET${MAXOUT:+ / maxout $MAXOUT}${TWO/false/}）" || true
             for t in 1 2 3 4; do git pull -q --rebase origin "$GITHUB_REF_NAME" && git push -q origin "HEAD:$GITHUB_REF_NAME" && break; sleep $((t*3)); done
           done

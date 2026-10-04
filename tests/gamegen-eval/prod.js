@@ -46,6 +46,7 @@ async function one(c) {
     // 品質評価：GitHub Actions から、サーバーの鍵（EVAL_SRV）付きで送る＝ログイン・回数制限なしの管理者扱い
     if (process.env.EVAL_SRV) body.eval = process.env.EVAL_SRV;
     if (args.maxout) body.maxOut = parseInt(args.maxout, 10);   // 出力上限の試し値（例 90000）
+    if (args.two) body.twoStage = true;                          // 2段階（必須の章→盛り要素の章）で作る
     const start = await post(body);
     if (!start.job_id) throw new Error("start: " + JSON.stringify(start).slice(0, 160));
     let d = null;
@@ -58,7 +59,7 @@ async function one(c) {
     const sec = Math.round((Date.now() - t0) / 1000);
     if (!d || d.status !== "done") throw Object.assign(new Error((d && (d.error + " " + (d.detail || ""))) || "no result"), { diag: d && d.diag, sec });
     const js = (/\/\*__VAPPA_JS__\*\/([\s\S]*?)\/\*__VAPPA_JS_END__\*\//.exec(d.html) || [])[1] || "";
-    const meta = { ok: true, validateErr: validateJs(js), tune: tuneEntries(js), sec, title: d.title, model: d.model, yen: d.cost && d.cost.jpy, diag: d.diag };
+    const meta = { ok: true, validateErr: validateJs(js), tune: tuneEntries(js), sec, title: d.title, model: d.model, yen: d.cost && d.cost.jpy, stages: d.stages, diag: d.diag };
     fs.writeFileSync(hf, d.html); fs.writeFileSync(mf, JSON.stringify(meta));
     console.log("[gen]", c.id, sec + "s", d.model, "¥" + meta.yen, meta.validateErr || "ok");
   } catch (e) {
