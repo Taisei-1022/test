@@ -889,6 +889,24 @@ async function migrateThumbs() {
   return { ok: true, moved, left: Math.max(0, rows.length - moved) };
 }
 
+// 評価用の鍵の確認：サーバー用の鍵（旧形式の service_role でも新形式の secret でも）なら、
+// ブラウザからは読めない admins 表が読める＝それで本物か確かめる（形式の違いで一致比較に失敗したため）。
+const evalKeyCache = new Map<string, boolean>();
+async function isServerKey(k: string): Promise<boolean> {
+  if (evalKeyCache.has(k)) return evalKeyCache.get(k)!;
+  let ok = k === SUPA_SRV;
+  if (!ok) {
+    try {
+      const h: Record<string, string> = { apikey: k };
+      if (/^eyJ/.test(k)) h.Authorization = "Bearer " + k;
+      const r = await fetch(SRV_BASE + "/rest/v1/admins?select=user_id&limit=1", { headers: h });
+      ok = r.ok && ((await r.json()) as unknown[]).length > 0;
+    } catch { ok = false; }
+  }
+  evalKeyCache.set(k, ok);
+  return ok;
+}
+
 // ===== さくら（賑わい演出のアカウント）の一括管理 =====
 // 一覧：プロフィール・フォロー・作ったことになっている作品・ゲームごとの記録。編集もここから。
 type Q = (path: string, init?: RequestInit) => Promise<Response>;
@@ -1804,7 +1822,7 @@ Deno.serve(async (req) => {
     // 管理者判定：コードが設定済みで、リクエストの admin と一致したときだけ true
     if (ADMIN_CODE && typeof b?.admin === "string" && b.admin === ADMIN_CODE) isAdmin = true;
     // 品質評価（GitHub Actions の自動テスト）：サーバー自身の鍵を持つ時だけ管理者扱い（ログイン・回数制限なし）
-    if (SUPA_SRV && typeof b?.eval === "string" && b.eval === SUPA_SRV) { isAdmin = true; evalMaxOut = Math.min(120000, Math.max(0, Number(b?.maxOut) || 0)); }
+    if (typeof b?.eval === "string" && b.eval.length > 30 && await isServerKey(b.eval)) { isAdmin = true; evalMaxOut = Math.min(120000, Math.max(0, Number(b?.maxOut) || 0)); }
     if (Array.isArray(b?.messages)) {
       messages = b.messages.filter((m: Msg) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
         .map((m: Msg) => ({ role: m.role, content: String(m.content).slice(0, 4000) }));
