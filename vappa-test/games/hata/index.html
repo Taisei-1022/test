@@ -73,7 +73,7 @@
   <div class="emo">🚩🏳️</div>
   <h1>旗あげ</h1>
   <p>「赤あげて、白さげて！」<br>先生の言うとおりに旗を動かそう。<br><b>画面の左半分タップで<span class="r">赤</span>、右半分で<span class="w">白</span></b>が<br>あがる⇔さがる（タップのたびに切り替え）。</p>
-  <p class="warn">⚠️ 正解は<b>「ことば」</b>だけ！<br>文字の色や先生の看板にだまされないで。<br>セリフは最後まで聞いてから動こう。</p>
+  <p class="warn">「<span class="r">赤</span>あげないで」→ 赤は<b>さげておく</b><br>「<span class="w">白</span>さげないで」→ 白は<b>あげておく</b><br>「そのまま」「うごかさないで」→ 動かさない<br>「青あげて」→ 青い旗はないので何もしない<br>文字の色や看板はひっかけ。ことばを最後まで聞こう！</p>
   <p>3回ミスで終了。<br>10連続正解で<b>お祭りモード</b>（得点2倍）！</p>
   <button id="startBtn">はじめる</button>
 </div>
@@ -88,11 +88,12 @@
   var DOWN=0.5,UP=2.7;
 
   /* ===================== 指示テンプレート =====================
-     ops: [[色, 動作], ...] を順番に適用。色 0=赤 1=白、動作 up/down/keep。
-     「〜ないで」「〜ない」は keep（その旗は動かさない）。最終的な旗の状態だけを判定する。
-     ※ 全テンプレの一覧と判定結果は window.__hata.table() で確認できる。 */
+     ops: [[色, 状態], ...] を順番に適用。色 0=赤 1=白、状態 up/down/keep。
+     ことばは「最後にどうなっていればいいか」を表す：
+       「あげて」→上　「さげて」→下　「あげないで」→下　「さげないで」→上
+     動かさないのが正解のときは「そのまま」「うごかさないで」と言う。 */
   var UD=["up","down"];
-  var VT={up:"あげて",down:"さげて"},VR={up:"あげる",down:"さげる"},VN={up:"あげないで",down:"さげないで"},VNN={up:"あげない",down:"さげない"};
+  var VT={up:"あげて",down:"さげて"},VN={up:"あげないで",down:"さげないで"};
   function opp(a){return a==="up"?"down":"up";}
   function C(c){return {t:c?"白":"赤",c:c};}
   function X(t){return {t:t};}
@@ -100,29 +101,32 @@
   var OTHER=[["青","cb"],["黄色","cy"],["緑","cg"]];
   var REVEAL=[
     function(c){return {segs:[C(c),X("…あげ…ない…と思った？ あげて！")],ops:[[c,"up"]]};},
-    function(c){return {segs:[C(c),X("…さげ……ない！")],ops:[[c,"keep"]]};},
-    function(c){return {segs:[C(c),X("…あげ……る！")],ops:[[c,"up"]]};},
-    function(c){return {segs:[C(c),X("…さげ…ないで…"),C(1-c),X("さげて！")],ops:[[c,"keep"],[1-c,"down"]]};},
+    function(c){return {segs:[C(c),X("…さげ……ないで！")],ops:[[c,"up"]]};},
+    function(c){return {segs:[C(c),X("…あげ……ないで！")],ops:[[c,"down"]]};},
+    function(c){return {segs:[C(c),X("…さげ…ないで…"),C(1-c),X("さげて！")],ops:[[c,"up"],[1-c,"down"]]};},
     function(c){return {segs:[C(c),X("…あげ…ると見せかけて…さげて！")],ops:[[c,"down"]]};},
-    function(c){return {segs:[C(c),X("…さげ…ると思った？ さげない！")],ops:[[c,"keep"]]};}
+    function(c){return {segs:[C(c),X("…さげ…ると思った？ "),C(c),X("はそのまま！")],ops:[[c,"keep"]]};}
   ];
   var DNEG={nashiU:["あげないのはナシ！","up"],nashiD:["さげないのはナシ！","down"],dameU:["あげなきゃダメ！","up"],dameD:["さげなきゃダメ！","down"]};
   var TPL=[
-    {id:"single",lv:0,w:4,ps:prod([0,1],UD),mk:function(c,a){return {segs:[C(c),X(VT[a])],ops:[[c,a]]};}},
-    {id:"pair",lv:0,w:3,ps:prod([0,1],UD,UD),mk:function(c,a,b){return {segs:[C(c),X(VT[a]+"、"),C(1-c),X(VT[b])],ops:[[c,a],[1-c,b]]};}},
-    {id:"neg_act",lv:1,w:3,ps:prod([0,1],UD,UD),mk:function(c,a,b){return {segs:[C(c),X(VN[a]),C(1-c),X(VR[b])],ops:[[c,"keep"],[1-c,b]]};}},
-    {id:"neg_neg",lv:1,w:1.5,ps:prod([0,1],UD,UD),mk:function(c,a,b){return {segs:[C(c),X(VN[a]),C(1-c),X(VNN[b])],ops:[[c,"keep"],[1-c,"keep"]]};}},
+    {id:"single",lv:0,w:4,ps:prod([0,1],UD),mk:function(c,a){return {segs:[C(c),X(VT[a]+"！")],ops:[[c,a]]};}},
+    {id:"pair",lv:0,w:3,ps:prod([0,1],UD,UD),mk:function(c,a,b){return {segs:[C(c),X(VT[a]+"、"),C(1-c),X(VT[b]+"！")],ops:[[c,a],[1-c,b]]};}},
+    {id:"neg",lv:1,w:2,ps:prod([0,1],UD),mk:function(c,a){return {segs:[C(c),X(VN[a]+"！")],ops:[[c,opp(a)]]};}},
+    {id:"neg_act",lv:1,w:3,ps:prod([0,1],UD,UD),mk:function(c,a,b){return {segs:[C(c),X(VN[a]+"、"),C(1-c),X(VT[b]+"！")],ops:[[c,opp(a)],[1-c,b]]};}},
+    {id:"neg_neg",lv:1,w:1.5,ps:prod([0,1],UD,UD),mk:function(c,a,b){return {segs:[C(c),X(VN[a]+"、"),C(1-c),X(VN[b]+"！")],ops:[[c,opp(a)],[1-c,opp(b)]]};}},
+    {id:"keep_act",lv:1,w:2,ps:prod([0,1],UD),mk:function(c,b){return {segs:[C(c),X("はそのまま、"),C(1-c),X(VT[b]+"！")],ops:[[c,"keep"],[1-c,b]]};}},
     {id:"both",lv:1,w:1.5,ps:prod(UD),mk:function(a){return {segs:[X("両方"+VT[a]+"！")],ops:[[0,a],[1,a]]};}},
-    {id:"both_neg",lv:1,w:1,ps:prod(UD),mk:function(a){return {segs:[X("両方"+VN[a]+"！")],ops:[[0,"keep"],[1,"keep"]]};}},
+    {id:"both_neg",lv:1,w:1,ps:prod(UD),mk:function(a){return {segs:[X("両方"+VN[a]+"！")],ops:[[0,opp(a)],[1,opp(a)]]};}},
     {id:"reverse",lv:2,w:2.5,ps:prod([0,1],["up","down","nup","ndown"]),mk:function(c,v){
       var t=v==="up"?"あげて":v==="down"?"さげて":v==="nup"?"あげないで":"さげないで";
-      return {segs:[X(t+"、"),C(c),X("！")],ops:[[c,(v==="up"||v==="down")?v:"keep"]]};}},
+      var st=v==="up"||v==="ndown"?"up":"down";
+      return {segs:[X(t+"、"),C(c),X("！")],ops:[[c,st]]};}},
     {id:"before",lv:2,w:1.5,ps:prod([0,1],UD,UD),mk:function(c,a,b){return {segs:[C(c),X(VT[a]+"…の前に、"),C(1-c),X(VT[b]+"！")],ops:[[1-c,b],[c,a]]};}},
     {id:"no_flag",lv:2,w:1,ps:prod([0,1,2],UD),mk:function(k,a){return {segs:[{t:OTHER[k][0],c:"x",cls:OTHER[k][1]},X(VT[a]+"！")],ops:[],noflag:OTHER[k][0]};}},
-    {id:"freeze",lv:2,w:0.7,ps:[[]],mk:function(){return {segs:[X("どっちも…うごかさないで！")],ops:[[0,"keep"],[1,"keep"]]};}},
+    {id:"freeze",lv:2,w:0.8,ps:[[0],[1]],mk:function(k){return {segs:[X(k?"どっちも…そのまま！":"どっちも…うごかさないで！")],ops:[[0,"keep"],[1,"keep"]]};}},
     {id:"dneg",lv:3,w:2,ps:prod([0,1],["nashiU","nashiD","dameU","dameD"]),mk:function(c,k){return {segs:[C(c),X(DNEG[k][0])],ops:[[c,DNEG[k][1]]]};}},
     {id:"reveal",lv:3,w:3,ps:prod([0,1],[0,1,2,3,4,5]),mk:function(c,k){return REVEAL[k](c);}},
-    {id:"same",lv:3,w:1,ps:prod([0,1],UD),mk:function(c,a){return {segs:[C(c),X(VT[a]+"、"),C(c),X(VT[opp(a)]+"！")],ops:[[c,a],[c,opp(a)]]};}}
+    {id:"same",lv:3,w:1,ps:prod([0,1],UD),mk:function(c,a){return {segs:[C(c),X(VT[a]+"…やっぱり"),C(c),X(VT[opp(a)]+"！")],ops:[[c,a],[c,opp(a)]]};}}
   ];
   function applyOps(st,ops){var f=st.slice();for(var i=0;i<ops.length;i++){var o=ops[i];if(o[1]==="up")f[o[0]]=true;else if(o[1]==="down")f[o[0]]=false;}return f;}
   function same(a,b){return a[0]===b[0]&&a[1]===b[1];}
@@ -237,7 +241,7 @@
     }else{
       misses++;streak=0;if(feverOn){feverOn=false;}
       var slow=!cmd.touched&&!waited;
-      var hint=cmd.noflag?cmd.noflag+"の旗は持ってないよ！":(waited?"動かさないのが正解！":"正解は 赤"+arrow(cmd.target[0])+" 白"+arrow(cmd.target[1]));
+      var hint=cmd.noflag?cmd.noflag+"の旗は持ってないよ！":(waited?"そのままが正解！":"正解は 赤"+arrow(cmd.target[0])+" 白"+arrow(cmd.target[1]));
       pop(slow?"おそい！":"ちがーう！","#ff6b6b",hint);
       flags=cmd.target.slice();
       mood="oops";moodT=1.1;shake=0.35;whistleT=0.8;SFX.ng();
@@ -580,16 +584,6 @@
   updateHud();
   last=performance.now();requestAnimationFrame(loop);
 
-  // テスト・確認用（ゲームの進行には影響しない）
-  window.__hata={
-    get phase(){return phase;},get flags(){return flags.slice();},get target(){return cmd&&cmd.target?cmd.target.slice():null;},
-    get text(){return cmd?plain(cmd.segs):"";},get id(){return cmd&&cmd.id;},get score(){return score;},get streak(){return streak;},
-    get misses(){return misses;},get fever(){return feverOn;},get running(){return running;},get correct(){return correct;},
-    setCorrect:function(n){correct=n;},
-    table:function(){var out=[];TPL.forEach(function(t){t.ps.forEach(function(p){var c=t.mk.apply(null,p);var st=[[false,false],[true,false],[false,true],[true,true]];
-      out.push({id:t.id,lv:t.lv,text:plain(c.segs),ops:c.ops.map(function(o){return (o[0]===0?"赤":"白")+":"+o[1];}).join(" "),
-        res:st.map(function(s){var f=applyOps(s,c.ops);return (f[0]?"↑":"↓")+(f[1]?"↑":"↓");}).join(" ")});});});return out;}
-  };
 })();
 </script>
 <script>
