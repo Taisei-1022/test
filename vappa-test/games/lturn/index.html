@@ -19,18 +19,20 @@
   .cb{border:0;border-radius:18px;font:inherit;font-weight:900;color:#fff;cursor:pointer;touch-action:none;
     display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05;
     box-shadow:0 5px 0 rgba(0,0,0,.35),inset 0 2px 0 rgba(255,255,255,.18);transition:transform .05s;}
-  .cb small{font-size:11px;font-weight:800;opacity:.85;margin-top:3px;}
+  .cb small{pointer-events:none;font-size:11px;font-weight:800;opacity:.85;margin-top:3px;}
   .cb.on{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.35),inset 0 2px 0 rgba(255,255,255,.18);filter:brightness(1.18);}
   .st{width:70px;height:132px;background:#3d5a9e;font-size:30px;}
   .pd{width:104px;flex:1;font-size:26px;}
   #bF{background:#2e9e5b;} #bB{background:#c9572e;}
   #rgrp{flex-direction:column;gap:8px;width:104px;}
   #mid{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;}
-  #wheel{width:min(84px,100%);aspect-ratio:1;transition:transform .03s linear;}
-  #gauge{position:relative;width:min(84px,100%);height:8px;border-radius:99px;background:rgba(255,255,255,.18);}
-  #gauge i{position:absolute;top:-3px;width:6px;height:14px;margin-left:-3px;border-radius:3px;background:#ffcf5c;left:50%;}
-  #gauge:after{content:"";position:absolute;left:50%;top:-2px;width:2px;height:12px;margin-left:-1px;background:rgba(255,255,255,.5);}
-  #slab{font-size:11px;font-weight:800;color:#c9d3e6;white-space:nowrap;}
+  #axle{width:min(92px,100%);height:58px;}
+  #axle .fw{transition:transform .08s ease-out;}
+  #notches{display:flex;gap:3px;width:min(96px,100%);align-items:flex-end;justify-content:center;}
+  #notches i{flex:1;height:10px;border-radius:3px;background:rgba(255,255,255,.18);transition:background .08s,height .08s;}
+  #notches i.c{height:14px;}
+  #notches i.on{background:#ffcf5c;height:16px;box-shadow:0 0 8px rgba(255,207,92,.7);}
+  #slab{font-size:17px;font-weight:900;color:#ffcf5c;white-space:nowrap;font-variant-numeric:tabular-nums;letter-spacing:.02em;}
   #banner{position:fixed;left:0;right:0;top:calc(env(safe-area-inset-top) + 64px);z-index:4;text-align:center;pointer-events:none;opacity:0;transform:scale(.8);transition:opacity .25s,transform .25s;}
   #banner.show{opacity:1;transform:scale(1);}
   #banner .t{display:inline-block;background:rgba(16,20,30,.86);border:3px solid #ffcf5c;border-radius:18px;padding:12px 20px;font-size:22px;font-weight:900;box-shadow:0 8px 26px rgba(0,0,0,.45);}
@@ -58,19 +60,18 @@
 <div id="banner"><span class="t" id="bt"></span></div>
 <div id="ctrl">
   <div class="grp">
-    <button class="cb st" id="bL" type="button" aria-label="左にハンドル">◀<small>左</small></button>
-    <button class="cb st" id="bR" type="button" aria-label="右にハンドル">▶<small>右</small></button>
+    <button class="cb st" id="bL" type="button" aria-label="ハンドルを左へ1段">◀<small>左</small></button>
+    <button class="cb st" id="bR" type="button" aria-label="ハンドルを右へ1段">▶<small>右</small></button>
   </div>
   <div id="mid">
-    <svg id="wheel" viewBox="-50 -50 100 100" aria-hidden="true">
-      <circle r="44" fill="none" stroke="#1b1f29" stroke-width="13"/>
-      <circle r="44" fill="none" stroke="#5b6478" stroke-width="9"/>
-      <rect x="-42" y="-4" width="84" height="10" rx="5" fill="#4a5265"/>
-      <rect x="-5" y="4" width="10" height="38" rx="5" fill="#4a5265"/>
-      <circle r="15" fill="#363c4c"/><circle r="9" fill="#ffcf5c"/>
-      <rect x="-4" y="-50" width="8" height="12" rx="3" fill="#ffcf5c"/>
+    <svg id="axle" viewBox="-48 -30 96 60" aria-hidden="true">
+      <path d="M-26 30 L-26 -12 Q-26 -26 -12 -26 L12 -26 Q26 -26 26 -12 L26 30" fill="#3b4254" stroke="#1b1f29" stroke-width="2"/>
+      <rect x="-32" y="-2" width="64" height="4" rx="2" fill="#7d8496"/>
+      <g transform="translate(-34 0)"><g class="fw" id="fwL"><rect x="-7" y="-15" width="14" height="30" rx="4" fill="#111318" stroke="#d6dbe6" stroke-width="2"/><rect x="-2" y="-12" width="4" height="24" rx="1" fill="#ffcf5c"/></g></g>
+      <g transform="translate(34 0)"><g class="fw" id="fwR"><rect x="-7" y="-15" width="14" height="30" rx="4" fill="#111318" stroke="#d6dbe6" stroke-width="2"/><rect x="-2" y="-12" width="4" height="24" rx="1" fill="#ffcf5c"/></g></g>
+      <path d="M0 -22 L-5 -14 L5 -14 Z" fill="#ffcf5c"/>
     </svg>
-    <div id="gauge"><i id="gi"></i></div>
+    <div id="notches"><i></i><i></i><i></i><i class="c"></i><i></i><i></i><i></i></div>
     <div id="slab">まっすぐ</div>
   </div>
   <div class="grp" id="rgrp">
@@ -82,7 +83,7 @@
   <div class="em">🚗💨</div>
   <h1>L字路 切り返し</h1>
   <p>せまい<b>L字の曲がり角</b>を、<br>壁にぶつけずに曲がりきろう！<br>
-  <b>前</b>・<b>後</b>は押している間だけ動く。<br><b>左</b>・<b>右</b>でハンドル（離してもそのまま）。<br>
+  <b>前</b>・<b>後</b>は押している間だけ動く。<br><b>左</b>・<b>右</b>は1回押すごとにハンドルが1段<br>（15°→30°→45°）。角度はそのまま残る。<br>
   壁に<b>ゴツン！</b>でスタートに戻される。<br>（タイムは止まらないよ）<br>5ステージの<b>合計タイム</b>が短いほどえらい！</p>
   <button id="startBtn" type="button">はじめる</button>
   <p style="font-size:12px;color:#8f97a8">PCは <span class="keys">↑</span><span class="keys">↓</span><span class="keys">←</span><span class="keys">→</span> キーでも操作できるよ</p>
@@ -93,12 +94,15 @@
   "use strict";
 /*CORE-BEGIN*/
 var DEG=Math.PI/180, DT=1/120;
-var VF=2.0, VB=1.5, ACC=3.0, BRK=7.0, STEER_RATE=80*DEG;
+var VF=2.0, VB=1.5;
+/* ハンドルは段階式：左45/30/15・まっすぐ・右15/30/45（前輪の実舵角そのまま） */
+var NOTCH_DEG=15, NOTCH_MAX=3;
+function notchAngle(n){return n*NOTCH_DEG*DEG;}
 var CARS={
-  kei:    {name:"軽自動車",len:3.40,wid:1.48,wb:2.40,ro:0.50,max:38*DEG},
-  sedan:  {name:"セダン",  len:4.70,wid:1.78,wb:2.75,ro:0.95,max:35*DEG},
-  minivan:{name:"ミニバン",len:4.70,wid:1.75,wb:2.85,ro:0.85,max:37*DEG},
-  truck:  {name:"トラック",len:4.90,wid:1.75,wb:2.60,ro:1.20,max:40*DEG}
+  kei:    {name:"軽自動車",len:3.40,wid:1.48,wb:2.40,ro:0.50},
+  sedan:  {name:"セダン",  len:4.70,wid:1.78,wb:2.75,ro:0.95},
+  minivan:{name:"ミニバン",len:4.70,wid:1.75,wb:2.85,ro:0.85},
+  truck:  {name:"トラック",len:4.90,wid:1.75,wb:2.60,ro:1.20}
 };
 var STAGES=[
   {car:"kei",    wA:4.0, wB:3.9, dir:1},
@@ -119,13 +123,11 @@ function makeGeom(i){
   return g;
 }
 function newCar(g){return {x:g.sx,y:g.sy,th:-Math.PI/2,d:0,v:0};}
+/* 前を押している間だけ前進・後を押している間だけ後退。離したら即停止（惰性なし）。両方なら止まる */
 function stepCar(k,g,inp,dt){
   var c=g.c;
-  if(inp.l&&!inp.r)k.d=Math.max(-c.max,k.d-STEER_RATE*dt);
-  else if(inp.r&&!inp.l)k.d=Math.min(c.max,k.d+STEER_RATE*dt);
-  var tv=(inp.f&&!inp.b)?VF:((inp.b&&!inp.f)?-VB:0);
-  if(tv>k.v){k.v=Math.min(tv,k.v+(k.v<0?BRK:(tv===0?BRK:ACC))*dt);}
-  else if(tv<k.v){k.v=Math.max(tv,k.v-(k.v>0?BRK:(tv===0?BRK:ACC))*dt);}
+  k.v=(inp.f&&!inp.b)?VF:((inp.b&&!inp.f)?-VB:0);
+  if(!k.v)return;
   k.x+=k.v*Math.cos(k.th)*dt; k.y+=k.v*Math.sin(k.th)*dt;
   k.th+=k.v/c.wb*Math.tan(k.d)*dt;
 }
@@ -168,7 +170,7 @@ function isCleared(k,g){var P=corners(k,g.c);for(var i=0;i<4;i++)if(P[i].x<g.xGo
   var cv=document.getElementById("c"),ctx=cv.getContext("2d");
   var hud={s:document.getElementById("hs"),t:document.getElementById("tm"),c:document.getElementById("hc")};
   var ov=document.getElementById("ov"),banner=document.getElementById("banner"),bt=document.getElementById("bt");
-  var wheelEl=document.getElementById("wheel"),gi=document.getElementById("gi"),slab=document.getElementById("slab");
+  var fwL=document.getElementById("fwL"),fwR=document.getElementById("fwR"),slab=document.getElementById("slab"),notchEls=document.querySelectorAll("#notches i"),shownNotch=null;
   var ctrlEl=document.getElementById("ctrl"),hudEl=document.getElementById("hud");
   var W=0,H=0,DPR=1,SC=30,playTop=50,playBot=600;
   var bg=document.createElement("canvas"),bgx=bg.getContext("2d"),bgKey="";
@@ -178,6 +180,7 @@ function isCleared(k,g){var P=corners(k,g.c);for(var i=0;i<4;i++)if(P[i].x<g.xGo
   var stage=0,g=null,car=null,state="title",stT=0;
   var total=0,stageTime=0,stageTimes=[],crashes=0;
   var held={f:false,b:false,l:false,r:false};
+  var notch=0;                  // 画面上のハンドル段（-3..3、右が+）
   var marks=[],parts=[],pops=[],shake=0,catT=0,catMood="",beepT=0,hitPt=null,flash=0;
 
   var XM=1.7,YM=1.9;           // 画面に見せる塀の外側（m）
@@ -324,8 +327,6 @@ function isCleared(k,g){var P=corners(k,g.c);for(var i=0;i<4;i++)if(P[i].x<g.xGo
     c.fillStyle="#18191d";
     var ty=hw-0.13;
     c.fillRect(-0.3,-ty-0.13,0.6,0.26);c.fillRect(-0.3,ty-0.13,0.6,0.26);
-    for(var sd=-1;sd<=1;sd+=2){c.save();c.translate(cc.wb,sd*ty);c.rotate(k.d);c.fillRect(-0.31,-0.13,0.62,0.26);
-      c.fillStyle="#7d8088";c.fillRect(-0.12,-0.13,0.24,0.26);c.fillStyle="#18191d";c.restore();}
     var dark="rgba(0,0,0,.28)",glass="#22304a";
     if(kind==="truck"){
       // 荷台
@@ -349,6 +350,12 @@ function isCleared(k,g){var P=corners(k,g.c);for(var i=0;i<4;i++)if(P[i].x<g.xGo
       c.fillStyle="rgba(255,255,255,.22)";rrc(c,r1+0.08,-hw+0.2,w2-r1-0.16,cc.wid-0.4,0.15);c.fill();  // 屋根
       c.fillStyle="rgba(255,255,255,.35)";c.fillRect(w1-0.12,-hw+0.25,0.08,0.4);
     }
+    // 前輪（舵角が見えるよう車体の上に描く）
+    var fty=hw-0.1;
+    for(var sd=-1;sd<=1;sd+=2){c.save();c.translate(cc.wb,sd*fty);c.rotate(k.d);
+      c.fillStyle="#18191d";rrc(c,-0.32,-0.12,0.64,0.24,0.07);c.fill();
+      c.strokeStyle="rgba(255,255,255,.55)";c.lineWidth=0.04;c.stroke();
+      c.fillStyle="#8d9098";c.fillRect(-0.24,-0.025,0.48,0.05);c.restore();}
     // ミラー
     c.fillStyle=kind==="truck"?"#333":col;var mx=(kind==="truck")?F-0.6:F-(kind==="sedan"?1.2:0.65);
     c.fillRect(mx-0.08,-hw-0.14,0.16,0.16);c.fillRect(mx-0.08,hw-0.02,0.16,0.16);
@@ -384,7 +391,7 @@ function isCleared(k,g){var P=corners(k,g.c);for(var i=0;i<4;i++)if(P[i].x<g.xGo
   function fmt(t){var m=Math.floor(t/60),s=t-m*60;var ss=s.toFixed(2);if(s<10)ss="0"+ss;if(ss==="60.00"){m++;ss="00.00";}return m+":"+ss;}
 
   function loadStage(i){
-    stage=i;g=makeGeom(i);car=newCar(g);layout();bgKey="";
+    stage=i;g=makeGeom(i);car=newCar(g);notch=0;releasePedals();layout();bgKey="";
     marks=[];parts=[];pops=[];stageTime=0;hitPt=null;catMood="";catT=0;
     state="intro";stT=1.6;
     var inf=STAGE_INFO[i],cn=g.c.name;
@@ -396,7 +403,7 @@ function isCleared(k,g){var P=corners(k,g.c);for(var i=0;i<4;i++)if(P[i].x<g.xGo
     var px=sx(p.x),py=sy(p.y);
     pops.push({x:px,y:py,t:0,txt:"ゴツン！"});
     for(var i=0;i<14;i++){var a=Math.random()*6.28,v=40+Math.random()*120;parts.push({x:px,y:py,vx:Math.cos(a)*v,vy:Math.sin(a)*v-40,life:0.6+Math.random()*0.3,c:i%2?"#ffd166":"#fff"});}
-    car.v=0;held.f=held.b=false;sndCrash();
+    car.v=0;releasePedals();sndCrash();
     if(navigator.vibrate)try{navigator.vibrate(60);}catch(e){}
   }
   function clearStage(){
@@ -412,28 +419,31 @@ function isCleared(k,g){var P=corners(k,g.c);for(var i=0;i<4;i++)if(P[i].x<g.xGo
       var lp=k["m"+i];if(lp&&Math.hypot(p.x-lp.x,p.y-lp.y)>0.08){marks.push([lp.x,lp.y,p.x,p.y]);k["m"+i]=p;}else if(!lp)k["m"+i]=p;}
     if(marks.length>1600)marks.splice(0,200);
   }
-  function inputs(){             // 画面上の左右 → 正規化座標（左折ステージは反転）
-    var l=held.l,r=held.r; if(g.dir<0){var t=l;l=r;r=t;}
-    return {f:held.f,b:held.b,l:l,r:r};
+  function steer(dn){            // 左右ボタン1回 = 1段
+    if(!running||paused||!g)return;
+    var n=Math.max(-NOTCH_MAX,Math.min(NOTCH_MAX,notch+dn));
+    if(n===notch)return;
+    notch=n;if(state!=="clear")car.d=notchAngle(notch*g.dir);   // 左折ステージは正規化座標で反転
+    tone(notch===0?520:600+Math.abs(notch)*90,0.05,"sine",0.05);
   }
   function fixedStep(){
     if(state==="intro"){stT-=DT;if(stT<=0){state="play";hideBanner();}}
     else if(state==="play"){
       stageTime+=DT;total+=DT;
-      stepCar(car,g,inputs(),DT);
-      if(Math.abs(car.d)>g.c.max*0.62&&Math.abs(car.v)>0.25)addMark(car);else{car.m0=car.m1=car.m2=car.m3=null;}
+      car.d=notchAngle(notch*g.dir);
+      stepCar(car,g,held,DT);
+      if(Math.abs(notch)>=2&&Math.abs(car.v)>0.25)addMark(car);else{car.m0=car.m1=car.m2=car.m3=null;}
       if(car.v<-0.1){beepT-=DT;if(beepT<=0){beepT=0.55;sndBeep();}}else beepT=0;
       var h=hitTest(car,g);
       if(h)crash(h);else if(isCleared(car,g))clearStage();
     }
     else if(state==="crash"){
       stageTime+=DT;total+=DT;stT-=DT;
-      if(stT<=0){car=newCar(g);state="play";hitPt=null;}
+      if(stT<=0){car=newCar(g);notch=0;state="play";hitPt=null;}
     }
     else if(state==="clear"){
       stT-=DT;
-      car.d*=0.96;car.v=Math.min(VF,car.v+ACC*DT);
-      car.x+=car.v*Math.cos(car.th)*DT;car.y+=car.v*Math.sin(car.th)*DT;car.th+=car.v/g.c.wb*Math.tan(car.d)*DT;
+      car.v=0;
       if(stT<=0){hideBanner();if(stage<STAGES.length-1)loadStage(stage+1);else finish();}
     }
     // 演出
@@ -485,11 +495,12 @@ function isCleared(k,g){var P=corners(k,g.c);for(var i=0;i<4;i++)if(P[i].x<g.xGo
     if(flash>0){ctx.fillStyle="rgba(255,60,40,"+(flash*0.5)+")";ctx.fillRect(-20,-20,W+40,H+40);}
     // HUD
     hud.s.textContent=stage+1;hud.c.textContent=crashes;hud.t.textContent="⏱ "+fmt(total);
-    var sd=car.d*g.dir/g.c.max;  // 画面上の舵角（-1..1, 右が+）
-    wheelEl.style.transform="rotate("+(sd*160).toFixed(1)+"deg)";
-    gi.style.left=(50+sd*50).toFixed(1)+"%";
-    var pc=Math.round(Math.abs(sd)*100);
-    slab.textContent=pc<4?"まっすぐ":(sd<0?"左 ":"右 ")+(pc>=99?"いっぱい":pc+"%");
+    if(shownNotch!==notch){
+      shownNotch=notch;var deg=notch*NOTCH_DEG;
+      fwL.setAttribute("transform","rotate("+deg+")");fwR.setAttribute("transform","rotate("+deg+")");
+      for(var ni=0;ni<notchEls.length;ni++)notchEls[ni].classList.toggle("on",ni===notch+NOTCH_MAX);
+      slab.textContent=notch===0?"まっすぐ":(notch<0?"左":"右")+Math.abs(deg)+"°";
+    }
   }
 
   var loopId=0;
@@ -504,14 +515,14 @@ function isCleared(k,g){var P=corners(k,g.c);for(var i=0;i<4;i++)if(P[i].x<g.xGo
   }
   function start(){
     resize();ov.hidden=true;running=true;paused=false;
-    total=0;crashes=0;stageTimes=[];held={f:false,b:false,l:false,r:false};syncBtns();
+    total=0;crashes=0;stageTimes=[];releaseAll();
     loadStage(0);
     last=performance.now();acc=0;
-    if(window.Arcade)Arcade.ready();
+    if(window.Arcade)try{Arcade.ready();}catch(e){}
     var id=++loopId;requestAnimationFrame(function(t){last=t;loop(id,t);});
   }
   function finish(){
-    state="done";running=false;hideBanner();held={f:false,b:false,l:false,r:false};syncBtns();
+    state="done";running=false;hideBanner();releaseAll();
     var score=Math.round(total*100)/100;
     var msg=total<55?"神ドライバー！":total<80?"運転うまい！":total<120?"なかなかの腕前！":"おつかれさま！";
     var em=total<55?"🏆":total<80?"🥇":total<120?"🚗":"😅";
@@ -520,38 +531,57 @@ function isCleared(k,g){var P=corners(k,g.c);for(var i=0;i<4;i++)if(P[i].x<g.xGo
       '<p>'+msg+'　ゴツン '+crashes+' 回</p><div class="lst">'+lst+'</div><button id="rb" type="button">リトライ</button>';
     ov.hidden=false;
     document.getElementById("rb").addEventListener("click",function(e){e.stopPropagation();audioOn();start();});
-    if(window.Arcade)Arcade.gameOver(score);
+    if(window.Arcade)try{Arcade.gameOver(score);}catch(e){}
   }
 
-  /* ===================== 入力 ===================== */
-  var BTN={bF:"f",bB:"b",bL:"l",bR:"r"},btnEls={};
+  /* ===================== 入力 =====================
+     前・後：押している指がボタンの上にある間だけ true。離す／指がボタンの外へ出る／キャンセル／
+     ウィンドウのblur・非表示・一時停止・ゴツン で必ず false に戻す（勝手に動き続けない）。
+     左・右：押した瞬間に1段だけ動かす（長押しのオートリピートなし）。 */
+  var BTN={bF:"f",bB:"b",bL:"l",bR:"r"},btnEls={},ptrs={f:{},b:{},l:{},r:{}},keyHeld={f:false,b:false};
+  function recompute(k){held[k]=Object.keys(ptrs[k]).length>0||(keyHeld[k]===true);}
   function syncBtns(){for(var id in BTN)btnEls[id].classList.toggle("on",!!held[BTN[id]]);}
+  function releaseAll(){for(var k in ptrs)ptrs[k]={};keyHeld={f:false,b:false};held={f:false,b:false,l:false,r:false};syncBtns();}
+  function releasePedals(){ptrs.f={};ptrs.b={};keyHeld.f=keyHeld.b=false;held.f=held.b=false;syncBtns();}
+  function releasePtr(id){var ch=false;for(var k in ptrs)if(ptrs[k][id]){delete ptrs[k][id];recompute(k);ch=true;}if(ch)syncBtns();}
+  function inside(el,e){var r=el.getBoundingClientRect(),m=6;return e.clientX>=r.left-m&&e.clientX<=r.right+m&&e.clientY>=r.top-m&&e.clientY<=r.bottom+m;}
   Object.keys(BTN).forEach(function(id){
-    var el=document.getElementById(id),k=BTN[id],ptrs={};btnEls[id]=el;
-    function down(e){e.preventDefault();audioOn();ptrs[e.pointerId]=1;try{el.setPointerCapture(e.pointerId);}catch(_){} held[k]=true;syncBtns();}
-    function up(e){delete ptrs[e.pointerId];if(!Object.keys(ptrs).length){held[k]=false;syncBtns();}}
-    el.addEventListener("pointerdown",down);
-    el.addEventListener("pointerup",up);el.addEventListener("pointercancel",up);el.addEventListener("lostpointercapture",up);
+    var el=document.getElementById(id),k=BTN[id];btnEls[id]=el;
+    el.addEventListener("pointerdown",function(e){
+      e.preventDefault();audioOn();
+      if(e.pointerType==="mouse"&&e.button!==0)return;
+      ptrs[k][e.pointerId]=1;recompute(k);syncBtns();
+      if(k==="l")steer(-1);else if(k==="r")steer(1);
+    });
+    function up(e){if(ptrs[k][e.pointerId]){delete ptrs[k][e.pointerId];recompute(k);syncBtns();}}
+    el.addEventListener("pointerup",up);el.addEventListener("pointercancel",up);
+    el.addEventListener("pointerleave",up);el.addEventListener("lostpointercapture",up);
+    el.addEventListener("pointermove",function(e){if(ptrs[k][e.pointerId]&&!inside(el,e))up(e);});   // タッチは暗黙キャプチャされるので座標で判定
     el.addEventListener("contextmenu",function(e){e.preventDefault();});
   });
+  // どこで指が離れても確実に解除（取りこぼし対策）
+  ["pointerup","pointercancel"].forEach(function(t){window.addEventListener(t,function(e){releasePtr(e.pointerId);},true);});
+  window.addEventListener("touchend",function(e){if(e.touches&&e.touches.length===0){var any=false;for(var k in ptrs)if(Object.keys(ptrs[k]).length)any=true;if(any)releaseAll();}},true);
+  window.addEventListener("touchcancel",function(e){if(e.touches&&e.touches.length===0)releaseAll();},true);
   var KEYS={ArrowUp:"f",ArrowDown:"b",ArrowLeft:"l",ArrowRight:"r",w:"f",s:"b",a:"l",d:"r"};
-  window.addEventListener("keydown",function(e){var k=KEYS[e.key];if(k){e.preventDefault();audioOn();held[k]=true;syncBtns();}});
-  window.addEventListener("keyup",function(e){var k=KEYS[e.key];if(k){e.preventDefault();held[k]=false;syncBtns();}});
-  window.addEventListener("blur",function(){held={f:false,b:false,l:false,r:false};syncBtns();});
+  window.addEventListener("keydown",function(e){var k=KEYS[e.key];if(!k)return;e.preventDefault();audioOn();
+    if(k==="f"||k==="b"){keyHeld[k]=true;recompute(k);syncBtns();}
+    else if(!e.repeat)steer(k==="l"?-1:1);});
+  window.addEventListener("keyup",function(e){var k=KEYS[e.key];if(!k)return;e.preventDefault();
+    if(k==="f"||k==="b"){keyHeld[k]=false;recompute(k);syncBtns();}});
+  window.addEventListener("blur",releaseAll);
+  document.addEventListener("visibilitychange",function(){if(document.hidden)releaseAll();});
+  window.addEventListener("pagehide",releaseAll);
   document.addEventListener("contextmenu",function(e){e.preventDefault();});
   document.getElementById("startBtn").addEventListener("click",function(e){e.stopPropagation();audioOn();start();});
 
   if(window.Arcade){
-    Arcade.onPause(function(){paused=true;held={f:false,b:false,l:false,r:false};syncBtns();});
-    Arcade.onResume(function(){paused=false;last=performance.now();acc=0;});
-    Arcade.onRestart(function(){paused=false;start();});
+    try{
+      Arcade.onPause(function(){paused=true;releaseAll();});
+      Arcade.onResume(function(){releaseAll();paused=false;last=performance.now();acc=0;});
+      Arcade.onRestart(function(){paused=false;start();});
+    }catch(e){}
   }
-  // テスト用フック（自動テストで決まった入力列を再生するため）
-  window.__lturnTest={
-    manual:function(on){manual=!!on;acc=0;},
-    step:function(n){for(var i=0;i<n;i++){if(!running)break;fixedStep();}draw();},
-    info:function(){return {stage:stage,state:state,total:total,crashes:crashes,stageTime:stageTime,car:car&&{x:car.x,y:car.y,th:car.th,d:car.d,v:car.v},dir:g&&g.dir,sc:SC};}
-  };
 
   resize();g=makeGeom(0);car=newCar(g);layout();draw();
 })();
