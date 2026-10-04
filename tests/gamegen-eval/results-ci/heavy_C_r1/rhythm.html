@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
+<title>ネオンリズム4レーン</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%83%8D%E3%82%AA%E3%83%B3%E3%83%AA%E3%82%BA%E3%83%A04%E3%83%AC%E3%83%BC%E3%83%B3%22%2C%22h%22%3A%224%E3%83%AC%E3%83%BC%E3%83%B3%E3%81%AB%E8%90%BD%E3%81%A1%E3%82%8B%E3%83%8E%E3%83%BC%E3%83%84%E3%82%92%E5%88%A4%E5%AE%9A%E3%83%A9%E3%82%A4%E3%83%B3%E3%81%A7%E3%82%BF%E3%83%83%E3%83%97%EF%BC%81%E9%95%B7%E6%8A%BC%E3%81%97%E3%83%8E%E3%83%BC%E3%83%84%E3%81%AF%E6%8A%BC%E3%81%97%E3%81%A3%E3%81%B1%E3%81%AA%E3%81%97%E3%80%81%E9%87%91%E3%83%8E%E3%83%BC%E3%83%84(%E2%AD%90)%E3%81%AF%E9%AB%98%E5%BE%97%E7%82%B9%E3%80%82PERFECT%E3%81%A7%E3%83%95%E3%82%A3%E3%83%BC%E3%83%90%E3%83%BC%E3%82%B2%E3%83%BC%E3%82%B8%E3%82%92%E8%B2%AF%E3%82%81%E3%81%A6%E3%82%B9%E3%82%B3%E3%82%A22%E5%80%8D%EF%BC%8150%E3%82%B3%E3%83%B3%E3%83%9C%E3%81%94%E3%81%A8%E3%81%AB%E8%83%8C%E6%99%AF%E3%81%8C%E5%A4%89%E5%8C%96%E3%80%82%E6%9B%B2%E3%81%AE%E5%BE%8C%E5%8D%8A%E3%81%AF%E3%83%86%E3%83%B3%E3%83%9D%E3%82%A2%E3%83%83%E3%83%97%E3%80%82%E6%9C%80%E5%BE%8C%E3%81%AB%E5%88%A4%E5%AE%9A%E3%81%AE%E5%86%85%E8%A8%B3%E3%81%A8%E3%83%A9%E3%83%B3%E3%82%AF%E3%81%8C%E5%87%BA%E3%82%8B%E3%82%88%E3%80%82%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
+html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
+#vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+/* vpstage＝論理480x720（2:3）の箱。HUD・オーバーレイ・ゲームDOMを全部この中に入れ、
+   箱ごと実画面へ拡縮する（座標系はゲーム内で常に1つ） */
+#vpstage{position:fixed;left:0;top:0;width:480px;height:720px;transform-origin:0 0;z-index:1;overflow:hidden}
+#vpdom{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
+#vpdom *{pointer-events:auto}
+.vp-hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
+.vp-hud span:empty{display:none}
+.vp-ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
+.vp-ov h1{font-size:28px}
+.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:340px;white-space:pre-line}
+.vp-ov .vp-big{font-size:44px;font-weight:900;color:#ffd166}
+.vp-btn{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:17px;box-shadow:0 5px 0 rgba(0,0,0,.25);touch-action:manipulation}
+.vp-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.vp-toast{position:absolute;top:52px;left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+[hidden]{display:none!important}
+</style>
+<style id="vpcss">
+/*__VAPPA_CSS__*/
+
+/*__VAPPA_CSS_END__*/
+</style>
+</head><body>
+<canvas id="vpc"></canvas>
+<div id="vpstage">
+  <div id="vpdom"></div>
+  <div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
+  <div class="vp-toast" id="vptoast"></div>
+  <div class="vp-ov" id="vpov">
+    <h1>ネオンリズム4レーン</h1>
+    <p>4レーンに落ちるノーツを判定ラインでタップ！長押しノーツは押しっぱなし、金ノーツ(⭐)は高得点。PERFECTでフィーバーゲージを貯めてスコア2倍！50コンボごとに背景が変化。曲の後半はテンポアップ。最後に判定の内訳とランクが出るよ。</p>
+    <button class="vp-btn" id="vpstart">スタート</button>
+  </div>
+</div>
+<script id="vpimgs">
+/* ユーザー素材画像 {名前:dataURL}。中身はビルド後にアプリが注入（AIには名前だけ渡る） */
+window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
+</script>
+<script>
+window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
+var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
+// iOS Safari は fillStyle がグラデーション/パターンのオブジェクトのままだと
+// カラー絵文字を fillText できない（何も描かれない）。生成コードは
+// 「背景をグラデで塗る→そのまま絵文字を描く」形を高頻度で書くため、
+// 絵文字を含む fillText の間だけ fillStyle を単色に退避して確実に描く。
+(function(){
+  var _ft=ctx.fillText;
+  function hasEmo(s){
+    for(var i=0;i<s.length;i++){
+      var c=s.charCodeAt(i);
+      if((c>=0x2100&&c<=0x2BFF)||(c>=0xD800&&c<=0xDFFF)||c===0xFE0F)return true;
+    }
+    return false;
+  }
+  ctx.fillText=function(t,x,y,mw){
+    var s=String(t);
+    if(typeof this.fillStyle!=="string"&&hasEmo(s)){
+      var f=this.fillStyle;this.fillStyle="#000";
+      try{mw===undefined?_ft.call(this,s,x,y):_ft.call(this,s,x,y,mw);}
+      finally{this.fillStyle=f;}
+    }else{
+      mw===undefined?_ft.call(this,s,x,y):_ft.call(this,s,x,y,mw);
+    }
+  };
+})();
+// 論理画面は 480x720（2:3）固定。全端末でこのサイズとして描き、ランタイムが
+// vpstage（HUD・オーバーレイ・ゲームDOMを含む箱）ごと実画面へ拡縮する。
+// ゲームコードは端末差を一切考えなくてよい（入力座標も論理系で届く）。
+var W=480,H=720;
+var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
+(function(){
+"use strict";
+var DPR=Math.min(2,window.devicePixelRatio||1);
+function rs(){
+  var vw=window.innerWidth,vh=window.innerHeight;
+  __SC=Math.min(vw/W,vh/H);
+  __OX=(vw-W*__SC)/2;__OY=(vh-H*__SC)/2;
+  cv.width=vw*DPR;cv.height=vh*DPR;
+  ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
+  ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
+  var st=document.getElementById("vpstage");
+  if(st){st.style.transform="scale("+__SC+")";st.style.left=__OX+"px";st.style.top=__OY+"px";}
+  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
+}
+window.addEventListener("resize",rs);rs();
+// 実画面座標→論理座標（タッチ入力用）
+function toLX(x){return (x-__OX)/__SC;}
+function toLY(y){return (y-__OY)/__SC;}
+var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="点";
+// ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
+var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
+var hud=document.getElementById("vphud"),hl=document.getElementById("vphl"),hr=document.getElementById("vphr");
+var ov=document.getElementById("vpov"),toastEl=document.getElementById("vptoast"),tt=null,last=performance.now();
+window.Game={
+  img:function(n){return IMGS[n]||null;},
+  score:function(n){hl.textContent=(n|0)+unit;},
+  hud:function(t){hr.textContent=t==null?"":String(t);},
+  float:function(x,y,t,c){floats.push({x:x,y:y,t:String(t),c:c||"#fff",age:0});},
+  toast:function(t){toastEl.textContent=t;toastEl.style.opacity=1;clearTimeout(tt);tt=setTimeout(function(){toastEl.style.opacity=0;},2000);},
+  over:function(s){
+    if(!playing||ended)return;ended=true;playing=false;s=Math.max(0,Math.floor(Number(s)||0));
+    ov.innerHTML='<h1>おわり！</h1><div class="vp-big">'+s+'<small style="font-size:20px">'+unit+'</small></div><button class="vp-btn" id="vpagain">もういちど</button>';
+    ov.hidden=false;
+    document.getElementById("vpagain").addEventListener("click",start);
+    try{window.Arcade.gameOver(s);}catch(e){}
+  }
+};
+function crash(e){
+  if(crashed)return;crashed=true;playing=false;
+  try{window.__VP_ERR=String(e&&(e.stack||e.message)||e).slice(0,600);}catch(x){}
+  ov.innerHTML='<h1>😢 エラーが発生</h1><p>ゲームにエラーが起きました。<br>作成チャットで「エラーを直して」と伝えると修理できるよ。</p><button class="vp-btn" id="vpagain">もういちど</button>';
+  ov.hidden=false;
+  document.getElementById("vpagain").addEventListener("click",start);
+}
+function start(){
+  floats=[];ended=false;crashed=false;
+  try{window.init();}catch(e){crash(e);return;}
+  window.Game.score(0);ov.hidden=true;hud.hidden=false;playing=true;last=performance.now();
+}
+document.getElementById("vpstart").addEventListener("click",start);
+function fire(fn,x,y,id){
+  if(!playing||paused)return;
+  if(typeof window[fn]==="function"){try{window[fn](x,y,id);}catch(err){crash(err);}}
+}
+// pointer と touch を両対応（iOSのiframe内などpointerが飛ばない環境へのフォールバック）。
+// pointerが一度でも来たらtouchは無視して二重発火を防ぐ。
+var seenPointer=false;
+window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",toLX(e.clientX),toLY(e.clientY),e.pointerId);fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointermove",function(e){fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointerup",function(e){fire("onUp",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+// タッチの扱い（iOS対策の要点）：
+//  - touchstart は preventDefault しない
+//  - touchmove は非passiveで preventDefault → パン/スクロール横取りはこれで止まる
+//  - touchend はボタン類「以外」でだけ preventDefault → iOSのダブルタップズーム
+//    （touch-action:noneでは止まらない端末がある）を殺しつつ、ボタンの click 合成は守る
+//  - preventDefault すると iOS は click を合成しない → 生成コードが div/span で
+//    自作ボタンを作った場合に全操作不能になる。そこで「タップ」（移動が小さく
+//    短いタッチ）に限り、こちらで click を合成して補う。本物の button 等は
+//    preventDefault しない＝ネイティブ click が来るので合成しない（二重防止）
+//  - pointerイベントが来る環境では発火だけ二重防止（seenPointer）
+function tfire(fn,e){
+  if(seenPointer)return;
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,toLX(t.clientX),toLY(t.clientY),t.identifier);
+    if(fn==="onDown")fire("onMove",toLX(t.clientX),toLY(t.clientY),t.identifier);}
+}
+function uiTouch(e){var t=e.target;return !!(t&&t.closest&&t.closest("button,a,input,select,label"));}
+var tstart={};
+window.addEventListener("touchstart",function(e){
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];tstart[t.identifier]={x:t.clientX,y:t.clientY,at:Date.now()};}
+  tfire("onDown",e);
+},{passive:true});
+window.addEventListener("touchmove",function(e){if(e.cancelable)e.preventDefault();tfire("onMove",e);},{passive:false});
+window.addEventListener("touchend",function(e){
+  var prevented=false;
+  if(e.cancelable&&!uiTouch(e)){e.preventDefault();prevented=true;}
+  if(prevented){
+    for(var i=0;i<e.changedTouches.length;i++){
+      var t=e.changedTouches[i],s=tstart[t.identifier];
+      if(s&&Math.abs(t.clientX-s.x)<14&&Math.abs(t.clientY-s.y)<14&&Date.now()-s.at<1500){
+        var el=document.elementFromPoint(t.clientX,t.clientY)||e.target;
+        if(el){try{el.dispatchEvent(new MouseEvent("click",{bubbles:true,cancelable:true,view:window,clientX:t.clientX,clientY:t.clientY}));}catch(err){}}
+      }
+    }
+  }
+  for(var j=0;j<e.changedTouches.length;j++)delete tstart[e.changedTouches[j].identifier];
+  tfire("onUp",e);
+},{passive:false});
+document.addEventListener("gesturestart",function(e){e.preventDefault();});
+window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",toLX(e.clientX),toLY(e.clientY),0);});
+window.Arcade.onPause(function(){paused=true;});
+window.Arcade.onResume(function(){paused=false;last=performance.now();});
+window.Arcade.onRestart(start);
+document.addEventListener("visibilitychange",function(){if(document.hidden){paused=true;}else{paused=false;last=performance.now();}});
+function loop(now){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(now-last)/1000);last=now;
+  if(crashed)return;
+  if(playing&&!paused){try{window.update(dt);}catch(e){crash(e);return;}}
+  if(playing||ended){try{window.draw();}catch(e){crash(e);return;}}
+  for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.age+=dt;
+    if(f.age>1){floats.splice(i,1);continue;}
+    ctx.save();ctx.globalAlpha=Math.max(0,1-f.age);ctx.font="bold 16px sans-serif";ctx.textAlign="center";
+    ctx.fillStyle=f.c;ctx.fillText(f.t,f.x,f.y-f.age*30);ctx.restore();}
+}
+requestAnimationFrame(loop);
+window.Arcade.ready();
+// 自動テストプレイ用フック：親(アプリ)がスモークテストで入力を一発流すのに使う
+window.__vpTap=function(){
+  fire("onDown",W/2,H/2,1);fire("onMove",W/2+40,H/2,1);fire("onUp",W/2+40,H/2,1);
+};
+})();
+</script>
+<script id="vpgame">
+/*__VAPPA_JS__*/
+var TUNE = {
+  bpm:      { v: 128,  label: 'テンポ(BPM)',        min: 80,  max: 180, step: 2 },
+  songLen:  { v: 45,   label: '曲の長さ(秒)',        min: 20,  max: 90,  step: 5 },
+  approach: { v: 1.15, label: 'ノーツ落下時間(秒)',  min: 0.6, max: 2.0, step: 0.05 },
+  density:  { v: 1.0,  label: 'ノーツ密度',          min: 0.5, max: 1.6, step: 0.05 },
+  speedUp:  { v: 0.25, label: '終盤の落下加速',      min: 0,   max: 0.6, step: 0.05 },
+  holdRate: { v: 0.12, label: '長押しノーツの割合',  min: 0,   max: 0.35, step: 0.02 },
+  goldRate: { v: 0.10, label: '金ノーツの割合',      min: 0,   max: 0.30, step: 0.01 },
+  feverGain:{ v: 0.055,label: 'フィーバー増加量',    min: 0.02,max: 0.15, step: 0.005 },
+  lives:    { v: 12,   label: 'ライフ',              min: 3,   max: 20,  step: 1 },
+  volume:   { v: 0.5,  label: '音量',                min: 0,   max: 1,   step: 0.1 }
+};
+
+/* ===== 設定テーブル（盛り要素を足しやすいように配列・表で管理） ===== */
+/* レーン定義：色相 h と絵文字。レーンを増やす場合はここに追加 */
+var LANES = [
+  { h: 190, emoji: '💎' },
+  { h: 320, emoji: '🌸' },
+  { h: 95,  emoji: '🎀' },
+  { h: 35,  emoji: '🔥' }
+];
+
+/* 判定テーブル：窓(秒)・基礎点・ラベル・色相・タップ音の音程 */
+var JUDGE = {
+  perfect: { win: 0.050, base: 100, label: 'PERFECT', h: 190, pitch: 1318.5 },
+  great:   { win: 0.100, base: 50,  label: 'GREAT',   h: 95,  pitch: 987.8 },
+  miss:    { win: 9.0,   base: 0,   label: 'MISS',    h: 0,   pitch: 174.6 }
+};
+
+/* コンボ倍率テーブル（段を足すだけで調整できる） */
+var COMBO_TIERS = [
+  { min: 0,  mult: 1.0 },
+  { min: 10, mult: 1.2 },
+  { min: 25, mult: 1.5 },
+  { min: 50, mult: 2.0 }
+];
+
+/* ノーツ種別テーブル（tap / hold / gold。将来 bomb なども追加できる） */
+var NOTE_TYPES = {
+  tap:  { label: 'タップ',   isHold: false, tailScore: 0,  mult: 1 },
+  hold: { label: '長押し',   isHold: true,  tailScore: 60, mult: 1 },
+  gold: { label: '金ノーツ', isHold: false, tailScore: 0,  mult: 3 }
+};
+
+/* 盛り要素（敵・アイテム・演出）を後から登録するための箱 */
+var EFFECTS = [];
+
+/* ===== 状態 ===== */
+var LANE_W = 120, TOP_Y = 62, JUDGE_Y = 556, PAD_TOP = 618;
+var notes = [], laneNotes = [[], [], [], []], holds = [], particles = [], rings = [], stars = [];
+var lanePress = [0, 0, 0, 0], laneFlash = [0, 0, 0, 0], laneGrad = [], fingers = {};
+var bgGrads = [], audioCtx = null;
+var songTime = 0, songEnd = 45, score = 0, combo = 0, maxCombo = 0, comboPop = 0;
+var lives = 12, shake = 0, judgeT = 9, judgeKey = 'perfect', judgeLane = 0;
+var lastBeatIdx = -99, hudTime = -1, hudLives = -1, over = true;
+var counts = { perfect: 0, great: 0, miss: 0 };
+var fever = 0, feverActive = false, feverTimer = 0;
+var resultPhase = false, resultTimer = 0, finalRank = '', completed = false, midToast = false;
+
+/* ===== 小物 ===== */
+function col(L, a) { return 'hsla(' + LANES[L].h + ',92%,62%,' + a + ')'; }
+function laneCX(L) { return L * LANE_W + LANE_W / 2; }
+function laneAt(x) {
+  var L = Math.floor(x / LANE_W);
+  if (L < 0) L = 0;
+  if (L > 3) L = 3;
+  return L;
+}
+function rr(x, y, w, h, r) {
+  if (r > w / 2) r = w / 2;
+  if (r > h / 2) r = h / 2;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+function comboMult() {
+  var m = 1;
+  for (var i = 0; i < COMBO_TIERS.length; i++) {
+    if (combo >= COMBO_TIERS[i].min) m = COMBO_TIERS[i].mult;
+  }
+  return m;
+}
+
+/* ===== 音（WebAudioで自動生成） ===== */
+function getAC() {
+  if (!audioCtx) {
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
+    } catch (e) { audioCtx = null; }
+  }
+  if (audioCtx && audioCtx.state === 'suspended' && audioCtx.resume) audioCtx.resume();
+  return audioCtx;
+}
+function sfx(freq, dur, type, vol) {
+  var v = TUNE.volume.v;
+  if (v <= 0) return;
+  var ac = getAC();
+  if (!ac) return;
+  try {
+    var o = ac.createOscillator(), g = ac.createGain();
+    o.type = type || 'triangle';
+    o.frequency.value = freq;
+    var t = ac.currentTime;
+    var amp = (vol === undefined ? 0.25 : vol) * v;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(amp, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + (dur || 0.12));
+    o.connect(g);
+    g.connect(ac.destination);
+    o.start(t);
+    o.stop(t + (dur || 0.12) + 0.03);
+  } catch (e) { }
+}
+
+/* ===== 譜面生成 ===== */
+function buildChart() {
+  var bpm = TUNE.bpm.v, beat = 60 / bpm, dur = TUNE.songLen.v;
+  var lead = 2.0, step = beat / 2, maxT = dur - 0.9;
+  notes = []; laneNotes = [[], [], [], []]; holds = [];
+  var laneFree = [0, 0, 0, 0];
+  var lastLane = -1;
+  var t = lead, i = 0;
+  while (t < maxT) {
+    var prog = (t - lead) / (dur - lead);
+    if (prog < 0) prog = 0;
+    if (prog > 1) prog = 1;
+    var onBeat = (i % 2) === 0;
+    var p = onBeat ? (0.50 + 0.40 * prog) : (0.08 + 0.44 * prog);
+    if (prog < 0.18 && !onBeat) p = 0;
+    p *= TUNE.density.v;
+    var want = 1;
+    if (onBeat && prog > 0.42 && Math.random() < 0.05 + 0.28 * prog) want = 2;
+    if (Math.random() < p) {
+      var cand = [];
+      for (var L = 0; L < 4; L++) { if (laneFree[L] <= t - 0.17) cand.push(L); }
+      for (var s = cand.length - 1; s > 0; s--) {
+        var j = Math.floor(Math.random() * (s + 1));
+        var tmp = cand[s]; cand[s] = cand[j]; cand[j] = tmp;
+      }
+      if (cand.length > 1 && cand[0] === lastLane) {
+        var sw = cand[0]; cand[0] = cand[1]; cand[1] = sw;
+      }
+      var n = Math.min(want, cand.length);
+      for (var k = 0; k < n; k++) {
+        var lane = cand[k];
+        var isHold = (n === 1) && (prog > 0.15) && (Math.random() < TUNE.holdRate.v);
+        var isGold = (!isHold) && (n === 1) && (Math.random() < TUNE.goldRate.v);
+        var len = isHold ? beat * (Math.random() < 0.55 ? 1 : 2) : 0;
+        var nt = {
+          lane: lane, time: t, type: isHold ? 'hold' : 'tap',
+          gold: isGold, end: t + len,
+          approach: TUNE.approach.v * (1 - TUNE.speedUp.v * prog),
+          judged: false, holding: false, broken: false, grace: 0, tick: 0
+        };
+        notes.push(nt);
+        laneNotes[lane].push(nt);
+        laneFree[lane] = t + len + 0.17;
+        lastLane = lane;
+      }
+    }
+    t += step;
+    i++;
+  }
+  notes.sort(function (a, b) { return a.time - b.time; });
+}
+
+/* ===== HUD ===== */
+function updateHud() {
+  var rem = Math.max(0, Math.ceil(songEnd - songTime));
+  if (rem !== hudTime || lives !== hudLives) {
+    hudTime = rem; hudLives = lives;
+    Game.hud('❤' + Math.max(0, lives) + '  ' + rem + 's');
+  }
+}
+
+/* ===== 初期化 ===== */
+function init() {
+  LANE_W = W / 4;
+  TOP_Y = 62;
+  JUDGE_Y = 556;
+  PAD_TOP = JUDGE_Y + 62;
+
+  /* 背景：コンボ50ごとに切り替わる8段階のグラデーションを先に作る */
+  bgGrads = [];
+  for (var k = 0; k < 8; k++) {
+    var hue = (215 + k * 48) % 360;
+    var g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, 'hsl(' + hue + ',55%,7%)');
+    g.addColorStop(0.55, 'hsl(' + ((hue + 25) % 360) + ',52%,13%)');
+    g.addColorStop(1, 'hsl(' + ((hue + 335) % 360) + ',45%,6%)');
+    bgGrads.push(g);
+  }
+
+  laneGrad = [];
+  for (var L = 0; L < 4; L++) {
+    var lg = ctx.createLinearGradient(0, TOP_Y, 0, JUDGE_Y);
+    lg.addColorStop(0, col(L, 0.02));
+    lg.addColorStop(1, col(L, 0.20));
+    laneGrad.push(lg);
+  }
+
+  fingers = {};
+  lanePress = [0, 0, 0, 0];
+  laneFlash = [0, 0, 0, 0];
+  particles = [];
+  rings = [];
+  stars = [];
+  holds = [];
+  songTime = 0;
+  score = 0; combo = 0; maxCombo = 0; comboPop = 0;
+  lives = TUNE.lives.v;
+  counts = { perfect: 0, great: 0, miss: 0 };
+  fever = 0; feverActive = false; feverTimer = 0;
+  resultPhase = false; resultTimer = 0; finalRank = ''; completed = false; midToast = false;
+  shake = 0; judgeT = 9; judgeKey = 'perfect'; judgeLane = 0;
+  lastBeatIdx = -99; hudTime = -1; hudLives = -1;
+  over = false;
+
+  buildChart();
+  songEnd = TUNE.songLen.v;
+  var lastEnd = 0;
+  for (var i = 0; i < notes.length; i++) { if (notes[i].end > lastEnd) lastEnd = notes[i].end; }
+  if (lastEnd + 1.4 > songEnd) songEnd = lastEnd + 1.4;
+
+  getAC();
+  Game.score(0);
+  updateHud();
+}
+
+/* ===== 判定・演出 ===== */
+function burst(lane, color) {
+  var x = laneCX(lane);
+  for (var i = 0; i < 9; i++) {
+    var a = -Math.PI / 2 + (Math.random() - 0.5) * 2.6;
+    var sp = 90 + Math.random() * 220;
+    particles.push({
+      x: x, y: JUDGE_Y,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      life: 0.45 + Math.random() * 0.2, max: 0.65,
+      c: color, r: 2 + Math.random() * 3
+    });
+  }
+  rings.push({ x: x, y: JUDGE_Y, r: 8, life: 0.32, max: 0.32, c: color });
+  laneFlash[lane] = 1;
+}
+/* PERFECTの時に飛ぶ星 */
+function burstStars(lane) {
+  var x = laneCX(lane);
+  for (var i = 0; i < 4; i++) {
+    var a = -Math.PI / 2 + (Math.random() - 0.5) * 2.2;
+    var sp = 130 + Math.random() * 190;
+    stars.push({
+      x: x, y: JUDGE_Y,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40,
+      life: 0.75, max: 0.75,
+      sz: 15 + Math.random() * 10,
+      rot: (Math.random() - 0.5) * 1.2,
+      rv: (Math.random() - 0.5) * 8
+    });
+  }
+}
+function showJudge(key, lane) { judgeKey = key; judgeT = 0; judgeLane = lane; }
+
+/* 判定の内訳からランクを決める */
+function calcRank(comp) {
+  var total = counts.perfect + counts.great + counts.miss;
+  if (total <= 0) return 'C';
+  var acc = (counts.perfect + counts.great * 0.5) / total;
+  var r;
+  if (acc >= 0.94) r = 3;
+  else if (acc >= 0.84) r = 2;
+  else if (acc >= 0.68) r = 1;
+  else r = 0;
+  if (!comp && r > 2) r = 2;
+  var tbl = ['C', 'B', 'A', 'S'];
+  return tbl[r];
+}
+
+/* 曲が終わった／ライフが尽きた → リザルト表示フェーズへ */
+function stageEnd(done) {
+  if (resultPhase || over) return;
+  resultPhase = true;
+  resultTimer = 0;
+  completed = !!done;
+  finalRank = calcRank(completed);
+  sfx(1046.5, 0.5, 'sine', 0.3);
+}
+/* リザルトを閉じてスコア確定 */
+function finish() {
+  if (over) return;
+  over = true;
+  Game.over(score);
+}
+
+function resolveMiss(n) {
+  n.judged = true;
+  n.broken = true;
+  combo = 0;
+  counts.miss++;
+  lives -= 1;
+  updateHud();
+  shake = 0.22;
+  sfx(JUDGE.miss.pitch, 0.2, 'sawtooth', 0.22);
+  showJudge('miss', n.lane);
+  if (lives <= 0) { lives = 0; updateHud(); stageEnd(false); }
+}
+function resolveHead(n, key) {
+  var j = JUDGE[key];
+  n.judged = true;
+  combo++;
+  if (combo > maxCombo) maxCombo = combo;
+  comboPop = 1;
+  if (key === 'perfect') counts.perfect++; else counts.great++;
+
+  var mult = comboMult() * (feverActive ? 2 : 1);
+  var base = j.base * (n.gold ? NOTE_TYPES.gold.mult : 1);
+  var add = Math.round(base * mult);
+  score += add;
+  Game.score(score);
+
+  sfx(j.pitch, 0.11, 'triangle', 0.3);
+  showJudge(key, n.lane);
+  burst(n.lane, 'hsla(' + (n.gold ? 45 : j.h) + ',92%,62%,0.95)');
+  if (n.gold) Game.float(laneCX(n.lane), JUDGE_Y - 92, 'GOLD +' + add, '#ffd166');
+
+  if (key === 'perfect') {
+    burstStars(n.lane);
+    if (!feverActive) {
+      fever += TUNE.feverGain.v;
+      if (fever >= 1) {
+        fever = 1; feverActive = true; feverTimer = 10;
+        Game.toast('FEVER! スコア2倍 (10秒)');
+        sfx(1760, 0.35, 'sine', 0.3);
+      }
+    }
+  }
+  if (n.type === 'hold') {
+    n.holding = true;
+    n.grace = 0;
+    n.tick = 0;
+    holds.push(n);
+  }
+}
+function tryHit(lane, now) {
+  var list = laneNotes[lane];
+  var best = null, bestD = 99;
+  for (var i = 0; i < list.length; i++) {
+    var n = list[i];
+    if (n.judged) continue;
+    if (n.time > now + 0.12) break;
+    var d = Math.abs(n.time - now);
+    if (d < bestD) { bestD = d; best = n; }
+  }
+  if (best && bestD <= JUDGE.great.win) {
+    resolveHead(best, bestD <= JUDGE.perfect.win ? 'perfect' : 'great');
+    return true;
+  }
+  return false;
+}
+
+/* ===== 入力 ===== */
+function press(lane) {
+  lanePress[lane]++;
+  laneFlash[lane] = 1;
+  if (!tryHit(lane, songTime)) {
+    rings.push({ x: laneCX(lane), y: JUDGE_Y, r: 6, life: 0.16, max: 0.16, c: col(lane, 0.55) });
+  }
+}
+function release(lane) {
+  if (lanePress[lane] > 0) lanePress[lane]--;
+}
+function onDown(x, y, id) {
+  if (resultPhase) {
+    if (resultTimer > 0.9) finish();
+    return;
+  }
+  if (over) return;
+  var lane = laneAt(x);
+  if (fingers[id] !== undefined) release(fingers[id]);
+  fingers[id] = lane;
+  press(lane);
+}
+function onMove(x, y, id) {
+  if (over || resultPhase) return;
+  if (fingers[id] === undefined) return;
+  var lane = laneAt(x);
+  if (lane !== fingers[id]) {
+    release(fingers[id]);
+    fingers[id] = lane;
+    press(lane);
+  }
+}
+function onUp(x, y, id) {
+  if (fingers[id] !== undefined) {
+    release(fingers[id]);
+    delete fingers[id];
+  }
+}
+
+/* ===== 更新 ===== */
+function update(dt) {
+  if (over) return;
+  if (resultPhase) {
+    resultTimer += dt;
+    if (resultTimer >= 5.0) finish();
+    return;
+  }
+  songTime += dt;
+
+  /* 自動生成の伴奏（ビートクリック）。後半は音程が上がる */
+  var beat = 60 / TUNE.bpm.v;
+  var bi = Math.floor((songTime - 2.0) / beat);
+  if (bi > lastBeatIdx) {
+    lastBeatIdx = bi;
+    if (bi >= -6) {
+      var late = songTime > songEnd * 0.5;
+      if (bi % 4 === 0) sfx(late ? 130.8 : 104.6, 0.09, 'sine', 0.22);
+      else sfx(late ? 196.0 : 156.8, 0.05, 'sine', 0.09);
+    }
+  }
+
+  /* 曲の後半になったらテンポアップを通知 */
+  if (!midToast && songTime > songEnd * 0.5) {
+    midToast = true;
+    Game.toast('テンポアップ！ 後半戦');
+  }
+
+  /* 見逃しMISS判定 */
+  for (var i = 0; i < notes.length; i++) {
+    var n = notes[i];
+    if (n.judged) continue;
+    if (songTime > n.time + JUDGE.great.win) {
+      resolveMiss(n);
+      if (resultPhase) return;
+    }
+  }
+
+  /* 長押しノーツの継続判定（押している間は少しずつ加点） */
+  for (var h = holds.length - 1; h >= 0; h--) {
+    var hn = holds[h];
+    if (songTime >= hn.end) {
+      holds.splice(h, 1);
+      hn.holding = false;
+      hn.judged = true;
+      combo++;
+      if (combo > maxCombo) maxCombo = combo;
+      comboPop = 1;
+      var hm = comboMult() * (feverActive ? 2 : 1);
+      var bonus = Math.round(NOTE_TYPES.hold.tailScore * hm);
+      score += bonus;
+      Game.score(score);
+      sfx(1568, 0.14, 'triangle', 0.26);
+      Game.float(laneCX(hn.lane), JUDGE_Y - 74, 'HOLD +' + bonus, '#a6ff8f');
+      burst(hn.lane, 'hsla(95,92%,62%,0.95)');
+      continue;
+    }
+    if (lanePress[hn.lane] > 0) {
+      hn.grace = 0;
+      hn.tick += dt;
+      while (hn.tick >= 0.1) {
+        hn.tick -= 0.1;
+        var tm = comboMult() * (feverActive ? 2 : 1);
+        score += Math.round(4 * tm);
+        Game.score(score);
+      }
+    } else {
+      hn.grace += dt;
+      if (hn.grace > 0.16) {
+        holds.splice(h, 1);
+        hn.holding = false;
+        hn.judged = true;
+        hn.broken = true;
+        combo = 0;
+        counts.miss++;
+        lives -= 1;
+        updateHud();
+        shake = 0.22;
+        sfx(JUDGE.miss.pitch, 0.2, 'sawtooth', 0.22);
+        showJudge('miss', hn.lane);
+        if (lives <= 0) { lives = 0; updateHud(); stageEnd(false); return; }
+      }
+    }
+  }
+
+  /* フィーバー：満タンで10秒間スコア2倍、ゲージは減っていく */
+  if (feverActive) {
+    feverTimer -= dt;
+    fever = feverTimer / 10;
+    if (fever < 0) fever = 0;
+    if (feverTimer <= 0) { feverActive = false; feverTimer = 0; fever = 0; }
+  }
+
+  /* エフェクト更新 */
+  for (var pi = particles.length - 1; pi >= 0; pi--) {
+    var q = particles[pi];
+    q.life -= dt;
+    if (q.life <= 0) { particles.splice(pi, 1); continue; }
+    q.x += q.vx * dt;
+    q.y += q.vy * dt;
+    q.vy += 420 * dt;
+    q.vx *= 0.98;
+  }
+  for (var si = stars.length - 1; si >= 0; si--) {
+    var st = stars[si];
+    st.life -= dt;
+    if (st.life <= 0) { stars.splice(si, 1); continue; }
+    st.x += st.vx * dt;
+    st.y += st.vy * dt;
+    st.vy += 260 * dt;
+    st.rot += st.rv * dt;
+  }
+  for (var ri = rings.length - 1; ri >= 0; ri--) {
+    var R = rings[ri];
+    R.life -= dt;
+    R.r += 260 * dt;
+    if (R.life <= 0) rings.splice(ri, 1);
+  }
+  for (var L = 0; L < 4; L++) {
+    if (laneFlash[L] > 0) {
+      laneFlash[L] -= dt * 3.5;
+      if (laneFlash[L] < 0) laneFlash[L] = 0;
+    }
+  }
+  if (shake > 0) shake -= dt;
+  if (judgeT < 9) judgeT += dt;
+  if (comboPop > 0) { comboPop -= dt * 3; if (comboPop < 0) comboPop = 0; }
+
+  if (songTime >= songEnd) { stageEnd(true); return; }
+  updateHud();
+}
+
+/* ===== ライフ／フィーバーゲージ ===== */
+function drawGauges() {
+  var pad = 16, iconW = 26, bh = 14;
+  var bx = pad + iconW;
+  var bw = W - pad - bx;
+  var y1 = JUDGE_Y + 12;
+  var y2 = y1 + 22;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  /* ライフゲージ */
+  ctx.fillStyle = 'rgba(10,14,30,0.78)';
+  rr(bx, y1, bw, bh, bh / 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(150,180,255,0.22)'; ctx.lineWidth = 1;
+  rr(bx, y1, bw, bh, bh / 2); ctx.stroke();
+  var lf = lives / TUNE.lives.v;
+  if (lf < 0) lf = 0; if (lf > 1) lf = 1;
+  if (lf > 0.01) {
+    ctx.fillStyle = lf > 0.5 ? '#4ade80' : (lf > 0.25 ? '#fbbf24' : '#ef4444');
+    rr(bx + 2, y1 + 2, (bw - 4) * lf, bh - 4, (bh - 4) / 2); ctx.fill();
+  }
+  ctx.font = "16px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  ctx.fillText('❤️', pad + iconW / 2, y1 + bh / 2);
+
+  /* フィーバーゲージ */
+  ctx.fillStyle = 'rgba(10,14,30,0.78)';
+  rr(bx, y2, bw, bh, bh / 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(150,180,255,0.22)'; ctx.lineWidth = 1;
+  rr(bx, y2, bw, bh, bh / 2); ctx.stroke();
+  var fv = fever; if (fv < 0) fv = 0; if (fv > 1) fv = 1;
+  if (feverActive) {
+    ctx.globalAlpha = 0.6 + Math.sin(songTime * 18) * 0.35;
+    ctx.fillStyle = '#ffd166';
+    rr(bx + 2, y2 + 2, bw - 4, bh - 4, (bh - 4) / 2); ctx.fill();
+    ctx.globalAlpha = 1;
+  } else if (fv > 0.01) {
+    ctx.fillStyle = '#7ee8ff';
+    rr(bx + 2, y2 + 2, (bw - 4) * fv, bh - 4, (bh - 4) / 2); ctx.fill();
+  }
+  ctx.font = "16px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  ctx.fillText('⚡', pad + iconW / 2, y2 + bh / 2);
+}
+
+/* ===== リザルト画面（判定の内訳＋ランク） ===== */
+function drawResults() {
+  ctx.fillStyle = 'rgba(4,7,18,0.88)';
+  ctx.fillRect(0, 56, W, H - 56);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  var cx = W / 2;
+
+  ctx.fillStyle = 'rgba(154,216,255,0.95)';
+  ctx.font = 'bold 26px sans-serif';
+  ctx.fillText('リザルト', cx, 118);
+
+  var rc = '#ff9aa2';
+  if (finalRank === 'S') rc = '#ffd166';
+  else if (finalRank === 'A') rc = '#7ee8ff';
+  else if (finalRank === 'B') rc = '#a6ff8f';
+  ctx.save();
+  ctx.shadowColor = rc;
+  ctx.shadowBlur = 30;
+  ctx.fillStyle = rc;
+  ctx.font = 'bold 120px sans-serif';
+  ctx.fillText(finalRank, cx, 232);
+  ctx.restore();
+
+  var total = counts.perfect + counts.great + counts.miss;
+  var acc = total > 0 ? (counts.perfect + counts.great * 0.5) / total : 0;
+  ctx.fillStyle = 'rgba(200,225,255,0.85)';
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillText('判定の内訳   精度 ' + Math.round(acc * 100) + '%', cx, 318);
+
+  var y0 = 368;
+  ctx.font = 'bold 22px sans-serif';
+  ctx.fillStyle = '#7ee8ff';
+  ctx.fillText('PERFECT   ' + counts.perfect, cx, y0);
+  ctx.fillStyle = '#a6ff8f';
+  ctx.fillText('GREAT     ' + counts.great, cx, y0 + 40);
+  ctx.fillStyle = '#ff7b7b';
+  ctx.fillText('MISS      ' + counts.miss, cx, y0 + 80);
+
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.font = 'bold 18px sans-serif';
+  ctx.fillText('MAX COMBO   ' + maxCombo, cx, y0 + 134);
+
+  if (!completed) {
+    ctx.fillStyle = 'rgba(255,140,140,0.95)';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.fillText('※ ライフが尽きました', cx, y0 + 176);
+  }
+
+  if (resultTimer > 1.0) {
+    ctx.globalAlpha = 0.6 + Math.sin(resultTimer * 6) * 0.35;
+    ctx.fillStyle = '#cfe6ff';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.fillText('タップで終了', cx, 662);
+    ctx.globalAlpha = 1;
+  }
+}
+
+/* ===== 描画 ===== */
+function draw() {
+  if (bgGrads.length < 2 || laneGrad.length < 4) return;
+  ctx.save();
+  if (shake > 0) {
+    ctx.translate((Math.random() * 2 - 1) * 5, (Math.random() * 2 - 1) * 4);
+  }
+
+  /* 背景：50コンボごとに色が変わる */
+  var tier = Math.floor(combo / 50);
+  if (tier < 0) tier = 0;
+  if (tier > 7) tier = 7;
+  ctx.fillStyle = bgGrads[tier];
+  ctx.fillRect(-40, -40, W + 80, H + 80);
+
+  /* レーン */
+  var L, x;
+  for (L = 0; L < 4; L++) {
+    x = L * LANE_W;
+    ctx.fillStyle = laneGrad[L];
+    ctx.fillRect(x + 1, TOP_Y, LANE_W - 2, JUDGE_Y - TOP_Y);
+    ctx.fillStyle = 'rgba(140,170,255,0.10)';
+    ctx.fillRect(x + LANE_W - 1, TOP_Y, 1, H - TOP_Y);
+  }
+
+  /* 下部パッド */
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (L = 0; L < 4; L++) {
+    x = L * LANE_W;
+    var pa = 0.05 + laneFlash[L] * 0.32;
+    ctx.fillStyle = col(L, pa);
+    rr(x + 7, PAD_TOP, LANE_W - 14, H - 18 - PAD_TOP, 16);
+    ctx.fill();
+    ctx.strokeStyle = col(L, 0.30 + laneFlash[L] * 0.65);
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.globalAlpha = 0.5 + laneFlash[L] * 0.5;
+    ctx.font = "26px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText(LANES[L].emoji, x + LANE_W / 2, PAD_TOP + (H - 18 - PAD_TOP) / 2);
+    ctx.globalAlpha = 1;
+  }
+
+  /* 判定ライン */
+  ctx.fillStyle = 'rgba(170,200,255,0.10)';
+  ctx.fillRect(0, JUDGE_Y - 9, W, 18);
+  for (L = 0; L < 4; L++) {
+    x = L * LANE_W;
+    if (laneFlash[L] > 0) {
+      ctx.globalAlpha = laneFlash[L] * 0.55;
+      ctx.fillStyle = col(L, 0.40);
+      ctx.fillRect(x + 2, JUDGE_Y - 30, LANE_W - 4, 60);
+      ctx.globalAlpha = 1;
+    }
+    ctx.fillStyle = col(L, 0.5 + laneFlash[L] * 0.5);
+    ctx.fillRect(x + 2, JUDGE_Y - 2, LANE_W - 4, 4);
+  }
+
+  /* ノーツ */
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 56, W, H - 56);
+  ctx.clip();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (var i = 0; i < notes.length; i++) {
+    var n = notes[i];
+    if (n.judged && !n.holding) continue;
+    var p = (n.time - songTime) / n.approach;
+    if (p > 1.12 || p < -0.30) continue;
+    var headY = JUDGE_Y - p * (JUDGE_Y - TOP_Y);
+    var ln = n.lane, cx = laneCX(ln);
+    var hue = n.gold ? 45 : LANES[ln].h;
+
+    if (n.type === 'hold') {
+      var te = (n.end - songTime) / n.approach;
+      var tailY = JUDGE_Y - te * (JUDGE_Y - TOP_Y);
+      var yTop = tailY;
+      var yBot = n.holding ? JUDGE_Y : headY;
+      if (yBot < yTop + 10) yBot = yTop + 10;
+      ctx.fillStyle = col(ln, 0.42);
+      rr(cx - 11, yTop, 22, yBot - yTop, 11);
+      ctx.fill();
+      ctx.fillStyle = col(ln, 0.95);
+      rr(cx - 3, yTop, 6, yBot - yTop, 3);
+      ctx.fill();
+      if (n.holding) {
+        ctx.globalAlpha = 0.30 + Math.random() * 0.30;
+        ctx.fillStyle = '#ffffff';
+        rr(cx - 8, JUDGE_Y - 30, 16, 30, 8);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    var hy = (n.type === 'hold' && n.holding) ? JUDGE_Y : headY;
+    if (hy > JUDGE_Y + 46) continue;
+    var nw = LANE_W - 36, nh = 26;
+    var hx = cx - nw / 2;
+    if (n.gold) {
+      ctx.globalAlpha = 0.4;
+      ctx.fillStyle = 'rgba(255,214,102,0.95)';
+      rr(hx - 10, hy - nh / 2 - 10, nw + 20, nh + 20, (nh + 20) / 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    ctx.fillStyle = 'hsla(' + hue + ',95%,62%,0.26)';
+    rr(hx - 5, hy - nh / 2 - 5, nw + 10, nh + 10, (nh + 10) / 2);
+    ctx.fill();
+    ctx.fillStyle = 'hsla(' + hue + ',95%,' + (n.gold ? 60 : 62) + '%,1)';
+    rr(hx, hy - nh / 2, nw, nh, nh / 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    rr(hx + 7, hy - nh / 2 + 4, nw - 14, 5, 3);
+    ctx.fill();
+    ctx.font = "18px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText(n.gold ? '⭐' : LANES[ln].emoji, cx, hy + 1);
+  }
+
+  /* パーティクル・リング・星 */
+  for (var pi = 0; pi < particles.length; pi++) {
+    var q = particles[pi];
+    ctx.globalAlpha = Math.max(0, q.life / q.max) * 0.95;
+    ctx.fillStyle = q.c;
+    ctx.beginPath();
+    ctx.arc(q.x, q.y, q.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  for (var ri = 0; ri < rings.length; ri++) {
+    var R = rings[ri];
+    ctx.globalAlpha = Math.max(0, R.life / R.max) * 0.9;
+    ctx.strokeStyle = R.c;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(R.x, R.y, R.r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (var si = 0; si < stars.length; si++) {
+    var s = stars[si];
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, s.life / s.max);
+    ctx.translate(s.x, s.y);
+    ctx.rotate(s.rot);
+    ctx.font = Math.round(s.sz) + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillText('⭐', 0, 0);
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  /* ゲージ（判定ラインの下） */
+  drawGauges();
+
+  /* 判定テキスト・コンボ・フィーバー表示 */
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  if (judgeT < 0.55) {
+    var a = 1 - judgeT / 0.55;
+    var sc = 1 + (1 - a) * 0.25;
+    var jd = JUDGE[judgeKey];
+    ctx.globalAlpha = a;
+    ctx.fillStyle = 'hsla(' + jd.h + ',95%,68%,1)';
+    ctx.font = 'bold ' + Math.round(30 * sc) + 'px sans-serif';
+    ctx.fillText(jd.label, W / 2, 300);
+    ctx.globalAlpha = 1;
+  }
+  if (feverActive) {
+    ctx.globalAlpha = 0.75 + Math.sin(songTime * 14) * 0.25;
+    ctx.fillStyle = '#ffd166';
+    ctx.font = 'bold 18px sans-serif';
+    ctx.fillText('FEVER ×2', W / 2, 190);
+    ctx.globalAlpha = 1;
+  }
+  if (combo >= 3 && !over && !resultPhase) {
+    var cs = 1 + comboPop * 0.30;
+    ctx.save();
+    ctx.translate(W / 2, 232);
+    ctx.scale(cs, cs);
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.font = 'bold 48px sans-serif';
+    ctx.fillText('' + combo, 0, 0);
+    ctx.restore();
+    ctx.fillStyle = 'rgba(170,200,255,0.85)';
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillText('COMBO', W / 2, 264);
+    var t2 = Math.floor(combo / 50);
+    if (t2 > 0) {
+      ctx.fillStyle = 'rgba(255,214,102,0.85)';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillText('AREA ' + t2, W / 2, 288);
+    }
+  }
+
+  /* 開始カウントダウン */
+  if (songTime < 2.0 && !over && !resultPhase) {
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = '#9ad8ff';
+    ctx.font = 'bold 52px sans-serif';
+    ctx.fillText('' + Math.max(1, Math.ceil(2.0 - songTime)), W / 2, 400);
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillStyle = 'rgba(200,225,255,0.85)';
+    ctx.fillText('レーンをタップ！', W / 2, 440);
+    ctx.globalAlpha = 1;
+  }
+
+  /* 曲の進行バー（最上部・HUD下） */
+  var prog2 = songTime / songEnd;
+  if (prog2 < 0) prog2 = 0;
+  if (prog2 > 1) prog2 = 1;
+  ctx.fillStyle = 'rgba(255,255,255,0.10)';
+  ctx.fillRect(0, 57, W, 4);
+  ctx.fillStyle = '#7ee8ff';
+  ctx.fillRect(0, 57, W * prog2, 4);
+
+  ctx.restore();
+
+  /* リザルト表示 */
+  if (resultPhase) drawResults();
+}
+
+/*__VAPPA_JS_END__*/
+</script>
+</body></html>
