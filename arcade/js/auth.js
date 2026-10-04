@@ -143,18 +143,25 @@ window.Auth = (function () {
     if (p && p.display_name) { try { localStorage.setItem("arcade.name", p.display_name); } catch (e) {} }
     try { window.dispatchEvent(new CustomEvent("vappa:profile", { detail: { profile: prof } })); } catch (e) {}
   }
+  // 書き込み用：本人のトークンを付ける（呼ぶ前に token() で期限切れを更新しておくこと）
   function rest(path, opts) {
     opts = opts || {};
     var h = hdr(sess && sess.access_token);
     opts.headers = Object.assign(h, opts.headers || {});
     return fetch(base + "/rest/v1/" + path, opts);
   }
+  // 読み取り用：プロフィールやフォローは公開情報なので、公開キーで読む。
+  // （以前は本人のトークンで読んでいて、約1時間でトークンが切れると「期限切れ」が返り、
+  //  それを「プロフィール未設定」と取り違えて、@ID の登録画面がもう一度出ていた）
+  function restPub(path) { return fetch(base + "/rest/v1/" + path, { headers: hdr() }); }
   // 自分のプロフィールを読み直す（無ければ null＝まだ決めていない）
   async function loadProfile() {
     var u = user(); if (!u) { setProf(null); return null; }
     try {
-      var r = await rest("profiles?user_id=eq." + u.id + "&select=handle,display_name,bio&limit=1");
-      var a = await r.json(); setProf(a && a[0] ? a[0] : null);
+      var r = await restPub("profiles?user_id=eq." + u.id + "&select=handle,display_name,bio&limit=1");
+      if (!r.ok) return prof;   // 読めなかった時は、端末に覚えているプロフィールのまま（消さない）
+      var a = await r.json();
+      if (Array.isArray(a)) setProf(a[0] || null);
     } catch (e) {}
     return prof;
   }
@@ -169,7 +176,7 @@ window.Auth = (function () {
   }
   // そのIDが空いているか（自分のものなら空き扱い）
   async function handleFree(h) {
-    var r = await rest("profiles?handle=eq." + encodeURIComponent(h) + "&select=user_id");
+    var r = await restPub("profiles?handle=eq." + encodeURIComponent(h) + "&select=user_id");
     var a = await r.json().catch(function () { return []; });
     var u = user();
     return !a.length || (u && a[0].user_id === u.id);
@@ -179,7 +186,7 @@ window.Auth = (function () {
     ids = (ids || []).filter(function (x, i, a) { return x && a.indexOf(x) === i; }).slice(0, 300);
     if (!ids.length) return {};
     try {
-      var r = await rest("profiles?user_id=in.(" + ids.join(",") + ")&select=user_id,handle,display_name");
+      var r = await restPub("profiles?user_id=in.(" + ids.join(",") + ")&select=user_id,handle,display_name");
       var a = await r.json(), m = {};
       (a || []).forEach(function (p) { m[p.user_id] = p; });
       return m;
@@ -187,7 +194,7 @@ window.Auth = (function () {
   }
   async function myFollows() {
     var u = user(); if (!u) return [];
-    try { var r = await rest("follows?follower=eq." + u.id + "&select=followee"); var a = await r.json(); return (a || []).map(function (x) { return x.followee; }); }
+    try { var r = await restPub("follows?follower=eq." + u.id + "&select=followee"); var a = await r.json(); return Array.isArray(a) ? a.map(function (x) { return x.followee; }) : []; }
     catch (e) { return []; }
   }
   async function follow(uid, on) {

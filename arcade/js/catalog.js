@@ -55,6 +55,7 @@ window.Catalog = (function () {
     return status === 400 && /category|published|chat|updated_at|hidden|score_type|score_unit|column|schema cache|PGRST204/i.test(text || "");
   }
   async function writeRow(path, method, row) {
+    if (window.Auth && Auth.token) await Auth.token();   // ログインの期限が切れていたら先に更新（切れたままだと保存が弾かれる）
     var res = await rq(path, { method: method, headers: { Prefer: "return=representation" }, body: JSON.stringify(row) });
     if (res.ok) return res;
     var t = ""; try { t = await res.text(); } catch (e) {}
@@ -139,6 +140,7 @@ window.Catalog = (function () {
 
     remove: async function (id) {
       if (remote) {
+        if (window.Auth && Auth.token) await Auth.token();
         var res = await rq("games?id=eq." + enc(id), { method: "DELETE" });
         if (!res.ok && res.status !== 204) { throw new Error("remove_failed:" + res.status); }
         return true;
