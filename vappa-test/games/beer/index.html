@@ -26,7 +26,7 @@
 <div id="ov">
   <div class="emo">🍺</div>
   <h1>ビール注ぎ名人</h1>
-  <p><b>長押しで注いで、点線で指をはなす。</b><br>泡は あとから増えるよ！</p>
+  <p><b>お客さんの注文を聞いて、長押しで注ごう。</b><br>「7:3」なら ビール7割で指をはなす！<br>ガイド線はなし。泡は あとから増えて<br>ふちまでピッタリなら 大成功！</p>
   <button id="startBtn">はじめる</button>
 </div>
 <script src="../../js/arcade-sdk.js?v=2"></script>
@@ -115,10 +115,14 @@
   var holding=false,needRelease=false,everPoured=false;
   var shake=0;
 
+  // 注文：泡の割合は蛇口が自動で合わせる。プレイヤーは「ビールが何割まで来たか」を言葉だけで判断して止める
   var ORDERS={
-    std:   {type:"std",  target:0.30,title:"ふつうで！",  sub:"ビール7：泡3"},
-    more:  {type:"more", target:0.50,title:"泡多めで！",  sub:"蛇口が泡多めモードに。点線でストップ！"},
-    nofoam:{type:"nofoam",target:0.08,title:"泡なしで！",  sub:"泡ひかえめで注ぐよ。点線でストップ！"}
+    std:   {type:"std",   target:0.30,say:"7:3でお願い！",  title:"ビール7：泡3",sub:"ビール7割で 指をはなそう"},
+    r82:   {type:"r82",   target:0.20,say:"8:2で たのむ！", title:"ビール8：泡2",sub:"いつもより ちょい長めに注ごう"},
+    r64:   {type:"r64",   target:0.40,say:"6:4で よろしく！",title:"ビール6：泡4",sub:"泡が多め。少し早めにストップ"},
+    more:  {type:"more",  target:0.50,say:"泡多めで 5:5！", title:"ビール5：泡5",sub:"半分で止めないと あふれるぞ！"},
+    nami:  {type:"nami",  target:0.10,say:"なみなみ 9:1！", title:"ビール9：泡1",sub:"ふちギリギリまで ビール！"},
+    nofoam:{type:"nofoam",target:0.04,say:"泡なしで！",     title:"泡なし",      sub:"ほぼビールだけ。ふちまで注ごう"}
   };
   var FACES=["🧔","👩","👨‍🦲","👵","🧑‍💼","👱‍♀️","🧑‍🍳","👴"];
 
@@ -138,23 +142,24 @@
     else if(n>=7&&r<(late?0.52:0.40))tap="sputter";
     if(n===4)tap="max";
     if(n===7)tap="sputter";
-    var ot="std";
-    if(n===5)ot="more";else if(n===9)ot="nofoam";
-    else if(n>5){var r2=Math.random();if(r2<0.17)ot="more";else if(r2<0.32)ot="nofoam";}
-    if(ot==="nofoam"&&tap==="max")tap="normal";
+    var ot="std",FIX={2:"r82",5:"more",6:"r64",9:"nofoam",11:"nami"};
+    if(FIX[n])ot=FIX[n];
+    else if(n>6){var r2=Math.random();ot=r2<0.28?"std":r2<0.44?"r82":r2<0.60?"r64":r2<0.74?"more":r2<0.88?"nami":"nofoam";}
+    if((ot==="nofoam"||ot==="nami")&&tap==="max")tap="normal";
+    var prevType=prev?prev.order.type:(cur?cur.order.type:"std");
     var speed=Math.max(0.72,1-n*0.012);
     cur={key:key,sh:sh,tap:tap,order:ORDERS[ot],face:FACES[(Math.random()*FACES.length)|0],
       L:0,F:0,P:0,LP:0,m:0,f:0,fj:0,pres:1,presT:1,sputT:0,T:sh.T*speed,
       state:"enter",st:0,x:W+200,idle:0,poured:false,result:null,over:false,
       overT:0,react:null,tilt:0,cardT:0};
-    // 目標ライン：泡がふちまで来たとき、ビールがここまで
+    // 正解ライン（注いでいる間は非表示。結果のときだけ答え合わせで見せる）
     cur.lineT=levelOf(sh,sh.cap*(1-cur.order.target));
     bubbles=[];for(var i=0;i<34;i++)bubbles.push({u:Math.random()*1.7-0.85,t:Math.random(),v:0.18+Math.random()*0.35,r:0.8+Math.random()*1.6});
     // 告知
     if(!sh.seen){sh.seen=true;showBanner((n===0?"":"NEW！ ")+sh.name,sh.tip,"#ffd166");}
     else if(tap==="max")showBanner("勢いMAX！","ドバッと出るぞ！早めにストップ","#ff6b6b");
     else if(tap==="sputter")showBanner("蛇口がゴボゴボ…","出たり止まったり！気をつけて","#7ad3ff");
-    else if(ot!=="std")showBanner(cur.order.title,cur.order.sub,"#9cff8f");
+    else if(ot!==prevType||n===0)showBanner(cur.order.title,cur.order.sub,"#9cff8f");
   }
   function showBanner(t,s,col){banner={t:t,s:s,col:col,age:0,dur:1.9};}
 
@@ -189,6 +194,7 @@
   function judge(over){
     var c=cur;c.F+=c.P;c.P=0;c.L+=c.LP;c.LP=0;
     var tot=c.L+c.F,vf=tot/c.sh.cap,r=tot>0?c.F/tot:0,tg=c.order.target;
+    if(!over&&vf>1.08){over=true;c.over=true;}
     var fillS=vf>=0.96?1:clamp((vf-0.60)/0.36,0,1);
     var err=Math.abs(r-tg);
     var ratioS=clamp(1-(err-0.06)/0.26,0,1);
@@ -253,7 +259,7 @@
       pourStep(c,dt);
       if(c.result.over){c.overT+=dt;if(Math.random()<dt*40){var side=Math.random()<0.5?-1:1;parts.push({x:c.x+side*(c.sh.hw(1)*S+4),y:mugTopY(c)+Math.random()*10,vx:side*8,vy:20+Math.random()*30,g:300,life:0.9,age:0,r:2+Math.random()*3,col:"#fff2d6",kind:"drop"});}}
       if(gameOverT>0){gameOverT-=dt;if(gameOverT<=0){gameOver();return;}}
-      else if(c.st>1.25){prev=c;prev.st=0;prev.state="exit";n++;newMug();}
+      else if(c.st>1.6){prev=c;prev.st=0;prev.state="exit";n++;newMug();}
     }
     if(prev){prev.st+=dt;prev.x=lerp(W/2,-240,Math.pow(clamp(prev.st/0.5,0,1),2));if(prev.st>0.55)prev=null;}
     // 泡（中の気泡）
@@ -434,43 +440,49 @@
     ctx.fillStyle="rgba(255,255,255,.75)";ctx.beginPath();ctx.ellipse(x,base-Hm,sh.hw(1)*S+6*S,2.2,0,0,Math.PI*2);ctx.fill();
     ctx.fillStyle="rgba(255,255,255,.18)";
     ctx.beginPath();for(var s=0;s<=20;s++){var t=0.08+s/20*0.8;ctx.lineTo(x-sh.hw(t)*S*0.78,base-t*Hm);}for(s=20;s>=0;s--){t=0.08+s/20*0.8;ctx.lineTo(x-sh.hw(t)*S*0.62,base-t*Hm);}ctx.closePath();ctx.fill();
-    // 目標ライン
-    if(isCur&&(c.state==="pour"||c.state==="enter")){
-      var lyT=base-c.lineT*Hm,lw=sh.hw(c.lineT)*S;
-      ctx.strokeStyle="rgba(60,25,0,.85)";ctx.lineWidth=4;
-      ctx.beginPath();ctx.moveTo(x-lw-10,lyT);ctx.lineTo(x+lw+10,lyT);ctx.stroke();
-      ctx.strokeStyle="#ffffff";ctx.setLineDash([7,5]);ctx.lineWidth=2;
-      ctx.beginPath();ctx.moveTo(x-lw-10,lyT);ctx.lineTo(x+lw+10,lyT);ctx.stroke();ctx.setLineDash([]);
-      var lbl="ビールはここまで";
-      ctx.font="800 11px "+FONT;ctx.textBaseline="middle";
-      var tx=x+lw+14,tw2=ctx.measureText(lbl).width;
-      var left=tx+tw2+14>W;if(left)tx=x-lw-14-tw2-10;
-      if(sh.handle&&!left){tx=x+lw+10+Hm*0.26*0.62+16;if(tx+tw2+12>W)tx=x-lw-14-tw2-10;}
-      if(tx<8)tx=x-tw2/2;
-      ctx.fillStyle="rgba(0,0,0,.55)";rr(tx-5,lyT-10,tw2+10,20,10);ctx.fill();
-      ctx.fillStyle="#fff";ctx.textAlign="left";ctx.fillText(lbl,tx,lyT+1);
+    // 答え合わせ：結果が出てから「正解ライン」をうっすら表示（注いでいる間は出さない）
+    if(isCur&&c.state==="result"){
+      var ga=clamp((c.st-0.25)/0.3,0,1)*clamp((1.6-c.st)/0.25,0,1);
+      if(ga>0){
+        var lyT=base-Math.min(1,c.lineT)*Hm,lw=sh.hw(Math.min(1,c.lineT))*S;
+        ctx.globalAlpha=ga;
+        ctx.strokeStyle="rgba(40,15,0,.7)";ctx.lineWidth=4;
+        ctx.beginPath();ctx.moveTo(x-lw-8,lyT);ctx.lineTo(x+lw+8,lyT);ctx.stroke();
+        ctx.strokeStyle="#9cff8f";ctx.setLineDash([7,5]);ctx.lineWidth=2;
+        ctx.beginPath();ctx.moveTo(x-lw-8,lyT);ctx.lineTo(x+lw+8,lyT);ctx.stroke();ctx.setLineDash([]);
+        var lbl="正解はここ";
+        ctx.font="800 11px "+FONT;ctx.textBaseline="middle";
+        var tw2=ctx.measureText(lbl).width,tx=x-lw-16-tw2;
+        if(tx<8)tx=x-tw2/2;
+        ctx.fillStyle="rgba(20,60,10,.8)";rr(tx-5,lyT-10,tw2+10,20,10);ctx.fill();
+        ctx.fillStyle="#d8ffcf";ctx.textAlign="left";ctx.fillText(lbl,tx,lyT+1);
+        ctx.globalAlpha=1;
+      }
     }
     ctx.restore();
   }
 
   function drawOrderCard(c){
+    // お客さんのふきだし（言葉だけ。比率バーや目盛りは出さない）
     if(!c)return;
-    var o=c.order,cx=12,cy=86,w=Math.min(168,W*0.42),h=74;
+    var o=c.order,cx=12,cy=86,fh=50;
     var t=easeBack(clamp(c.cardT/0.4,0,1));
-    ctx.save();ctx.translate(cx-(1-t)*(w+20),cy);
+    ctx.save();ctx.translate(cx-(1-t)*(W*0.7),cy);
     var spec=o.type!=="std";
-    ctx.fillStyle=spec?"#fff3c4":"rgba(255,248,235,.94)";rr(0,0,w,h,14);ctx.fill();
-    if(spec){ctx.strokeStyle="#ff9f1c";ctx.lineWidth=3;rr(1.5,1.5,w-3,h-3,13);ctx.stroke();}
+    // 顔
+    ctx.fillStyle="rgba(255,248,235,.94)";ctx.beginPath();ctx.arc(fh/2,fh/2+4,fh/2,0,Math.PI*2);ctx.fill();
     ctx.font="34px "+FONT;ctx.textAlign="center";ctx.textBaseline="middle";
-    ctx.fillText(c.react||c.face,30,h/2+2);
-    ctx.fillStyle=spec?"#c2410c":"#5a3412";ctx.font="800 16px "+FONT;ctx.textAlign="left";
-    ctx.fillText(o.title,56,22);
-    // ミニ比率バー
-    var bx=56,by=38,bw=w-66,bh=12,fr=o.target;
-    ctx.fillStyle="#f2a516";rr(bx,by,bw,bh,6);ctx.fill();
-    if(fr>0){ctx.save();rr(bx,by,bw,bh,6);ctx.clip();ctx.fillStyle="#fffdf6";ctx.fillRect(bx+bw*(1-fr),by,bw*fr,bh);ctx.strokeStyle="#d9b77a";ctx.lineWidth=1;ctx.strokeRect(bx+bw*(1-fr),by,bw*fr,bh);ctx.restore();}
-    ctx.fillStyle="#7a5530";ctx.font="700 10px "+FONT;
-    ctx.fillText(o.type==="nofoam"?"ほぼ泡なし":"ビール"+Math.round((1-o.target)*10)+"：泡"+Math.round(o.target*10),bx,by+bh+11);
+    ctx.fillText(c.react||c.face,fh/2,fh/2+6);
+    // ふきだし
+    ctx.font="800 17px "+FONT;
+    var tw=ctx.measureText(o.say).width,bx=fh+14,bw=Math.min(W-cx-bx-8,tw+26),bh=40,by=8;
+    ctx.fillStyle=spec?"#fff3c4":"#fffaf0";
+    rr(bx,by,bw,bh,14);ctx.fill();
+    ctx.beginPath();ctx.moveTo(bx+2,by+bh*0.45);ctx.lineTo(bx-10,by+bh*0.62);ctx.lineTo(bx+4,by+bh*0.72);ctx.closePath();ctx.fill();
+    if(spec){ctx.strokeStyle="#ff9f1c";ctx.lineWidth=2.5;rr(bx,by,bw,bh,14);ctx.stroke();}
+    ctx.fillStyle=spec?"#b8380a":"#5a3412";ctx.textAlign="center";
+    var pul=c.state==="enter"||(c.state==="pour"&&!c.poured)?1+0.03*Math.sin(time*6):1;
+    ctx.save();ctx.translate(bx+bw/2,by+bh/2+1);ctx.scale(pul,pul);ctx.fillText(o.say,0,0);ctx.restore();
     ctx.restore();
   }
 
@@ -507,7 +519,7 @@
     if(!c)return;
     var gy=Math.round(counterY+Math.min(64,(H-counterY)*0.4)),txt=null,pulse=false;
     if(c.state==="pour"&&!c.poured){txt="👆 長押しで注ぐ";pulse=true;}
-    else if(c.state==="pour"&&c.flow>0)txt="点線で 指をはなす！";
+    else if(c.state==="pour"&&c.flow>0)txt="注文どおりで 指をはなす！";
     ctx.textAlign="center";ctx.textBaseline="middle";
     if(txt){
       ctx.font="800 17px "+FONT;var tw=ctx.measureText(txt).width;
@@ -537,10 +549,9 @@
       ctx.lineWidth=7;ctx.strokeStyle="rgba(40,16,0,.75)";ctx.lineJoin="round";ctx.strokeText(o.t,0,0);ctx.fillStyle=o.col;ctx.fillText(o.t,0,0);
       ctx.restore();}
     if(cur&&cur.result&&cur.state==="result"&&!cur.result.over){
-      var r=cur.result,al2=clamp(cur.st/0.2,0,1)*clamp((1.25-cur.st)/0.2,0,1);
-      var rb=Math.round((1-r.ratio)*10),rf=10-rb;
+      var r=cur.result,al2=clamp(cur.st/0.2,0,1)*clamp((1.6-cur.st)/0.2,0,1);
       ctx.globalAlpha=al2;ctx.font="800 13px "+FONT;ctx.textAlign="center";ctx.textBaseline="middle";
-      var txt="ビール"+rb+"：泡"+rf,tw=ctx.measureText(txt).width;
+      var txt="注文 "+cur.order.title.replace("ビール","").replace("：泡",":")+"  →  ふち "+Math.round(clamp((cur.L+cur.F)/cur.sh.cap,0,1.2)*100)+"%",tw=ctx.measureText(txt).width;
       ctx.fillStyle="rgba(0,0,0,.55)";rr(W/2-tw/2-10,counterY+10-34,tw+20,24,12);ctx.fill();
       ctx.fillStyle="#fff";ctx.fillText(txt,W/2,counterY-12);ctx.globalAlpha=1;
     }
