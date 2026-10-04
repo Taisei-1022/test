@@ -5,7 +5,7 @@
      手がかりが出てきたか。後半のボスや段階変化は、腕前（自動操作）次第で到達しないことがある。 */
 const fs = require("fs"), path = require("path");
 const { chromium } = require("/opt/node22/lib/node_modules/playwright");
-const CASES = require("./cases_rich.js");
+const SET = (process.argv.find((a) => a.startsWith("--set=")) || "--set=rich").slice(6); const CASES = require("./cases_" + SET + ".js");   // --set=heavy など
 const args = {};
 process.argv.slice(2).forEach(a => { const m = /^--([^=]+)(?:=(.*))?$/.exec(a); if (m) args[m[1]] = m[2] === undefined ? true : m[2]; });
 const TAG = args.tag || "prod_rich", SEC = parseInt(args.sec || "45", 10), SPEED = parseFloat(args.speed || "3");

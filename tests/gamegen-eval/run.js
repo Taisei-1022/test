@@ -10,7 +10,7 @@ const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { chromium } = require('/opt/node22/lib/node_modules/playwright');
-const CASES = require(process.argv.includes('--set=rich') ? './cases_rich.js' : './cases.js'); // --set=rich: 要素を足した設計書
+const SET = (process.argv.find((a) => a.startsWith('--set=')) || '').slice(6); const CASES = require(SET ? './cases_' + SET + '.js' : './cases.js'); // --set=rich / heavy: 別の設計書セット
 
 const args = {};
 process.argv.slice(2).forEach(a => { const m = /^--([^=]+)(?:=(.*))?$/.exec(a); if (m) args[m[1]] = m[2] === undefined ? true : m[2]; });

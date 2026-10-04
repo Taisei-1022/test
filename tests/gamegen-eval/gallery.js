@@ -3,7 +3,7 @@
    - 自動採点は「動くか」しか見ないので、「面白いか・頼んだ通りか」は人が遊んで ○△× を付ける。
    - 評価は端末内に保存し、「評価をコピー」でまとめてコピーできる（チャットに貼って共有する用）。 */
 const fs = require("fs"), path = require("path");
-const CASES = require(process.argv.includes("--set=rich") ? "./cases_rich.js" : "./cases.js"); // --set=rich: 要素を足した設計書
+const SET = (process.argv.find((a) => a.startsWith("--set=")) || "").slice(6); const CASES = require(SET ? "./cases_" + SET + ".js" : "./cases.js"); // --set=rich / heavy: 別の設計書セット
 const args = {};
 process.argv.slice(2).forEach(a => { const m = /^--([^=]+)(?:=(.*))?$/.exec(a); if (m) args[m[1]] = m[2] === undefined ? true : m[2]; });
 const TAG = args.tag; if (!TAG) { console.error("--tag が必要です"); process.exit(1); }
