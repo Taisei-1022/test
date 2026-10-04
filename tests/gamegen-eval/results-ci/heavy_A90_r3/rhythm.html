@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
+<title>ネオンリズムタップ</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E3%83%8D%E3%82%AA%E3%83%B3%E3%83%AA%E3%82%BA%E3%83%A0%E3%82%BF%E3%83%83%E3%83%97%22%2C%22h%22%3A%224%E3%81%A4%E3%81%AE%E3%83%8D%E3%82%AA%E3%83%B3%E3%83%AC%E3%83%BC%E3%83%B3%E3%81%AB%E6%B5%81%E3%82%8C%E3%82%8B%E3%83%8E%E3%83%BC%E3%83%84%E3%82%92%E3%80%81%E5%88%A4%E5%AE%9A%E3%83%A9%E3%82%A4%E3%83%B3%E3%81%AB%E9%87%8D%E3%81%AA%E3%81%A3%E3%81%9F%E7%9E%AC%E9%96%93%E3%81%AB%E3%81%9D%E3%81%AE%E3%83%AC%E3%83%BC%E3%83%B3%E3%82%92%E3%82%BF%E3%83%83%E3%83%97%EF%BC%81%E9%95%B7%E6%8A%BC%E3%81%97%E3%83%8E%E3%83%BC%E3%83%84%E3%81%AF%E6%8A%BC%E3%81%97%E7%B6%9A%E3%81%91%E3%82%88%E3%81%86%E3%80%82PERFECT%E3%81%A7%E3%83%95%E3%82%A3%E3%83%BC%E3%83%90%E3%83%BC%E3%82%B2%E3%83%BC%E3%82%B8%E3%81%8C%E3%81%9F%E3%81%BE%E3%82%8B%E3%80%82%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
+html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
+#vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+/* vpstage＝論理480x720（2:3）の箱。HUD・オーバーレイ・ゲームDOMを全部この中に入れ、
+   箱ごと実画面へ拡縮する（座標系はゲーム内で常に1つ） */
+#vpstage{position:fixed;left:0;top:0;width:480px;height:720px;transform-origin:0 0;z-index:1;overflow:hidden}
+#vpdom{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
+#vpdom *{pointer-events:auto}
+.vp-hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
+.vp-hud span:empty{display:none}
+.vp-ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
+.vp-ov h1{font-size:28px}
+.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:340px;white-space:pre-line}
+.vp-ov .vp-big{font-size:44px;font-weight:900;color:#ffd166}
+.vp-btn{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:17px;box-shadow:0 5px 0 rgba(0,0,0,.25);touch-action:manipulation}
+.vp-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.vp-toast{position:absolute;top:52px;left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+[hidden]{display:none!important}
+</style>
+<style id="vpcss">
+/*__VAPPA_CSS__*/
+
+/*__VAPPA_CSS_END__*/
+</style>
+</head><body>
+<canvas id="vpc"></canvas>
+<div id="vpstage">
+  <div id="vpdom"></div>
+  <div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
+  <div class="vp-toast" id="vptoast"></div>
+  <div class="vp-ov" id="vpov">
+    <h1>ネオンリズムタップ</h1>
+    <p>4つのネオンレーンに流れるノーツを、判定ラインに重なった瞬間にそのレーンをタップ！長押しノーツは押し続けよう。PERFECTでフィーバーゲージがたまる。</p>
+    <button class="vp-btn" id="vpstart">スタート</button>
+  </div>
+</div>
+<script id="vpimgs">
+/* ユーザー素材画像 {名前:dataURL}。中身はビルド後にアプリが注入（AIには名前だけ渡る） */
+window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
+</script>
+<script>
+window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
+var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
+// iOS Safari は fillStyle がグラデーション/パターンのオブジェクトのままだと
+// カラー絵文字を fillText できない（何も描かれない）。生成コードは
+// 「背景をグラデで塗る→そのまま絵文字を描く」形を高頻度で書くため、
+// 絵文字を含む fillText の間だけ fillStyle を単色に退避して確実に描く。
+(function(){
+  var _ft=ctx.fillText;
+  function hasEmo(s){
+    for(var i=0;i<s.length;i++){
+      var c=s.charCodeAt(i);
+      if((c>=0x2100&&c<=0x2BFF)||(c>=0xD800&&c<=0xDFFF)||c===0xFE0F)return true;
+    }
+    return false;
+  }
+  ctx.fillText=function(t,x,y,mw){
+    var s=String(t);
+    if(typeof this.fillStyle!=="string"&&hasEmo(s)){
+      var f=this.fillStyle;this.fillStyle="#000";
+      try{mw===undefined?_ft.call(this,s,x,y):_ft.call(this,s,x,y,mw);}
+      finally{this.fillStyle=f;}
+    }else{
+      mw===undefined?_ft.call(this,s,x,y):_ft.call(this,s,x,y,mw);
+    }
+  };
+})();
+// 論理画面は 480x720（2:3）固定。全端末でこのサイズとして描き、ランタイムが
+// vpstage（HUD・オーバーレイ・ゲームDOMを含む箱）ごと実画面へ拡縮する。
+// ゲームコードは端末差を一切考えなくてよい（入力座標も論理系で届く）。
+var W=480,H=720;
+var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
+(function(){
+"use strict";
+var DPR=Math.min(2,window.devicePixelRatio||1);
+function rs(){
+  var vw=window.innerWidth,vh=window.innerHeight;
+  __SC=Math.min(vw/W,vh/H);
+  __OX=(vw-W*__SC)/2;__OY=(vh-H*__SC)/2;
+  cv.width=vw*DPR;cv.height=vh*DPR;
+  ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
+  ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
+  var st=document.getElementById("vpstage");
+  if(st){st.style.transform="scale("+__SC+")";st.style.left=__OX+"px";st.style.top=__OY+"px";}
+  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
+}
+window.addEventListener("resize",rs);rs();
+// 実画面座標→論理座標（タッチ入力用）
+function toLX(x){return (x-__OX)/__SC;}
+function toLY(y){return (y-__OY)/__SC;}
+var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="点";
+// ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
+var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
+var hud=document.getElementById("vphud"),hl=document.getElementById("vphl"),hr=document.getElementById("vphr");
+var ov=document.getElementById("vpov"),toastEl=document.getElementById("vptoast"),tt=null,last=performance.now();
+window.Game={
+  img:function(n){return IMGS[n]||null;},
+  score:function(n){hl.textContent=(n|0)+unit;},
+  hud:function(t){hr.textContent=t==null?"":String(t);},
+  float:function(x,y,t,c){floats.push({x:x,y:y,t:String(t),c:c||"#fff",age:0});},
+  toast:function(t){toastEl.textContent=t;toastEl.style.opacity=1;clearTimeout(tt);tt=setTimeout(function(){toastEl.style.opacity=0;},2000);},
+  over:function(s){
+    if(!playing||ended)return;ended=true;playing=false;s=Math.max(0,Math.floor(Number(s)||0));
+    ov.innerHTML='<h1>おわり！</h1><div class="vp-big">'+s+'<small style="font-size:20px">'+unit+'</small></div><button class="vp-btn" id="vpagain">もういちど</button>';
+    ov.hidden=false;
+    document.getElementById("vpagain").addEventListener("click",start);
+    try{window.Arcade.gameOver(s);}catch(e){}
+  }
+};
+function crash(e){
+  if(crashed)return;crashed=true;playing=false;
+  try{window.__VP_ERR=String(e&&(e.stack||e.message)||e).slice(0,600);}catch(x){}
+  ov.innerHTML='<h1>😢 エラーが発生</h1><p>ゲームにエラーが起きました。<br>作成チャットで「エラーを直して」と伝えると修理できるよ。</p><button class="vp-btn" id="vpagain">もういちど</button>';
+  ov.hidden=false;
+  document.getElementById("vpagain").addEventListener("click",start);
+}
+function start(){
+  floats=[];ended=false;crashed=false;
+  try{window.init();}catch(e){crash(e);return;}
+  window.Game.score(0);ov.hidden=true;hud.hidden=false;playing=true;last=performance.now();
+}
+document.getElementById("vpstart").addEventListener("click",start);
+function fire(fn,x,y,id){
+  if(!playing||paused)return;
+  if(typeof window[fn]==="function"){try{window[fn](x,y,id);}catch(err){crash(err);}}
+}
+// pointer と touch を両対応（iOSのiframe内などpointerが飛ばない環境へのフォールバック）。
+// pointerが一度でも来たらtouchは無視して二重発火を防ぐ。
+var seenPointer=false;
+window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",toLX(e.clientX),toLY(e.clientY),e.pointerId);fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointermove",function(e){fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointerup",function(e){fire("onUp",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+// タッチの扱い（iOS対策の要点）：
+//  - touchstart は preventDefault しない
+//  - touchmove は非passiveで preventDefault → パン/スクロール横取りはこれで止まる
+//  - touchend はボタン類「以外」でだけ preventDefault → iOSのダブルタップズーム
+//    （touch-action:noneでは止まらない端末がある）を殺しつつ、ボタンの click 合成は守る
+//  - preventDefault すると iOS は click を合成しない → 生成コードが div/span で
+//    自作ボタンを作った場合に全操作不能になる。そこで「タップ」（移動が小さく
+//    短いタッチ）に限り、こちらで click を合成して補う。本物の button 等は
+//    preventDefault しない＝ネイティブ click が来るので合成しない（二重防止）
+//  - pointerイベントが来る環境では発火だけ二重防止（seenPointer）
+function tfire(fn,e){
+  if(seenPointer)return;
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,toLX(t.clientX),toLY(t.clientY),t.identifier);
+    if(fn==="onDown")fire("onMove",toLX(t.clientX),toLY(t.clientY),t.identifier);}
+}
+function uiTouch(e){var t=e.target;return !!(t&&t.closest&&t.closest("button,a,input,select,label"));}
+var tstart={};
+window.addEventListener("touchstart",function(e){
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];tstart[t.identifier]={x:t.clientX,y:t.clientY,at:Date.now()};}
+  tfire("onDown",e);
+},{passive:true});
+window.addEventListener("touchmove",function(e){if(e.cancelable)e.preventDefault();tfire("onMove",e);},{passive:false});
+window.addEventListener("touchend",function(e){
+  var prevented=false;
+  if(e.cancelable&&!uiTouch(e)){e.preventDefault();prevented=true;}
+  if(prevented){
+    for(var i=0;i<e.changedTouches.length;i++){
+      var t=e.changedTouches[i],s=tstart[t.identifier];
+      if(s&&Math.abs(t.clientX-s.x)<14&&Math.abs(t.clientY-s.y)<14&&Date.now()-s.at<1500){
+        var el=document.elementFromPoint(t.clientX,t.clientY)||e.target;
+        if(el){try{el.dispatchEvent(new MouseEvent("click",{bubbles:true,cancelable:true,view:window,clientX:t.clientX,clientY:t.clientY}));}catch(err){}}
+      }
+    }
+  }
+  for(var j=0;j<e.changedTouches.length;j++)delete tstart[e.changedTouches[j].identifier];
+  tfire("onUp",e);
+},{passive:false});
+document.addEventListener("gesturestart",function(e){e.preventDefault();});
+window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",toLX(e.clientX),toLY(e.clientY),0);});
+window.Arcade.onPause(function(){paused=true;});
+window.Arcade.onResume(function(){paused=false;last=performance.now();});
+window.Arcade.onRestart(start);
+document.addEventListener("visibilitychange",function(){if(document.hidden){paused=true;}else{paused=false;last=performance.now();}});
+function loop(now){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(now-last)/1000);last=now;
+  if(crashed)return;
+  if(playing&&!paused){try{window.update(dt);}catch(e){crash(e);return;}}
+  if(playing||ended){try{window.draw();}catch(e){crash(e);return;}}
+  for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.age+=dt;
+    if(f.age>1){floats.splice(i,1);continue;}
+    ctx.save();ctx.globalAlpha=Math.max(0,1-f.age);ctx.font="bold 16px sans-serif";ctx.textAlign="center";
+    ctx.fillStyle=f.c;ctx.fillText(f.t,f.x,f.y-f.age*30);ctx.restore();}
+}
+requestAnimationFrame(loop);
+window.Arcade.ready();
+// 自動テストプレイ用フック：親(アプリ)がスモークテストで入力を一発流すのに使う
+window.__vpTap=function(){
+  fire("onDown",W/2,H/2,1);fire("onMove",W/2+40,H/2,1);fire("onUp",W/2+40,H/2,1);
+};
+})();
+</script>
+<script id="vpgame">
+/*__VAPPA_JS__*/
+var TUNE = {
+  songLen:  { v: 45,   label: '曲の長さ(秒)',       min: 20,  max: 90,  step: 5 },
+  approach: { v: 1.05, label: 'ノーツ落下時間(秒)',  min: 0.6, max: 2.0, step: 0.05 },
+  density:  { v: 1.0,  label: 'ノーツ密度',          min: 0.5, max: 2.0, step: 0.1 },
+  goldRate: { v: 0.12, label: '金ノーツの割合',      min: 0,   max: 0.4, step: 0.02 },
+  holdRate: { v: 0.18, label: '長押しノーツの割合',  min: 0,   max: 0.5, step: 0.02 },
+  lifeMax:  { v: 10,   label: 'ライフ(ミス許容数)',  min: 3,   max: 25,  step: 1 },
+  feverNeed:{ v: 12,   label: 'フィーバー必要数',    min: 4,   max: 30,  step: 1 },
+  feverSec: { v: 10,   label: 'フィーバー秒数',      min: 3,   max: 20,  step: 1 }
+};
+
+var LANE_COLOR = ['#ff3b8d', '#35e0ff', '#ffd166', '#8f6bff'];
+var LANE_RGB = ['255,59,141', '53,224,255', '255,209,102', '143,107,255'];
+var LW = 120;
+var TOP_Y = 96;
+var JUDGE_Y = 570;
+
+var state, songTime, songLen, notes, combo, maxCombo, score, lives;
+var per, great, miss, gauge, feverOn, feverT;
+var laneFlash, lanePress, particles, shake, judgeT, judgeMsg, judgeColor;
+var resultT, ended, resultRank, acc, failed, fingers, actx;
+
+function ensureAudio(){
+  if (!actx){
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) actx = new AC();
+    } catch(e){ actx = null; }
+  }
+  if (actx && actx.state === 'suspended'){ try { actx.resume(); } catch(e){} }
+}
+
+function sfx(freq, dur, type){
+  if (!actx) return;
+  try {
+    var o = actx.createOscillator();
+    var g = actx.createGain();
+    o.type = type || 'triangle';
+    o.frequency.value = freq;
+    var t0 = actx.currentTime;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.10, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(actx.destination);
+    o.start(t0); o.stop(t0 + dur + 0.04);
+  } catch(e){}
+}
+
+function rrect(x, y, w, h, r){
+  if (w < 2*r) r = w/2;
+  if (h < 2*r) r = h/2;
+  if (r < 0) r = 0;
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r);
+  ctx.arcTo(x, y, x+w, y, r);
+  ctx.closePath();
+}
+
+function pickLane(last, now){
+  var cand = [];
+  var i;
+  for (i = 0; i < 4; i++){ if (now - last[i] > 0.30) cand.push(i); }
+  if (cand.length === 0) return Math.floor(Math.random()*4);
+  return cand[Math.floor(Math.random()*cand.length)];
+}
+
+function buildChart(){
+  var list = [];
+  var laneLast = [-9,-9,-9,-9];
+  var total = TUNE.songLen.v;
+  var t = 1.2;
+  var guard = 0;
+  while (t < total - 0.7 && guard < 3000){
+    guard++;
+    var prog = t / total;
+    var bpm = 120 + 45*prog;
+    var beat = 60 / bpm;
+    var p = (0.42 + 0.40*prog) * TUNE.density.v;
+    if (p > 0.93) p = 0.93;
+    if (Math.random() < p){
+      var lane = pickLane(laneLast, t);
+      var rr = Math.random();
+      var type = 'normal';
+      if (rr < TUNE.goldRate.v) type = 'gold';
+      else if (rr < TUNE.goldRate.v + TUNE.holdRate.v && prog > 0.12) type = 'hold';
+      var n = { lane: lane, t: t, type: type, state: 'pending', end: t, heldBy: -1 };
+      if (type === 'hold'){ n.end = t + beat*3; }
+      list.push(n);
+      laneLast[lane] = (type === 'hold') ? n.end : t;
+      if (prog > 0.28 && Math.random() < 0.08 + 0.34*prog){
+        var l2 = pickLane(laneLast, t);
+        if (l2 !== lane){
+          var n2 = { lane: l2, t: t, type: (Math.random() < 0.3 ? 'gold' : 'normal'), state: 'pending', end: t, heldBy: -1 };
+          list.push(n2);
+          laneLast[l2] = t;
+        }
+      }
+    }
+    t += beat * (Math.random() < 0.45 ? 1 : 0.5);
+  }
+  list.sort(function(a, b){ return a.t - b.t; });
+  return list;
+}
+
+function comboMult(){
+  return 1 + Math.min(combo, 100) * 0.01;
+}
+
+function updHud(){
+  if (lives <= 0){ Game.hud(''); return; }
+  if (lives <= 5){
+    var s = '';
+    for (var i = 0; i < lives; i++) s += '❤️';
+    Game.hud(s);
+  } else {
+    Game.hud('❤️×' + lives);
+  }
+}
+
+function showJudge(m, c){ judgeMsg = m; judgeColor = c; judgeT = 0.5; }
+
+function burst(x, y, nm){
+  for (var i = 0; i < nm; i++){
+    var a = Math.random()*Math.PI*2;
+    var sp = 60 + Math.random()*180;
+    particles.push({ x: x, y: y, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp - 70, life: 0.6, max: 0.6, ch: Math.random() < 0.5 ? '✨' : '⭐' });
+  }
+  if (particles.length > 80) particles.splice(0, particles.length - 80);
+}
+
+function addHit(n, isPerf, id){
+  var mult = comboMult();
+  var base;
+  if (isPerf) base = (n.type === 'gold') ? 300 : 100;
+  else base = (n.type === 'gold') ? 150 : 50;
+  var pts = Math.round(base * mult * (feverOn ? 2 : 1));
+  score += pts;
+  Game.score(Math.floor(score));
+  combo++;
+  if (combo > maxCombo) maxCombo = combo;
+  if (isPerf) per++; else great++;
+  var cx = n.lane*LW + LW/2;
+  showJudge(isPerf ? 'PERFECT' : 'GREAT', isPerf ? '#8ff5ff' : '#ffd166');
+  Game.float(cx, JUDGE_Y - 46, '+' + pts, isPerf ? '#8ff5ff' : '#ffd166');
+  if (isPerf) burst(cx, JUDGE_Y - 6, (n.type === 'gold') ? 10 : 6);
+  if (isPerf){
+    gauge++;
+    if (gauge >= TUNE.feverNeed.v && !feverOn){
+      feverOn = true;
+      feverT = TUNE.feverSec.v;
+      gauge = 0;
+      Game.toast('FEVER!! スコア2倍');
+      sfx(1200, 0.18, 'triangle');
+    }
+  }
+  sfx(isPerf ? 1046 : 740, 0.07, 'triangle');
+  laneFlash[n.lane] = 0.4;
+  updHud();
+}
+
+function doMiss(n){
+  if (state !== 'play') return;
+  n.state = 'missed';
+  miss++;
+  combo = 0;
+  gauge = Math.floor(gauge/2);
+  lives--;
+  shake = 0.4;
+  showJudge('MISS', '#ff4d6d');
+  sfx(150, 0.09, 'sawtooth');
+  updHud();
+  if (lives <= 0){ lives = 0; endGame(); }
+}
+
+function holdBreak(n){
+  if (state !== 'play') return;
+  miss++;
+  combo = 0;
+  gauge = Math.floor(gauge/2);
+  lives--;
+  shake = 0.35;
+  showJudge('MISS', '#ff4d6d');
+  sfx(150, 0.09, 'sawtooth');
+  updHud();
+  if (lives <= 0){ lives = 0; endGame(); }
+}
+
+function completeHold(n){
+  if (state !== 'play') return;
+  n.state = 'done';
+  var mult = comboMult();
+  var pts = Math.round(150 * mult * (feverOn ? 2 : 1));
+  score += pts;
+  Game.score(Math.floor(score));
+  per++;
+  combo++;
+  if (combo > maxCombo) maxCombo = combo;
+  var cx = n.lane*LW + LW/2;
+  showJudge('HOLD OK', '#8ff5ff');
+  Game.float(cx, JUDGE_Y - 46, '+' + pts, '#ffd166');
+  burst(cx, JUDGE_Y - 6, 8);
+  sfx(1318, 0.09, 'triangle');
+  laneFlash[n.lane] = 0.4;
+  updHud();
+}
+
+function endGame(){
+  if (state === 'result') return;
+  state = 'result';
+  resultT = 0;
+  failed = (lives <= 0);
+  var total = per + great + miss;
+  acc = total > 0 ? (per + great*0.5) / total : 0;
+  var r;
+  if (acc >= 0.95) r = 'S';
+  else if (acc >= 0.85) r = 'A';
+  else if (acc >= 0.70) r = 'B';
+  else r = 'C';
+  if (failed && r === 'S') r = 'A';
+  resultRank = r;
+  sfx(failed ? 180 : 880, 0.35, 'triangle');
+}
+
+function laneFromX(x){
+  var l = Math.floor(x / LW);
+  if (l < 0) l = 0;
+  if (l > 3) l = 3;
+  return l;
+}
+
+function init(){
+  state = 'play';
+  songTime = 0;
+  songLen = TUNE.songLen.v;
+  combo = 0; maxCombo = 0; score = 0;
+  lives = TUNE.lifeMax.v;
+  per = 0; great = 0; miss = 0;
+  gauge = 0; feverOn = false; feverT = 0;
+  laneFlash = [0,0,0,0];
+  lanePress = [0,0,0,0];
+  particles = [];
+  shake = 0; judgeT = 0; judgeMsg = ''; judgeColor = '#ffffff';
+  resultT = 0; ended = false; resultRank = 'C'; acc = 0; failed = false;
+  fingers = {};
+  notes = buildChart();
+  ensureAudio();
+  updHud();
+  Game.score(0);
+}
+
+function onDown(x, y, id){
+  ensureAudio();
+  var lane = laneFromX(x);
+  fingers[id] = lane;
+  lanePress[lane] = 1;
+  laneFlash[lane] = 0.15;
+  if (state !== 'play') return;
+  var best = null, bd = 9;
+  for (var i = 0; i < notes.length; i++){
+    var n = notes[i];
+    if (n.lane !== lane || n.state !== 'pending') continue;
+    var d = Math.abs(n.t - songTime);
+    if (d < bd){ bd = d; best = n; }
+  }
+  if (!best || bd > 0.10){ sfx(220, 0.03, 'sine'); return; }
+  var isPerf = (bd <= 0.05);
+  if (best.type === 'hold'){
+    best.state = 'holding';
+    best.heldBy = id;
+  } else {
+    best.state = 'done';
+  }
+  addHit(best, isPerf, id);
+}
+
+function onUp(x, y, id){
+  var lane = fingers[id];
+  delete fingers[id];
+  if (lane !== undefined && lane !== null) lanePress[lane] = 0;
+  if (state !== 'play') return;
+  for (var i = 0; i < notes.length; i++){
+    var n = notes[i];
+    if (n.state === 'holding' && n.heldBy === id){
+      if (songTime >= n.end - 0.15) completeHold(n);
+      else { n.state = 'missed'; holdBreak(n); }
+    }
+  }
+}
+
+function update(dt){
+  var i, p, pt;
+  if (shake > 0) shake = Math.max(0, shake - dt*2.5);
+  if (judgeT > 0) judgeT -= dt;
+  for (i = 0; i < 4; i++){ if (laneFlash[i] > 0) laneFlash[i] = Math.max(0, laneFlash[i] - dt*2.2); }
+  for (p = particles.length - 1; p >= 0; p--){
+    pt = particles[p];
+    pt.x += pt.vx*dt; pt.y += pt.vy*dt; pt.vy += 520*dt; pt.life -= dt;
+    if (pt.life <= 0) particles.splice(p, 1);
+  }
+  if (state === 'play'){
+    songTime += dt;
+    if (feverOn){ feverT -= dt; if (feverT <= 0){ feverOn = false; feverT = 0; } }
+    for (i = 0; i < notes.length; i++){
+      var n = notes[i];
+      if (n.state === 'pending' && songTime - n.t > 0.10) doMiss(n);
+      else if (n.state === 'holding' && songTime >= n.end) completeHold(n);
+    }
+    if (state === 'play' && songTime > songLen + 0.8) endGame();
+  } else if (state === 'result'){
+    resultT += dt;
+    if (resultT > 4.5 && !ended){ ended = true; Game.over(Math.floor(score)); }
+  }
+}
+
+function draw(){
+  var i, j, n, p, pt;
+  var hue = (Math.floor(combo/50)*47) % 360;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  var ox = 0, oy = 0;
+  if (shake > 0){ ox = (Math.random()*2-1)*8*shake; oy = (Math.random()*2-1)*8*shake; }
+  ctx.save();
+  ctx.translate(ox, oy);
+
+  ctx.fillStyle = '#06060d';
+  ctx.fillRect(-24, -24, W+48, H+48);
+  var g = ctx.createLinearGradient(0, 56, 0, H);
+  g.addColorStop(0, 'hsl(' + hue + ',65%,13%)');
+  g.addColorStop(0.6, '#08080f');
+  g.addColorStop(1, 'hsl(' + ((hue+40)%360) + ',55%,9%)');
+  ctx.fillStyle = g;
+  ctx.fillRect(-24, 56, W+48, H-56+24);
+
+  if (feverOn){
+    var fg = ctx.createLinearGradient(0, 56, 0, H);
+    fg.addColorStop(0, 'rgba(255,175,40,0.16)');
+    fg.addColorStop(1, 'rgba(255,80,160,0.05)');
+    ctx.fillStyle = fg;
+    ctx.fillRect(0, 56, W, H-56);
+  }
+
+  for (i = 0; i < 4; i++){
+    var a = 0.05 + laneFlash[i]*0.55 + (lanePress[i] ? 0.10 : 0);
+    if (a > 0.7) a = 0.7;
+    ctx.fillStyle = 'rgba(' + LANE_RGB[i] + ',' + a + ')';
+    ctx.fillRect(i*LW + 1, 56, LW - 2, H - 56);
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+  ctx.lineWidth = 2;
+  for (i = 0; i <= 4; i++){
+    ctx.beginPath();
+    ctx.moveTo(i*LW, 56);
+    ctx.lineTo(i*LW, H);
+    ctx.stroke();
+  }
+
+  if (combo >= 5){
+    ctx.save();
+    ctx.font = 'bold 66px sans-serif';
+    ctx.shadowBlur = 26;
+    ctx.shadowColor = feverOn ? '#ffb84d' : '#4fe3ff';
+    ctx.fillStyle = feverOn ? 'rgba(255,226,150,0.92)' : 'rgba(190,240,255,0.82)';
+    ctx.fillText('' + combo, W/2, 300);
+    ctx.shadowBlur = 0;
+    ctx.font = 'bold 20px sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillText('COMBO', W/2, 344);
+    ctx.restore();
+  }
+
+  ctx.save();
+  ctx.shadowBlur = 18;
+  ctx.shadowColor = '#ffffff';
+  ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(0, JUDGE_Y);
+  ctx.lineTo(W, JUDGE_Y);
+  ctx.stroke();
+  ctx.restore();
+
+  for (i = 0; i < 4; i++){
+    var pa = 0.10 + laneFlash[i]*1.1 + (lanePress[i] ? 0.30 : 0);
+    if (pa > 0.85) pa = 0.85;
+    ctx.save();
+    ctx.shadowBlur = lanePress[i] ? 20 : 8;
+    ctx.shadowColor = LANE_COLOR[i];
+    ctx.fillStyle = 'rgba(' + LANE_RGB[i] + ',' + pa + ')';
+    rrect(i*LW + 8, JUDGE_Y + 12, LW - 16, 104, 16);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  var gy = 62, gh = 16, gx = 44, gw = W - 88;
+  ctx.fillStyle = 'rgba(255,255,255,0.09)';
+  rrect(gx, gy, gw, gh, 8);
+  ctx.fill();
+  var frac = feverOn ? Math.max(0, feverT / TUNE.feverSec.v) : Math.min(1, gauge / TUNE.feverNeed.v);
+  if (frac > 0.002){
+    ctx.save();
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = feverOn ? '#ffb84d' : '#38e1ff';
+    ctx.fillStyle = feverOn ? '#ffb84d' : '#38e1ff';
+    rrect(gx, gy, Math.max(8, gw*frac), gh, 8);
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillStyle = feverOn ? 'rgba(20,10,0,0.9)' : 'rgba(255,255,255,0.5)';
+  ctx.fillText(feverOn ? 'FEVER!! 2x' : 'FEVER', W/2, gy + gh/2 + 1);
+
+  var pr = Math.max(0, Math.min(1, songTime / TUNE.songLen.v));
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  ctx.fillRect(44, 88, W-88, 4);
+  ctx.fillStyle = 'rgba(255,255,255,0.45)';
+  ctx.fillRect(44, 88, (W-88)*pr, 4);
+
+  var span = JUDGE_Y - TOP_Y;
+  var app = Math.max(0.2, TUNE.approach.v);
+  for (i = 0; i < notes.length; i++){
+    n = notes[i];
+    if (n.state === 'missed' || n.state === 'done') continue;
+    var cx = n.lane*LW + LW/2;
+    var y = JUDGE_Y - (n.t - songTime)/app*span;
+    if (n.state === 'holding' && y > JUDGE_Y) y = JUDGE_Y;
+    if (y < TOP_Y - 30 || y > H + 40) continue;
+    var col = LANE_COLOR[n.lane];
+    var nw = 96, nh = 22;
+    ctx.save();
+    ctx.shadowBlur = 14;
+    ctx.shadowColor = (n.type === 'gold') ? '#ffd94a' : col;
+    if (n.type === 'hold'){
+      var ey = JUDGE_Y - (n.end - songTime)/app*span;
+      if (ey < TOP_Y - 30) ey = TOP_Y - 30;
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = col;
+      rrect(cx - 13, ey, 26, Math.max(6, y - ey), 13);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    ctx.fillStyle = (n.type === 'gold') ? '#ffdf5c' : col;
+    rrect(cx - nw/2, y - nh/2, nw, nh, 11);
+    ctx.fill();
+    ctx.restore();
+    ctx.font = "15px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(n.type === 'gold' ? '⭐' : (n.type === 'hold' ? '🎶' : '🎵'), cx, y + 1);
+  }
+
+  ctx.font = "16px 'Apple Color Emoji','Noto Color Emoji',sans-serif";
+  for (i = 0; i < particles.length; i++){
+    pt = particles[i];
+    ctx.globalAlpha = Math.max(0, pt.life / pt.max);
+    ctx.fillText(pt.ch, pt.x, pt.y);
+  }
+  ctx.globalAlpha = 1;
+
+  if (judgeT > 0 && state === 'play'){
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, judgeT*2.4);
+    ctx.font = 'bold 32px sans-serif';
+    ctx.shadowBlur = 18;
+    ctx.shadowColor = judgeColor;
+    ctx.fillStyle = judgeColor;
+    ctx.fillText(judgeMsg, W/2, 480);
+    ctx.restore();
+  }
+
+  ctx.restore();
+
+  if (state === 'result'){
+    ctx.fillStyle = 'rgba(4,4,10,0.88)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.save();
+    ctx.shadowBlur = 22;
+    ctx.shadowColor = '#4fe3ff';
+    ctx.fillStyle = '#12122c';
+    rrect(40, 150, W-80, 420, 22);
+    ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(120,220,255,0.5)';
+    ctx.lineWidth = 2;
+    rrect(40, 150, W-80, 420, 22);
+    ctx.stroke();
+
+    ctx.fillStyle = '#9ff0ff';
+    ctx.font = 'bold 26px sans-serif';
+    ctx.fillText('RESULT', W/2, 190);
+
+    var rc = '#ff9aa2';
+    if (resultRank === 'S') rc = '#ffd166';
+    else if (resultRank === 'A') rc = '#7bffb0';
+    else if (resultRank === 'B') rc = '#7bdcff';
+    ctx.save();
+    ctx.font = 'bold 92px sans-serif';
+    ctx.shadowBlur = 26;
+    ctx.shadowColor = rc;
+    ctx.fillStyle = rc;
+    ctx.fillText(resultRank, W/2, 272);
+    ctx.restore();
+
+    ctx.font = 'bold 20px sans-serif';
+    var ly = 348;
+    var rows = [
+      ['PERFECT', '' + per, '#8ff5ff'],
+      ['GREAT', '' + great, '#ffd166'],
+      ['MISS', '' + miss, '#ff7b8f'],
+      ['MAX COMBO', '' + maxCombo, '#ffffff'],
+      ['精度', Math.round(acc*100) + '%', '#c9d8ff']
+    ];
+    for (j = 0; j < rows.length; j++){
+      ctx.textAlign = 'left';
+      ctx.fillStyle = 'rgba(220,235,255,0.75)';
+      ctx.fillText(rows[j][0], 78, ly + j*32);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = rows[j][2];
+      ctx.fillText(rows[j][1], 402, ly + j*32);
+    }
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillStyle = failed ? '#ff9aa2' : 'rgba(255,255,255,0.6)';
+    ctx.fillText(failed ? 'ライフが尽きた…' : '曲が終了しました', W/2, 540);
+  }
+}
+
+/*__VAPPA_JS_END__*/
+</script>
+</body></html>

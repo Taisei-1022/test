@@ -1,1 +1,1 @@
-{"ok":false,"err":"start: {\"error\":\"login_required\"}"}
+{"ok":true,"validateErr":null,"tune":8,"sec":115,"title":"弾幕ボスラッシュ","model":"deepseek-flash（思考: high）","yen":3.11,"diag":["0s instance att=1 hop=0 model=deepseek-flash","113s deepseek-flash/high 113s finish=stop out=31452 think=23783 body=17226ch"]}

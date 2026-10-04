@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,maximum-scale=1">
+<title>忍者パルクール</title>
+<!--VAPPA_TPL1 %7B%22t%22%3A%22%E5%BF%8D%E8%80%85%E3%83%91%E3%83%AB%E3%82%AF%E3%83%BC%E3%83%AB%22%2C%22h%22%3A%22%E3%82%BF%E3%83%83%E3%83%97%E3%81%A7%E3%82%B8%E3%83%A3%E3%83%B3%E3%83%97%EF%BC%81%E7%A9%BA%E4%B8%AD%E3%81%A7%E3%82%82%E3%81%86%E4%B8%80%E5%BA%A6%E3%82%BF%E3%83%83%E3%83%97%E3%81%A72%E6%AE%B5%E3%82%B8%E3%83%A3%E3%83%B3%E3%83%97%E3%80%81%E9%95%B7%E6%8A%BC%E3%81%97%E3%81%A7%E6%BB%91%E7%A9%BA%E3%80%82%E5%B1%8B%E6%A0%B9%E3%81%AE%E7%A9%B4%E3%83%BB%E7%93%A6%E3%83%BB%E4%BE%8D%E3%83%BB%E6%89%8B%E8%A3%8F%E5%89%A3%E3%82%92%E3%82%88%E3%81%91%E3%81%A6%E8%B7%9D%E9%9B%A2%E3%82%92%E4%BC%B8%E3%81%B0%E3%81%9B%E3%80%82%22%2C%22u%22%3A%22%E7%82%B9%22%7D-->
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;touch-action:none}
+html,body{height:100%;overflow:hidden;background:#0f1322;font-family:"Hiragino Maru Gothic ProN",system-ui,sans-serif;color:#fff}
+#vpc{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+/* vpstage＝論理480x720（2:3）の箱。HUD・オーバーレイ・ゲームDOMを全部この中に入れ、
+   箱ごと実画面へ拡縮する（座標系はゲーム内で常に1つ） */
+#vpstage{position:fixed;left:0;top:0;width:480px;height:720px;transform-origin:0 0;z-index:1;overflow:hidden}
+#vpdom{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
+#vpdom *{pointer-events:auto}
+.vp-hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:10px 12px 6px;pointer-events:none;z-index:5;font-weight:800;font-size:15px;text-shadow:0 2px 6px rgba(0,0,0,.6)}
+.vp-hud span{background:rgba(8,12,26,.55);border:1px solid rgba(255,255,255,.13);border-radius:999px;padding:4px 12px}
+.vp-hud span:empty{display:none}
+.vp-ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(7,9,18,.86);text-align:center;padding:26px;z-index:10}
+.vp-ov h1{font-size:28px}
+.vp-ov p{color:#b9c1de;font-size:14.5px;line-height:1.8;max-width:340px;white-space:pre-line}
+.vp-ov .vp-big{font-size:44px;font-weight:900;color:#ffd166}
+.vp-btn{background:#ffd166;color:#3a2a00;border:0;border-radius:14px;padding:.85rem 1.9rem;font:inherit;font-weight:900;font-size:17px;box-shadow:0 5px 0 rgba(0,0,0,.25);touch-action:manipulation}
+.vp-btn:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.25)}
+.vp-toast{position:absolute;top:52px;left:50%;transform:translateX(-50%);background:rgba(18,24,44,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:7px 15px;font-size:13px;font-weight:800;z-index:6;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+[hidden]{display:none!important}
+</style>
+<style id="vpcss">
+/*__VAPPA_CSS__*/
+
+/*__VAPPA_CSS_END__*/
+</style>
+</head><body>
+<canvas id="vpc"></canvas>
+<div id="vpstage">
+  <div id="vpdom"></div>
+  <div class="vp-hud" id="vphud" hidden><span id="vphl">0点</span><span id="vphr"></span></div>
+  <div class="vp-toast" id="vptoast"></div>
+  <div class="vp-ov" id="vpov">
+    <h1>忍者パルクール</h1>
+    <p>タップでジャンプ！空中でもう一度タップで2段ジャンプ、長押しで滑空。屋根の穴・瓦・侍・手裏剣をよけて距離を伸ばせ。</p>
+    <button class="vp-btn" id="vpstart">スタート</button>
+  </div>
+</div>
+<script id="vpimgs">
+/* ユーザー素材画像 {名前:dataURL}。中身はビルド後にアプリが注入（AIには名前だけ渡る） */
+window.__VP_IMGS=/*__VAPPA_IMGS__*/{}/*__VAPPA_IMGS_END__*/;
+</script>
+<script>
+window.Arcade=window.Arcade||{ready:function(){},gameOver:function(){},submitScore:function(){},event:function(){},onPause:function(){},onResume:function(){},onRestart:function(){}};
+var cv=document.getElementById("vpc"),ctx=cv.getContext("2d");
+// iOS Safari は fillStyle がグラデーション/パターンのオブジェクトのままだと
+// カラー絵文字を fillText できない（何も描かれない）。生成コードは
+// 「背景をグラデで塗る→そのまま絵文字を描く」形を高頻度で書くため、
+// 絵文字を含む fillText の間だけ fillStyle を単色に退避して確実に描く。
+(function(){
+  var _ft=ctx.fillText;
+  function hasEmo(s){
+    for(var i=0;i<s.length;i++){
+      var c=s.charCodeAt(i);
+      if((c>=0x2100&&c<=0x2BFF)||(c>=0xD800&&c<=0xDFFF)||c===0xFE0F)return true;
+    }
+    return false;
+  }
+  ctx.fillText=function(t,x,y,mw){
+    var s=String(t);
+    if(typeof this.fillStyle!=="string"&&hasEmo(s)){
+      var f=this.fillStyle;this.fillStyle="#000";
+      try{mw===undefined?_ft.call(this,s,x,y):_ft.call(this,s,x,y,mw);}
+      finally{this.fillStyle=f;}
+    }else{
+      mw===undefined?_ft.call(this,s,x,y):_ft.call(this,s,x,y,mw);
+    }
+  };
+})();
+// 論理画面は 480x720（2:3）固定。全端末でこのサイズとして描き、ランタイムが
+// vpstage（HUD・オーバーレイ・ゲームDOMを含む箱）ごと実画面へ拡縮する。
+// ゲームコードは端末差を一切考えなくてよい（入力座標も論理系で届く）。
+var W=480,H=720;
+var __SC=1,__OX=0,__OY=0;   // 実画面変換：scale と余白オフセット（入力の逆変換にも使う）
+(function(){
+"use strict";
+var DPR=Math.min(2,window.devicePixelRatio||1);
+function rs(){
+  var vw=window.innerWidth,vh=window.innerHeight;
+  __SC=Math.min(vw/W,vh/H);
+  __OX=(vw-W*__SC)/2;__OY=(vh-H*__SC)/2;
+  cv.width=vw*DPR;cv.height=vh*DPR;
+  ctx.setTransform(DPR*__SC,0,0,DPR*__SC,DPR*__OX,DPR*__OY);
+  ctx.beginPath();ctx.rect(0,0,W,H);ctx.clip();   // 論理画面の外（レターボックス帯）には描かせない
+  var st=document.getElementById("vpstage");
+  if(st){st.style.transform="scale("+__SC+")";st.style.left=__OX+"px";st.style.top=__OY+"px";}
+  if(typeof window.onResize==="function"){try{window.onResize();}catch(e){}}
+}
+window.addEventListener("resize",rs);rs();
+// 実画面座標→論理座標（タッチ入力用）
+function toLX(x){return (x-__OX)/__SC;}
+function toLY(y){return (y-__OY)/__SC;}
+var playing=false,paused=false,ended=false,crashed=false,floats=[],unit="点";
+// ユーザー素材画像のプリロード（Game.img(名前) で <img> を返す）
+var IMGS={};(function(){var d=window.__VP_IMGS||{};for(var k in d){var m=new Image();m.src=d[k];IMGS[k]=m;}})();
+var hud=document.getElementById("vphud"),hl=document.getElementById("vphl"),hr=document.getElementById("vphr");
+var ov=document.getElementById("vpov"),toastEl=document.getElementById("vptoast"),tt=null,last=performance.now();
+window.Game={
+  img:function(n){return IMGS[n]||null;},
+  score:function(n){hl.textContent=(n|0)+unit;},
+  hud:function(t){hr.textContent=t==null?"":String(t);},
+  float:function(x,y,t,c){floats.push({x:x,y:y,t:String(t),c:c||"#fff",age:0});},
+  toast:function(t){toastEl.textContent=t;toastEl.style.opacity=1;clearTimeout(tt);tt=setTimeout(function(){toastEl.style.opacity=0;},2000);},
+  over:function(s){
+    if(!playing||ended)return;ended=true;playing=false;s=Math.max(0,Math.floor(Number(s)||0));
+    ov.innerHTML='<h1>おわり！</h1><div class="vp-big">'+s+'<small style="font-size:20px">'+unit+'</small></div><button class="vp-btn" id="vpagain">もういちど</button>';
+    ov.hidden=false;
+    document.getElementById("vpagain").addEventListener("click",start);
+    try{window.Arcade.gameOver(s);}catch(e){}
+  }
+};
+function crash(e){
+  if(crashed)return;crashed=true;playing=false;
+  try{window.__VP_ERR=String(e&&(e.stack||e.message)||e).slice(0,600);}catch(x){}
+  ov.innerHTML='<h1>😢 エラーが発生</h1><p>ゲームにエラーが起きました。<br>作成チャットで「エラーを直して」と伝えると修理できるよ。</p><button class="vp-btn" id="vpagain">もういちど</button>';
+  ov.hidden=false;
+  document.getElementById("vpagain").addEventListener("click",start);
+}
+function start(){
+  floats=[];ended=false;crashed=false;
+  try{window.init();}catch(e){crash(e);return;}
+  window.Game.score(0);ov.hidden=true;hud.hidden=false;playing=true;last=performance.now();
+}
+document.getElementById("vpstart").addEventListener("click",start);
+function fire(fn,x,y,id){
+  if(!playing||paused)return;
+  if(typeof window[fn]==="function"){try{window[fn](x,y,id);}catch(err){crash(err);}}
+}
+// pointer と touch を両対応（iOSのiframe内などpointerが飛ばない環境へのフォールバック）。
+// pointerが一度でも来たらtouchは無視して二重発火を防ぐ。
+var seenPointer=false;
+window.addEventListener("pointerdown",function(e){seenPointer=true;fire("onDown",toLX(e.clientX),toLY(e.clientY),e.pointerId);fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointermove",function(e){fire("onMove",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+window.addEventListener("pointerup",function(e){fire("onUp",toLX(e.clientX),toLY(e.clientY),e.pointerId);});
+// タッチの扱い（iOS対策の要点）：
+//  - touchstart は preventDefault しない
+//  - touchmove は非passiveで preventDefault → パン/スクロール横取りはこれで止まる
+//  - touchend はボタン類「以外」でだけ preventDefault → iOSのダブルタップズーム
+//    （touch-action:noneでは止まらない端末がある）を殺しつつ、ボタンの click 合成は守る
+//  - preventDefault すると iOS は click を合成しない → 生成コードが div/span で
+//    自作ボタンを作った場合に全操作不能になる。そこで「タップ」（移動が小さく
+//    短いタッチ）に限り、こちらで click を合成して補う。本物の button 等は
+//    preventDefault しない＝ネイティブ click が来るので合成しない（二重防止）
+//  - pointerイベントが来る環境では発火だけ二重防止（seenPointer）
+function tfire(fn,e){
+  if(seenPointer)return;
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];fire(fn,toLX(t.clientX),toLY(t.clientY),t.identifier);
+    if(fn==="onDown")fire("onMove",toLX(t.clientX),toLY(t.clientY),t.identifier);}
+}
+function uiTouch(e){var t=e.target;return !!(t&&t.closest&&t.closest("button,a,input,select,label"));}
+var tstart={};
+window.addEventListener("touchstart",function(e){
+  for(var i=0;i<e.changedTouches.length;i++){var t=e.changedTouches[i];tstart[t.identifier]={x:t.clientX,y:t.clientY,at:Date.now()};}
+  tfire("onDown",e);
+},{passive:true});
+window.addEventListener("touchmove",function(e){if(e.cancelable)e.preventDefault();tfire("onMove",e);},{passive:false});
+window.addEventListener("touchend",function(e){
+  var prevented=false;
+  if(e.cancelable&&!uiTouch(e)){e.preventDefault();prevented=true;}
+  if(prevented){
+    for(var i=0;i<e.changedTouches.length;i++){
+      var t=e.changedTouches[i],s=tstart[t.identifier];
+      if(s&&Math.abs(t.clientX-s.x)<14&&Math.abs(t.clientY-s.y)<14&&Date.now()-s.at<1500){
+        var el=document.elementFromPoint(t.clientX,t.clientY)||e.target;
+        if(el){try{el.dispatchEvent(new MouseEvent("click",{bubbles:true,cancelable:true,view:window,clientX:t.clientX,clientY:t.clientY}));}catch(err){}}
+      }
+    }
+  }
+  for(var j=0;j<e.changedTouches.length;j++)delete tstart[e.changedTouches[j].identifier];
+  tfire("onUp",e);
+},{passive:false});
+document.addEventListener("gesturestart",function(e){e.preventDefault();});
+window.addEventListener("mousedown",function(e){if(!seenPointer)fire("onDown",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mousemove",function(e){if(!seenPointer)fire("onMove",toLX(e.clientX),toLY(e.clientY),0);});
+window.addEventListener("mouseup",function(e){if(!seenPointer)fire("onUp",toLX(e.clientX),toLY(e.clientY),0);});
+window.Arcade.onPause(function(){paused=true;});
+window.Arcade.onResume(function(){paused=false;last=performance.now();});
+window.Arcade.onRestart(start);
+document.addEventListener("visibilitychange",function(){if(document.hidden){paused=true;}else{paused=false;last=performance.now();}});
+function loop(now){
+  requestAnimationFrame(loop);
+  var dt=Math.min(0.05,(now-last)/1000);last=now;
+  if(crashed)return;
+  if(playing&&!paused){try{window.update(dt);}catch(e){crash(e);return;}}
+  if(playing||ended){try{window.draw();}catch(e){crash(e);return;}}
+  for(var i=floats.length-1;i>=0;i--){var f=floats[i];f.age+=dt;
+    if(f.age>1){floats.splice(i,1);continue;}
+    ctx.save();ctx.globalAlpha=Math.max(0,1-f.age);ctx.font="bold 16px sans-serif";ctx.textAlign="center";
+    ctx.fillStyle=f.c;ctx.fillText(f.t,f.x,f.y-f.age*30);ctx.restore();}
+}
+requestAnimationFrame(loop);
+window.Arcade.ready();
+// 自動テストプレイ用フック：親(アプリ)がスモークテストで入力を一発流すのに使う
+window.__vpTap=function(){
+  fire("onDown",W/2,H/2,1);fire("onMove",W/2+40,H/2,1);fire("onUp",W/2+40,H/2,1);
+};
+})();
+</script>
+<script id="vpgame">
+/*__VAPPA_JS__*/
+var TUNE = {
+  speed0:    { v: 250,  label: '開始スピード', min: 160, max: 420, step: 10 },
+  speedGain: { v: 0.10, label: '距離ごとの加速', min: 0, max: 0.4, step: 0.01 },
+  speedMax:  { v: 560,  label: '最高スピード', min: 300, max: 900, step: 20 },
+  jump:      { v: 760,  label: 'ジャンプ力', min: 500, max: 1000, step: 20 },
+  gapMax:    { v: 210,  label: '穴の最大幅', min: 100, max: 320, step: 10 },
+  glideFall: { v: 130,  label: '滑空の落下速度', min: 60, max: 320, step: 10 },
+  itemRate:  { v: 0.55, label: 'アイテム出現率', min: 0, max: 1, step: 0.05 },
+  bossEvery: { v: 1000, label: 'ボスの間隔(m)', min: 300, max: 3000, step: 100 }
+};
+var PX = 110, GRAV = 2100, PH = 46, PHW = 13, FALL_Y = 700;
+var worldX, speed, dist, bonus, coinCombo, player, platforms, obs, items, parts;
+var shadowT, boostT, bossT, nextBoss, holding, alive, shake, nightAmt, shuT, genX, tNow;
+
+function emf(px){ ctx.font = px + "px 'Apple Color Emoji','Noto Color Emoji',sans-serif"; }
+function hash01(n){ var x = Math.sin(n*127.1)*43758.5453; return x - Math.floor(x); }
+
+function init(){
+  worldX = 0; speed = TUNE.speed0.v; dist = 0; bonus = 0; coinCombo = 0;
+  player = { y: 560, vy: 0, ground: true, jumps: 0 };
+  platforms = [{ x: -300, w: 1000, y: 560 }];
+  genX = 700;
+  obs = []; items = []; parts = [];
+  shadowT = 0; boostT = 0; bossT = 0; nextBoss = TUNE.bossEvery.v;
+  holding = false; alive = true; shake = 0; nightAmt = 0; shuT = 3.5; tNow = 0;
+  Game.score(0); Game.hud('0m');
+}
+
+function smoke(x, y, n){
+  for (var i = 0; i < n; i++){
+    parts.push({ x: worldX + x + (Math.random()*30-15), y: y - Math.random()*16,
+      vx: (Math.random()-0.5)*90 - 40, vy: (Math.random()-0.85)*90,
+      r: 5 + Math.random()*9, life: 0.5 + Math.random()*0.3, max: 0.8, c: '#efe6d8' });
+  }
+}
+
+function support(){
+  var pxw = worldX + PX;
+  for (var i = 0; i < platforms.length; i++){
+    var p = platforms[i];
+    if (pxw > p.x && pxw < p.x + p.w && Math.abs(player.y - p.y) < 10) return p;
+  }
+  return null;
+}
+
+function addPlatform(){
+  var last = platforms[platforms.length-1];
+  var gap = Math.min(TUNE.gapMax.v, 70 + dist*0.05 + Math.random()*50);
+  var y = last.y + (Math.random()*90 - 45);
+  y = Math.max(480, Math.min(630, y));
+  var w = Math.max(180, 400 - dist*0.12) + Math.random()*110;
+  var x = genX + gap;
+  platforms.push({ x: x, w: w, y: y });
+  var i;
+  if (Math.random() < Math.min(0.8, 0.35 + dist*0.0004)){
+    var ox = x + 80 + Math.random()*Math.max(10, w - 170);
+    if (Math.random() < 0.55) obs.push({ t: 0, x: ox, y: y - 40, w: 44, h: 40 });
+    else obs.push({ t: 1, x: ox, y: y - 58, w: 36, h: 58 });
+  }
+  if (Math.random() < TUNE.itemRate.v){
+    if (Math.random() < 0.16){
+      items.push({ t: 1, x: x + 70 + Math.random()*Math.max(10, w - 140), y: y - 96 });
+    } else {
+      var n = 3 + Math.floor(Math.random()*3);
+      var cx = x + 50 + Math.random()*Math.max(10, w - 110 - n*40);
+      for (i = 0; i < n; i++){
+        items.push({ t: 0, x: cx + i*40, y: y - 78 - Math.sin(i/(n-1)*Math.PI)*40 });
+      }
+    }
+  }
+  if (Math.random() < 0.10 && gap > 60){
+    items.push({ t: 2, x: genX + gap/2, y: Math.min(last.y, y) - 170 });
+  }
+  genX = x + w;
+}
+
+function spawnShuriken(){
+  var sx = worldX + W + 40;
+  var gy = player.ground ? player.y : 560;
+  for (var i = 0; i < platforms.length; i++){
+    var p = platforms[i];
+    if (sx > p.x && sx < p.x + p.w){ gy = p.y; break; }
+  }
+  obs.push({ t: 2, x: sx, y: gy - 30, w: 26, h: 26, vx: -70 });
+}
+
+function hurt(o){
+  if (boostT > 0) return;
+  if (shadowT > 0){
+    shadowT = 0;
+    if (o) o.dead = true;
+    smoke(PX, player.y - 20, 14);
+    if (player.vy < 0) player.vy = 0;
+    player.vy = Math.min(player.vy, -300);
+    player.ground = false; player.jumps = 1;
+    shake = 0.35;
+    Game.toast('📜 影分身で復活！');
+    return;
+  }
+  alive = false; shake = 0.6;
+  Game.over(Math.max(0, Math.floor(dist) + bonus));
+}
+
+function fallDeath(){
+  if (boostT > 0) return;
+  if (shadowT > 0){
+    shadowT = 0;
+    var pxw = worldX + PX, target = null;
+    for (var i = 0; i < platforms.length; i++){
+      if (platforms[i].x + 40 > pxw){ target = platforms[i]; break; }
+    }
+    if (target) worldX = target.x + 90 - PX;
+    player.y = (target ? target.y : 520) - 240;
+    player.vy = 0; player.ground = false; player.jumps = 1;
+    smoke(PX, player.y + 40, 12);
+    shake = 0.35;
+    Game.toast('📜 影分身で復活！');
+    return;
+  }
+  alive = false; shake = 0.6;
+  Game.over(Math.max(0, Math.floor(dist) + bonus));
+}
+
+function endBoost(){
+  var pxw = worldX + PX, target = null;
+  for (var i = 0; i < platforms.length; i++){
+    if (platforms[i].x + 60 > pxw){ target = platforms[i]; break; }
+  }
+  if (target) worldX = target.x + 90 - PX;
+  player.y = (target ? target.y : 560) - 230;
+  player.vy = 0; player.ground = false; player.jumps = 1;
+  smoke(PX, player.y + 40, 12);
+}
+
+function syncHud(){
+  Game.score(Math.max(0, Math.floor(dist) + bonus));
+  if (bossT > 0) Game.hud('👹' + Math.ceil(bossT) + 's');
+  else if (shadowT > 0) Game.hud('📜' + Math.ceil(shadowT) + 's');
+  else Game.hud(Math.floor(dist) + 'm');
+}
+
+function update(dt){
+  if (!alive) return;
+  tNow += dt;
+  var base = Math.min(TUNE.speed0.v + dist*TUNE.speedGain.v, TUNE.speedMax.v);
+  speed = base * (boostT > 0 ? 1.9 : 1);
+  worldX += speed*dt;
+  dist = worldX/12;
+
+  if (shadowT > 0) shadowT = Math.max(0, shadowT - dt);
+  if (shake > 0) shake = Math.max(0, shake - dt);
+  var nt = (Math.floor(dist/500) % 2 === 1) ? 1 : 0;
+  nightAmt += (nt - nightAmt)*Math.min(1, dt*2.5);
+
+  if (bossT > 0){
+    bossT -= dt;
+    if (bossT <= 0){
+      bonus += 300;
+      Game.float(PX + 70, player.y - 150, '+300', '#ffd166');
+      Game.toast('👹 逃げ切った！ +300');
+    }
+  } else if (dist >= nextBoss){
+    nextBoss += TUNE.bossEvery.v;
+    bossT = 10; shake = 0.5;
+    Game.toast('👹 大天狗が迫る！10秒逃げろ！');
+  }
+
+  var prevFeet = player.y;
+  var pxw = worldX + PX, i, o;
+
+  if (boostT > 0){
+    boostT -= dt;
+    player.y = 320 + Math.sin(tNow*9)*10;
+    player.vy = 0; player.ground = false; player.jumps = 2;
+    if (Math.random() < 0.8){
+      parts.push({ x: worldX + PX - 30, y: player.y + 20 + Math.random()*30, vx: -170 - Math.random()*130,
+        vy: 30, r: 4 + Math.random()*8, life: 0.4, max: 0.4, c: '#ffffff' });
+    }
+    if (boostT <= 0) endBoost();
+  } else {
+    if (player.ground){
+      var sup = support();
+      if (!sup){ player.ground = false; player.vy = 0; player.jumps = 1; }
+      else player.y = sup.y;
+    }
+    if (!player.ground){
+      player.vy += GRAV*dt;
+      if (holding && player.vy > TUNE.glideFall.v) player.vy = TUNE.glideFall.v;
+      player.y += player.vy*dt;
+      if (player.vy > 0){
+        for (i = 0; i < platforms.length; i++){
+          var pl = platforms[i];
+          if (pxw > pl.x + 2 && pxw < pl.x + pl.w - 2 && prevFeet <= pl.y + 8 && player.y >= pl.y){
+            player.y = pl.y; player.vy = 0; player.ground = true; player.jumps = 0;
+            smoke(PX, player.y, 4);
+            break;
+          }
+        }
+      }
+    }
+    var ptop = player.y - PH;
+    for (i = obs.length-1; i >= 0; i--){
+      o = obs[i];
+      if (o.vx) o.x += o.vx*dt;
+      if (o.dead) continue;
+      if (Math.abs(o.x - pxw) > o.w/2 + PHW) continue;
+      if (o.t === 2){
+        if (player.y > o.y - 14 && ptop < o.y + 14) hurt(o);
+      } else if (player.y > o.y && ptop < o.y + o.h){
+        if (o.t === 1 && player.vy > 0 && prevFeet <= o.y + 26){
+          o.dead = true; bonus += 20; player.vy = -620; player.jumps = 1;
+          smoke(PX, o.y + 24, 10);
+          Game.float(o.x - worldX, o.y - 6, '+20', '#ffd166');
+        } else hurt(o);
+      }
+      if (o.dead) obs.splice(i, 1);
+      if (!alive) return;
+    }
+    for (i = items.length-1; i >= 0; i--){
+      var it = items[i];
+      var sx = it.x - worldX;
+      if (sx < -60){
+        if (it.t === 0) coinCombo = 0;
+        items.splice(i, 1); continue;
+      }
+      if (Math.abs(it.x - pxw) < 34 && Math.abs(it.y - (player.y - 23)) < 44){
+        if (it.t === 0){
+          coinCombo = Math.min(coinCombo + 1, 30);
+          var v = 4 + coinCombo;
+          bonus += v;
+          Game.float(sx, it.y, '+' + v, '#ffd166');
+        } else if (it.t === 1){
+          shadowT = 5;
+          Game.toast('📜 影分身！ 1回だけ復活');
+          smoke(sx, it.y, 8);
+        } else {
+          boostT = 2.2;
+          player.vy = 0;
+          Game.toast('🪁 凧に乗って大前進！');
+          smoke(sx, it.y, 12);
+        }
+        items.splice(i, 1);
+      }
+    }
+    if (player.y > FALL_Y){ fallDeath(); if (!alive) return; }
+  }
+
+  while (genX < worldX + W + 700) addPlatform();
+  while (platforms.length > 2 && platforms[0].x + platforms[0].w < worldX - 200) platforms.shift();
+  for (i = obs.length-1; i >= 0; i--) if (obs[i].x < worldX - 140) obs.splice(i, 1);
+  for (i = items.length-1; i >= 0; i--) if (items[i].x < worldX - 140) items.splice(i, 1);
+
+  shuT -= dt;
+  if (shuT <= 0 && dist > 120 && boostT <= 0){
+    shuT = Math.max(0.7, 2.3 - dist*0.0007) * (bossT > 0 ? 0.5 : 1) * (0.7 + Math.random()*0.7);
+    spawnShuriken();
+  }
+
+  for (i = parts.length-1; i >= 0; i--){
+    var q = parts[i];
+    q.x += q.vx*dt; q.y += q.vy*dt; q.vy += 60*dt; q.life -= dt;
+    if (q.life <= 0) parts.splice(i, 1);
+  }
+  syncHud();
+}
+
+function drawSky(){
+  var g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#241a4a');
+  g.addColorStop(0.36, '#7b2f5e');
+  g.addColorStop(0.58, '#d75b4a');
+  g.addColorStop(0.76, '#f2a05a');
+  g.addColorStop(1, '#f7c07a');
+  ctx.fillStyle = g;
+  ctx.fillRect(-40, -40, W + 80, H + 80);
+  var sx = 350, sy = 460;
+  var sg = ctx.createRadialGradient(sx, sy, 10, sx, sy, 180);
+  sg.addColorStop(0, 'rgba(255,236,190,0.9)');
+  sg.addColorStop(0.35, 'rgba(255,190,120,0.45)');
+  sg.addColorStop(1, 'rgba(255,160,90,0)');
+  ctx.fillStyle = sg;
+  ctx.beginPath(); ctx.arc(sx, sy, 180, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#ffe7b0';
+  ctx.beginPath(); ctx.arc(sx, sy, 56, 0, Math.PI*2); ctx.fill();
+  for (var i = 0; i < 4; i++){
+    var cx = ((i*190 - worldX*0.06) % (W + 260) + (W + 260)) % (W + 260) - 130;
+    var cy = 120 + i*48;
+    ctx.fillStyle = 'rgba(255,214,178,0.22)';
+    ctx.beginPath(); ctx.arc(cx, cy, 26, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + 28, cy + 6, 19, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx - 26, cy + 8, 16, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+function drawTown(par, sp, base, col, hMin, hMax){
+  var off = ((worldX*par) % sp + sp) % sp;
+  var b = Math.floor(worldX*par/sp);
+  ctx.fillStyle = col;
+  for (var i = -1; i < Math.ceil(W/sp) + 2; i++){
+    var idx = b + i;
+    var x = i*sp - off;
+    var h = hMin + hash01(idx*1.7)*(hMax - hMin);
+    var w = sp*0.72;
+    ctx.fillRect(x, base - h, w, h + 60);
+    ctx.beginPath();
+    ctx.moveTo(x - 10, base - h);
+    ctx.lineTo(x + w/2, base - h - 22);
+    ctx.lineTo(x + w + 10, base - h);
+    ctx.closePath(); ctx.fill();
+  }
+}
+
+function drawBamboo(par, col, base, hgt){
+  var sp = 54;
+  var off = ((worldX*par) % sp + sp) % sp;
+  var b = Math.floor(worldX*par/sp);
+  ctx.strokeStyle = col; ctx.lineWidth = 11; ctx.lineCap = 'round';
+  for (var i = -1; i < Math.ceil(W/sp) + 2; i++){
+    var idx = b + i;
+    var x = i*sp - off;
+    var hh = hgt*(0.72 + hash01(idx*3.3)*0.55);
+    ctx.beginPath();
+    ctx.moveTo(x, base);
+    ctx.lineTo(x + (hash01(idx*5.1)*14 - 7), base - hh);
+    ctx.stroke();
+  }
+  ctx.lineWidth = 1;
+}
+
+function drawCastle(){
+  var par = 0.25, sp = 900;
+  var off = ((worldX*par) % sp + sp) % sp;
+  var b = Math.floor(worldX*par/sp);
+  for (var i = 0; i < 2; i++){
+    var idx = b + i;
+    var x = i*sp - off;
+    if (x > W + 60 || x < -420) continue;
+    var base = 700, w = 260, h = 210;
+    ctx.fillStyle = '#2a1739';
+    ctx.beginPath();
+    ctx.moveTo(x, base);
+    ctx.lineTo(x + w*0.14, base - h*0.45);
+    ctx.lineTo(x + w*0.86, base - h*0.45);
+    ctx.lineTo(x + w, base);
+    ctx.closePath(); ctx.fill();
+    ctx.fillRect(x + w*0.3, base - h*0.82, w*0.4, h*0.37);
+    ctx.beginPath();
+    ctx.moveTo(x + w*0.2, base - h*0.82);
+    ctx.lineTo(x + w*0.5, base - h*1.02);
+    ctx.lineTo(x + w*0.8, base - h*0.82);
+    ctx.closePath(); ctx.fill();
+  }
+}
+
+function drawBack(){
+  var th = dist < 400 ? 0 : (dist < 900 ? 1 : 2);
+  var par = 0.12, sp = 220;
+  var off = ((worldX*par) % sp + sp) % sp;
+  var b = Math.floor(worldX*par/sp);
+  ctx.fillStyle = th === 2 ? '#2c1a44' : '#412451';
+  for (var i = -1; i < 5; i++){
+    var idx = b + i;
+    var x = i*sp - off;
+    var h = 100 + hash01(idx)*90;
+    ctx.beginPath();
+    ctx.moveTo(x - 60, 640);
+    ctx.lineTo(x + sp/2, 640 - h);
+    ctx.lineTo(x + sp + 60, 640);
+    ctx.closePath(); ctx.fill();
+  }
+  if (th === 1){
+    drawBamboo(0.32, '#37472f', 660, 130);
+    drawBamboo(0.6, '#1d2a1c', 706, 100);
+  } else if (th === 2){
+    drawCastle();
+    drawTown(0.3, 150, 706, '#3a2440', 50, 110);
+  } else {
+    drawTown(0.3, 150, 690, '#3a2440', 60, 130);
+    drawTown(0.55, 200, 724, '#241531', 50, 110);
+  }
+}
+
+function drawRoofs(){
+  for (var i = 0; i < platforms.length; i++){
+    var p = platforms[i];
+    var sx = p.x - worldX;
+    if (sx > W + 60 || sx + p.w < -60) continue;
+    ctx.fillStyle = '#241322';
+    ctx.fillRect(sx, p.y + 22, p.w, 90);
+    ctx.fillStyle = '#3a2233';
+    ctx.fillRect(sx, p.y, p.w, 26);
+    ctx.fillStyle = '#6b4a52';
+    ctx.fillRect(sx, p.y - 5, p.w, 6);
+    ctx.strokeStyle = 'rgba(255,220,180,0.16)';
+    ctx.lineWidth = 2;
+    for (var t = 6; t < p.w; t += 22){
+      var tx = sx + t;
+      if (tx < -10 || tx > W + 10) continue;
+      ctx.beginPath(); ctx.moveTo(tx, p.y + 2); ctx.lineTo(tx, p.y + 24); ctx.stroke();
+    }
+  }
+}
+
+function drawItems(){
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (var i = 0; i < items.length; i++){
+    var it = items[i];
+    var x = it.x - worldX;
+    if (x < -50 || x > W + 50) continue;
+    if (it.t === 0){
+      emf(26);
+      ctx.fillText('🪙', x, it.y + Math.sin(tNow*6 + it.x*0.05)*4);
+    } else if (it.t === 1){
+      emf(32);
+      ctx.fillText('📜', x, it.y + Math.sin(tNow*4)*5);
+    } else {
+      emf(40);
+      ctx.fillText('🪁', x, it.y + Math.sin(tNow*3)*8);
+    }
+  }
+}
+
+function drawShuriken(x, y, r){
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(tNow*14);
+  ctx.fillStyle = '#cbd5e1';
+  ctx.beginPath();
+  for (var i = 0; i < 4; i++){
+    var a = i*Math.PI/2;
+    ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(a-0.34)*r, Math.sin(a-0.34)*r);
+    ctx.lineTo(Math.cos(a)*r*1.3, Math.sin(a)*r*1.3);
+    ctx.lineTo(Math.cos(a+0.34)*r, Math.sin(a+0.34)*r);
+    ctx.closePath();
+  }
+  ctx.fill();
+  ctx.fillStyle = '#334155';
+  ctx.beginPath(); ctx.arc(0, 0, r*0.3, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+function drawObs(){
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (var i = 0; i < obs.length; i++){
+    var o = obs[i];
+    var x = o.x - worldX;
+    if (x < -70 || x > W + 70) continue;
+    if (o.t === 0){
+      emf(38); ctx.fillText('🧱', x, o.y + 20);
+    } else if (o.t === 1){
+      emf(48); ctx.fillText('👺', x, o.y + 30);
+    } else {
+      drawShuriken(x, o.y, 15);
+    }
+  }
+}
+
+function drawBoss(){
+  if (bossT <= 0) return;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  var bx = 66 + Math.sin(tNow*4)*10;
+  var by = player.y - 175 + Math.cos(tNow*5.5)*14;
+  emf(96);
+  ctx.fillText('👹', bx, by);
+  var a = 0.16 + 0.10*Math.sin(tNow*8);
+  var g = ctx.createRadialGradient(W/2, H/2, 120, W/2, H/2, 430);
+  g.addColorStop(0, 'rgba(200,20,40,0)');
+  g.addColorStop(1, 'rgba(180,10,30,' + a + ')');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawPlayer(){
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  if (shadowT > 0){
+    ctx.globalAlpha = 0.35;
+    emf(46);
+    ctx.fillText('🥷', PX - 36, player.y - 26 + Math.sin(tNow*14)*4);
+    ctx.globalAlpha = 1;
+  }
+  if (boostT > 0){
+    emf(46);
+    ctx.fillText('🪁', PX, player.y - 96 + Math.sin(tNow*6)*6);
+    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(PX, player.y - 74); ctx.lineTo(PX, player.y - 44); ctx.stroke();
+    ctx.fillText('🥷', PX, player.y - 22);
+  } else {
+    if (holding && !player.ground && player.vy > 50){
+      ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+      ctx.lineWidth = 3;
+      for (var i = 0; i < 3; i++){
+        var yy = player.y - 40 + i*16;
+        ctx.beginPath(); ctx.moveTo(PX - 26 - i*6, yy); ctx.lineTo(PX - 52 - i*10, yy); ctx.stroke();
+      }
+    }
+    var tilt = 0;
+    if (!player.ground) tilt = Math.max(-0.28, Math.min(0.28, player.vy/2600));
+    ctx.save();
+    ctx.translate(PX, player.y - 24);
+    ctx.rotate(tilt);
+    emf(46);
+    ctx.fillText('🥷', 0, 0);
+    ctx.restore();
+  }
+}
+
+function drawParts(){
+  for (var i = 0; i < parts.length; i++){
+    var p = parts[i];
+    var a = Math.max(0, p.life/p.max);
+    ctx.globalAlpha = a*0.85;
+    ctx.fillStyle = p.c;
+    ctx.beginPath();
+    ctx.arc(p.x - worldX, p.y, p.r*(1.5 - a*0.5), 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawNight(){
+  if (nightAmt < 0.02) return;
+  var lx = PX, ly = player.y - 30;
+  var g = ctx.createRadialGradient(lx, ly, 30, lx, ly, 310);
+  g.addColorStop(0, 'rgba(6,8,26,0)');
+  g.addColorStop(0.5, 'rgba(6,8,26,' + (0.45*nightAmt) + ')');
+  g.addColorStop(1, 'rgba(5,7,22,' + (0.9*nightAmt) + ')');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  emf(30);
+  ctx.fillText('🏮', PX - 48, player.y - 60);
+}
+
+function drawBoostFx(){
+  if (boostT <= 0) return;
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 2;
+  for (var i = 0; i < 10; i++){
+    var yy = 70 + i*64;
+    var xx = W - ((tNow*1500 + i*173) % (W + 240));
+    ctx.beginPath(); ctx.moveTo(xx, yy); ctx.lineTo(xx + 80, yy); ctx.stroke();
+  }
+}
+
+function draw(){
+  var sh = shake*10;
+  var ox = sh > 0 ? (Math.random()*2-1)*sh : 0;
+  var oy = sh > 0 ? (Math.random()*2-1)*sh : 0;
+  ctx.save();
+  ctx.translate(ox, oy);
+  drawSky();
+  drawBack();
+  drawRoofs();
+  drawItems();
+  drawObs();
+  drawBoss();
+  drawPlayer();
+  drawParts();
+  ctx.restore();
+  drawNight();
+  drawBoostFx();
+}
+
+function onDown(x, y, id){
+  if (!alive || boostT > 0) return;
+  holding = true;
+  if (player.ground){
+    player.vy = -TUNE.jump.v;
+    player.ground = false;
+    player.jumps = 1;
+    smoke(PX, player.y, 4);
+  } else if (player.jumps < 2){
+    player.vy = -TUNE.jump.v*0.86;
+    player.jumps = 2;
+    smoke(PX, player.y, 12);
+  }
+}
+
+function onUp(x, y, id){ holding = false; }
+function onMove(x, y, id){ }
+function onResize(){ }
+/*__VAPPA_JS_END__*/
+</script>
+</body></html>

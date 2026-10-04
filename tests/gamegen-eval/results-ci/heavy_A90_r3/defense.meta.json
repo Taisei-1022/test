@@ -1,1 +1,1 @@
-{"ok":false,"err":"start: {\"error\":\"login_required\"}"}
+{"ok":true,"validateErr":null,"tune":8,"sec":154,"title":"畑を守れ！タワーディフェンス","model":"deepseek-flash（思考: high）","yen":3.96,"diag":["0s instance att=1 hop=0 model=deepseek-flash","150s deepseek-flash/high 150s finish=stop out=40318 think=29956 body=23612ch"]}

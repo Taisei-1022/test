@@ -1,1 +1,1 @@
-{"ok":false,"err":"start: {\"error\":\"login_required\"}"}
+{"ok":true,"validateErr":null,"tune":8,"sec":160,"title":"回転寿司 店長物語","model":"deepseek-flash（思考: high）","yen":3.95,"diag":["0s instance att=1 hop=0 model=deepseek-flash","153s deepseek-flash/high 153s finish=stop out=40262 think=31818 body=18764ch"]}

@@ -1,1 +1,1 @@
-{"ok":false,"err":"start: {\"error\":\"login_required\"}"}
+{"ok":true,"validateErr":null,"tune":6,"sec":160,"title":"おにぎり職人 落ち物パズル","model":"deepseek-flash（思考: high）","yen":3.89,"diag":["9s instance att=1 hop=0 model=deepseek-flash","163s deepseek-flash/high 153s finish=stop out=39600 think=31399 body=19316ch"]}

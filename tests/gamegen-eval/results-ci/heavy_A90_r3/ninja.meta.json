@@ -1,1 +1,1 @@
-{"ok":false,"err":"start: {\"error\":\"login_required\"}"}
+{"ok":true,"validateErr":null,"tune":8,"sec":154,"title":"忍者パルクール","model":"deepseek-flash（思考: high）","yen":3.8,"diag":["0s instance att=1 hop=0 model=deepseek-flash","152s deepseek-flash/high 152s finish=stop out=38681 think=30427 body=19208ch"]}

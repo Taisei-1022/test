@@ -1,1 +1,1 @@
-{"ok":false,"err":"start: {\"error\":\"login_required\"}"}
+{"ok":true,"validateErr":null,"tune":8,"sec":160,"title":"ブロック崩しDX","model":"deepseek-flash（思考: high）","yen":4.72,"diag":["0s instance att=1 hop=0 model=deepseek-flash","158s deepseek-flash/high 158s finish=stop out=48280 think=26586 body=49883ch"]}
